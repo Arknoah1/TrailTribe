@@ -354,7 +354,7 @@ export default function Admin() {
                             </div>
 
                             {parents.length > 0 && (
-                              <div className="mt-2 space-y-0.5">
+                              <div className="mt-2 space-y-1">
                                 {parents.map((p: any) => (
                                   <div key={p.id} className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                                     <span className="font-medium text-foreground">{p.firstName} {p.lastName}</span>
@@ -364,7 +364,28 @@ export default function Admin() {
                                     {p.phone && (
                                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{p.phone}</span>
                                     )}
-                                    <Badge variant="outline" className="text-xs capitalize">{p.role}</Badge>
+                                    <button
+                                      onClick={async () => {
+                                        const newRole = p.role === "coach" ? "parent" : "coach";
+                                        const res = await fetch(`${BASE_URL}/api/users/${p.id}/role`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ role: newRole }),
+                                        });
+                                        if (res.ok) {
+                                          toast({ title: `${p.firstName} is now a ${newRole}` });
+                                          fetchRoster();
+                                        }
+                                      }}
+                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+                                        p.role === "coach"
+                                          ? "bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                                          : "bg-muted text-muted-foreground border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                      }`}
+                                      title={p.role === "coach" ? "Click to remove coach role" : "Click to make coach"}
+                                    >
+                                      {p.role === "coach" ? "Coach ✕" : "Parent → Coach?"}
+                                    </button>
                                   </div>
                                 ))}
                               </div>
