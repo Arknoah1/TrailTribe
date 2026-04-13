@@ -5,21 +5,52 @@ import {
   householdsTable,
   inviteLinksTable,
 } from "@workspace/db";
-import { eq, and, ilike, or, isNull, ne } from "drizzle-orm";
+import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
+import { createClerkClient } from "@clerk/express";
 
 const router = Router();
 
 router.get("/users/me", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
-  const user = await db.query.usersTable.findFirst({
+  let user = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
   });
+
   if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
+    // Auto-provision: fetch identity from Clerk and create DB record
+    try {
+      const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+      const clerkUser = await clerkClient.users.getUser(clerkUserId);
+      const email = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailtribe.app`;
+      const firstName = clerkUser.firstName ?? "New";
+      const lastName = clerkUser.lastName ?? "User";
+
+      // Check if an existing record already has this email (from a pre-seeded invite)
+      const existing = await db.query.usersTable.findFirst({
+        where: eq(usersTable.email, email),
+      });
+      if (existing) {
+        [user] = await db.update(usersTable)
+          .set({ clerkUserId })
+          .where(eq(usersTable.id, existing.id))
+          .returning();
+      } else {
+        [user] = await db.insert(usersTable).values({
+          clerkUserId,
+          firstName,
+          lastName,
+          email,
+          role: "parent",
+        }).returning();
+      }
+    } catch (err) {
+      res.status(404).json({ error: "User not found and could not be auto-created" });
+      return;
+    }
   }
+
   res.json(user);
 });
 
