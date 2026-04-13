@@ -1,20 +1,18 @@
-import { useGetDashboardSummary, useGetUpcomingEvents } from "@workspace/api-client-react";
+import { useGetUpcomingEvents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { MapPin, Users, CalendarDays, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { MapPin, CalendarDays, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Dashboard() {
-  const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary();
   const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
 
-  if (isLoadingSummary || isLoadingEvents) {
+  if (isLoadingEvents) {
     return <div className="p-8 space-y-4 animate-pulse">
       <div className="h-8 bg-muted rounded w-1/4"></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="h-32 bg-muted rounded"></div>
-        <div className="h-32 bg-muted rounded"></div>
-        <div className="h-32 bg-muted rounded"></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="h-40 bg-muted rounded"></div>
+        <div className="h-40 bg-muted rounded"></div>
       </div>
     </div>;
   }
@@ -25,38 +23,6 @@ export default function Dashboard() {
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-1">What's happening this week.</p>
       </div>
-
-      {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Team Size</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.totalStudents} Students</div>
-              <p className="text-xs text-muted-foreground mt-1">{summary.totalFamilies} Families</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Compliance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.complianceStats?.fullyCompliantCount || 0} / {summary.complianceStats?.totalHouseholds || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">Fully Compliant</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.upcomingEventCount} Events</div>
-              <p className="text-xs text-muted-foreground mt-1">Scheduled soon</p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <div>
         <div className="flex items-center justify-between mb-4">
