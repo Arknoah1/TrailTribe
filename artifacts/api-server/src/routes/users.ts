@@ -106,6 +106,18 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
   res.json({ household, user: updated });
 });
 
+router.patch("/users/:id/pod", requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { podId } = req.body;
+  const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  const [updated] = await db.update(usersTable)
+    .set({ podId: podId ?? null })
+    .where(eq(usersTable.id, id))
+    .returning();
+  res.json(updated);
+});
+
 router.patch("/users/:id/role", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   const { role } = req.body;

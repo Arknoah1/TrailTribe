@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +199,59 @@ export default function Admin() {
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
 
+  // Pod management state
+  const [newPodName, setNewPodName] = useState("");
+  const [creatingPod, setCreatingPod] = useState(false);
+  const [editingPodId, setEditingPodId] = useState<number | null>(null);
+  const [editingPodName, setEditingPodName] = useState("");
+  const [localRiderPods, setLocalRiderPods] = useState<Record<number, string>>({});
+
+  const createPod = async () => {
+    if (!newPodName.trim()) return;
+    setCreatingPod(true);
+    const res = await fetch(`${BASE_URL}/api/pods`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newPodName.trim() }),
+    });
+    if (res.ok) {
+      toast({ title: `Pod "${newPodName.trim()}" created` });
+      setNewPodName("");
+      queryClient.invalidateQueries({ queryKey: ["/api/pods"] });
+    }
+    setCreatingPod(false);
+  };
+
+  const renamePod = async (id: number) => {
+    if (!editingPodName.trim()) return;
+    const res = await fetch(`${BASE_URL}/api/pods/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editingPodName.trim() }),
+    });
+    if (res.ok) {
+      toast({ title: "Pod renamed" });
+      setEditingPodId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/pods"] });
+    }
+  };
+
+  const assignRiderPod = async (riderId: number, podId: string) => {
+    setLocalRiderPods(prev => ({ ...prev, [riderId]: podId }));
+    const res = await fetch(`${BASE_URL}/api/users/${riderId}/pod`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ podId: podId === "none" ? null : podId }),
+    });
+    if (res.ok) {
+      toast({ title: "Pod updated" });
+      fetchRoster();
+    } else {
+      setLocalRiderPods(prev => { const n = { ...prev }; delete n[riderId]; return n; });
+      toast({ title: "Failed to update pod", variant: "destructive" });
+    }
+  };
+
   const fetchTeamDocs = async () => {
     const res = await fetch(`${BASE_URL}/api/team-documents`);
     if (res.ok) setTeamDocs(await res.json());
@@ -364,19 +417,24 @@ export default function Admin() {
                           <tr className="border-b border-border">
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Gr.</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Pod</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Family</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Parent Contact</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {riders.length === 0 ? (
-                            <tr><td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">No riders found</td></tr>
+                            <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">No riders found</td></tr>
                           ) : riders.map((m: any) => {
                             const parents = (m.household.members || []).filter((p: any) => p.role === "parent" || p.role === "coach");
+                            const pod = pods?.find((p: any) => String(p.id) === String(m.podId));
                             return (
                               <tr key={m.id} className="hover:bg-muted/30 transition-colors">
                                 <td className="px-4 py-2.5 font-medium">{m.firstName} {m.lastName}</td>
                                 <td className="px-4 py-2.5 text-muted-foreground">{m.grade ? `Gr ${m.grade}` : "—"}</td>
+                                <td className="px-4 py-2.5 hidden sm:table-cell">
+                                  {pod ? <Badge variant="secondary" className="text-xs font-normal">{pod.name}</Badge> : <span className="text-muted-foreground text-xs">—</span>}
+                                </td>
                                 <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{m.householdName}</td>
                                 <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">
                                   <div className="space-y-0.5">
@@ -638,15 +696,120 @@ export default function Admin() {
           </div>
         </TabsContent>
 
-        <TabsContent value="pods" className="mt-6">
+        <TabsContent value="pods" className="mt-6 space-y-6">
+          {/* Pod list + create */}
           <Card>
             <CardHeader>
-              <CardTitle>Pod Management</CardTitle>
+              <CardTitle>Pods</CardTitle>
+              <CardDescription>Sub-groups for organizing riders by level or practice group.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Pod management features coming soon.</p>
+            <CardContent className="space-y-3">
+              {!pods || pods.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No pods yet. Create one below.</p>
+              ) : (
+                <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                  {pods.map((pod: any) => (
+                    <div key={pod.id} className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
+                      {editingPodId === pod.id ? (
+                        <>
+                          <Input
+                            value={editingPodName}
+                            onChange={(e) => setEditingPodName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") renamePod(pod.id); if (e.key === "Escape") setEditingPodId(null); }}
+                            className="h-8 text-sm"
+                            autoFocus
+                          />
+                          <Button size="sm" onClick={() => renamePod(pod.id)}>Save</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditingPodId(null)}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 font-medium text-sm">{pod.name}</span>
+                          <span className="text-xs text-muted-foreground">{pod.studentCount ?? 0} riders</span>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setEditingPodId(pod.id); setEditingPodName(pod.name); }}>Rename</Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 pt-2">
+                <Input
+                  placeholder="New pod name..."
+                  value={newPodName}
+                  onChange={(e) => setNewPodName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") createPod(); }}
+                  className="h-9"
+                />
+                <Button size="sm" onClick={createPod} disabled={creatingPod || !newPodName.trim()}>
+                  <Plus className="h-4 w-4 mr-1" /> Create
+                </Button>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Rider → Pod assignment */}
+          {(() => {
+            const allRiders = roster
+              .flatMap((h: any) =>
+                (h.members || [])
+                  .filter((m: any) => m.role === "student")
+                  .map((m: any) => ({ ...m, householdName: h.name }))
+              )
+              .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assign Riders to Pods</CardTitle>
+                  <CardDescription>{allRiders.length} riders total</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Rider</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Gr.</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Family</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Pod</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {allRiders.length === 0 ? (
+                          <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No riders yet</td></tr>
+                        ) : allRiders.map((r: any) => {
+                          const currentPodId = localRiderPods[r.id] !== undefined ? localRiderPods[r.id] : (r.podId ?? "none");
+                          return (
+                            <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-2.5 font-medium">{r.firstName} {r.lastName}</td>
+                              <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{r.grade ? `Gr ${r.grade}` : "—"}</td>
+                              <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">{r.householdName}</td>
+                              <td className="px-4 py-2.5">
+                                <Select
+                                  value={currentPodId}
+                                  onValueChange={(val) => assignRiderPod(r.id, val)}
+                                >
+                                  <SelectTrigger className="h-8 w-40 text-xs">
+                                    <SelectValue placeholder="Assign pod..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">— Unassigned —</SelectItem>
+                                    {pods?.map((pod: any) => (
+                                      <SelectItem key={pod.id} value={String(pod.id)}>{pod.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="trailheads" className="mt-6">
