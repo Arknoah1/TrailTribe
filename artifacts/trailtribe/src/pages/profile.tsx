@@ -533,6 +533,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
       {(() => {
         const adults = (household as any).members?.filter((m: any) => m.role !== "student") ?? [];
         return (
+          <>
           <Card>
             <CardHeader className="flex flex-row items-start justify-between space-y-0">
               <div>
@@ -589,6 +590,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
               </div>
             </DialogContent>
           </Dialog>
+          </>
         );
       })()}
 
