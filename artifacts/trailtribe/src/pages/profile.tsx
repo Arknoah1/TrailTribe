@@ -40,7 +40,7 @@ const householdSchema = z.object({
 const riderSchema = z.object({
   firstName: z.string().min(1, "Required"),
   lastName: z.string().min(1, "Required"),
-  grade: z.coerce.number().int().min(6).max(12).optional(),
+  grade: z.coerce.number().int().min(5).max(12).optional(),
   allergies: z.string().optional(),
   medicalNotes: z.string().optional(),
 });
@@ -112,8 +112,8 @@ function RiderDialog({
         </div>
         <FormField control={form.control} name="grade" render={({ field }) => (
           <FormItem>
-            <FormLabel>Grade (6–12)</FormLabel>
-            <FormControl><Input type="number" min={6} max={12} {...field} value={field.value ?? ""} /></FormControl>
+            <FormLabel>Grade (5–12)</FormLabel>
+            <FormControl><Input type="number" min={5} max={12} {...field} value={field.value ?? ""} /></FormControl>
             <FormMessage />
           </FormItem>
         )} />
