@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -197,6 +197,7 @@ export default function Admin() {
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
   const [roster, setRoster] = useState<any[]>([]);
   const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterView, setRosterView] = useState<"family" | "individual">("family");
 
   const fetchTeamDocs = async () => {
     const res = await fetch(`${BASE_URL}/api/team-documents`);
@@ -296,12 +297,32 @@ export default function Admin() {
               <h2 className="text-lg font-semibold">Team Roster</h2>
               <p className="text-sm text-muted-foreground">{roster.length} {roster.length === 1 ? "family" : "families"} registered</p>
             </div>
-            <Input
-              placeholder="Search families or riders..."
-              value={rosterSearch}
-              onChange={(e) => setRosterSearch(e.target.value)}
-              className="sm:w-64"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search families or riders..."
+                value={rosterSearch}
+                onChange={(e) => setRosterSearch(e.target.value)}
+                className="sm:w-60"
+              />
+              <div className="flex items-center border border-border rounded-md overflow-hidden shrink-0">
+                <button
+                  onClick={() => setRosterView("family")}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${rosterView === "family" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  title="By Family"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span className="hidden sm:inline">Family</span>
+                </button>
+                <button
+                  onClick={() => setRosterView("individual")}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm transition-colors ${rosterView === "individual" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  title="By Rider / Coach"
+                >
+                  <LayoutList className="h-4 w-4" />
+                  <span className="hidden sm:inline">Riders</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {roster.length === 0 ? (
@@ -311,7 +332,118 @@ export default function Admin() {
                 No families registered yet.
               </CardContent>
             </Card>
-          ) : (
+          ) : rosterView === "individual" ? (() => {
+            const q = rosterSearch.trim().toLowerCase();
+            const allMembers = roster.flatMap((h: any) =>
+              (h.members || []).map((m: any) => ({ ...m, householdName: h.name, household: h }))
+            );
+            const filtered = allMembers.filter((m: any) =>
+              !q ||
+              `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+              m.email?.toLowerCase().includes(q) ||
+              m.householdName?.toLowerCase().includes(q)
+            );
+            const riders = filtered
+              .filter((m: any) => m.role === "student")
+              .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
+            const coaches = filtered
+              .filter((m: any) => m.role === "coach" || m.role === "parent")
+              .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
+
+            return (
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Bike className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Riders ({riders.length})</h3>
+                  </div>
+                  <Card>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Gr.</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Family</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Parent Contact</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {riders.length === 0 ? (
+                            <tr><td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">No riders found</td></tr>
+                          ) : riders.map((m: any) => {
+                            const parents = (m.household.members || []).filter((p: any) => p.role === "parent" || p.role === "coach");
+                            return (
+                              <tr key={m.id} className="hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-2.5 font-medium">{m.firstName} {m.lastName}</td>
+                                <td className="px-4 py-2.5 text-muted-foreground">{m.grade ? `Gr ${m.grade}` : "—"}</td>
+                                <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{m.householdName}</td>
+                                <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">
+                                  <div className="space-y-0.5">
+                                    {parents.map((p: any) => (
+                                      <div key={p.id} className="text-xs">
+                                        <span className="text-foreground">{p.firstName}</span>
+                                        {p.email && !p.email.includes("@trailtribe") && <span> · {p.email}</span>}
+                                        {p.phone && <span> · {p.phone}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Parents &amp; Coaches ({coaches.length})</h3>
+                  </div>
+                  <Card>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Role</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Family</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Contact</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {coaches.length === 0 ? (
+                            <tr><td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">No adults found</td></tr>
+                          ) : coaches.map((m: any) => (
+                            <tr key={m.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-4 py-2.5 font-medium">{m.firstName} {m.lastName}</td>
+                              <td className="px-4 py-2.5">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                  m.role === "coach"
+                                    ? "bg-primary/10 text-primary border-primary/30"
+                                    : "bg-muted text-muted-foreground border-border"
+                                }`}>{m.role === "coach" ? "Coach" : "Parent"}</span>
+                              </td>
+                              <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{m.householdName}</td>
+                              <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">
+                                <div className="text-xs space-y-0.5">
+                                  {m.email && !m.email.includes("@trailtribe") && <div className="flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" />{m.email}</div>}
+                                  {m.phone && <div className="flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" />{m.phone}</div>}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            );
+          })() : (
             <div className="space-y-3">
               {roster
                 .filter(h => {
