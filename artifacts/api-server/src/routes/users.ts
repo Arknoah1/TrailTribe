@@ -106,6 +106,22 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
   res.json({ household, user: updated });
 });
 
+router.patch("/users/me/role", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const { role } = req.body;
+  if (!["parent", "coach"].includes(role)) {
+    res.status(400).json({ error: "Role must be 'parent' or 'coach'" });
+    return;
+  }
+  const user = await getOrCreateUser(clerkUserId);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  const [updated] = await db.update(usersTable)
+    .set({ role })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  res.json(updated);
+});
+
 router.put("/users/me", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const user = await db.query.usersTable.findFirst({

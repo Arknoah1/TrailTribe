@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Mountain } from "lucide-react";
 import { format } from "date-fns";
 
 const profileSchema = z.object({
@@ -175,8 +175,26 @@ const joinSchema = z.object({
 
 function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: () => void }) {
   const { toast } = useToast();
-  const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
+  const [mode, setMode] = useState<"role" | "choose" | "create" | "join" | "coach-pending">("role");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSelectCoach = async () => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/users/me/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "coach" }),
+      });
+      if (!res.ok) {
+        toast({ title: "Something went wrong. Try again.", variant: "destructive" });
+        return;
+      }
+      setMode("coach-pending");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const createForm = useForm<z.infer<typeof createHouseholdSchema>>({
     resolver: zodResolver(createHouseholdSchema),
@@ -227,6 +245,59 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
       setIsSubmitting(false);
     }
   };
+
+  if (mode === "role") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+          <Mountain className="h-12 w-12 text-primary mb-4" />
+          <h3 className="text-xl font-semibold">Welcome to TrailTribe!</h3>
+          <p className="text-muted-foreground max-w-sm mt-2 text-sm">
+            What's your role on the team?
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 w-full max-w-sm">
+            <Button
+              size="lg"
+              className="h-24 flex-col gap-2"
+              onClick={() => setMode("choose")}
+            >
+              <Users className="h-6 w-6" />
+              <span className="font-semibold">Team Parent</span>
+              <span className="text-xs font-normal opacity-80">I have a rider on the team</span>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-24 flex-col gap-2"
+              onClick={handleSelectCoach}
+              disabled={isSubmitting}
+            >
+              <Bike className="h-6 w-6" />
+              <span className="font-semibold">Team Coach</span>
+              <span className="text-xs font-normal opacity-80">I coach or staff the team</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (mode === "coach-pending") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+          <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
+          <h3 className="text-xl font-semibold">You're in the queue!</h3>
+          <p className="text-muted-foreground max-w-sm mt-2 text-sm">
+            Your coach account has been submitted. A head coach will review and approve your access — usually within a day.
+          </p>
+          <p className="text-xs text-muted-foreground mt-4">
+            You'll be notified by email once you're approved.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (mode === "create") {
     return (
@@ -309,6 +380,9 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
   return (
     <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={() => setMode("role")} className="text-muted-foreground">
+        ← Back
+      </Button>
       <Card>
         <CardContent className="flex flex-col items-center justify-center p-10 text-center">
           <Home className="h-12 w-12 text-muted-foreground mb-4 opacity-40" />
@@ -784,6 +858,22 @@ export default function Profile() {
         <TabsContent value="family" className="mt-6">
           {user?.householdId ? (
             <MyFamilyTab householdId={user.householdId} />
+          ) : user?.role === "coach" ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mb-4" />
+                <h3 className="text-xl font-semibold">Coach account submitted</h3>
+                <p className="text-muted-foreground max-w-sm mt-2 text-sm">
+                  Your account is pending review by a head coach. You'll receive an email once approved and will have full access to the team hub.
+                </p>
+                <p className="text-xs text-muted-foreground mt-4">
+                  If you have kids on the team, you can also{" "}
+                  <button className="text-primary underline" onClick={() => queryClient.setQueryData(getGetMeQueryKey(), (old: any) => ({ ...old, role: "parent" }))}>
+                    set up a family household
+                  </button>.
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
           )}
