@@ -122,9 +122,20 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
 router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
   const householdId = parseInt(req.params.id);
   const riderId = parseInt(req.params.riderId);
-  const { firstName, lastName, grade, allergies, medications, medicalNotes } = req.body;
+  const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications } = req.body;
+
+  const updates: Record<string, any> = {
+    firstName, lastName,
+    grade: grade ?? null,
+    allergies: allergies ?? null,
+    medications: medications ?? null,
+    medicalNotes: medicalNotes ?? null,
+  };
+  if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
+  if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+
   const [updated] = await db.update(usersTable)
-    .set({ firstName, lastName, grade: grade ?? null, allergies: allergies ?? null, medications: medications ?? null, medicalNotes: medicalNotes ?? null })
+    .set(updates)
     .where(and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId)))
     .returning();
   if (!updated) { res.status(404).json({ error: "Rider not found" }); return; }

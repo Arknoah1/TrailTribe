@@ -43,6 +43,8 @@ const riderSchema = z.object({
   grade: z.coerce.number().int().min(5).max(12).optional(),
   allergies: z.string().optional(),
   medicalNotes: z.string().optional(),
+  email: z.string().email("Enter a valid email").optional().or(z.literal("")),
+  emailNotifications: z.boolean().optional(),
 });
 
 type RiderFormValues = z.infer<typeof riderSchema>;
@@ -56,11 +58,12 @@ function RiderDialog({
   onSaved,
 }: {
   householdId: number;
-  rider?: { id: number; firstName: string; lastName: string; grade?: number | null; allergies?: string | null; medicalNotes?: string | null };
+  rider?: { id: number; firstName: string; lastName: string; grade?: number | null; allergies?: string | null; medicalNotes?: string | null; email?: string | null; emailNotifications?: boolean | null };
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const riderEmail = rider?.email?.endsWith("@trailtribe.internal") ? "" : (rider?.email ?? "");
   const form = useForm<RiderFormValues>({
     resolver: zodResolver(riderSchema),
     defaultValues: {
@@ -69,6 +72,8 @@ function RiderDialog({
       grade: rider?.grade ?? undefined,
       allergies: rider?.allergies ?? "",
       medicalNotes: rider?.medicalNotes ?? "",
+      email: riderEmail,
+      emailNotifications: rider?.emailNotifications ?? false,
     },
   });
 
@@ -129,6 +134,27 @@ function RiderDialog({
             <FormControl><Input placeholder="e.g. carries EpiPen" {...field} /></FormControl>
           </FormItem>
         )} />
+        <div className="border-t pt-4 space-y-3">
+          <FormField control={form.control} name="email" render={({ field }) => (
+            <FormItem>
+              <FormLabel>Rider Email <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+              <FormControl><Input type="email" placeholder="rider@example.com" {...field} /></FormControl>
+              <FormDescription className="text-xs">If provided, the rider will receive their own team notifications.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="emailNotifications" render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <FormLabel className="text-sm font-medium">Email Notifications</FormLabel>
+                <FormDescription className="text-xs">Send team updates to this rider's email.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )} />
+        </div>
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Saving..." : rider ? "Save Changes" : "Add Rider"}
         </Button>
@@ -471,9 +497,12 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
                 <div key={rider.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                   <div>
                     <div className="font-medium">{rider.firstName} {rider.lastName}</div>
-                    <div className="text-sm text-muted-foreground flex gap-3 mt-0.5">
+                    <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-0.5">
                       {rider.grade && <span>Grade {rider.grade}</span>}
                       {rider.allergies && <span className="text-amber-600 dark:text-amber-500">⚠ {rider.allergies}</span>}
+                      {rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                        <span className="text-xs text-primary/70">{rider.email}</span>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -498,6 +527,43 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Family Members */}
+      {(() => {
+        const adults = (household as any).members?.filter((m: any) => m.role !== "student") ?? [];
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
+              <CardDescription>Adults who have access to this household.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {adults.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No members yet.</p>
+              ) : (
+                adults.map((m: any) => (
+                  <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium flex items-center gap-2">
+                        {m.firstName} {m.lastName}
+                        {m.role === "coach" && <Badge variant="secondary" className="text-xs">Coach</Badge>}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
+                        {m.email && !m.email.endsWith("@trailtribe.internal") ? m.email : ""}
+                        {m.phone && <span className="ml-2">{m.phone}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
+                      {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Compliance */}
       <Card>
