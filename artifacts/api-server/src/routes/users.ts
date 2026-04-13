@@ -51,6 +51,7 @@ router.get("/users/me", requireAuth, async (req, res) => {
     }
   }
 
+  res.setHeader("Cache-Control", "no-store");
   res.json(user);
 });
 

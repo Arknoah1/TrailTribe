@@ -1,9 +1,10 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Calendar, Car, MessageSquare, User as UserIcon } from "lucide-react";
+import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useGetMe } from "@workspace/api-client-react";
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/carpools", label: "Carpools", icon: Car },
@@ -11,8 +12,21 @@ const navItems = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
+const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { data: me } = useGetMe();
+
+  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const navItems = isCoachOrAdmin
+    ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
+    : baseNavItems;
+
+  // Mobile shows all items; desktop sidebar shows all
+  const mobileItems = isCoachOrAdmin
+    ? [baseNavItems[0], baseNavItems[1], baseNavItems[2], adminNavItem, baseNavItems[4]]
+    : baseNavItems;
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background">
@@ -20,19 +34,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
         <div className="p-6">
           <h1 className="text-2xl font-bold text-foreground">TrailTribe</h1>
+          {isCoachOrAdmin && (
+            <span className="text-xs text-primary font-semibold uppercase tracking-wider mt-0.5 block">
+              Coach View
+            </span>
+          )}
         </div>
-        <nav className="flex-1 space-y-2 p-4">
+        <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.startsWith(item.href);
+            const isActive = location === item.href || location.startsWith(item.href + "/");
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-primary/10 text-primary" 
+                  isActive
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
               >
@@ -51,22 +70,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Mobile Bottom Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-card flex justify-around p-2 z-50">
-        {navItems.map((item) => {
+        {mobileItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.startsWith(item.href);
+          const isActive = location === item.href || location.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 text-xs font-medium transition-colors min-w-[64px]",
-                isActive 
-                  ? "text-primary" 
+                "flex flex-col items-center gap-1 p-2 text-xs font-medium transition-colors min-w-0 flex-1",
+                isActive
+                  ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon className="h-5 w-5" />
-              {item.label}
+              <span className="truncate">{item.label}</span>
             </Link>
           );
         })}
