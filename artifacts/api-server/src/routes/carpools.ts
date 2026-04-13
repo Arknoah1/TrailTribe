@@ -82,10 +82,13 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
     res.status(401).json({ error: "User not found" });
     return;
   }
-  const { needsSeat, needsBikeTray, notes } = req.body;
+  const { needsSeat, needsBikeTray, notes, riderUserId: riderUserIdBody } = req.body;
+  // Accept an explicit riderUserId (for claiming on behalf of a student),
+  // otherwise fall back to the logged-in parent
+  const riderUserId = riderUserIdBody ?? me.id;
   const [claim] = await db.insert(carpoolClaimsTable).values({
     carpoolOfferId: offerId,
-    riderUserId: me.id,
+    riderUserId,
     needsSeat: needsSeat ?? true,
     needsBikeTray: needsBikeTray ?? false,
     notes: notes ?? null,

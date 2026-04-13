@@ -1,26 +1,55 @@
-import { useListEventCarpools, useCreateCarpoolOffer, useClaimCarpool, useCancelCarpoolClaim, getListEventCarpoolsQueryKey } from "@workspace/api-client-react";
+import { useListEventCarpools, useCreateCarpoolOffer, useClaimCarpool, useCancelCarpoolClaim, getListEventCarpoolsQueryKey, useGetMe } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Car, MapPin, Clock, Users, Plus, Check } from "lucide-react";
+import { ChevronLeft, Car, MapPin, Clock, Plus, Bike } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+
+interface Rider {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
 
 export default function CarpoolBoard() {
   const params = useParams();
   const eventId = parseInt(params.eventId || "0");
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [isOfferOpen, setIsOfferOpen] = useState(false);
 
+  const { data: me } = useGetMe();
   const { data: offers, isLoading } = useListEventCarpools(eventId, {
     query: { enabled: !!eventId, queryKey: getListEventCarpoolsQueryKey(eventId) }
   });
+
+  const [isOfferOpen, setIsOfferOpen] = useState(false);
+  const [riders, setRiders] = useState<Rider[]>([]);
+
+  // Claim dialog state (only used when household has 2+ riders)
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [claimingOffer, setClaimingOffer] = useState<any>(null);
+  const [claimNeedsTray, setClaimNeedsTray] = useState(false);
+  const [selectedRiderIds, setSelectedRiderIds] = useState<Set<number>>(new Set());
+  const [isClaiming, setIsClaiming] = useState(false);
+
+  // Fetch household riders once we know the user
+  useEffect(() => {
+    if (!me?.householdId) return;
+    fetch(`${BASE_URL}/api/households/${me.householdId}/riders`)
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setRiders(data);
+      })
+      .catch(() => {});
+  }, [me?.householdId]);
 
   const createOffer = useCreateCarpoolOffer({
     mutation: {
@@ -33,15 +62,55 @@ export default function CarpoolBoard() {
     }
   });
 
-  const claimSeat = useClaimCarpool({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Seat claimed!" });
-        queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
-      },
-      onError: () => toast({ title: "Failed to claim seat", variant: "destructive" })
+  const handleClaimClick = (offer: any, needsTray: boolean) => {
+    if (riders.length === 0) {
+      // No students in household — claim as self (parent)
+      claimForRiders(offer.id, [null], needsTray);
+    } else if (riders.length === 1) {
+      // Single student — claim automatically
+      claimForRiders(offer.id, [riders[0].id], needsTray);
+    } else {
+      // Multiple students — open picker dialog
+      setClaimingOffer(offer);
+      setClaimNeedsTray(needsTray);
+      setSelectedRiderIds(new Set());
+      setClaimDialogOpen(true);
     }
-  });
+  };
+
+  const claimForRiders = async (offerId: number, riderIds: (number | null)[], needsTray: boolean) => {
+    setIsClaiming(true);
+    let successCount = 0;
+    for (const riderId of riderIds) {
+      const body: any = { needsSeat: true, needsBikeTray: needsTray };
+      if (riderId !== null) body.riderUserId = riderId;
+      try {
+        const res = await fetch(`${BASE_URL}/api/carpools/${offerId}/claims`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) successCount++;
+      } catch {}
+    }
+    setIsClaiming(false);
+    if (successCount > 0) {
+      toast({ title: successCount === 1 ? "Seat claimed!" : `${successCount} seats claimed!` });
+      queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+      setClaimDialogOpen(false);
+    } else {
+      toast({ title: "Failed to claim seat", variant: "destructive" });
+    }
+  };
+
+  const toggleRider = (id: number) => {
+    setSelectedRiderIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   if (isLoading) return <div className="p-8 text-center">Loading carpools...</div>;
 
@@ -105,6 +174,40 @@ export default function CarpoolBoard() {
         </Dialog>
       </div>
 
+      {/* Rider picker dialog (2+ students only) */}
+      <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Who needs a {claimNeedsTray ? "seat + tray" : "seat"}?</DialogTitle>
+            <DialogDescription>Select the rider(s) you're claiming for.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {riders.map(rider => (
+              <label
+                key={rider.id}
+                className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedRiderIds.has(rider.id)}
+                  onChange={() => toggleRider(rider.id)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="font-medium">{rider.firstName} {rider.lastName}</span>
+                <Bike className="h-4 w-4 text-muted-foreground ml-auto" />
+              </label>
+            ))}
+          </div>
+          <Button
+            className="w-full"
+            disabled={selectedRiderIds.size === 0 || isClaiming}
+            onClick={() => claimForRiders(claimingOffer?.id, Array.from(selectedRiderIds), claimNeedsTray)}
+          >
+            {isClaiming ? "Claiming..." : `Claim for ${selectedRiderIds.size} rider${selectedRiderIds.size !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogContent>
+      </Dialog>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {offers && offers.length > 0 ? (
           offers.map(offer => (
@@ -147,11 +250,11 @@ export default function CarpoolBoard() {
                     )}
                   </div>
                 )}
-                
+
                 {offer.claims && offer.claims.length > 0 && (
                   <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Riders</h4>
-                    {offer.claims.map(claim => (
+                    {offer.claims.map((claim: any) => (
                       <div key={claim.id} className="flex justify-between items-center text-sm">
                         <span className="font-medium">{claim.rider?.firstName} {claim.rider?.lastName}</span>
                         <div className="flex gap-1">
@@ -164,19 +267,19 @@ export default function CarpoolBoard() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
-                    disabled={offer.seatsRemaining <= 0 || claimSeat.isPending}
-                    onClick={() => claimSeat.mutate({ offerId: offer.id, data: { needsSeat: true, needsBikeTray: false } })}
+                    disabled={offer.seatsRemaining <= 0 || isClaiming}
+                    onClick={() => handleClaimClick(offer, false)}
                   >
                     Claim Seat
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
-                    disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || claimSeat.isPending}
-                    onClick={() => claimSeat.mutate({ offerId: offer.id, data: { needsSeat: true, needsBikeTray: true } })}
+                    disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || isClaiming}
+                    onClick={() => handleClaimClick(offer, true)}
                   >
                     Seat + Tray
                   </Button>
