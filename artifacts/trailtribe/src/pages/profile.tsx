@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -345,6 +345,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   const [riderDialogOpen, setRiderDialogOpen] = useState(false);
   const [editingRider, setEditingRider] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
 
   useEffect(() => {
@@ -533,9 +534,14 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
         const adults = (household as any).members?.filter((m: any) => m.role !== "student") ?? [];
         return (
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
-              <CardDescription>Adults who have access to this household.</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <div>
+                <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
+                <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
+                <Plus className="h-4 w-4 mr-1.5" /> Add Parent
+              </Button>
             </CardHeader>
             <CardContent className="space-y-2">
               {adults.length === 0 ? (
@@ -562,6 +568,27 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
               )}
             </CardContent>
           </Card>
+
+          {/* Invite dialog */}
+          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</DialogTitle>
+                <DialogDescription>Share this link so another parent can join your household and see the same events and notifications.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 pt-1">
+                <div className="flex gap-2">
+                  <Input value={inviteUrl} readOnly className="font-mono text-xs bg-muted" />
+                  <Button variant="outline" size="icon" onClick={copyInvite} className="shrink-0">
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Code: <span className="font-mono font-medium">{household.inviteCode}</span>
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
         );
       })()}
 
@@ -610,24 +637,6 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
         </CardContent>
       </Card>
 
-      {/* Invite link */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</CardTitle>
-          <CardDescription>Share this link so another parent can join your household and see the same events and notifications.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input value={inviteUrl} readOnly className="font-mono text-xs bg-muted" />
-            <Button variant="outline" size="icon" onClick={copyInvite} className="shrink-0">
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Code: <span className="font-mono font-medium">{household.inviteCode}</span>
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 }
