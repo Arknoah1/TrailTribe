@@ -161,34 +161,40 @@ export default function EventDetail() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Logistics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Link href={`/carpools/${event.id}`}>
-                <Button variant="outline" className="w-full justify-between group">
-                  <div className="flex items-center">
-                    <Car className="h-4 w-4 mr-2 text-muted-foreground" />
-                    Carpools
-                  </div>
-                  <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                    {event.carpoolSpotsAvailable > 0 ? `${event.carpoolSpotsAvailable} spots` : 'View'}
-                  </span>
-                </Button>
-              </Link>
-              
-              <Button variant="outline" className="w-full justify-between group">
-                <div className="flex items-center">
-                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                  Volunteers
-                </div>
-                <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full font-medium">
-                  {event.volunteerCount} signed up
-                </span>
-              </Button>
-            </CardContent>
-          </Card>
+          {["practice", "race", "social"].includes(event.eventType) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Logistics</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {["practice", "race"].includes(event.eventType) && (
+                  <Link href={`/carpools/${event.id}`}>
+                    <Button variant="outline" className="w-full justify-between group">
+                      <div className="flex items-center">
+                        <Car className="h-4 w-4 mr-2 text-muted-foreground" />
+                        Carpools
+                      </div>
+                      <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        {event.carpoolSpotsAvailable > 0 ? `${event.carpoolSpotsAvailable} spots` : 'View'}
+                      </span>
+                    </Button>
+                  </Link>
+                )}
+
+                {["race", "social"].includes(event.eventType) && (
+                  <Button variant="outline" className="w-full justify-between group">
+                    <div className="flex items-center">
+                      <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                      Volunteers
+                    </div>
+                    <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full font-medium">
+                      {event.volunteerCount} signed up
+                    </span>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

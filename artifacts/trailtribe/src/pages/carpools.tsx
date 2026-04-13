@@ -70,12 +70,12 @@ export default function CarpoolBoard() {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               createOffer.mutate({
+                id: eventId,
                 data: {
-                  eventId,
                   availableSeats: Number(formData.get("seats")),
                   bikeTrayCount: Number(formData.get("trays")),
-                  departureLocation: formData.get("location") as string,
-                  departureTime: formData.get("time") as string,
+                  departureLocation: formData.get("location") as string || undefined,
+                  departureTime: formData.get("time") as string || undefined,
                 }
               });
             }} className="space-y-4">
