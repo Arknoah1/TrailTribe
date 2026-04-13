@@ -304,6 +304,8 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   );
 }
 
+interface TeamDoc { type: string; viewUrl: string | null; }
+
 function MyFamilyTab({ householdId }: { householdId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -317,6 +319,14 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   const [riderDialogOpen, setRiderDialogOpen] = useState(false);
   const [editingRider, setEditingRider] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
+  const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/team-documents`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setTeamDocs)
+      .catch(() => {});
+  }, []);
 
   const fetchRiders = async () => {
     const res = await fetch(`${BASE_URL}/api/households/${householdId}/riders`);
@@ -376,10 +386,12 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   if (isLoading) return <div className="p-4 text-center text-muted-foreground">Loading family info...</div>;
   if (!household) return <div className="p-4 text-center text-destructive">Could not load household.</div>;
 
+  const docUrlByType = Object.fromEntries(teamDocs.map(d => [d.type, d.viewUrl]));
+
   const complianceDocs = [
-    { key: "liabilityWaiverSigned" as const, label: "Liability Waiver", date: household.liabilityWaiverSignedAt },
-    { key: "mediaReleaseSigned" as const, label: "Media Release", date: household.mediaReleaseSignedAt },
-    { key: "codeOfConductSigned" as const, label: "Code of Conduct", date: household.codeOfConductSignedAt },
+    { key: "liabilityWaiverSigned" as const, label: "Liability Waiver", date: household.liabilityWaiverSignedAt, docType: "liability_waiver" },
+    { key: "mediaReleaseSigned" as const, label: "Media Release", date: household.mediaReleaseSignedAt, docType: "media_release" },
+    { key: "codeOfConductSigned" as const, label: "Code of Conduct", date: household.codeOfConductSignedAt, docType: "code_of_conduct" },
   ];
 
   return (
@@ -494,26 +506,41 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
           <CardDescription>Required forms for participation. Check each once signed.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {complianceDocs.map(({ key, label, date }) => (
-            <div key={key} className="flex items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <div className="font-medium flex items-center gap-2">
-                  {household[key] && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                  {label}
+          {complianceDocs.map(({ key, label, date, docType }) => {
+            const viewUrl = docUrlByType[docType];
+            return (
+              <div key={key} className="rounded-lg border p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="font-medium flex items-center gap-2">
+                      {household[key] && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                      {label}
+                    </div>
+                    {date && (
+                      <p className="text-xs text-muted-foreground">
+                        Signed {format(new Date(date), "MMM d, yyyy")}
+                      </p>
+                    )}
+                  </div>
+                  <Switch
+                    checked={household[key]}
+                    onCheckedChange={(val) => toggleCompliance(key, val)}
+                    disabled={updateCompliance.isPending}
+                  />
                 </div>
-                {date && (
-                  <p className="text-xs text-muted-foreground">
-                    Signed {format(new Date(date), "MMM d, yyyy")}
-                  </p>
+                {viewUrl && (
+                  <a
+                    href={viewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  >
+                    <Link2 className="h-3 w-3" /> View document before signing
+                  </a>
                 )}
               </div>
-              <Switch
-                checked={household[key]}
-                onCheckedChange={(val) => toggleCompliance(key, val)}
-                disabled={updateCompliance.isPending}
-              />
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

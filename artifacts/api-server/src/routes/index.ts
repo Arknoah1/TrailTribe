@@ -10,6 +10,7 @@ import messagesRouter from "./messages";
 import invitesRouter from "./invites";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
+import teamDocumentsRouter from "./team-documents";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(trailheadsRouter);
 router.use(messagesRouter);
 router.use(invitesRouter);
 router.use(storageRouter);
+router.use(teamDocumentsRouter);
 
 export default router;
