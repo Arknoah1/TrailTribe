@@ -1,0 +1,56 @@
+Project Goal: Build a full-stack, mobile-responsive web app for a high school mountain bike team to manage rosters, schedules, and carpools while eliminating notification fatigue and simplifying trailhead navigation.
+
+1. Tech Stack & Aesthetic
+Stack: React (Frontend), Node.js (Backend), PostgreSQL (Database).
+
+Design: Mobile-first, Tailwind CSS.
+
+Aesthetic: "Rugged Outdoor" dark-mode theme (Slate Grays, Forest Greens, Burnt Orange accents).
+
+2. The Five Primary Views
+Calendar View:
+
+Display Practices, Races, and Socials.
+
+Features: Participant RSVP (Attending/Not), Volunteer Sign-up, and clickable Google Maps links for locations.
+
+Google Calendar Sync: Generate a unique iCal (.ics) feed URL per Pod. Users can subscribe to this URL in Google/Apple Calendar for automatic syncing.
+
+Roster View:
+
+Grouped by Household (Family Unit) and Pod.
+
+Display: Student details (Age, Gender, Pod), Coach details (Cert Level 1-3, Contact Info), and Parent info.
+
+Compliance: Checklist for Liability Waiver, Media Release, and Code of Conduct with timestamps.
+
+Messaging Hub:
+
+Interface for Coaches to send Emails/Push Notifications to specific Pods or the whole team.
+
+De-duplication Engine: If a user is a Coach AND a Parent, they must only receive ONE notification per broadcast.
+
+Carpool View:
+
+Event-specific sign-ups. Drivers list Available Seats AND Bike Tray Count. Riders claim a seat, a tray, or both.
+
+Admin Dashboard:
+
+Manage Unique Invite Links (onboarding families).
+
+Manage Trailhead Library (Saved GPS/Google Maps locations).
+
+Survey Module: Embed Google Forms URLs that users can "Mark as Completed."
+
+Season Archive: Function to move active data to an archives table for historical research.
+
+3. Critical Specialized Logic
+Unique Invite Links: Permanent links that automatically associate new signups with the correct Household and Pod.
+
+Trailhead Library: A database of saved locations. Events pull from this to provide one-tap navigation via Google Maps URLs.
+
+Medical Info: Basic text fields for Allergies/Medications (Restricted to Coaches/Admins).
+
+Offline Access: Use Service Workers to cache the current week’s calendar and emergency contacts for use at trailheads with no cell service.
+
+Integrations: Use environment variable placeholders for Twilio (SMS) and SMTP (Email).
