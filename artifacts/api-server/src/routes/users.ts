@@ -214,16 +214,26 @@ router.patch("/users/:id", requireAuth, async (req, res) => {
 });
 
 router.get("/pending-approvals", requireAuth, async (req, res) => {
+  // Exclude student riders — they belong to households and don't go through the approval flow
   const pending = await db.select().from(usersTable)
-    .where(isNull(usersTable.podId));
+    .where(and(isNull(usersTable.podId), eq(usersTable.role, "parent")));
   res.json(pending);
 });
 
 router.post("/pending-approvals/:id/approve", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   const { podId, householdId, role } = req.body;
+
+  // Fetch the existing user so we can preserve householdId if not supplied
+  const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  if (!existing) { res.status(404).json({ error: "User not found" }); return; }
+
   const [updated] = await db.update(usersTable)
-    .set({ podId, householdId: householdId ?? null, role })
+    .set({
+      podId,
+      role,
+      householdId: householdId !== undefined ? householdId : existing.householdId,
+    })
     .where(eq(usersTable.id, id))
     .returning();
   res.json(updated);
