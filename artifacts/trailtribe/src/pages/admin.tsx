@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2 } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -195,13 +195,20 @@ export default function Admin() {
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
+  const [roster, setRoster] = useState<any[]>([]);
+  const [rosterSearch, setRosterSearch] = useState("");
 
   const fetchTeamDocs = async () => {
     const res = await fetch(`${BASE_URL}/api/team-documents`);
     if (res.ok) setTeamDocs(await res.json());
   };
 
-  useEffect(() => { fetchTeamDocs(); }, []);
+  const fetchRoster = async () => {
+    const res = await fetch(`${BASE_URL}/api/households`);
+    if (res.ok) setRoster(await res.json());
+  };
+
+  useEffect(() => { fetchTeamDocs(); fetchRoster(); }, []);
 
   const handleApprove = (userId: number, role: "coach" | "parent" | "student") => {
     const podId = selectedPods[userId];
@@ -273,13 +280,135 @@ export default function Admin() {
         </div>
       )}
 
-      <Tabs defaultValue="approvals">
-        <TabsList>
+      <Tabs defaultValue="roster">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="roster">Roster</TabsTrigger>
           <TabsTrigger value="approvals">Pending Approvals</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="pods">Pods</TabsTrigger>
           <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="roster" className="mt-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Team Roster</h2>
+              <p className="text-sm text-muted-foreground">{roster.length} {roster.length === 1 ? "family" : "families"} registered</p>
+            </div>
+            <Input
+              placeholder="Search families or riders..."
+              value={rosterSearch}
+              onChange={(e) => setRosterSearch(e.target.value)}
+              className="sm:w-64"
+            />
+          </div>
+
+          {roster.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <Users className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                No families registered yet.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {roster
+                .filter(h => {
+                  if (!rosterSearch.trim()) return true;
+                  const q = rosterSearch.toLowerCase();
+                  return (
+                    h.name?.toLowerCase().includes(q) ||
+                    h.members?.some((m: any) =>
+                      `${m.firstName} ${m.lastName}`.toLowerCase().includes(q) ||
+                      m.email?.toLowerCase().includes(q)
+                    )
+                  );
+                })
+                .map((household: any) => {
+                  const parents = (household.members || []).filter((m: any) => m.role === "parent" || m.role === "coach");
+                  const riders = (household.members || []).filter((m: any) => m.role === "student");
+                  const isCompliant =
+                    household.liabilityWaiverSigned &&
+                    household.mediaReleaseSigned &&
+                    household.codeOfConductSigned;
+                  const pod = pods?.find((p: any) => p.id.toString() === household.podId);
+
+                  return (
+                    <Card key={household.id}>
+                      <CardContent className="p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-base">{household.name}</h3>
+                              {pod && <Badge variant="secondary" className="text-xs">{pod.name}</Badge>}
+                              {isCompliant ? (
+                                <Badge className="text-xs bg-green-600/20 text-green-600 border-green-600/30 hover:bg-green-600/20">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Compliant
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-600/40">
+                                  <XCircle className="h-3 w-3 mr-1" /> Docs pending
+                                </Badge>
+                              )}
+                            </div>
+
+                            {parents.length > 0 && (
+                              <div className="mt-2 space-y-0.5">
+                                {parents.map((p: any) => (
+                                  <div key={p.id} className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                                    <span className="font-medium text-foreground">{p.firstName} {p.lastName}</span>
+                                    {p.email && !p.email.includes("@trailtribe") && (
+                                      <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{p.email}</span>
+                                    )}
+                                    {p.phone && (
+                                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{p.phone}</span>
+                                    )}
+                                    <Badge variant="outline" className="text-xs capitalize">{p.role}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {riders.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {riders.map((r: any) => (
+                                  <div key={r.id} className="flex items-center gap-1.5 text-sm bg-muted rounded-full px-3 py-1">
+                                    <Bike className="h-3 w-3 text-muted-foreground" />
+                                    <span>{r.firstName} {r.lastName}</span>
+                                    {r.grade && <span className="text-muted-foreground text-xs">· Gr {r.grade}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {riders.length === 0 && (
+                              <p className="mt-2 text-xs text-muted-foreground italic">No riders added yet</p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 grid grid-cols-3 gap-1 text-center min-w-[140px]">
+                            {[
+                              { label: "Waiver", done: household.liabilityWaiverSigned },
+                              { label: "Media", done: household.mediaReleaseSigned },
+                              { label: "Conduct", done: household.codeOfConductSigned },
+                            ].map(({ label, done }) => (
+                              <div key={label} className="flex flex-col items-center gap-0.5">
+                                {done
+                                  ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                  : <XCircle className="h-4 w-4 text-muted-foreground/40" />
+                                }
+                                <span className="text-[10px] text-muted-foreground">{label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="approvals" className="mt-6">
           <Card>
