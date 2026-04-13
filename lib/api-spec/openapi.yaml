@@ -3,20 +3,42 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TrailTribe team management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User management
+  - name: households
+    description: Household management
+  - name: pods
+    description: Pod management
+  - name: events
+    description: Event management
+  - name: rsvps
+    description: RSVP management
+  - name: carpools
+    description: Carpool management
+  - name: trailheads
+    description: Trailhead library
+  - name: messages
+    description: Messaging/broadcasts
+  - name: invites
+    description: Invite links
+  - name: storage
+    description: File storage
+  - name: dashboard
+    description: Dashboard summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +46,983 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── DASHBOARD ───────────────────────────────────────────────────────────────
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get team dashboard summary (counts, upcoming events, compliance stats)
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/upcoming-events:
+    get:
+      operationId: getUpcomingEvents
+      tags: [dashboard]
+      summary: Get upcoming events for the current user (this week + next)
+      responses:
+        "200":
+          description: List of upcoming events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventWithDetails"
+
+  # ─── USERS ───────────────────────────────────────────────────────────────────
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current authenticated user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateMe
+      tags: [users]
+      summary: Update current user profile and notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin/coach only)
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, coach, parent, student]
+        - name: podId
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/onboard:
+    post:
+      operationId: onboardUser
+      tags: [users]
+      summary: Complete onboarding - create/link user after Clerk auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardUserBody"
+      responses:
+        "201":
+          description: User created or linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ─── HOUSEHOLDS ──────────────────────────────────────────────────────────────
+
+  /households:
+    get:
+      operationId: listHouseholds
+      tags: [households]
+      summary: List households (admin/coach only)
+      responses:
+        "200":
+          description: List of households with members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HouseholdWithMembers"
+    post:
+      operationId: createHousehold
+      tags: [households]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHouseholdBody"
+      responses:
+        "201":
+          description: Created household
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Household"
+
+  /households/{id}:
+    get:
+      operationId: getHousehold
+      tags: [households]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Household with members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdWithMembers"
+    patch:
+      operationId: updateHousehold
+      tags: [households]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHouseholdBody"
+      responses:
+        "200":
+          description: Updated household
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Household"
+
+  /households/{id}/compliance:
+    patch:
+      operationId: updateHouseholdCompliance
+      tags: [households]
+      summary: Mark compliance docs as signed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateComplianceBody"
+      responses:
+        "200":
+          description: Updated household
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Household"
+
+  # ─── PODS ────────────────────────────────────────────────────────────────────
+
+  /pods:
+    get:
+      operationId: listPods
+      tags: [pods]
+      summary: List all pods
+      responses:
+        "200":
+          description: List of pods with member counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PodWithStats"
+    post:
+      operationId: createPod
+      tags: [pods]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePodBody"
+      responses:
+        "201":
+          description: Created pod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pod"
+
+  /pods/{id}:
+    get:
+      operationId: getPod
+      tags: [pods]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pod with members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PodWithMembers"
+    patch:
+      operationId: updatePod
+      tags: [pods]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePodBody"
+      responses:
+        "200":
+          description: Updated pod
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pod"
+
+  # ─── EVENTS ──────────────────────────────────────────────────────────────────
+
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List events
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: eventType
+          in: query
+          schema:
+            type: string
+            enum: [practice, race, social, volunteer, other]
+        - name: podId
+          in: query
+          schema:
+            type: string
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventWithDetails"
+    post:
+      operationId: createEvent
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventBody"
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWithDetails"
+
+  /events/{id}:
+    get:
+      operationId: getEvent
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event with details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWithDetails"
+    patch:
+      operationId: updateEvent
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventBody"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWithDetails"
+    delete:
+      operationId: deleteEvent
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /events/{id}/rsvp:
+    post:
+      operationId: rsvpEvent
+      tags: [rsvps]
+      summary: RSVP to an event (or update existing RSVP)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RsvpBody"
+      responses:
+        "200":
+          description: Updated RSVP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventRsvp"
+
+  /events/{id}/rsvps:
+    get:
+      operationId: listEventRsvps
+      tags: [rsvps]
+      summary: List RSVPs for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of RSVPs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventRsvpWithUser"
+
+  /events/{id}/volunteers:
+    get:
+      operationId: listEventVolunteers
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of volunteer sign-ups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VolunteerSignupWithUser"
+    post:
+      operationId: signUpVolunteer
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerSignupBody"
+      responses:
+        "201":
+          description: Volunteer sign-up created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerSignup"
+
+  /events/{id}/volunteers/{volunteerId}:
+    delete:
+      operationId: cancelVolunteerSignup
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: volunteerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cancelled
+
+  /events/{id}/attachments:
+    post:
+      operationId: addEventAttachment
+      tags: [events]
+      summary: Add a file attachment (e.g. race PDF flyer) to an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddAttachmentBody"
+      responses:
+        "201":
+          description: Attachment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAttachment"
+
+  # ─── CARPOOLS ────────────────────────────────────────────────────────────────
+
+  /events/{id}/carpools:
+    get:
+      operationId: listEventCarpools
+      tags: [carpools]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Carpool offers with claims
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CarpoolOfferWithClaims"
+    post:
+      operationId: createCarpoolOffer
+      tags: [carpools]
+      summary: Offer to drive (post available seats and bike tray slots)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCarpoolOfferBody"
+      responses:
+        "201":
+          description: Carpool offer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolOffer"
+
+  /carpools/{offerId}:
+    patch:
+      operationId: updateCarpoolOffer
+      tags: [carpools]
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCarpoolOfferBody"
+      responses:
+        "200":
+          description: Updated carpool offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolOffer"
+    delete:
+      operationId: deleteCarpoolOffer
+      tags: [carpools]
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /carpools/{offerId}/claims:
+    post:
+      operationId: claimCarpool
+      tags: [carpools]
+      summary: Claim a seat and/or bike tray in a carpool
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimCarpoolBody"
+      responses:
+        "201":
+          description: Carpool claim created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolClaim"
+
+  /carpools/{offerId}/claims/{claimId}:
+    delete:
+      operationId: cancelCarpoolClaim
+      tags: [carpools]
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: claimId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Claim cancelled
+
+  # ─── TRAILHEADS ──────────────────────────────────────────────────────────────
+
+  /trailheads:
+    get:
+      operationId: listTrailheads
+      tags: [trailheads]
+      summary: List saved trailhead locations
+      responses:
+        "200":
+          description: List of trailheads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trailhead"
+    post:
+      operationId: createTrailhead
+      tags: [trailheads]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrailheadBody"
+      responses:
+        "201":
+          description: Created trailhead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trailhead"
+
+  /trailheads/{id}:
+    patch:
+      operationId: updateTrailhead
+      tags: [trailheads]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTrailheadBody"
+      responses:
+        "200":
+          description: Updated trailhead
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trailhead"
+    delete:
+      operationId: deleteTrailhead
+      tags: [trailheads]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── MESSAGES / BROADCASTS ───────────────────────────────────────────────────
+
+  /messages:
+    get:
+      operationId: listBroadcasts
+      tags: [messages]
+      summary: List broadcasts (messages received/sent)
+      parameters:
+        - name: podId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of broadcasts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BroadcastWithSender"
+    post:
+      operationId: sendBroadcast
+      tags: [messages]
+      summary: Send a broadcast to pods or whole team (coach/admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBroadcastBody"
+      responses:
+        "201":
+          description: Broadcast sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Broadcast"
+
+  /messages/contact-coach:
+    post:
+      operationId: contactCoach
+      tags: [messages]
+      summary: Parent sends a message to a specific coach or all pod coaches
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactCoachBody"
+      responses:
+        "200":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── INVITES ─────────────────────────────────────────────────────────────────
+
+  /invites:
+    get:
+      operationId: listInviteLinks
+      tags: [invites]
+      summary: List invite links (admin only)
+      responses:
+        "200":
+          description: List of invite links
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InviteLink"
+    post:
+      operationId: createInviteLink
+      tags: [invites]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteLinkBody"
+      responses:
+        "201":
+          description: Created invite link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteLink"
+
+  /invites/{code}:
+    get:
+      operationId: getInviteLinkByCode
+      tags: [invites]
+      summary: Look up an invite link by code (public endpoint for onboarding)
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invite link details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteLink"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invites/{id}/deactivate:
+    patch:
+      operationId: deactivateInviteLink
+      tags: [invites]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deactivated invite link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteLink"
+
+  # ─── PENDING APPROVALS ───────────────────────────────────────────────────────
+
+  /pending-approvals:
+    get:
+      operationId: listPendingApprovals
+      tags: [users]
+      summary: List users pending pod assignment (admin only)
+      responses:
+        "200":
+          description: Users awaiting approval
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /pending-approvals/{id}/approve:
+    post:
+      operationId: approveUser
+      tags: [users]
+      summary: Approve a pending user and assign to pod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveUserBody"
+      responses:
+        "200":
+          description: Approved user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ─── STORAGE ─────────────────────────────────────────────────────────────────
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL for a file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File content
+
+# ─── SCHEMAS ─────────────────────────────────────────────────────────────────
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +1030,965 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    # ─── USER ─────────────────────────────────────────────────────────────────
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        householdId:
+          type: integer
+          nullable: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [admin, coach, parent, student]
+        podId:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        gender:
+          type: string
+          nullable: true
+        grade:
+          type: integer
+          nullable: true
+        coachCertLevel:
+          type: string
+          nullable: true
+        notificationsEnabled:
+          type: boolean
+        emailNotifications:
+          type: boolean
+        smsNotifications:
+          type: boolean
+        pushNotifications:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - role
+        - isActive
+        - notificationsEnabled
+        - emailNotifications
+        - smsNotifications
+        - pushNotifications
+        - createdAt
+
+    UpdateUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        avatarUrl:
+          type: string
+        gender:
+          type: string
+        grade:
+          type: integer
+        notificationsEnabled:
+          type: boolean
+        emailNotifications:
+          type: boolean
+        smsNotifications:
+          type: boolean
+        pushNotifications:
+          type: boolean
+
+    OnboardUserBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [parent, student]
+        inviteCode:
+          type: string
+          nullable: true
+      required: [firstName, lastName, role]
+
+    ApproveUserBody:
+      type: object
+      properties:
+        podId:
+          type: string
+        householdId:
+          type: integer
+        role:
+          type: string
+          enum: [admin, coach, parent, student]
+      required: [podId, role]
+
+    # ─── HOUSEHOLD ────────────────────────────────────────────────────────────
+
+    Household:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        inviteCode:
+          type: string
+        podId:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        emergencyContactName:
+          type: string
+          nullable: true
+        emergencyContactPhone:
+          type: string
+          nullable: true
+        liabilityWaiverSigned:
+          type: boolean
+        liabilityWaiverSignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        mediaReleaseSigned:
+          type: boolean
+        mediaReleaseSignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        codeOfConductSigned:
+          type: boolean
+        codeOfConductSignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - inviteCode
+        - liabilityWaiverSigned
+        - mediaReleaseSigned
+        - codeOfConductSigned
+        - createdAt
+
+    HouseholdWithMembers:
+      allOf:
+        - $ref: "#/components/schemas/Household"
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                $ref: "#/components/schemas/User"
+          required: [members]
+
+    CreateHouseholdBody:
+      type: object
+      properties:
+        name:
+          type: string
+        podId:
+          type: string
+        address:
+          type: string
+        emergencyContactName:
+          type: string
+        emergencyContactPhone:
+          type: string
+      required: [name]
+
+    UpdateHouseholdBody:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        emergencyContactName:
+          type: string
+        emergencyContactPhone:
+          type: string
+
+    UpdateComplianceBody:
+      type: object
+      properties:
+        liabilityWaiverSigned:
+          type: boolean
+        mediaReleaseSigned:
+          type: boolean
+        codeOfConductSigned:
+          type: boolean
+
+    # ─── POD ──────────────────────────────────────────────────────────────────
+
+    Pod:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        headCoachId:
+          type: integer
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        season:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, isActive, createdAt]
+
+    PodWithStats:
+      allOf:
+        - $ref: "#/components/schemas/Pod"
+        - type: object
+          properties:
+            studentCount:
+              type: integer
+            coachCount:
+              type: integer
+            complianceRate:
+              type: number
+          required: [studentCount, coachCount, complianceRate]
+
+    PodWithMembers:
+      allOf:
+        - $ref: "#/components/schemas/Pod"
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                $ref: "#/components/schemas/User"
+            coaches:
+              type: array
+              items:
+                $ref: "#/components/schemas/User"
+          required: [members, coaches]
+
+    CreatePodBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        headCoachId:
+          type: integer
+        color:
+          type: string
+        season:
+          type: string
+      required: [name]
+
+    UpdatePodBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        headCoachId:
+          type: integer
+        color:
+          type: string
+        season:
+          type: string
+        isActive:
+          type: boolean
+
+    # ─── EVENT ────────────────────────────────────────────────────────────────
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        eventType:
+          type: string
+          enum: [practice, race, social, volunteer, other]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        trailheadId:
+          type: integer
+          nullable: true
+        locationOverride:
+          type: string
+          nullable: true
+        googleMapsUrlOverride:
+          type: string
+          nullable: true
+        podIds:
+          type: array
+          items:
+            type: string
+          nullable: true
+        isAllTeam:
+          type: boolean
+        rsvpDeadline:
+          type: string
+          format: date-time
+          nullable: true
+        volunteerSlotsNeeded:
+          type: integer
+        iCalUid:
+          type: string
+        isArchived:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - eventType
+        - startTime
+        - isAllTeam
+        - volunteerSlotsNeeded
+        - iCalUid
+        - isArchived
+        - createdAt
+
+    EventWithDetails:
+      allOf:
+        - $ref: "#/components/schemas/Event"
+        - type: object
+          properties:
+            trailhead:
+              $ref: "#/components/schemas/Trailhead"
+              nullable: true
+            myRsvp:
+              type: string
+              enum: [attending, not_attending, maybe]
+              nullable: true
+            rsvpCounts:
+              $ref: "#/components/schemas/RsvpCounts"
+            volunteerCount:
+              type: integer
+            carpoolSpotsAvailable:
+              type: integer
+            attachments:
+              type: array
+              items:
+                $ref: "#/components/schemas/EventAttachment"
+          required: [rsvpCounts, volunteerCount, carpoolSpotsAvailable, attachments]
+
+    RsvpCounts:
+      type: object
+      properties:
+        attending:
+          type: integer
+        notAttending:
+          type: integer
+        maybe:
+          type: integer
+      required: [attending, notAttending, maybe]
+
+    EventAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        label:
+          type: string
+        objectPath:
+          type: string
+        mimeType:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, eventId, label, objectPath, createdAt]
+
+    AddAttachmentBody:
+      type: object
+      properties:
+        label:
+          type: string
+        objectPath:
+          type: string
+        mimeType:
+          type: string
+      required: [label, objectPath]
+
+    CreateEventBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        eventType:
+          type: string
+          enum: [practice, race, social, volunteer, other]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        trailheadId:
+          type: integer
+        locationOverride:
+          type: string
+        googleMapsUrlOverride:
+          type: string
+        podIds:
+          type: array
+          items:
+            type: string
+        isAllTeam:
+          type: boolean
+        rsvpDeadline:
+          type: string
+          format: date-time
+        volunteerSlotsNeeded:
+          type: integer
+      required: [title, eventType, startTime]
+
+    UpdateEventBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        eventType:
+          type: string
+          enum: [practice, race, social, volunteer, other]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        trailheadId:
+          type: integer
+        locationOverride:
+          type: string
+        podIds:
+          type: array
+          items:
+            type: string
+        isAllTeam:
+          type: boolean
+        rsvpDeadline:
+          type: string
+          format: date-time
+        volunteerSlotsNeeded:
+          type: integer
+        isArchived:
+          type: boolean
+
+    # ─── RSVP ─────────────────────────────────────────────────────────────────
+
+    RsvpBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [attending, not_attending, maybe]
+        userIds:
+          type: array
+          items:
+            type: integer
+          description: RSVP for specific household members (defaults to self)
+      required: [status]
+
+    EventRsvp:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        userId:
+          type: integer
+        status:
+          type: string
+          enum: [attending, not_attending, maybe]
+        respondedAt:
+          type: string
+          format: date-time
+      required: [id, eventId, userId, status, respondedAt]
+
+    EventRsvpWithUser:
+      allOf:
+        - $ref: "#/components/schemas/EventRsvp"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/User"
+          required: [user]
+
+    VolunteerSignup:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        userId:
+          type: integer
+        role:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, eventId, userId, createdAt]
+
+    VolunteerSignupWithUser:
+      allOf:
+        - $ref: "#/components/schemas/VolunteerSignup"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/User"
+          required: [user]
+
+    VolunteerSignupBody:
+      type: object
+      properties:
+        role:
+          type: string
+        notes:
+          type: string
+
+    # ─── CARPOOL ──────────────────────────────────────────────────────────────
+
+    CarpoolOffer:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        driverUserId:
+          type: integer
+        availableSeats:
+          type: integer
+        bikeTrayCount:
+          type: integer
+        departureLocation:
+          type: string
+          nullable: true
+        departureTime:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - eventId
+        - driverUserId
+        - availableSeats
+        - bikeTrayCount
+        - createdAt
+
+    CarpoolOfferWithClaims:
+      allOf:
+        - $ref: "#/components/schemas/CarpoolOffer"
+        - type: object
+          properties:
+            driver:
+              $ref: "#/components/schemas/User"
+            claims:
+              type: array
+              items:
+                $ref: "#/components/schemas/CarpoolClaimWithUser"
+            seatsRemaining:
+              type: integer
+            bikeTraysRemaining:
+              type: integer
+          required: [driver, claims, seatsRemaining, bikeTraysRemaining]
+
+    CarpoolClaim:
+      type: object
+      properties:
+        id:
+          type: integer
+        carpoolOfferId:
+          type: integer
+        riderUserId:
+          type: integer
+        needsSeat:
+          type: boolean
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, carpoolOfferId, riderUserId, needsSeat, needsBikeTray, createdAt]
+
+    CarpoolClaimWithUser:
+      allOf:
+        - $ref: "#/components/schemas/CarpoolClaim"
+        - type: object
+          properties:
+            rider:
+              $ref: "#/components/schemas/User"
+          required: [rider]
+
+    CreateCarpoolOfferBody:
+      type: object
+      properties:
+        availableSeats:
+          type: integer
+        bikeTrayCount:
+          type: integer
+        departureLocation:
+          type: string
+        departureTime:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required: [availableSeats, bikeTrayCount]
+
+    UpdateCarpoolOfferBody:
+      type: object
+      properties:
+        availableSeats:
+          type: integer
+        bikeTrayCount:
+          type: integer
+        departureLocation:
+          type: string
+        departureTime:
+          type: string
+          format: date-time
+        notes:
+          type: string
+
+    ClaimCarpoolBody:
+      type: object
+      properties:
+        needsSeat:
+          type: boolean
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
+      required: [needsSeat, needsBikeTray]
+
+    # ─── TRAILHEAD ────────────────────────────────────────────────────────────
+
+    Trailhead:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+          nullable: true
+        googleMapsUrl:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+        longitude:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, createdAt]
+
+    CreateTrailheadBody:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        googleMapsUrl:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        notes:
+          type: string
+      required: [name]
+
+    # ─── MESSAGES ─────────────────────────────────────────────────────────────
+
+    Broadcast:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderUserId:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+          nullable: true
+        body:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, push]
+        targetPodIds:
+          type: array
+          items:
+            type: string
+          nullable: true
+        isAllTeam:
+          type: boolean
+        recipientCount:
+          type: integer
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - body
+        - channel
+        - isAllTeam
+        - recipientCount
+        - createdAt
+
+    BroadcastWithSender:
+      allOf:
+        - $ref: "#/components/schemas/Broadcast"
+        - type: object
+          properties:
+            sender:
+              $ref: "#/components/schemas/User"
+              nullable: true
+
+    SendBroadcastBody:
+      type: object
+      properties:
+        subject:
+          type: string
+        body:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, push]
+        targetPodIds:
+          type: array
+          items:
+            type: string
+        isAllTeam:
+          type: boolean
+      required: [body, channel]
+
+    ContactCoachBody:
+      type: object
+      properties:
+        coachUserId:
+          type: integer
+          nullable: true
+          description: If null, sends to all coaches in user's pod
+        subject:
+          type: string
+        body:
+          type: string
+      required: [body]
+
+    # ─── INVITE LINKS ─────────────────────────────────────────────────────────
+
+    InviteLink:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        householdId:
+          type: integer
+          nullable: true
+        podId:
+          type: string
+          nullable: true
+        label:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        usageCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, code, isActive, usageCount, createdAt]
+
+    CreateInviteLinkBody:
+      type: object
+      properties:
+        householdId:
+          type: integer
+        podId:
+          type: string
+        label:
+          type: string
+
+    # ─── DASHBOARD ────────────────────────────────────────────────────────────
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalStudents:
+          type: integer
+        totalFamilies:
+          type: integer
+        totalCoaches:
+          type: integer
+        activePods:
+          type: integer
+        pendingApprovals:
+          type: integer
+        complianceStats:
+          $ref: "#/components/schemas/ComplianceStats"
+        upcomingEventCount:
+          type: integer
+        thisWeekEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventWithDetails"
+      required:
+        - totalStudents
+        - totalFamilies
+        - totalCoaches
+        - activePods
+        - pendingApprovals
+        - complianceStats
+        - upcomingEventCount
+        - thisWeekEvents
+
+    ComplianceStats:
+      type: object
+      properties:
+        liabilityWaiverRate:
+          type: number
+        mediaReleaseRate:
+          type: number
+        codeOfConductRate:
+          type: number
+        fullyCompliantCount:
+          type: integer
+        totalHouseholds:
+          type: integer
+      required:
+        - liabilityWaiverRate
+        - mediaReleaseRate
+        - codeOfConductRate
+        - fullyCompliantCount
+        - totalHouseholds
+
+    # ─── STORAGE ──────────────────────────────────────────────────────────────
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required: [name, size, contentType]
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required: [uploadURL, objectPath]

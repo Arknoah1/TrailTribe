@@ -1,8 +1,28 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import usersRouter from "./users";
+import householdsRouter from "./households";
+import podsRouter from "./pods";
+import eventsRouter from "./events";
+import carpoolsRouter from "./carpools";
+import trailheadsRouter from "./trailheads";
+import messagesRouter from "./messages";
+import invitesRouter from "./invites";
+import dashboardRouter from "./dashboard";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(dashboardRouter);
+router.use(usersRouter);
+router.use(householdsRouter);
+router.use(podsRouter);
+router.use(eventsRouter);
+router.use(carpoolsRouter);
+router.use(trailheadsRouter);
+router.use(messagesRouter);
+router.use(invitesRouter);
+router.use(storageRouter);
 
 export default router;

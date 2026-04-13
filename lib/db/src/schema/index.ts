@@ -6,3 +6,4 @@ export * from "./events";
 export * from "./carpools";
 export * from "./invite_links";
 export * from "./messages";
+export * from "./event_attachments";
