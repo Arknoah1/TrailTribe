@@ -27,6 +27,7 @@ export default function Admin() {
     }
 
     approveUser.mutate({
+      id: userId,
       data: {
         podId,
         role
