@@ -347,7 +347,7 @@ export default function Admin() {
               .filter((m: any) => m.role === "student")
               .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
             const coaches = filtered
-              .filter((m: any) => m.role === "coach" || m.role === "parent")
+              .filter((m: any) => m.role === "coach")
               .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
 
             return (
@@ -401,7 +401,7 @@ export default function Admin() {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Shield className="h-4 w-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Parents &amp; Coaches ({coaches.length})</h3>
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Coaches ({coaches.length})</h3>
                   </div>
                   <Card>
                     <div className="overflow-x-auto">
