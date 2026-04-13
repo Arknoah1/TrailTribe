@@ -99,7 +99,7 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
   if (!household) { res.status(404).json({ error: "Invalid invite code" }); return; }
 
   const [updated] = await db.update(usersTable)
-    .set({ householdId: household.id, podId: household.podId ?? null })
+    .set({ householdId: household.id, podId: household.podId ?? null, approved: true })
     .where(eq(usersTable.id, user.id))
     .returning();
 
@@ -214,9 +214,9 @@ router.patch("/users/:id", requireAuth, async (req, res) => {
 });
 
 router.get("/pending-approvals", requireAuth, async (req, res) => {
-  // Exclude student riders — they belong to households and don't go through the approval flow
+  // Students are never in the approval flow — they're added directly by parents
   const pending = await db.select().from(usersTable)
-    .where(and(isNull(usersTable.podId), eq(usersTable.role, "parent")));
+    .where(and(eq(usersTable.approved, false), or(eq(usersTable.role, "parent"), eq(usersTable.role, "coach"))));
   res.json(pending);
 });
 
@@ -224,16 +224,19 @@ router.post("/pending-approvals/:id/approve", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   const { podId, householdId, role } = req.body;
 
-  // Fetch the existing user so we can preserve householdId if not supplied
   const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!existing) { res.status(404).json({ error: "User not found" }); return; }
 
+  const updates: Record<string, any> = {
+    approved: true,
+    role: role ?? existing.role,
+    householdId: householdId !== undefined ? householdId : existing.householdId,
+  };
+  // Pod assignment only applies to coaches, not parents
+  if (podId && existing.role !== "parent") updates.podId = podId;
+
   const [updated] = await db.update(usersTable)
-    .set({
-      podId,
-      role,
-      householdId: householdId !== undefined ? householdId : existing.householdId,
-    })
+    .set(updates)
     .where(eq(usersTable.id, id))
     .returning();
   res.json(updated);

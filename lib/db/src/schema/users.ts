@@ -31,6 +31,7 @@ export const usersTable = pgTable("users", {
   allergies: text("allergies"),
   medications: text("medications"),
   medicalNotes: text("medical_notes"),
+  approved: boolean("approved").notNull().default(false),
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   emailNotifications: boolean("email_notifications").notNull().default(true),
   smsNotifications: boolean("sms_notifications").notNull().default(false),

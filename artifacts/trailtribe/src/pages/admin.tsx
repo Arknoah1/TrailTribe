@@ -212,14 +212,15 @@ export default function Admin() {
 
   const handleApprove = (userId: number, role: "coach" | "parent" | "student") => {
     const podId = selectedPods[userId];
-    if (!podId) {
-      toast({ title: "Select a pod first", variant: "destructive" });
+    // Pod is only required for coaches, not parents
+    if (role === "coach" && !podId) {
+      toast({ title: "Select a pod for this coach first", variant: "destructive" });
       return;
     }
 
     approveUser.mutate({
       id: userId,
-      data: { podId, role }
+      data: { podId: podId ?? null, role }
     }, {
       onSuccess: () => {
         toast({ title: "User approved" });
@@ -414,34 +415,36 @@ export default function Admin() {
           <Card>
             <CardHeader>
               <CardTitle>New Signups Awaiting Approval</CardTitle>
-              <CardDescription>Assign new users to a pod and approve their account to give them access.</CardDescription>
+              <CardDescription>Review and approve new family accounts. Co-parents who join via invite link are auto-approved.</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <div className="py-8 text-center text-muted-foreground">Loading...</div>
-              ) : pendingUsers && pendingUsers.filter(u => u.role !== "student").length > 0 ? (
+              ) : pendingUsers && pendingUsers.length > 0 ? (
                 <div className="divide-y">
-                  {pendingUsers.filter(u => u.role !== "student").map(user => (
+                  {pendingUsers.map(user => (
                     <div key={user.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <div className="font-semibold text-lg">{user.firstName} {user.lastName}</div>
                         <div className="text-sm text-muted-foreground">{user.email}</div>
-                        <div className="text-sm mt-1">Requested Role: <span className="font-medium capitalize">{user.role}</span></div>
+                        <div className="text-sm mt-1">Role: <span className="font-medium capitalize">{user.role}</span></div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Select
-                          value={selectedPods[user.id]}
-                          onValueChange={(val) => setSelectedPods(prev => ({ ...prev, [user.id]: val }))}
-                        >
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Assign to Pod..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pods?.map(pod => (
-                              <SelectItem key={pod.id} value={pod.id.toString()}>{pod.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {user.role === "coach" && (
+                          <Select
+                            value={selectedPods[user.id]}
+                            onValueChange={(val) => setSelectedPods(prev => ({ ...prev, [user.id]: val }))}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Assign to Pod..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {pods?.map(pod => (
+                                <SelectItem key={pod.id} value={pod.id.toString()}>{pod.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         <Button
                           size="sm"
                           onClick={() => handleApprove(user.id, user.role as any)}
