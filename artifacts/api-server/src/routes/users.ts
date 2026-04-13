@@ -55,6 +55,57 @@ router.get("/users/me", requireAuth, async (req, res) => {
   res.json(user);
 });
 
+router.post("/users/me/household", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.householdId) { res.status(409).json({ error: "User already has a household" }); return; }
+
+  const { name, emergencyContactName, emergencyContactPhone } = req.body;
+  if (!name) { res.status(400).json({ error: "Family name is required" }); return; }
+
+  const inviteCode = randomBytes(6).toString("hex");
+  const [household] = await db.insert(householdsTable).values({
+    name,
+    inviteCode,
+    emergencyContactName: emergencyContactName ?? null,
+    emergencyContactPhone: emergencyContactPhone ?? null,
+  }).returning();
+
+  const [updated] = await db.update(usersTable)
+    .set({ householdId: household.id })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  res.status(201).json({ household, user: updated });
+});
+
+router.post("/users/me/join", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.householdId) { res.status(409).json({ error: "Already in a household" }); return; }
+
+  const { inviteCode } = req.body;
+  if (!inviteCode) { res.status(400).json({ error: "Invite code is required" }); return; }
+
+  const household = await db.query.householdsTable.findFirst({
+    where: eq(householdsTable.inviteCode, inviteCode),
+  });
+  if (!household) { res.status(404).json({ error: "Invalid invite code" }); return; }
+
+  const [updated] = await db.update(usersTable)
+    .set({ householdId: household.id, podId: household.podId ?? null })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  res.json({ household, user: updated });
+});
+
 router.put("/users/me", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const user = await db.query.usersTable.findFirst({

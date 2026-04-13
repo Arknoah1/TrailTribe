@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users } from "lucide-react";
 import { format } from "date-fns";
 
 const profileSchema = z.object({
@@ -134,6 +134,173 @@ function RiderDialog({
         </Button>
       </form>
     </Form>
+  );
+}
+
+const createHouseholdSchema = z.object({
+  name: z.string().min(2, "Family name must be at least 2 characters"),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+});
+
+const joinSchema = z.object({
+  inviteCode: z.string().min(6, "Enter a valid invite code"),
+});
+
+function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: () => void }) {
+  const { toast } = useToast();
+  const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createForm = useForm<z.infer<typeof createHouseholdSchema>>({
+    resolver: zodResolver(createHouseholdSchema),
+    defaultValues: { name: "", emergencyContactName: "", emergencyContactPhone: "" },
+  });
+
+  const joinForm = useForm<z.infer<typeof joinSchema>>({
+    resolver: zodResolver(joinSchema),
+    defaultValues: { inviteCode: "" },
+  });
+
+  const handleCreate = async (values: z.infer<typeof createHouseholdSchema>) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/users/me/household`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error ?? "Failed to create household", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Household created! Welcome to TrailTribe." });
+      onCreated();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleJoin = async (values: z.infer<typeof joinSchema>) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/users/me/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteCode: values.inviteCode.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error ?? "Invalid invite code", variant: "destructive" });
+        return;
+      }
+      toast({ title: "You've joined the household!" });
+      onCreated();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (mode === "create") {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">
+          ← Back
+        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Home className="h-5 w-5" /> Set Up Your Family</CardTitle>
+            <CardDescription>This creates a household for your family. You can add riders and documents right after.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...createForm}>
+              <form onSubmit={createForm.handleSubmit(handleCreate)} className="space-y-4">
+                <FormField control={createForm.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Family Name <span className="text-destructive">*</span></FormLabel>
+                    <FormControl><Input placeholder="e.g. Garcia Family" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                  <FormField control={createForm.control} name="emergencyContactName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Emergency Contact Name</FormLabel>
+                      <FormControl><Input placeholder="Full name" {...field} /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="emergencyContactPhone" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Emergency Contact Phone</FormLabel>
+                      <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} /></FormControl>
+                    </FormItem>
+                  )} />
+                </div>
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating..." : "Create Household"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (mode === "join") {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">
+          ← Back
+        </Button>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Join a Household</CardTitle>
+            <CardDescription>Another family member already set up your household and shared an invite code with you.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...joinForm}>
+              <form onSubmit={joinForm.handleSubmit(handleJoin)} className="space-y-4">
+                <FormField control={joinForm.control} name="inviteCode" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Invite Code</FormLabel>
+                    <FormControl><Input placeholder="e.g. a3f9c2b1" className="font-mono" {...field} /></FormControl>
+                    <FormMessage />
+                    <FormDescription>You can find this code in the invite link your co-parent sent you.</FormDescription>
+                  </FormItem>
+                )} />
+                <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Joining..." : "Join Household"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+          <Home className="h-12 w-12 text-muted-foreground mb-4 opacity-40" />
+          <h3 className="text-lg font-semibold">Set up your family</h3>
+          <p className="text-muted-foreground max-w-sm mt-2 text-sm">
+            Create a household for your family, or join one if another parent already set it up.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 mt-6 w-full max-w-xs">
+            <Button className="flex-1" onClick={() => setMode("create")}>
+              <Plus className="h-4 w-4 mr-2" /> Create Household
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setMode("join")}>
+              <Users className="h-4 w-4 mr-2" /> Join with Code
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -525,15 +692,7 @@ export default function Profile() {
           {user?.householdId ? (
             <MyFamilyTab householdId={user.householdId} />
           ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-                <Home className="h-12 w-12 text-muted-foreground mb-4 opacity-40" />
-                <h3 className="text-lg font-medium">No household yet</h3>
-                <p className="text-muted-foreground max-w-sm mt-2">
-                  You haven't been assigned to a household. Ask your coach to send you an invite link, or wait for your account to be approved.
-                </p>
-              </CardContent>
-            </Card>
+            <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
           )}
         </TabsContent>
       </Tabs>
