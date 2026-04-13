@@ -3,6 +3,7 @@ import Dashboard from "./pages/dashboard";
 import Calendar from "./pages/calendar";
 import EventDetail from "./pages/event-detail";
 import CarpoolBoard from "./pages/carpools";
+import CarpoolHub from "./pages/carpool-hub";
 import Messages from "./pages/messages";
 import NewBroadcast from "./pages/new-broadcast";
 import ContactCoach from "./pages/contact-coach";
@@ -151,6 +152,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
           <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
           <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
+          <Route path="/carpools" component={() => <ProtectedRoute component={CarpoolHub} />} />
           <Route path="/carpools/:eventId" component={() => <ProtectedRoute component={CarpoolBoard} />} />
           <Route path="/messages" component={() => <ProtectedRoute component={Messages} />} />
           <Route path="/messages/new" component={() => <ProtectedRoute component={NewBroadcast} />} />
