@@ -35,6 +35,19 @@ router.post("/households", requireAuth, async (req, res) => {
   res.status(201).json(household);
 });
 
+router.get("/households/by-invite/:code", async (req, res) => {
+  const { code } = req.params;
+  const household = await db.query.householdsTable.findFirst({
+    where: eq(householdsTable.inviteCode, code),
+  });
+  if (!household) {
+    res.status(404).json({ error: "Invalid invite code" });
+    return;
+  }
+  // Return safe public info only
+  res.json({ id: household.id, name: household.name, inviteCode: household.inviteCode });
+});
+
 router.get("/households/:id", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
