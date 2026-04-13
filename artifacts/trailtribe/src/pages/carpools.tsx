@@ -168,7 +168,7 @@ export default function CarpoolBoard() {
                     variant="outline" 
                     className="flex-1"
                     disabled={offer.seatsRemaining <= 0 || claimSeat.isPending}
-                    onClick={() => claimSeat.mutate({ id: offer.id, data: { needsSeat: true, needsBikeTray: false } })}
+                    onClick={() => claimSeat.mutate({ offerId: offer.id, data: { needsSeat: true, needsBikeTray: false } })}
                   >
                     Claim Seat
                   </Button>
@@ -176,7 +176,7 @@ export default function CarpoolBoard() {
                     variant="outline" 
                     className="flex-1"
                     disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || claimSeat.isPending}
-                    onClick={() => claimSeat.mutate({ id: offer.id, data: { needsSeat: true, needsBikeTray: true } })}
+                    onClick={() => claimSeat.mutate({ offerId: offer.id, data: { needsSeat: true, needsBikeTray: true } })}
                   >
                     Seat + Tray
                   </Button>
