@@ -18,7 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check } from "lucide-react";
+import { useClerk } from "@clerk/react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut } from "lucide-react";
 import { format } from "date-fns";
 
 const profileSchema = z.object({
@@ -414,6 +415,8 @@ export default function Profile() {
     });
   };
 
+  const { signOut } = useClerk();
+
   if (isLoading) return <div className="p-8 text-center">Loading profile...</div>;
 
   return (
@@ -505,6 +508,17 @@ export default function Profile() {
               </div>
             </form>
           </Form>
+
+          <div className="pt-2 border-t">
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={() => signOut({ redirectUrl: "/" })}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="family" className="mt-6">
