@@ -1,8 +1,8 @@
-import { useListEventCarpools, useCreateCarpoolOffer, useClaimCarpool, useCancelCarpoolClaim, getListEventCarpoolsQueryKey, useGetMe } from "@workspace/api-client-react";
+import { useListEventCarpools, useCreateCarpoolOffer, getListEventCarpoolsQueryKey, useGetMe } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Car, MapPin, Clock, Plus, Bike } from "lucide-react";
+import { ChevronLeft, Car, MapPin, Clock, Plus, Bike, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -33,21 +33,24 @@ export default function CarpoolBoard() {
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [riders, setRiders] = useState<Rider[]>([]);
 
-  // Claim dialog state (only used when household has 2+ riders)
+  // Claim dialog state (2+ riders)
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [claimingOffer, setClaimingOffer] = useState<any>(null);
   const [claimNeedsTray, setClaimNeedsTray] = useState(false);
   const [selectedRiderIds, setSelectedRiderIds] = useState<Set<number>>(new Set());
   const [isClaiming, setIsClaiming] = useState(false);
 
+  // Edit claim dialog
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingClaim, setEditingClaim] = useState<any>(null);
+  const [editNeedsTray, setEditNeedsTray] = useState(false);
+
   // Fetch household riders once we know the user
   useEffect(() => {
     if (!me?.householdId) return;
     fetch(`${BASE_URL}/api/households/${me.householdId}/riders`)
       .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setRiders(data);
-      })
+      .then(data => { if (Array.isArray(data)) setRiders(data); })
       .catch(() => {});
   }, [me?.householdId]);
 
@@ -62,15 +65,18 @@ export default function CarpoolBoard() {
     }
   });
 
+  // True if the claim belongs to the current household (rider or parent)
+  const isMyHouseholdClaim = (claim: any) => {
+    const myRiderIds = riders.map(r => r.id);
+    return myRiderIds.includes(claim.riderUserId) || claim.riderUserId === me?.id;
+  };
+
   const handleClaimClick = (offer: any, needsTray: boolean) => {
     if (riders.length === 0) {
-      // No students in household — claim as self (parent)
       claimForRiders(offer.id, [null], needsTray);
     } else if (riders.length === 1) {
-      // Single student — claim automatically
       claimForRiders(offer.id, [riders[0].id], needsTray);
     } else {
-      // Multiple students — open picker dialog
       setClaimingOffer(offer);
       setClaimNeedsTray(needsTray);
       setSelectedRiderIds(new Set());
@@ -103,11 +109,53 @@ export default function CarpoolBoard() {
     }
   };
 
+  const handleDeleteClaim = async (offerId: number, claimId: number) => {
+    try {
+      const res = await fetch(`${BASE_URL}/api/carpools/${offerId}/claims/${claimId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast({ title: "Claim removed" });
+        queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+      } else {
+        toast({ title: "Failed to remove claim", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to remove claim", variant: "destructive" });
+    }
+  };
+
+  const openEditDialog = (claim: any) => {
+    setEditingClaim(claim);
+    setEditNeedsTray(claim.needsBikeTray);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditClaim = async () => {
+    if (!editingClaim) return;
+    try {
+      const res = await fetch(
+        `${BASE_URL}/api/carpools/${editingClaim.carpoolOfferId}/claims/${editingClaim.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ needsSeat: true, needsBikeTray: editNeedsTray }),
+        }
+      );
+      if (res.ok) {
+        toast({ title: "Claim updated" });
+        queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+        setEditDialogOpen(false);
+      } else {
+        toast({ title: "Failed to update claim", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to update claim", variant: "destructive" });
+    }
+  };
+
   const toggleRider = (id: number) => {
     setSelectedRiderIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -127,24 +175,20 @@ export default function CarpoolBoard() {
         </div>
         <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" /> Offer a Ride
-            </Button>
+            <Button><Plus className="h-4 w-4 mr-2" /> Offer a Ride</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Offer a Ride</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Offer a Ride</DialogTitle></DialogHeader>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const formData = new FormData(e.currentTarget);
+              const fd = new FormData(e.currentTarget);
               createOffer.mutate({
                 id: eventId,
                 data: {
-                  availableSeats: Number(formData.get("seats")),
-                  bikeTrayCount: Number(formData.get("trays")),
-                  departureLocation: formData.get("location") as string || undefined,
-                  departureTime: formData.get("time") as string || undefined,
+                  availableSeats: Number(fd.get("seats")),
+                  bikeTrayCount: Number(fd.get("trays")),
+                  departureLocation: fd.get("location") as string || undefined,
+                  departureTime: fd.get("time") as string || undefined,
                 }
               });
             }} className="space-y-4">
@@ -174,7 +218,7 @@ export default function CarpoolBoard() {
         </Dialog>
       </div>
 
-      {/* Rider picker dialog (2+ students only) */}
+      {/* Multi-rider picker dialog */}
       <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -183,10 +227,7 @@ export default function CarpoolBoard() {
           </DialogHeader>
           <div className="space-y-2 py-2">
             {riders.map(rider => (
-              <label
-                key={rider.id}
-                className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-              >
+              <label key={rider.id} className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
                 <input
                   type="checkbox"
                   checked={selectedRiderIds.has(rider.id)}
@@ -205,6 +246,36 @@ export default function CarpoolBoard() {
           >
             {isClaiming ? "Claiming..." : `Claim for ${selectedRiderIds.size} rider${selectedRiderIds.size !== 1 ? "s" : ""}`}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit claim dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Claim</DialogTitle>
+            <DialogDescription>
+              {editingClaim?.rider?.firstName} {editingClaim?.rider?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+              <input
+                type="checkbox"
+                checked={editNeedsTray}
+                onChange={e => setEditNeedsTray(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <div>
+                <p className="font-medium">Needs bike tray</p>
+                <p className="text-sm text-muted-foreground">Check if the rider's bike needs a tray spot</p>
+              </div>
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button className="flex-1" onClick={handleEditClaim}>Save Changes</Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -254,15 +325,36 @@ export default function CarpoolBoard() {
                 {offer.claims && offer.claims.length > 0 && (
                   <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Riders</h4>
-                    {offer.claims.map((claim: any) => (
-                      <div key={claim.id} className="flex justify-between items-center text-sm">
-                        <span className="font-medium">{claim.rider?.firstName} {claim.rider?.lastName}</span>
-                        <div className="flex gap-1">
-                          {claim.needsSeat && <Badge variant="outline" className="text-[10px]">Seat</Badge>}
-                          {claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">Tray</Badge>}
+                    {offer.claims.map((claim: any) => {
+                      const mine = isMyHouseholdClaim(claim);
+                      return (
+                        <div key={claim.id} className="flex justify-between items-center text-sm">
+                          <span className="font-medium">{claim.rider?.firstName} {claim.rider?.lastName}</span>
+                          <div className="flex items-center gap-1">
+                            {claim.needsSeat && <Badge variant="outline" className="text-[10px]">Seat</Badge>}
+                            {claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">Tray</Badge>}
+                            {mine && (
+                              <>
+                                <button
+                                  onClick={() => openEditDialog(claim)}
+                                  className="ml-1 p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                  title="Edit claim"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClaim(offer.id, claim.id)}
+                                  className="p-1 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                                  title="Remove claim"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

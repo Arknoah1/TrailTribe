@@ -96,6 +96,20 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
   res.status(201).json(claim);
 });
 
+router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
+  const claimId = parseInt(req.params.claimId);
+  const { needsSeat, needsBikeTray, notes } = req.body;
+  const [updated] = await db.update(carpoolClaimsTable)
+    .set({
+      ...(needsSeat !== undefined ? { needsSeat } : {}),
+      ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+    })
+    .where(eq(carpoolClaimsTable.id, claimId))
+    .returning();
+  res.json(updated);
+});
+
 router.delete("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
   const claimId = parseInt(req.params.claimId);
   await db.delete(carpoolClaimsTable).where(eq(carpoolClaimsTable.id, claimId));
