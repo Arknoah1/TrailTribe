@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { householdsTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
 
@@ -75,6 +75,55 @@ router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
   }
   const [updated] = await db.update(householdsTable).set(updates).where(eq(householdsTable.id, id)).returning();
   res.json(updated);
+});
+
+router.get("/households/:id/riders", requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const riders = await db.select().from(usersTable)
+    .where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student")));
+  res.json(riders);
+});
+
+router.post("/households/:id/riders", requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { firstName, lastName, grade, allergies, medications, medicalNotes, dateOfBirth } = req.body;
+  const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
+  if (!household) { res.status(404).json({ error: "Household not found" }); return; }
+
+  const [rider] = await db.insert(usersTable).values({
+    householdId: id,
+    firstName,
+    lastName,
+    role: "student",
+    podId: household.podId ?? null,
+    email: `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
+    grade: grade ?? null,
+    allergies: allergies ?? null,
+    medications: medications ?? null,
+    medicalNotes: medicalNotes ?? null,
+    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+  }).returning();
+  res.status(201).json(rider);
+});
+
+router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
+  const householdId = parseInt(req.params.id);
+  const riderId = parseInt(req.params.riderId);
+  const { firstName, lastName, grade, allergies, medications, medicalNotes } = req.body;
+  const [updated] = await db.update(usersTable)
+    .set({ firstName, lastName, grade: grade ?? null, allergies: allergies ?? null, medications: medications ?? null, medicalNotes: medicalNotes ?? null })
+    .where(and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Rider not found" }); return; }
+  res.json(updated);
+});
+
+router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
+  const householdId = parseInt(req.params.id);
+  const riderId = parseInt(req.params.riderId);
+  await db.delete(usersTable)
+    .where(and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId), eq(usersTable.role, "student")));
+  res.status(204).send();
 });
 
 export default router;
