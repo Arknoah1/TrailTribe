@@ -12,6 +12,14 @@ import { createClerkClient } from "@clerk/express";
 
 const router = Router();
 
+const DEFAULT_NOTIFICATION_PREFS = {
+  practiceReminders: true,
+  coachMessages: true,
+  carpoolUpdates: true,
+  eventReminders: true,
+  rosterUpdates: true,
+};
+
 async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$inferSelect | null> {
   let user = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
@@ -40,6 +48,7 @@ async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$
         lastName,
         email,
         role: "parent",
+        notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
       }).returning();
     }
     return user ?? null;
@@ -50,10 +59,18 @@ async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$
 
 router.get("/users/me", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
-  const user = await getOrCreateUser(clerkUserId);
+  let user = await getOrCreateUser(clerkUserId);
   if (!user) {
     res.status(404).json({ error: "User not found and could not be auto-created" });
     return;
+  }
+  // Backfill notification prefs for existing accounts that predate the column
+  if (!user.notificationPreferences && user.role !== "student") {
+    const [updated] = await db.update(usersTable)
+      .set({ notificationPreferences: DEFAULT_NOTIFICATION_PREFS })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    user = updated ?? user;
   }
   res.setHeader("Cache-Control", "no-store");
   res.json(user);
@@ -153,6 +170,42 @@ router.put("/users/me", requireAuth, async (req, res) => {
       notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
       notificationPreferences: notificationPreferences ?? undefined,
     })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+  res.json(updated);
+});
+
+// PATCH /api/users/me — partial update (used by notification toggles auto-save)
+router.patch("/users/me", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+
+  const {
+    firstName, lastName, phone, avatarUrl, gender, grade,
+    notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
+    notificationPreferences,
+  } = req.body;
+
+  const patch: Record<string, any> = {};
+  if (firstName !== undefined) patch.firstName = firstName;
+  if (lastName !== undefined) patch.lastName = lastName;
+  if (phone !== undefined) patch.phone = phone;
+  if (avatarUrl !== undefined) patch.avatarUrl = avatarUrl;
+  if (gender !== undefined) patch.gender = gender;
+  if (grade !== undefined) patch.grade = grade;
+  if (notificationsEnabled !== undefined) patch.notificationsEnabled = notificationsEnabled;
+  if (emailNotifications !== undefined) patch.emailNotifications = emailNotifications;
+  if (smsNotifications !== undefined) patch.smsNotifications = smsNotifications;
+  if (pushNotifications !== undefined) patch.pushNotifications = pushNotifications;
+  if (notificationPreferences !== undefined) patch.notificationPreferences = notificationPreferences;
+
+  if (Object.keys(patch).length === 0) { res.json(user); return; }
+
+  const [updated] = await db.update(usersTable)
+    .set(patch)
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);

@@ -78,7 +78,7 @@ function NotificationsTab({ user }: { user: any }) {
     setSavingKey(key);
     try {
       const res = await fetch(`${BASE_URL}/api/users/me`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });

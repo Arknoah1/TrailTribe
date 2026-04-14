@@ -133,7 +133,11 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   };
   if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
   if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
-  if (notificationPreferences !== undefined) updates.notificationPreferences = notificationPreferences;
+  if (notificationPreferences !== undefined) {
+    // Students may not have carpoolUpdates or rosterUpdates topics — strip them server-side
+    const { carpoolUpdates: _c, rosterUpdates: _r, ...studentSafePrefs } = notificationPreferences;
+    updates.notificationPreferences = studentSafePrefs;
+  }
 
   const [updated] = await db.update(usersTable)
     .set(updates)
