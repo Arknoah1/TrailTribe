@@ -1,4 +1,5 @@
 import { pgTable, text, serial, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { householdsTable } from "./households";
@@ -42,7 +43,7 @@ export const usersTable = pgTable("users", {
     carpoolUpdates: boolean;
     eventReminders: boolean;
     rosterUpdates: boolean;
-  }>().$defaultFn(() => ({
+  }>().default(sql`'{"practiceReminders":true,"coachMessages":true,"carpoolUpdates":true,"eventReminders":true,"rosterUpdates":true}'::jsonb`).$defaultFn(() => ({
     practiceReminders: true,
     coachMessages: true,
     carpoolUpdates: true,
