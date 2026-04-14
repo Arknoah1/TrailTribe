@@ -66,7 +66,7 @@ export default function CarpoolBoard() {
 
   // Request a ride dialog
   const [isRequestOpen, setIsRequestOpen] = useState(false);
-  const [requestRiderId, setRequestRiderId] = useState<number | "">("");
+  const [requestRiderIds, setRequestRiderIds] = useState<Set<number>>(new Set());
   const [requestNeedsTray, setRequestNeedsTray] = useState(false);
   const [requestNotes, setRequestNotes] = useState("");
 
@@ -106,7 +106,7 @@ export default function CarpoolBoard() {
       onSuccess: () => {
         toast({ title: "Ride request posted" });
         setIsRequestOpen(false);
-        setRequestRiderId("");
+        setRequestRiderIds(new Set());
         setRequestNeedsTray(false);
         setRequestNotes("");
         queryClient.invalidateQueries({ queryKey: getListEventCarpoolRequestsQueryKey(eventId) });
@@ -396,32 +396,60 @@ export default function CarpoolBoard() {
             <DialogDescription>Post a ride request so a driver can pick up your rider.</DialogDescription>
           </DialogHeader>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              createRequest.mutate({
-                id: eventId,
-                data: {
-                  riderUserId: requestRiderId !== "" ? requestRiderId as number : undefined,
-                  needsBikeTray: requestNeedsTray,
-                  notes: requestNotes || undefined,
+              if (requestRiderIds.size === 0) {
+                toast({ title: "Please select at least one rider", variant: "destructive" });
+                return;
+              }
+              const selectedRiders = riders.filter(r => requestRiderIds.has(r.id));
+              try {
+                for (const rider of selectedRiders) {
+                  const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpool-requests`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ riderUserId: rider.id, needsBikeTray: requestNeedsTray, notes: requestNotes || undefined }),
+                  });
+                  if (!res.ok) {
+                    const d = await res.json().catch(() => ({}));
+                    toast({ title: d.error || "Failed to post a request", variant: "destructive" });
+                    return;
+                  }
                 }
-              });
+                toast({ title: selectedRiders.length === 1 ? "Ride request posted" : `${selectedRiders.length} ride requests posted` });
+                setIsRequestOpen(false);
+                setRequestRiderIds(new Set());
+                setRequestNeedsTray(false);
+                setRequestNotes("");
+                queryClient.invalidateQueries({ queryKey: getListEventCarpoolRequestsQueryKey(eventId) });
+              } catch {
+                toast({ title: "Failed to post requests", variant: "destructive" });
+              }
             }}
             className="space-y-4"
           >
             {riders.length > 0 && (
               <div className="space-y-2">
-                <Label>Rider</Label>
-                <select
-                  className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                  value={requestRiderId}
-                  onChange={e => setRequestRiderId(e.target.value === "" ? "" : Number(e.target.value))}
-                >
-                  <option value="">My account</option>
+                <Label>Rider{riders.length > 1 ? "s" : ""}</Label>
+                <div className="space-y-2">
                   {riders.map(r => (
-                    <option key={r.id} value={r.id}>{r.firstName} {r.lastName}</option>
+                    <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${requestRiderIds.has(r.id) ? "border-primary bg-primary/10" : "hover:bg-muted/50"}`}>
+                      <input
+                        type="checkbox"
+                        checked={requestRiderIds.has(r.id)}
+                        onChange={() => {
+                          setRequestRiderIds(prev => {
+                            const next = new Set(prev);
+                            next.has(r.id) ? next.delete(r.id) : next.add(r.id);
+                            return next;
+                          });
+                        }}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      <span className="font-medium">{r.firstName} {r.lastName}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
             )}
             <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
@@ -672,7 +700,10 @@ export default function CarpoolBoard() {
           <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" /> Rides Needed
           </h2>
-          <Button variant="outline" size="sm" onClick={() => setIsRequestOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => {
+            setRequestRiderIds(new Set(riders.map(r => r.id)));
+            setIsRequestOpen(true);
+          }}>
             <Plus className="h-4 w-4 mr-2" /> Request a Ride
           </Button>
         </div>
