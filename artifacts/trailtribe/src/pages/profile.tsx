@@ -164,7 +164,7 @@ function NotificationsTab({ user }: { user: User }) {
             toggleKey="emailNotifications"
             label="Email"
             description="Get event updates and messages in your inbox."
-            value={user.emailNotifications ?? true}
+            value={localUser.emailNotifications ?? true}
             disabled={!masterOn}
             onChange={(v) => save({ emailNotifications: v }, "emailNotifications")}
           />
@@ -172,7 +172,7 @@ function NotificationsTab({ user }: { user: User }) {
             toggleKey="smsNotifications"
             label="SMS text messages"
             description={hasPhone ? "Get urgent updates as a text." : "Add a phone number in My Account to enable SMS."}
-            value={user.smsNotifications ?? false}
+            value={localUser.smsNotifications ?? false}
             disabled={!masterOn || !hasPhone}
             onChange={(v) => save({ smsNotifications: v }, "smsNotifications")}
           />
@@ -180,7 +180,7 @@ function NotificationsTab({ user }: { user: User }) {
             toggleKey="pushNotifications"
             label="In-app notifications"
             description="See a badge when something needs your attention."
-            value={user.pushNotifications ?? true}
+            value={localUser.pushNotifications ?? true}
             disabled={!masterOn}
             onChange={(v) => save({ pushNotifications: v }, "pushNotifications")}
           />
