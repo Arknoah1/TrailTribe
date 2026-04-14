@@ -11,6 +11,7 @@ import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, T
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -43,6 +44,7 @@ const DOC_META: Record<DocType, { label: string; description: string }> = {
 
 function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: TeamDocument | undefined; onRefresh: () => void }) {
   const { toast } = useToast();
+  const authedFetch = useAuthedFetch();
   const [urlInput, setUrlInput] = useState(doc?.externalUrl ?? "");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,7 +54,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
   const save = async (patch: Partial<{ objectPath: string; externalUrl: string; mimeType: string }>) => {
     setIsSaving(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/team-documents/${docType}`, {
+      const res = await authedFetch(`${BASE_URL}/api/team-documents/${docType}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label: meta.label, description: meta.description, ...patch }),
@@ -78,10 +80,11 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     try {
-      const urlRes = await fetch(`${BASE_URL}/api/team-documents/upload-url`, { method: "POST" });
+      const urlRes = await authedFetch(`${BASE_URL}/api/team-documents/upload-url`, { method: "POST" });
       if (!urlRes.ok) throw new Error("Failed to get upload URL");
       const { uploadURL, objectPath } = await urlRes.json();
 
+      // Upload directly to storage — no auth header needed for pre-signed URL
       const uploadRes = await fetch(uploadURL, {
         method: "PUT",
         headers: { "Content-Type": file.type || "application/pdf" },
@@ -98,7 +101,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
   };
 
   const handleRemove = async () => {
-    const res = await fetch(`${BASE_URL}/api/team-documents/${docType}`, { method: "DELETE" });
+    const res = await authedFetch(`${BASE_URL}/api/team-documents/${docType}`, { method: "DELETE" });
     if (res.ok) { toast({ title: "Document removed" }); onRefresh(); }
     else toast({ title: "Failed to remove", variant: "destructive" });
   };
@@ -192,6 +195,7 @@ export default function Admin() {
   const approveUser = useApproveUser();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
@@ -209,7 +213,7 @@ export default function Admin() {
   const createPod = async () => {
     if (!newPodName.trim()) return;
     setCreatingPod(true);
-    const res = await fetch(`${BASE_URL}/api/pods`, {
+    const res = await authedFetch(`${BASE_URL}/api/pods`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: newPodName.trim() }),
@@ -224,7 +228,7 @@ export default function Admin() {
 
   const renamePod = async (id: number) => {
     if (!editingPodName.trim()) return;
-    const res = await fetch(`${BASE_URL}/api/pods/${id}`, {
+    const res = await authedFetch(`${BASE_URL}/api/pods/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: editingPodName.trim() }),
@@ -238,7 +242,7 @@ export default function Admin() {
 
   const assignRiderPod = async (riderId: number, podId: string) => {
     setLocalRiderPods(prev => ({ ...prev, [riderId]: podId }));
-    const res = await fetch(`${BASE_URL}/api/users/${riderId}/pod`, {
+    const res = await authedFetch(`${BASE_URL}/api/users/${riderId}/pod`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ podId: podId === "none" ? null : podId }),
@@ -253,12 +257,12 @@ export default function Admin() {
   };
 
   const fetchTeamDocs = async () => {
-    const res = await fetch(`${BASE_URL}/api/team-documents`);
+    const res = await authedFetch(`${BASE_URL}/api/team-documents`);
     if (res.ok) setTeamDocs(await res.json());
   };
 
   const fetchRoster = async () => {
-    const res = await fetch(`${BASE_URL}/api/households`);
+    const res = await authedFetch(`${BASE_URL}/api/households`);
     if (res.ok) setRoster(await res.json());
   };
 
@@ -557,7 +561,7 @@ export default function Admin() {
                                     <button
                                       onClick={async () => {
                                         const newRole = p.role === "coach" ? "parent" : "coach";
-                                        const res = await fetch(`${BASE_URL}/api/users/${p.id}/role`, {
+                                        const res = await authedFetch(`${BASE_URL}/api/users/${p.id}/role`, {
                                           method: "PATCH",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({ role: newRole }),

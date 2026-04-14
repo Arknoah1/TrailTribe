@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -36,6 +37,7 @@ export default function CarpoolBoard() {
   const eventId = parseInt(params.eventId || "0");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const authedFetch = useAuthedFetch();
 
   const { data: me } = useGetMe();
   const { data: offers, isLoading: offersLoading } = useListEventCarpools(eventId, {
@@ -185,7 +187,7 @@ export default function CarpoolBoard() {
       const body: any = { needsSeat: true, needsBikeTray: needsTray };
       if (riderId !== null) body.riderUserId = riderId;
       try {
-        const res = await fetch(`${BASE_URL}/api/carpools/${offerId}/claims`, {
+        const res = await authedFetch(`${BASE_URL}/api/carpools/${offerId}/claims`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -205,7 +207,7 @@ export default function CarpoolBoard() {
 
   const handleDeleteClaim = async (offerId: number, claimId: number) => {
     try {
-      const res = await fetch(`${BASE_URL}/api/carpools/${offerId}/claims/${claimId}`, { method: "DELETE" });
+      const res = await authedFetch(`${BASE_URL}/api/carpools/${offerId}/claims/${claimId}`, { method: "DELETE" });
       if (res.ok) {
         toast({ title: "Claim removed" });
         queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
@@ -226,7 +228,7 @@ export default function CarpoolBoard() {
   const handleEditClaim = async () => {
     if (!editingClaim) return;
     try {
-      const res = await fetch(
+      const res = await authedFetch(
         `${BASE_URL}/api/carpools/${editingClaim.carpoolOfferId}/claims/${editingClaim.id}`,
         {
           method: "PATCH",

@@ -22,6 +22,7 @@ import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
 import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell } from "lucide-react";
 import { format } from "date-fns";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
 const profileSchema = z.object({
   firstName: z.string().min(2),
@@ -65,6 +66,7 @@ const DEFAULT_PREFS: UserNotificationPreferences = {
 function NotificationsTab({ user }: { user: User }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
 
@@ -82,7 +84,7 @@ function NotificationsTab({ user }: { user: User }) {
     setLocalUser(prev => ({ ...prev, ...patch }));
     setSavingKey(key);
     try {
-      const res = await fetch(`${BASE_URL}/api/users/me`, {
+      const res = await authedFetch(`${BASE_URL}/api/users/me`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -231,6 +233,7 @@ function RiderDialog({
   onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const authedFetch = useAuthedFetch();
   const riderEmail = rider?.email?.endsWith("@trailtribe.internal") ? "" : (rider?.email ?? "");
   const riderPrefs = rider?.notificationPreferences ?? {};
 
@@ -266,7 +269,7 @@ function RiderDialog({
       ? `${BASE_URL}/api/households/${householdId}/riders/${rider.id}`
       : `${BASE_URL}/api/households/${householdId}/riders`;
     const method = rider ? "PATCH" : "POST";
-    const res = await fetch(url, {
+    const res = await authedFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -383,6 +386,7 @@ const joinSchema = z.object({
 
 function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: () => void }) {
   const { toast } = useToast();
+  const authedFetch = useAuthedFetch();
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -399,7 +403,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   const handleCreate = async (values: z.infer<typeof createHouseholdSchema>) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/users/me/household`, {
+      const res = await authedFetch(`${BASE_URL}/api/users/me/household`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
@@ -419,7 +423,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   const handleJoin = async (values: z.infer<typeof joinSchema>) => {
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/users/me/join`, {
+      const res = await authedFetch(`${BASE_URL}/api/users/me/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inviteCode: values.inviteCode.trim() }),
@@ -541,6 +545,7 @@ interface TeamDoc { type: string; viewUrl: string | null; }
 function MyFamilyTab({ householdId }: { householdId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
   const { data: household, isLoading } = useGetHousehold(householdId, {
     query: { queryKey: getGetHouseholdQueryKey(householdId) },
   });
@@ -555,18 +560,18 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE_URL}/api/team-documents`)
+    authedFetch(`${BASE_URL}/api/team-documents`)
       .then(r => r.ok ? r.json() : [])
       .then(setTeamDocs)
       .catch(() => {});
-  }, []);
+  }, [authedFetch]);
 
   const fetchRiders = async () => {
-    const res = await fetch(`${BASE_URL}/api/households/${householdId}/riders`);
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders`);
     if (res.ok) setRiders(await res.json());
   };
 
-  useEffect(() => { fetchRiders(); }, [householdId]);
+  useEffect(() => { fetchRiders(); }, [householdId, authedFetch]);
 
   const householdForm = useForm<z.infer<typeof householdSchema>>({
     resolver: zodResolver(householdSchema),
@@ -601,7 +606,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   };
 
   const deleteRider = async (riderId: number) => {
-    const res = await fetch(`${BASE_URL}/api/households/${householdId}/riders/${riderId}`, { method: "DELETE" });
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders/${riderId}`, { method: "DELETE" });
     if (res.ok) { toast({ title: "Rider removed" }); fetchRiders(); }
     else toast({ title: "Failed to remove rider", variant: "destructive" });
   };

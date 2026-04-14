@@ -3,6 +3,7 @@ import { Bell, X, Car, CheckCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -28,16 +29,17 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
+  const authedFetch = useAuthedFetch();
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE_URL}/api/notifications`, { credentials: "include" });
+      const res = await authedFetch(`${BASE_URL}/api/notifications`);
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
       }
     } catch {}
-  }, []);
+  }, [authedFetch]);
 
   useEffect(() => {
     fetchNotifications();
@@ -62,7 +64,7 @@ export function NotificationBell() {
     setOpen((prev) => !prev);
     if (!open && unreadCount > 0) {
       try {
-        await fetch(`${BASE_URL}/api/notifications/read-all`, { method: "PATCH", credentials: "include" });
+        await authedFetch(`${BASE_URL}/api/notifications/read-all`, { method: "PATCH" });
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       } catch {}
     }
@@ -71,7 +73,7 @@ export function NotificationBell() {
   const handleDismiss = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
     try {
-      await fetch(`${BASE_URL}/api/notifications/${id}`, { method: "DELETE", credentials: "include" });
+      await authedFetch(`${BASE_URL}/api/notifications/${id}`, { method: "DELETE" });
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch {}
   };

@@ -4,6 +4,7 @@ import { useUser } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mountain, Users, ShieldAlert, Home, CheckCircle2, Loader2 } from "lucide-react";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -14,12 +15,13 @@ export default function Join() {
   const code = params.code || "";
   const [, setLocation] = useLocation();
   const { isLoaded, isSignedIn } = useUser();
+  const authedFetch = useAuthedFetch();
 
   const [status, setStatus] = useState<Status>("loading");
   const [household, setHousehold] = useState<{ id: number; name: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Step 1: Validate the invite code
+  // Step 1: Validate the invite code (public endpoint, no auth needed)
   useEffect(() => {
     if (!code) { setStatus("invalid"); return; }
     fetch(`${BASE_URL}/api/households/by-invite/${code}`)
@@ -42,7 +44,7 @@ export default function Join() {
   const handleJoin = async () => {
     setStatus("joining");
     try {
-      const res = await fetch(`${BASE_URL}/api/users/me/join`, {
+      const res = await authedFetch(`${BASE_URL}/api/users/me/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ inviteCode: code }),

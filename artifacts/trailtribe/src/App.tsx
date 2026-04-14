@@ -12,12 +12,13 @@ import Profile from "./pages/profile";
 import Admin from "./pages/admin";
 import Join from "./pages/join";
 
-import { useEffect, useRef } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
+import { useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
@@ -75,6 +76,24 @@ function ClerkQueryClientCacheInvalidator() {
     });
     return unsubscribe;
   }, [addListener, queryClient]);
+
+  return null;
+}
+
+function ClerkAuthSyncer() {
+  const { getToken } = useAuth();
+  const getTokenRef = useRef(getToken);
+
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  });
+
+  const stableGetter = useCallback(() => getTokenRef.current(), []);
+
+  useLayoutEffect(() => {
+    setAuthTokenGetter(stableGetter);
+    return () => setAuthTokenGetter(null);
+  }, [stableGetter]);
 
   return null;
 }
@@ -143,6 +162,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkAuthSyncer />
         <ClerkQueryClientCacheInvalidator />
         <Switch>
           <Route path="/" component={HomeRedirect} />
