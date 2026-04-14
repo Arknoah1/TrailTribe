@@ -2,6 +2,7 @@ import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold, useUpdateHouseholdCompliance,
   getGetHouseholdQueryKey,
 } from "@workspace/api-client-react";
+import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,7 @@ type RiderFormValues = z.infer<typeof riderSchema>;
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-const DEFAULT_PREFS = {
+const DEFAULT_PREFS: UserNotificationPreferences = {
   practiceReminders: true,
   coachMessages: true,
   carpoolUpdates: true,
@@ -59,17 +60,15 @@ const DEFAULT_PREFS = {
   rosterUpdates: true,
 };
 
-type NotifPrefs = typeof DEFAULT_PREFS;
-
 // ─── NotificationsTab ────────────────────────────────────────────────────────
 
-function NotificationsTab({ user }: { user: any }) {
+function NotificationsTab({ user }: { user: User }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
 
-  const prefs: NotifPrefs = { ...DEFAULT_PREFS, ...(user.notificationPreferences ?? {}) };
+  const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(user.notificationPreferences ?? {}) };
   const masterOn: boolean = user.notificationsEnabled ?? true;
   const hasPhone = !!user.phone;
   const isCoachOrAdmin = user.role === "coach" || user.role === "admin";
@@ -191,7 +190,7 @@ function NotificationsTab({ user }: { user: any }) {
               toggleKey={key}
               label={label}
               description={desc}
-              value={prefs[key as keyof NotifPrefs] ?? true}
+              value={prefs[key as keyof UserNotificationPreferences] ?? true}
               disabled={!masterOn}
               onChange={(v) => save({ notificationPreferences: { ...prefs, [key]: v } }, key)}
             />

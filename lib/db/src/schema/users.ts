@@ -42,7 +42,13 @@ export const usersTable = pgTable("users", {
     carpoolUpdates: boolean;
     eventReminders: boolean;
     rosterUpdates: boolean;
-  }>(),
+  }>().$defaultFn(() => ({
+    practiceReminders: true,
+    coachMessages: true,
+    carpoolUpdates: true,
+    eventReminders: true,
+    rosterUpdates: true,
+  })),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
