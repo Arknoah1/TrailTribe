@@ -84,11 +84,11 @@ export default function CarpoolBoard() {
   // Fetch household riders once we know the user
   useEffect(() => {
     if (!me?.householdId) return;
-    fetch(`${BASE_URL}/api/households/${me.householdId}/riders`)
+    authedFetch(`${BASE_URL}/api/households/${me.householdId}/riders`)
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setRiders(data); })
       .catch(() => {});
-  }, [me?.householdId]);
+  }, [me?.householdId, authedFetch]);
 
   const createOffer = useCreateCarpoolOffer({
     mutation: {
