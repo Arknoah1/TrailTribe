@@ -9,6 +9,15 @@ import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
 import { createClerkClient } from "@clerk/express";
+import { z } from "zod";
+
+const notificationPreferencesSchema = z.object({
+  practiceReminders: z.boolean(),
+  coachMessages: z.boolean(),
+  carpoolUpdates: z.boolean(),
+  eventReminders: z.boolean(),
+  rosterUpdates: z.boolean(),
+});
 
 const router = Router();
 
@@ -168,13 +177,11 @@ router.put("/users/me", requireAuth, async (req, res) => {
   const [updated] = await db.update(usersTable)
     .set({ firstName, lastName, phone, avatarUrl, gender, grade,
       notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-      notificationPreferences: notificationPreferences ? {
-        practiceReminders: notificationPreferences.practiceReminders === true,
-        coachMessages: notificationPreferences.coachMessages === true,
-        carpoolUpdates: notificationPreferences.carpoolUpdates === true,
-        eventReminders: notificationPreferences.eventReminders === true,
-        rosterUpdates: notificationPreferences.rosterUpdates === true,
-      } : undefined,
+      notificationPreferences: (() => {
+        if (!notificationPreferences) return undefined;
+        const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
+        return parsed.success ? parsed.data : undefined;
+      })(),
     })
     .where(eq(usersTable.id, user.id))
     .returning();
@@ -207,14 +214,12 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (smsNotifications !== undefined) patch.smsNotifications = smsNotifications;
   if (pushNotifications !== undefined) patch.pushNotifications = pushNotifications;
   if (notificationPreferences !== undefined) {
-    // Normalize to canonical 5-key boolean shape to prevent partial/malformed persistence
-    patch.notificationPreferences = {
-      practiceReminders: notificationPreferences.practiceReminders === true,
-      coachMessages: notificationPreferences.coachMessages === true,
-      carpoolUpdates: notificationPreferences.carpoolUpdates === true,
-      eventReminders: notificationPreferences.eventReminders === true,
-      rosterUpdates: notificationPreferences.rosterUpdates === true,
-    };
+    const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid notificationPreferences shape", details: parsed.error.issues });
+      return;
+    }
+    patch.notificationPreferences = parsed.data;
   }
 
   if (Object.keys(patch).length === 0) { res.json(user); return; }
