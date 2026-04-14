@@ -68,12 +68,18 @@ function NotificationsTab({ user }: { user: User }) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
 
-  const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(user.notificationPreferences ?? {}) };
-  const masterOn: boolean = user.notificationsEnabled ?? true;
-  const hasPhone = !!user.phone;
-  const isCoachOrAdmin = user.role === "coach" || user.role === "admin";
+  // Optimistic local state so toggles never snap back while the server round-trips
+  const [localUser, setLocalUser] = useState<User>(user);
+  useEffect(() => { setLocalUser(user); }, [user]);
+
+  const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(localUser.notificationPreferences ?? {}) };
+  const masterOn: boolean = localUser.notificationsEnabled ?? true;
+  const hasPhone = !!localUser.phone;
+  const isCoachOrAdmin = localUser.role === "coach" || localUser.role === "admin";
 
   const save = async (patch: Record<string, any>, key: string) => {
+    // Optimistically apply the patch to local state immediately
+    setLocalUser(prev => ({ ...prev, ...patch }));
     setSavingKey(key);
     try {
       const res = await fetch(`${BASE_URL}/api/users/me`, {
@@ -86,9 +92,12 @@ function NotificationsTab({ user }: { user: User }) {
         setRecentlySaved(key);
         setTimeout(() => setRecentlySaved(null), 2000);
       } else {
+        // Roll back optimistic update on failure
+        setLocalUser(user);
         toast({ title: "Failed to save", variant: "destructive" });
       }
     } catch {
+      setLocalUser(user);
       toast({ title: "Failed to save", variant: "destructive" });
     } finally {
       setSavingKey(null);

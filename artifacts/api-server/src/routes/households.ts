@@ -120,6 +120,8 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
     podId: household.podId ?? null,
     email: (email && email.trim()) ? email.trim() : `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
     emailNotifications: emailNotifications ?? false,
+    smsNotifications: false,
+    pushNotifications: false,
     notificationPreferences: studentPrefs,
     grade: grade ?? null,
     allergies: allergies ?? null,
@@ -144,6 +146,9 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   };
   if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
   if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+  // Students cannot receive SMS or push notifications
+  updates.smsNotifications = false;
+  updates.pushNotifications = false;
   if (notificationPreferences !== undefined) {
     // Persist the full canonical 5-key object; business logic (e.g., email sending)
     // ignores non-applicable topics (carpoolUpdates, rosterUpdates) for students.
