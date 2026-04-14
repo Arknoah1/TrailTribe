@@ -60,7 +60,7 @@ const DEFAULT_PREFS: UserNotificationPreferences = {
   rosterUpdates: true,
 };
 
-// ─── NotificationsTab ────────────────────────────────────────────────────────
+
 
 function NotificationsTab({ user }: { user: User }) {
   const { toast } = useToast();
@@ -201,7 +201,7 @@ function NotificationsTab({ user }: { user: User }) {
   );
 }
 
-// ─── RiderDialog ─────────────────────────────────────────────────────────────
+
 
 function RiderDialog({
   householdId,
@@ -360,7 +360,7 @@ function RiderDialog({
   );
 }
 
-// ─── Household setup helpers ──────────────────────────────────────────────────
+
 
 const createHouseholdSchema = z.object({
   name: z.string().min(2, "Family name must be at least 2 characters"),
@@ -525,7 +525,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   );
 }
 
-// ─── MyFamilyTab ──────────────────────────────────────────────────────────────
+
 
 interface TeamDoc { type: string; viewUrl: string | null; }
 
@@ -833,7 +833,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   );
 }
 
-// ─── Profile (main page) ──────────────────────────────────────────────────────
+
 
 export default function Profile() {
   const { data: user, isLoading } = useGetMe();

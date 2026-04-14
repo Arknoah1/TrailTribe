@@ -99,9 +99,18 @@ router.get("/households/:id/riders", requireAuth, async (req, res) => {
 
 router.post("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(req.params.id);
-  const { firstName, lastName, grade, allergies, medications, medicalNotes, dateOfBirth } = req.body;
+  const { firstName, lastName, grade, allergies, medications, medicalNotes, dateOfBirth, email, emailNotifications, notificationPreferences } = req.body;
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
+
+  // Build canonical student prefs — carpool/roster are always false for students
+  const studentPrefs = {
+    practiceReminders: notificationPreferences?.practiceReminders ?? true,
+    coachMessages: notificationPreferences?.coachMessages ?? true,
+    carpoolUpdates: false,
+    eventReminders: notificationPreferences?.eventReminders ?? true,
+    rosterUpdates: false,
+  };
 
   const [rider] = await db.insert(usersTable).values({
     householdId: id,
@@ -109,7 +118,9 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
     lastName,
     role: "student",
     podId: household.podId ?? null,
-    email: `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
+    email: (email && email.trim()) ? email.trim() : `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
+    emailNotifications: emailNotifications ?? false,
+    notificationPreferences: studentPrefs,
     grade: grade ?? null,
     allergies: allergies ?? null,
     medications: medications ?? null,
