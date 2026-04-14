@@ -4,8 +4,15 @@ import { householdsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
+import { z } from "zod";
 
 const router = Router();
+
+const studentNotifPrefsSchema = z.object({
+  practiceReminders: z.boolean(),
+  coachMessages: z.boolean(),
+  eventReminders: z.boolean(),
+}).partial();
 
 function generateInviteCode(): string {
   return randomBytes(6).toString("hex");
@@ -103,12 +110,16 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
 
-  // Build canonical student prefs — carpool/roster are always false for students
+  // Validate and build canonical student prefs — carpool/roster are always false for students
+  const parsedPrefs = notificationPreferences
+    ? studentNotifPrefsSchema.safeParse(notificationPreferences)
+    : null;
+  const safePrefs = parsedPrefs?.success ? parsedPrefs.data : {};
   const studentPrefs = {
-    practiceReminders: notificationPreferences?.practiceReminders ?? true,
-    coachMessages: notificationPreferences?.coachMessages ?? true,
+    practiceReminders: safePrefs.practiceReminders ?? true,
+    coachMessages: safePrefs.coachMessages ?? true,
     carpoolUpdates: false,
-    eventReminders: notificationPreferences?.eventReminders ?? true,
+    eventReminders: safePrefs.eventReminders ?? true,
     rosterUpdates: false,
   };
 
@@ -150,13 +161,14 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   updates.smsNotifications = false;
   updates.pushNotifications = false;
   if (notificationPreferences !== undefined) {
-    // Persist the full canonical 5-key object; business logic (e.g., email sending)
-    // ignores non-applicable topics (carpoolUpdates, rosterUpdates) for students.
+    const parsedRiderPrefs = studentNotifPrefsSchema.safeParse(notificationPreferences);
+    const safeRiderPrefs = parsedRiderPrefs.success ? parsedRiderPrefs.data : {};
+    // Persist canonical 5-key object; carpool/roster always false for students
     updates.notificationPreferences = {
-      practiceReminders: notificationPreferences.practiceReminders ?? true,
-      coachMessages: notificationPreferences.coachMessages ?? true,
+      practiceReminders: safeRiderPrefs.practiceReminders ?? true,
+      coachMessages: safeRiderPrefs.coachMessages ?? true,
       carpoolUpdates: false,
-      eventReminders: notificationPreferences.eventReminders ?? true,
+      eventReminders: safeRiderPrefs.eventReminders ?? true,
       rosterUpdates: false,
     };
   }
