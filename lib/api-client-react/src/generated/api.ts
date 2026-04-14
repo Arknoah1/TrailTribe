@@ -24,9 +24,11 @@ import type {
   CarpoolClaim,
   CarpoolOffer,
   CarpoolOfferWithClaims,
+  CarpoolRequestWithUsers,
   ClaimCarpoolBody,
   ContactCoachBody,
   CreateCarpoolOfferBody,
+  CreateCarpoolRequestBody,
   CreateEventBody,
   CreateHouseholdBody,
   CreateInviteLinkBody,
@@ -45,6 +47,7 @@ import type {
   ListBroadcastsParams,
   ListEventsParams,
   ListUsersParams,
+  MatchCarpoolRequestBody,
   OnboardUserBody,
   Pod,
   PodWithMembers,
@@ -56,6 +59,7 @@ import type {
   SuccessResponse,
   Trailhead,
   UpdateCarpoolOfferBody,
+  UpdateCarpoolRequestBody,
   UpdateComplianceBody,
   UpdateEventBody,
   UpdateHouseholdBody,
@@ -2892,6 +2896,445 @@ export const useCancelCarpoolClaim = <
   TContext
 > => {
   return useMutation(getCancelCarpoolClaimMutationOptions(options));
+};
+
+/**
+ * @summary List all ride requests for an event
+ */
+export const getListEventCarpoolRequestsUrl = (id: number) => {
+  return `/api/events/${id}/carpool-requests`;
+};
+
+export const listEventCarpoolRequests = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CarpoolRequestWithUsers[]> => {
+  return customFetch<CarpoolRequestWithUsers[]>(
+    getListEventCarpoolRequestsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListEventCarpoolRequestsQueryKey = (id: number) => {
+  return [`/api/events/${id}/carpool-requests`] as const;
+};
+
+export const getListEventCarpoolRequestsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEventCarpoolRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventCarpoolRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListEventCarpoolRequestsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listEventCarpoolRequests>>
+  > = ({ signal }) =>
+    listEventCarpoolRequests(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEventCarpoolRequests>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEventCarpoolRequestsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEventCarpoolRequests>>
+>;
+export type ListEventCarpoolRequestsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all ride requests for an event
+ */
+
+export function useListEventCarpoolRequests<
+  TData = Awaited<ReturnType<typeof listEventCarpoolRequests>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventCarpoolRequests>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEventCarpoolRequestsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Request a ride for a rider
+ */
+export const getCreateCarpoolRequestUrl = (id: number) => {
+  return `/api/events/${id}/carpool-requests`;
+};
+
+export const createCarpoolRequest = async (
+  id: number,
+  createCarpoolRequestBody: CreateCarpoolRequestBody,
+  options?: RequestInit,
+): Promise<CarpoolRequestWithUsers> => {
+  return customFetch<CarpoolRequestWithUsers>(getCreateCarpoolRequestUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCarpoolRequestBody),
+  });
+};
+
+export const getCreateCarpoolRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<CreateCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<CreateCarpoolRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["createCarpoolRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCarpoolRequest>>,
+    { id: number; data: BodyType<CreateCarpoolRequestBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createCarpoolRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCarpoolRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCarpoolRequest>>
+>;
+export type CreateCarpoolRequestMutationBody =
+  BodyType<CreateCarpoolRequestBody>;
+export type CreateCarpoolRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Request a ride for a rider
+ */
+export const useCreateCarpoolRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<CreateCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<CreateCarpoolRequestBody> },
+  TContext
+> => {
+  return useMutation(getCreateCarpoolRequestMutationOptions(options));
+};
+
+/**
+ * @summary Edit an open carpool request
+ */
+export const getUpdateCarpoolRequestUrl = (id: number) => {
+  return `/api/carpool-requests/${id}`;
+};
+
+export const updateCarpoolRequest = async (
+  id: number,
+  updateCarpoolRequestBody: UpdateCarpoolRequestBody,
+  options?: RequestInit,
+): Promise<CarpoolRequestWithUsers> => {
+  return customFetch<CarpoolRequestWithUsers>(getUpdateCarpoolRequestUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateCarpoolRequestBody),
+  });
+};
+
+export const getUpdateCarpoolRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateCarpoolRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["updateCarpoolRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCarpoolRequest>>,
+    { id: number; data: BodyType<UpdateCarpoolRequestBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCarpoolRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCarpoolRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCarpoolRequest>>
+>;
+export type UpdateCarpoolRequestMutationBody =
+  BodyType<UpdateCarpoolRequestBody>;
+export type UpdateCarpoolRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Edit an open carpool request
+ */
+export const useUpdateCarpoolRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<UpdateCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<UpdateCarpoolRequestBody> },
+  TContext
+> => {
+  return useMutation(getUpdateCarpoolRequestMutationOptions(options));
+};
+
+/**
+ * @summary Delete a carpool request
+ */
+export const getDeleteCarpoolRequestUrl = (id: number) => {
+  return `/api/carpool-requests/${id}`;
+};
+
+export const deleteCarpoolRequest = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCarpoolRequestUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCarpoolRequestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCarpoolRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCarpoolRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCarpoolRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCarpoolRequest>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCarpoolRequest(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCarpoolRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCarpoolRequest>>
+>;
+
+export type DeleteCarpoolRequestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a carpool request
+ */
+export const useDeleteCarpoolRequest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCarpoolRequest>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCarpoolRequest>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCarpoolRequestMutationOptions(options));
+};
+
+/**
+ * @summary Driver accepts a ride request and creates a claim
+ */
+export const getMatchCarpoolRequestUrl = (id: number) => {
+  return `/api/carpool-requests/${id}/match`;
+};
+
+export const matchCarpoolRequest = async (
+  id: number,
+  matchCarpoolRequestBody: MatchCarpoolRequestBody,
+  options?: RequestInit,
+): Promise<CarpoolRequestWithUsers> => {
+  return customFetch<CarpoolRequestWithUsers>(getMatchCarpoolRequestUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(matchCarpoolRequestBody),
+  });
+};
+
+export const getMatchCarpoolRequestMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof matchCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<MatchCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof matchCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<MatchCarpoolRequestBody> },
+  TContext
+> => {
+  const mutationKey = ["matchCarpoolRequest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof matchCarpoolRequest>>,
+    { id: number; data: BodyType<MatchCarpoolRequestBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return matchCarpoolRequest(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MatchCarpoolRequestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof matchCarpoolRequest>>
+>;
+export type MatchCarpoolRequestMutationBody = BodyType<MatchCarpoolRequestBody>;
+export type MatchCarpoolRequestMutationError = ErrorType<void>;
+
+/**
+ * @summary Driver accepts a ride request and creates a claim
+ */
+export const useMatchCarpoolRequest = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof matchCarpoolRequest>>,
+    TError,
+    { id: number; data: BodyType<MatchCarpoolRequestBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof matchCarpoolRequest>>,
+  TError,
+  { id: number; data: BodyType<MatchCarpoolRequestBody> },
+  TContext
+> => {
+  return useMutation(getMatchCarpoolRequestMutationOptions(options));
 };
 
 /**

@@ -741,6 +741,119 @@ paths:
         "204":
           description: Claim cancelled
 
+  /events/{id}/carpool-requests:
+    get:
+      operationId: listEventCarpoolRequests
+      tags: [carpools]
+      summary: List all ride requests for an event
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of carpool requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CarpoolRequestWithUsers"
+    post:
+      operationId: createCarpoolRequest
+      tags: [carpools]
+      summary: Request a ride for a rider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCarpoolRequestBody"
+      responses:
+        "201":
+          description: Carpool request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolRequestWithUsers"
+        "409":
+          description: Duplicate request
+
+  /carpool-requests/{id}:
+    patch:
+      operationId: updateCarpoolRequest
+      tags: [carpools]
+      summary: Edit an open carpool request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCarpoolRequestBody"
+      responses:
+        "200":
+          description: Updated carpool request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolRequestWithUsers"
+    delete:
+      operationId: deleteCarpoolRequest
+      tags: [carpools]
+      summary: Delete a carpool request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /carpool-requests/{id}/match:
+    post:
+      operationId: matchCarpoolRequest
+      tags: [carpools]
+      summary: Driver accepts a ride request and creates a claim
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchCarpoolRequestBody"
+      responses:
+        "200":
+          description: Request matched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolRequestWithUsers"
+        "403":
+          description: Not the offer owner
+        "409":
+          description: Request already matched
+
   # ─── TRAILHEADS ──────────────────────────────────────────────────────────────
 
   /trailheads:
@@ -1752,6 +1865,92 @@ components:
         notes:
           type: string
       required: [needsSeat, needsBikeTray]
+
+    CarpoolRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        riderUserId:
+          type: integer
+        requestedByUserId:
+          type: integer
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [open, matched, cancelled]
+        matchedOfferId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, eventId, riderUserId, requestedByUserId, needsBikeTray, status, createdAt, updatedAt]
+
+    CarpoolRequestWithUsers:
+      allOf:
+        - $ref: "#/components/schemas/CarpoolRequest"
+        - type: object
+          properties:
+            rider:
+              $ref: "#/components/schemas/User"
+              nullable: true
+            requestedBy:
+              $ref: "#/components/schemas/User"
+              nullable: true
+            matchedOffer:
+              nullable: true
+              type: object
+              properties:
+                id:
+                  type: integer
+                driver:
+                  $ref: "#/components/schemas/User"
+                  nullable: true
+
+    CreateCarpoolRequestBody:
+      type: object
+      properties:
+        riderUserId:
+          type: integer
+          nullable: true
+          description: If null, defaults to the requesting user
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
+
+    UpdateCarpoolRequestBody:
+      type: object
+      properties:
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
+        status:
+          type: string
+          enum: [cancelled, matched]
+          description: Allowed transitions from open - cancelled or matched (requires matchedOfferId)
+        matchedOfferId:
+          type: integer
+          nullable: true
+          description: Required when setting status to matched
+
+    MatchCarpoolRequestBody:
+      type: object
+      properties:
+        offerId:
+          type: integer
+      required: [offerId]
 
     # ─── TRAILHEAD ────────────────────────────────────────────────────────────
 

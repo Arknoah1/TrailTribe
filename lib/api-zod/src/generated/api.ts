@@ -1100,6 +1100,339 @@ export const CancelCarpoolClaimParams = zod.object({
 });
 
 /**
+ * @summary List all ride requests for an event
+ */
+export const ListEventCarpoolRequestsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListEventCarpoolRequestsResponseItem = zod
+  .object({
+    id: zod.number(),
+    eventId: zod.number(),
+    riderUserId: zod.number(),
+    requestedByUserId: zod.number(),
+    needsBikeTray: zod.boolean(),
+    notes: zod.string().nullish(),
+    status: zod.enum(["open", "matched", "cancelled"]),
+    matchedOfferId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      rider: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      requestedBy: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      matchedOffer: zod
+        .object({
+          id: zod.number().optional(),
+          driver: zod
+            .object({
+              id: zod.number(),
+              householdId: zod.number().nullish(),
+              firstName: zod.string(),
+              lastName: zod.string(),
+              email: zod.string(),
+              phone: zod.string().nullish(),
+              role: zod.enum(["admin", "coach", "parent", "student"]),
+              podId: zod.string().nullish(),
+              avatarUrl: zod.string().nullish(),
+              isActive: zod.boolean(),
+              gender: zod.string().nullish(),
+              grade: zod.number().nullish(),
+              coachCertLevel: zod.string().nullish(),
+              notificationsEnabled: zod.boolean(),
+              emailNotifications: zod.boolean(),
+              smsNotifications: zod.boolean(),
+              pushNotifications: zod.boolean(),
+              createdAt: zod.coerce.date(),
+            })
+            .nullish(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListEventCarpoolRequestsResponse = zod.array(
+  ListEventCarpoolRequestsResponseItem,
+);
+
+/**
+ * @summary Request a ride for a rider
+ */
+export const CreateCarpoolRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateCarpoolRequestBody = zod.object({
+  riderUserId: zod
+    .number()
+    .nullish()
+    .describe("If null, defaults to the requesting user"),
+  needsBikeTray: zod.boolean().optional(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Edit an open carpool request
+ */
+export const UpdateCarpoolRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCarpoolRequestBody = zod.object({
+  needsBikeTray: zod.boolean().optional(),
+  notes: zod.string().optional(),
+  status: zod
+    .enum(["cancelled", "matched"])
+    .optional()
+    .describe(
+      "Allowed transitions from open - cancelled or matched (requires matchedOfferId)",
+    ),
+  matchedOfferId: zod
+    .number()
+    .nullish()
+    .describe("Required when setting status to matched"),
+});
+
+export const UpdateCarpoolRequestResponse = zod
+  .object({
+    id: zod.number(),
+    eventId: zod.number(),
+    riderUserId: zod.number(),
+    requestedByUserId: zod.number(),
+    needsBikeTray: zod.boolean(),
+    notes: zod.string().nullish(),
+    status: zod.enum(["open", "matched", "cancelled"]),
+    matchedOfferId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      rider: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      requestedBy: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      matchedOffer: zod
+        .object({
+          id: zod.number().optional(),
+          driver: zod
+            .object({
+              id: zod.number(),
+              householdId: zod.number().nullish(),
+              firstName: zod.string(),
+              lastName: zod.string(),
+              email: zod.string(),
+              phone: zod.string().nullish(),
+              role: zod.enum(["admin", "coach", "parent", "student"]),
+              podId: zod.string().nullish(),
+              avatarUrl: zod.string().nullish(),
+              isActive: zod.boolean(),
+              gender: zod.string().nullish(),
+              grade: zod.number().nullish(),
+              coachCertLevel: zod.string().nullish(),
+              notificationsEnabled: zod.boolean(),
+              emailNotifications: zod.boolean(),
+              smsNotifications: zod.boolean(),
+              pushNotifications: zod.boolean(),
+              createdAt: zod.coerce.date(),
+            })
+            .nullish(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
+ * @summary Delete a carpool request
+ */
+export const DeleteCarpoolRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Driver accepts a ride request and creates a claim
+ */
+export const MatchCarpoolRequestParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const MatchCarpoolRequestBody = zod.object({
+  offerId: zod.number(),
+});
+
+export const MatchCarpoolRequestResponse = zod
+  .object({
+    id: zod.number(),
+    eventId: zod.number(),
+    riderUserId: zod.number(),
+    requestedByUserId: zod.number(),
+    needsBikeTray: zod.boolean(),
+    notes: zod.string().nullish(),
+    status: zod.enum(["open", "matched", "cancelled"]),
+    matchedOfferId: zod.number().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      rider: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      requestedBy: zod
+        .object({
+          id: zod.number(),
+          householdId: zod.number().nullish(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          email: zod.string(),
+          phone: zod.string().nullish(),
+          role: zod.enum(["admin", "coach", "parent", "student"]),
+          podId: zod.string().nullish(),
+          avatarUrl: zod.string().nullish(),
+          isActive: zod.boolean(),
+          gender: zod.string().nullish(),
+          grade: zod.number().nullish(),
+          coachCertLevel: zod.string().nullish(),
+          notificationsEnabled: zod.boolean(),
+          emailNotifications: zod.boolean(),
+          smsNotifications: zod.boolean(),
+          pushNotifications: zod.boolean(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      matchedOffer: zod
+        .object({
+          id: zod.number().optional(),
+          driver: zod
+            .object({
+              id: zod.number(),
+              householdId: zod.number().nullish(),
+              firstName: zod.string(),
+              lastName: zod.string(),
+              email: zod.string(),
+              phone: zod.string().nullish(),
+              role: zod.enum(["admin", "coach", "parent", "student"]),
+              podId: zod.string().nullish(),
+              avatarUrl: zod.string().nullish(),
+              isActive: zod.boolean(),
+              gender: zod.string().nullish(),
+              grade: zod.number().nullish(),
+              coachCertLevel: zod.string().nullish(),
+              notificationsEnabled: zod.boolean(),
+              emailNotifications: zod.boolean(),
+              smsNotifications: zod.boolean(),
+              pushNotifications: zod.boolean(),
+              createdAt: zod.coerce.date(),
+            })
+            .nullish(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
  * @summary List saved trailhead locations
  */
 export const ListTrailheadsResponseItem = zod.object({

@@ -3,9 +3,10 @@ import { db } from "@workspace/db";
 import {
   carpoolOffersTable,
   carpoolClaimsTable,
+  carpoolRequestsTable,
   usersTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
@@ -114,6 +115,273 @@ router.delete("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res
   const claimId = parseInt(req.params.claimId);
   await db.delete(carpoolClaimsTable).where(eq(carpoolClaimsTable.id, claimId));
   res.status(204).send();
+});
+
+async function buildRequestWithUsers(req: any) {
+  const rider = await db.query.usersTable.findFirst({ where: eq(usersTable.id, req.riderUserId) });
+  const requestedBy = await db.query.usersTable.findFirst({ where: eq(usersTable.id, req.requestedByUserId) });
+  let matchedOffer = null;
+  if (req.matchedOfferId) {
+    const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, req.matchedOfferId) });
+    if (offer) {
+      const driver = await db.query.usersTable.findFirst({ where: eq(usersTable.id, offer.driverUserId) });
+      matchedOffer = { ...offer, driver };
+    }
+  }
+  return { ...req, rider, requestedBy, matchedOffer };
+}
+
+router.get("/events/:id/carpool-requests", requireAuth, async (req, res) => {
+  const eventId = parseInt(req.params.id);
+  const requests = await db.select().from(carpoolRequestsTable).where(eq(carpoolRequestsTable.eventId, eventId));
+  const result = await Promise.all(requests.map(buildRequestWithUsers));
+  res.json(result);
+});
+
+router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
+  const eventId = parseInt(req.params.id);
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  const { riderUserId, needsBikeTray, notes } = req.body;
+
+  // Determine the rider: default to the requesting user themselves
+  const riderId: number = riderUserId ?? me.id;
+
+  // Authorization: riderUserId must be the caller or a student in their household
+  if (riderId !== me.id) {
+    if (!me.householdId) {
+      res.status(403).json({ error: "You are not authorized to request a ride for this rider" });
+      return;
+    }
+    const riderInHousehold = await db.query.usersTable.findFirst({
+      where: and(
+        eq(usersTable.id, riderId),
+        eq(usersTable.householdId, me.householdId),
+      ),
+    });
+    if (!riderInHousehold) {
+      res.status(403).json({ error: "You are not authorized to request a ride for this rider" });
+      return;
+    }
+  }
+
+  // Check for duplicate non-cancelled request for the same rider + event
+  const [existingActive] = await db
+    .select()
+    .from(carpoolRequestsTable)
+    .where(
+      and(
+        eq(carpoolRequestsTable.eventId, eventId),
+        eq(carpoolRequestsTable.riderUserId, riderId),
+        ne(carpoolRequestsTable.status, "cancelled"),
+      )
+    )
+    .limit(1);
+
+  if (existingActive) {
+    res.status(409).json({ error: "A request for this rider already exists for this event" });
+    return;
+  }
+
+  const [request] = await db.insert(carpoolRequestsTable).values({
+    eventId,
+    riderUserId: riderId,
+    requestedByUserId: me.id,
+    needsBikeTray: needsBikeTray ?? false,
+    notes: notes ?? null,
+    status: "open",
+  }).returning();
+  const result = await buildRequestWithUsers(request);
+  res.status(201).json(result);
+});
+
+router.patch("/carpool-requests/:id", requireAuth, async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const existing = await db.query.carpoolRequestsTable.findFirst({ where: eq(carpoolRequestsTable.id, requestId) });
+  if (!existing) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (existing.requestedByUserId !== me.id) {
+    res.status(403).json({ error: "You do not own this request" });
+    return;
+  }
+  if (existing.status !== "open") {
+    res.status(409).json({ error: "Only open requests can be edited" });
+    return;
+  }
+
+  const { needsBikeTray, notes, status, matchedOfferId } = req.body;
+
+  // Validate status transitions: open -> cancelled or open -> matched (with matchedOfferId)
+  if (status !== undefined) {
+    if (status !== "cancelled" && status !== "matched") {
+      res.status(409).json({ error: "Invalid status transition" });
+      return;
+    }
+    if (status === "matched" && !matchedOfferId) {
+      res.status(400).json({ error: "matchedOfferId is required when setting status to matched" });
+      return;
+    }
+  }
+
+  const [updated] = await db.update(carpoolRequestsTable)
+    .set({
+      ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
+      ...(notes !== undefined ? { notes } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(matchedOfferId !== undefined ? { matchedOfferId } : {}),
+    })
+    .where(eq(carpoolRequestsTable.id, requestId))
+    .returning();
+  const result = await buildRequestWithUsers(updated);
+  res.json(result);
+});
+
+router.delete("/carpool-requests/:id", requireAuth, async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const existing = await db.query.carpoolRequestsTable.findFirst({ where: eq(carpoolRequestsTable.id, requestId) });
+  if (!existing) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (existing.requestedByUserId !== me.id) {
+    res.status(403).json({ error: "You do not own this request" });
+    return;
+  }
+  if (existing.status !== "open") {
+    res.status(409).json({ error: "Only open requests can be deleted" });
+    return;
+  }
+
+  await db.delete(carpoolRequestsTable).where(eq(carpoolRequestsTable.id, requestId));
+  res.status(204).send();
+});
+
+router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
+  const requestId = parseInt(req.params.id);
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const { offerId } = req.body;
+  if (!offerId) {
+    res.status(400).json({ error: "offerId is required" });
+    return;
+  }
+
+  // Verify driver owns the offer
+  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
+  if (!offer) {
+    res.status(404).json({ error: "Offer not found" });
+    return;
+  }
+  if (offer.driverUserId !== me.id) {
+    res.status(403).json({ error: "You do not own this offer" });
+    return;
+  }
+
+  // Verify request exists and is open
+  const request = await db.query.carpoolRequestsTable.findFirst({ where: eq(carpoolRequestsTable.id, requestId) });
+  if (!request) {
+    res.status(404).json({ error: "Request not found" });
+    return;
+  }
+  if (request.status !== "open") {
+    res.status(409).json({ error: "Request is not open" });
+    return;
+  }
+
+  // Ensure offer and request are for the same event
+  if (offer.eventId !== request.eventId) {
+    res.status(409).json({ error: "Offer and request are not for the same event" });
+    return;
+  }
+
+  // Atomically verify capacity, create a claim, and mark the request matched in a transaction
+  let capacityError: string | null = null;
+  const updated = await db.transaction(async (tx) => {
+    // Re-verify request is still open inside the transaction (prevents double-match races)
+    const [freshRequest] = await tx
+      .select()
+      .from(carpoolRequestsTable)
+      .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
+      .limit(1);
+
+    if (!freshRequest) {
+      throw new Error("ALREADY_MATCHED");
+    }
+
+    // Re-check offer capacity inside the transaction
+    const claimsForOffer = await tx.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offerId));
+    const seatsClaimed = claimsForOffer.filter((c) => c.needsSeat).length;
+    const seatsRemaining = Math.max(0, offer.availableSeats - seatsClaimed);
+    if (seatsRemaining <= 0) {
+      throw new Error("NO_SEATS");
+    }
+    if (freshRequest.needsBikeTray) {
+      const bikeTraysClaimed = claimsForOffer.filter((c) => c.needsBikeTray).length;
+      const bikeTraysRemaining = Math.max(0, offer.bikeTrayCount - bikeTraysClaimed);
+      if (bikeTraysRemaining <= 0) {
+        throw new Error("NO_TRAYS");
+      }
+    }
+
+    await tx.insert(carpoolClaimsTable).values({
+      carpoolOfferId: offerId,
+      riderUserId: freshRequest.riderUserId,
+      needsSeat: true,
+      needsBikeTray: freshRequest.needsBikeTray,
+      notes: freshRequest.notes ?? null,
+    });
+
+    const [matched] = await tx
+      .update(carpoolRequestsTable)
+      .set({ status: "matched", matchedOfferId: offerId })
+      .where(eq(carpoolRequestsTable.id, requestId))
+      .returning();
+
+    return matched;
+  }).catch((err) => {
+    if (err.message === "ALREADY_MATCHED") { capacityError = "already_matched"; return null; }
+    if (err.message === "NO_SEATS") { capacityError = "no_seats"; return null; }
+    if (err.message === "NO_TRAYS") { capacityError = "no_trays"; return null; }
+    throw err;
+  });
+
+  if (!updated) {
+    const messages: Record<string, string> = {
+      already_matched: "Request has already been matched",
+      no_seats: "This offer has no remaining seats",
+      no_trays: "This offer has no remaining bike tray spots",
+    };
+    res.status(409).json({ error: messages[capacityError ?? "already_matched"] ?? "Match failed" });
+    return;
+  }
+
+  const result = await buildRequestWithUsers(updated);
+  res.json(result);
 });
 
 export default router;

@@ -28,14 +28,6 @@ export const UserRole = {
   student: "student",
 } as const;
 
-export interface UserNotificationPreferences {
-  practiceReminders: boolean;
-  coachMessages: boolean;
-  carpoolUpdates: boolean;
-  eventReminders: boolean;
-  rosterUpdates: boolean;
-}
-
 export interface User {
   id: number;
   householdId?: number | null;
@@ -54,7 +46,6 @@ export interface User {
   emailNotifications: boolean;
   smsNotifications: boolean;
   pushNotifications: boolean;
-  notificationPreferences?: UserNotificationPreferences | null;
   createdAt: string;
 }
 
@@ -69,7 +60,6 @@ export interface UpdateUserBody {
   emailNotifications?: boolean;
   smsNotifications?: boolean;
   pushNotifications?: boolean;
-  notificationPreferences?: UserNotificationPreferences;
 }
 
 export type OnboardUserBodyRole =
@@ -425,6 +415,70 @@ export interface ClaimCarpoolBody {
   needsSeat: boolean;
   needsBikeTray: boolean;
   notes?: string;
+}
+
+export type CarpoolRequestStatus =
+  (typeof CarpoolRequestStatus)[keyof typeof CarpoolRequestStatus];
+
+export const CarpoolRequestStatus = {
+  open: "open",
+  matched: "matched",
+  cancelled: "cancelled",
+} as const;
+
+export interface CarpoolRequest {
+  id: number;
+  eventId: number;
+  riderUserId: number;
+  requestedByUserId: number;
+  needsBikeTray: boolean;
+  notes?: string | null;
+  status: CarpoolRequestStatus;
+  matchedOfferId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CarpoolRequestWithUsersMatchedOffer = {
+  id?: number;
+  driver?: User | null;
+} | null;
+
+export type CarpoolRequestWithUsers = CarpoolRequest & {
+  rider?: User | null;
+  requestedBy?: User | null;
+  matchedOffer?: CarpoolRequestWithUsersMatchedOffer;
+};
+
+export interface CreateCarpoolRequestBody {
+  /** If null, defaults to the requesting user */
+  riderUserId?: number | null;
+  needsBikeTray?: boolean;
+  notes?: string;
+}
+
+/**
+ * Allowed transitions from open - cancelled or matched (requires matchedOfferId)
+ */
+export type UpdateCarpoolRequestBodyStatus =
+  (typeof UpdateCarpoolRequestBodyStatus)[keyof typeof UpdateCarpoolRequestBodyStatus];
+
+export const UpdateCarpoolRequestBodyStatus = {
+  cancelled: "cancelled",
+  matched: "matched",
+} as const;
+
+export interface UpdateCarpoolRequestBody {
+  needsBikeTray?: boolean;
+  notes?: string;
+  /** Allowed transitions from open - cancelled or matched (requires matchedOfferId) */
+  status?: UpdateCarpoolRequestBodyStatus;
+  /** Required when setting status to matched */
+  matchedOfferId?: number | null;
+}
+
+export interface MatchCarpoolRequestBody {
+  offerId: number;
 }
 
 export interface CreateTrailheadBody {
