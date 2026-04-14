@@ -9,7 +9,7 @@ export default function HouseholdDetail() {
   const householdId = parseInt(params.householdId || "0");
 
   const { data: household, isLoading } = useGetHousehold(householdId, {
-    query: { enabled: !!householdId }
+    query: { queryKey: ['getHousehold', householdId], enabled: !!householdId }
   });
 
   if (isLoading) return <div className="p-8 text-center">Loading family details...</div>;

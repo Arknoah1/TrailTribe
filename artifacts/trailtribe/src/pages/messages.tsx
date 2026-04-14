@@ -48,9 +48,9 @@ export default function Messages() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    {msg.channel === 'email' && <Mail className="h-4 w-4 text-muted-foreground" title="Email" />}
-                    {msg.channel === 'sms' && <Smartphone className="h-4 w-4 text-muted-foreground" title="SMS" />}
-                    {msg.channel === 'push' && <Bell className="h-4 w-4 text-muted-foreground" title="Push" />}
+                    {msg.channel === 'email' && <Mail className="h-4 w-4 text-muted-foreground" aria-label="Email" />}
+                    {msg.channel === 'sms' && <Smartphone className="h-4 w-4 text-muted-foreground" aria-label="SMS" />}
+                    {msg.channel === 'push' && <Bell className="h-4 w-4 text-muted-foreground" aria-label="Push" />}
                   </div>
                 </div>
               </CardHeader>

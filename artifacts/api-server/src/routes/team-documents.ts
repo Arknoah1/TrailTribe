@@ -6,6 +6,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { ObjectStorageService } from "../lib/objectStorage";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 const storage = new ObjectStorageService();
 
 const BASE_URL = process.env.BASE_URL || "";
@@ -22,7 +23,7 @@ router.get("/team-documents", async (_req, res) => {
 });
 
 router.put("/team-documents/:type", requireAuth, async (req, res) => {
-  const { type } = req.params;
+  const type = str(req.params.type);
   const { label, description, objectPath, externalUrl, mimeType } = req.body;
 
   const validTypes = ["liability_waiver", "media_release", "code_of_conduct"] as const;
@@ -71,7 +72,7 @@ router.put("/team-documents/:type", requireAuth, async (req, res) => {
 });
 
 router.delete("/team-documents/:type", requireAuth, async (req, res) => {
-  const { type } = req.params;
+  const type = str(req.params.type);
   await db.delete(teamDocumentsTable).where(eq(teamDocumentsTable.type, type as any));
   res.status(204).send();
 });

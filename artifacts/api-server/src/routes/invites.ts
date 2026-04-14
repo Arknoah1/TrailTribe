@@ -6,6 +6,7 @@ import { requireAuth, optionalAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 router.get("/invites", requireAuth, async (req, res) => {
   const invites = await db.select().from(inviteLinksTable).orderBy(inviteLinksTable.createdAt);
@@ -28,7 +29,7 @@ router.post("/invites", requireAuth, async (req, res) => {
 });
 
 router.get("/invites/:code", optionalAuth, async (req, res) => {
-  const { code } = req.params;
+  const code = str(req.params.code);
   const invite = await db.query.inviteLinksTable.findFirst({ where: eq(inviteLinksTable.code, code) });
   if (!invite || !invite.isActive) {
     res.status(404).json({ error: "Invite link not found or expired" });
@@ -38,7 +39,7 @@ router.get("/invites/:code", optionalAuth, async (req, res) => {
 });
 
 router.patch("/invites/:id/deactivate", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const [updated] = await db.update(inviteLinksTable)
     .set({ isActive: false })
     .where(eq(inviteLinksTable.id, id))

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 router.get("/pods", requireAuth, async (req, res) => {
   const pods = await db.select().from(podsTable);
@@ -43,7 +44,7 @@ router.post("/pods", requireAuth, async (req, res) => {
 });
 
 router.get("/pods/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const pod = await db.query.podsTable.findFirst({ where: eq(podsTable.id, id) });
   if (!pod) {
     res.status(404).json({ error: "Pod not found" });
@@ -55,7 +56,7 @@ router.get("/pods/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/pods/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { name, description, headCoachId, color, season, isActive } = req.body;
   const [updated] = await db.update(podsTable)
     .set({ name, description, headCoachId, color, season, isActive })

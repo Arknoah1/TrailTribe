@@ -1,4 +1,3 @@
-import { App as AppBase } from "./App";
 import Dashboard from "./pages/dashboard";
 import Calendar from "./pages/calendar";
 import EventDetail from "./pages/event-detail";

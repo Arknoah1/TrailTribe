@@ -20,6 +20,7 @@ const notificationPreferencesSchema = z.object({
 });
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 const DEFAULT_NOTIFICATION_PREFS = {
   practiceReminders: true,
@@ -133,7 +134,7 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
 });
 
 router.patch("/users/:id/pod", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { podId } = req.body;
   const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!target) { res.status(404).json({ error: "User not found" }); return; }
@@ -145,7 +146,7 @@ router.patch("/users/:id/pod", requireAuth, async (req, res) => {
 });
 
 router.patch("/users/:id/role", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { role } = req.body;
   if (!["parent", "coach"].includes(role)) {
     res.status(400).json({ error: "Role must be 'parent' or 'coach'" });
@@ -302,7 +303,7 @@ router.get("/users", requireAuth, async (req, res) => {
 });
 
 router.get("/users/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -312,7 +313,7 @@ router.get("/users/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/users/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { firstName, lastName, phone, role, podId, householdId,
     notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
     isActive } = req.body;
@@ -332,7 +333,7 @@ router.get("/pending-approvals", requireAuth, async (req, res) => {
 });
 
 router.post("/pending-approvals/:id/approve", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { podId, householdId, role } = req.body;
 
   const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });

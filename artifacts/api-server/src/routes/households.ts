@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 const studentNotifPrefsSchema = z.object({
   practiceReminders: z.boolean(),
@@ -56,7 +57,7 @@ router.get("/households/by-invite/:code", async (req, res) => {
 });
 
 router.get("/households/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) {
     res.status(404).json({ error: "Household not found" });
@@ -67,7 +68,7 @@ router.get("/households/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/households/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { name, address, emergencyContactName, emergencyContactPhone } = req.body;
   const [updated] = await db.update(householdsTable)
     .set({ name, address, emergencyContactName, emergencyContactPhone })
@@ -77,7 +78,7 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { liabilityWaiverSigned, mediaReleaseSigned, codeOfConductSigned } = req.body;
   const now = new Date();
   const updates: Record<string, any> = {};
@@ -98,14 +99,14 @@ router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
 });
 
 router.get("/households/:id/riders", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const riders = await db.select().from(usersTable)
     .where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student")));
   res.json(riders);
 });
 
 router.post("/households/:id/riders", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { firstName, lastName, grade, allergies, medications, medicalNotes, dateOfBirth, email, emailNotifications, notificationPreferences } = req.body;
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
@@ -149,8 +150,8 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
 });
 
 router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
-  const householdId = parseInt(req.params.id);
-  const riderId = parseInt(req.params.riderId);
+  const householdId = parseInt(str(req.params.id));
+  const riderId = parseInt(str(req.params.riderId));
   const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications, notificationPreferences } = req.body;
 
   const updates: Record<string, any> = {
@@ -190,8 +191,8 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
 });
 
 router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
-  const householdId = parseInt(req.params.id);
-  const riderId = parseInt(req.params.riderId);
+  const householdId = parseInt(str(req.params.id));
+  const riderId = parseInt(str(req.params.riderId));
   await db.delete(usersTable)
     .where(and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId), eq(usersTable.role, "student")));
   res.status(204).send();

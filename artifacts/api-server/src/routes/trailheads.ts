@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 router.get("/trailheads", requireAuth, async (req, res) => {
   const trailheads = await db.select().from(trailheadsTable).orderBy(trailheadsTable.name);
@@ -25,7 +26,7 @@ router.post("/trailheads", requireAuth, async (req, res) => {
 });
 
 router.patch("/trailheads/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const { name, address, googleMapsUrl, latitude, longitude, notes } = req.body;
   const [updated] = await db.update(trailheadsTable)
     .set({ name, address, googleMapsUrl, latitude, longitude, notes })
@@ -35,7 +36,7 @@ router.patch("/trailheads/:id", requireAuth, async (req, res) => {
 });
 
 router.delete("/trailheads/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   await db.delete(trailheadsTable).where(eq(trailheadsTable.id, id));
   res.status(204).send();
 });

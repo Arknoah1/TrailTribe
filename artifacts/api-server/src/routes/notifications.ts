@@ -5,6 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 router.get("/notifications", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
@@ -37,7 +38,7 @@ router.patch("/notifications/read-all", requireAuth, async (req, res) => {
 });
 
 router.delete("/notifications/:id", requireAuth, async (req, res) => {
-  const notifId = parseInt(req.params.id);
+  const notifId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {

@@ -15,6 +15,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 async function buildEventWithDetails(event: any, clerkUserId?: string) {
   const trailhead = event.trailheadId
@@ -106,7 +107,7 @@ router.post("/events", requireAuth, async (req, res) => {
 });
 
 router.get("/events/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
   if (!event) {
@@ -118,7 +119,7 @@ router.get("/events/:id", requireAuth, async (req, res) => {
 });
 
 router.patch("/events/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const {
     title, description, eventType, startTime, endTime, trailheadId,
@@ -144,13 +145,13 @@ router.patch("/events/:id", requireAuth, async (req, res) => {
 });
 
 router.delete("/events/:id", requireAuth, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(str(req.params.id));
   await db.delete(eventsTable).where(eq(eventsTable.id, id));
   res.status(204).send();
 });
 
 router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -181,7 +182,7 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
 });
 
 router.get("/events/:id/rsvps", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const rsvps = await db.select().from(eventRsvpsTable).where(eq(eventRsvpsTable.eventId, eventId));
   const result = await Promise.all(
     rsvps.map(async (r) => {
@@ -193,7 +194,7 @@ router.get("/events/:id/rsvps", requireAuth, async (req, res) => {
 });
 
 router.get("/events/:id/volunteers", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const volunteers = await db.select().from(volunteerSignupsTable).where(eq(volunteerSignupsTable.eventId, eventId));
   const result = await Promise.all(
     volunteers.map(async (v) => {
@@ -205,7 +206,7 @@ router.get("/events/:id/volunteers", requireAuth, async (req, res) => {
 });
 
 router.post("/events/:id/volunteers", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -223,13 +224,13 @@ router.post("/events/:id/volunteers", requireAuth, async (req, res) => {
 });
 
 router.delete("/events/:id/volunteers/:volunteerId", requireAuth, async (req, res) => {
-  const volunteerId = parseInt(req.params.volunteerId);
+  const volunteerId = parseInt(str(req.params.volunteerId));
   await db.delete(volunteerSignupsTable).where(eq(volunteerSignupsTable.id, volunteerId));
   res.status(204).send();
 });
 
 router.post("/events/:id/attachments", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const { label, objectPath, mimeType } = req.body;
   const [attachment] = await db.insert(eventAttachmentsTable).values({
     eventId,

@@ -11,6 +11,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 
 const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 async function buildOfferWithClaims(offer: any) {
   const driver = await db.query.usersTable.findFirst({ where: eq(usersTable.id, offer.driverUserId) });
@@ -33,14 +34,14 @@ async function buildOfferWithClaims(offer: any) {
 }
 
 router.get("/events/:id/carpools", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, eventId));
   const result = await Promise.all(offers.map(buildOfferWithClaims));
   res.json(result);
 });
 
 router.post("/events/:id/carpools", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -85,7 +86,7 @@ router.post("/events/:id/carpools", requireAuth, async (req, res) => {
 });
 
 router.patch("/carpools/:offerId", requireAuth, async (req, res) => {
-  const offerId = parseInt(req.params.offerId);
+  const offerId = parseInt(str(req.params.offerId));
   const { availableSeats, bikeTrayCount, departureLocation, departureTime, notes } = req.body;
   const [updated] = await db.update(carpoolOffersTable)
     .set({ availableSeats, bikeTrayCount, departureLocation, departureTime: departureTime ? new Date(departureTime) : undefined, notes })
@@ -95,13 +96,13 @@ router.patch("/carpools/:offerId", requireAuth, async (req, res) => {
 });
 
 router.delete("/carpools/:offerId", requireAuth, async (req, res) => {
-  const offerId = parseInt(req.params.offerId);
+  const offerId = parseInt(str(req.params.offerId));
   await db.delete(carpoolOffersTable).where(eq(carpoolOffersTable.id, offerId));
   res.status(204).send();
 });
 
 router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
-  const offerId = parseInt(req.params.offerId);
+  const offerId = parseInt(str(req.params.offerId));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -123,7 +124,7 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
 });
 
 router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
-  const claimId = parseInt(req.params.claimId);
+  const claimId = parseInt(str(req.params.claimId));
   const { needsSeat, needsBikeTray, notes } = req.body;
   const [updated] = await db.update(carpoolClaimsTable)
     .set({
@@ -137,7 +138,7 @@ router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res)
 });
 
 router.delete("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
-  const claimId = parseInt(req.params.claimId);
+  const claimId = parseInt(str(req.params.claimId));
   await db.delete(carpoolClaimsTable).where(eq(carpoolClaimsTable.id, claimId));
   res.status(204).send();
 });
@@ -157,14 +158,14 @@ async function buildRequestWithUsers(req: any) {
 }
 
 router.get("/events/:id/carpool-requests", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const requests = await db.select().from(carpoolRequestsTable).where(eq(carpoolRequestsTable.eventId, eventId));
   const result = await Promise.all(requests.map(buildRequestWithUsers));
   res.json(result);
 });
 
 router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
-  const eventId = parseInt(req.params.id);
+  const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -249,7 +250,7 @@ router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
 });
 
 router.patch("/carpool-requests/:id", requireAuth, async (req, res) => {
-  const requestId = parseInt(req.params.id);
+  const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -299,7 +300,7 @@ router.patch("/carpool-requests/:id", requireAuth, async (req, res) => {
 });
 
 router.delete("/carpool-requests/:id", requireAuth, async (req, res) => {
-  const requestId = parseInt(req.params.id);
+  const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
@@ -326,7 +327,7 @@ router.delete("/carpool-requests/:id", requireAuth, async (req, res) => {
 });
 
 router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
-  const requestId = parseInt(req.params.id);
+  const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) {
