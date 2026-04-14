@@ -168,7 +168,13 @@ router.put("/users/me", requireAuth, async (req, res) => {
   const [updated] = await db.update(usersTable)
     .set({ firstName, lastName, phone, avatarUrl, gender, grade,
       notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-      notificationPreferences: notificationPreferences ?? undefined,
+      notificationPreferences: notificationPreferences ? {
+        practiceReminders: notificationPreferences.practiceReminders === true,
+        coachMessages: notificationPreferences.coachMessages === true,
+        carpoolUpdates: notificationPreferences.carpoolUpdates === true,
+        eventReminders: notificationPreferences.eventReminders === true,
+        rosterUpdates: notificationPreferences.rosterUpdates === true,
+      } : undefined,
     })
     .where(eq(usersTable.id, user.id))
     .returning();
@@ -200,7 +206,16 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (emailNotifications !== undefined) patch.emailNotifications = emailNotifications;
   if (smsNotifications !== undefined) patch.smsNotifications = smsNotifications;
   if (pushNotifications !== undefined) patch.pushNotifications = pushNotifications;
-  if (notificationPreferences !== undefined) patch.notificationPreferences = notificationPreferences;
+  if (notificationPreferences !== undefined) {
+    // Normalize to canonical 5-key boolean shape to prevent partial/malformed persistence
+    patch.notificationPreferences = {
+      practiceReminders: notificationPreferences.practiceReminders === true,
+      coachMessages: notificationPreferences.coachMessages === true,
+      carpoolUpdates: notificationPreferences.carpoolUpdates === true,
+      eventReminders: notificationPreferences.eventReminders === true,
+      rosterUpdates: notificationPreferences.rosterUpdates === true,
+    };
+  }
 
   if (Object.keys(patch).length === 0) { res.json(user); return; }
 
