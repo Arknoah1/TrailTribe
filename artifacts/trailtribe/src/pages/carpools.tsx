@@ -221,7 +221,7 @@ export default function CarpoolBoard() {
 
   const openEditDialog = (claim: any) => {
     setEditingClaim(claim);
-    setEditNeedsTray(claim.needsBikeTray);
+    setEditNeedsTray(!claim.needsBikeTray);
     setEditDialogOpen(true);
   };
 
@@ -233,7 +233,7 @@ export default function CarpoolBoard() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ needsSeat: true, needsBikeTray: editNeedsTray }),
+          body: JSON.stringify({ needsSeat: true, needsBikeTray: !editNeedsTray }),
         }
       );
       if (res.ok) {
@@ -258,7 +258,7 @@ export default function CarpoolBoard() {
 
   const openEditRequest = (request: any) => {
     setEditingRequest(request);
-    setEditRequestNeedsTray(request.needsBikeTray);
+    setEditRequestNeedsTray(!request.needsBikeTray);
     setEditRequestNotes(request.notes ?? "");
     setEditRequestOpen(true);
   };
@@ -331,7 +331,7 @@ export default function CarpoolBoard() {
       <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Who needs a {claimNeedsTray ? "seat + tray" : "seat"}?</DialogTitle>
+            <DialogTitle>Who needs a ride{claimNeedsTray ? " + bike" : ""}?</DialogTitle>
             <DialogDescription>Select the rider(s) you're claiming for.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -376,8 +376,8 @@ export default function CarpoolBoard() {
                 className="h-4 w-4 accent-primary"
               />
               <div>
-                <p className="font-medium">Needs bike tray</p>
-                <p className="text-sm text-muted-foreground">Check if the rider's bike needs a tray spot</p>
+                <p className="font-medium">Rider only</p>
+                <p className="text-sm text-muted-foreground">Check if no bike transport is needed</p>
               </div>
             </label>
           </div>
@@ -408,7 +408,7 @@ export default function CarpoolBoard() {
                   const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpool-requests`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ riderUserId: rider.id, needsBikeTray: requestNeedsTray, notes: requestNotes || undefined }),
+                    body: JSON.stringify({ riderUserId: rider.id, needsBikeTray: !requestNeedsTray, notes: requestNotes || undefined }),
                   });
                   if (!res.ok) {
                     const d = await res.json().catch(() => ({}));
@@ -460,8 +460,8 @@ export default function CarpoolBoard() {
                 className="h-4 w-4 accent-primary"
               />
               <div>
-                <p className="font-medium">Needs bike tray</p>
-                <p className="text-sm text-muted-foreground">Check if the rider's bike needs a tray spot</p>
+                <p className="font-medium">Rider only</p>
+                <p className="text-sm text-muted-foreground">Check if no bike transport is needed</p>
               </div>
             </label>
             <div className="space-y-2">
@@ -498,8 +498,8 @@ export default function CarpoolBoard() {
                 className="h-4 w-4 accent-primary"
               />
               <div>
-                <p className="font-medium">Needs bike tray</p>
-                <p className="text-sm text-muted-foreground">Check if the rider's bike needs a tray spot</p>
+                <p className="font-medium">Rider only</p>
+                <p className="text-sm text-muted-foreground">Check if no bike transport is needed</p>
               </div>
             </label>
             <div className="space-y-2">
@@ -521,7 +521,7 @@ export default function CarpoolBoard() {
                 if (!editingRequest) return;
                 updateRequest.mutate({
                   id: editingRequest.id,
-                  data: { needsBikeTray: editRequestNeedsTray, notes: editRequestNotes || undefined }
+                  data: { needsBikeTray: !editRequestNeedsTray, notes: editRequestNotes || undefined }
                 });
               }}
             >
@@ -635,7 +635,8 @@ export default function CarpoolBoard() {
                             <span className="font-medium">{claim.rider?.firstName} {claim.rider?.lastName}</span>
                             <div className="flex items-center gap-1">
                               {claim.needsSeat && <Badge variant="outline" className="text-[10px]">Seat</Badge>}
-                              {claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">Tray</Badge>}
+                              {claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">+ Bike</Badge>}
+                              {!claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">Rider only</Badge>}
                               {mine && (
                                 <>
                                   <button
@@ -665,18 +666,18 @@ export default function CarpoolBoard() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={offer.seatsRemaining <= 0 || isClaiming}
-                      onClick={() => handleClaimClick(offer, false)}
+                      disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || isClaiming}
+                      onClick={() => handleClaimClick(offer, true)}
                     >
-                      Claim Seat
+                      Seat + Bike
                     </Button>
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || isClaiming}
-                      onClick={() => handleClaimClick(offer, true)}
+                      disabled={offer.seatsRemaining <= 0 || isClaiming}
+                      onClick={() => handleClaimClick(offer, false)}
                     >
-                      Seat + Tray
+                      Rider only
                     </Button>
                   </div>
                 </CardContent>
@@ -733,8 +734,11 @@ export default function CarpoolBoard() {
                         {isMatched && <Badge className="bg-green-600 text-white hover:bg-green-700">Matched</Badge>}
                         {request.needsBikeTray && (
                           <Badge variant="outline" className="text-[10px] flex items-center gap-1">
-                            <Bike className="h-3 w-3" /> Tray
+                            <Bike className="h-3 w-3" /> + Bike
                           </Badge>
+                        )}
+                        {!request.needsBikeTray && (
+                          <Badge variant="outline" className="text-[10px]">Rider only</Badge>
                         )}
                       </div>
                     </div>
