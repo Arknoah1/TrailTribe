@@ -174,14 +174,21 @@ router.put("/users/me", requireAuth, async (req, res) => {
     notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
     notificationPreferences,
   } = req.body;
+
+  let validatedPrefs: typeof DEFAULT_NOTIFICATION_PREFS | undefined;
+  if (notificationPreferences !== undefined) {
+    const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid notificationPreferences", details: parsed.error.issues });
+      return;
+    }
+    validatedPrefs = parsed.data;
+  }
+
   const [updated] = await db.update(usersTable)
     .set({ firstName, lastName, phone, avatarUrl, gender, grade,
       notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-      notificationPreferences: (() => {
-        if (!notificationPreferences) return undefined;
-        const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
-        return parsed.success ? parsed.data : undefined;
-      })(),
+      notificationPreferences: validatedPrefs,
     })
     .where(eq(usersTable.id, user.id))
     .returning();

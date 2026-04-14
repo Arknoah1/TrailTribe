@@ -111,17 +111,22 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
 
   // Validate and build canonical student prefs — carpool/roster are always false for students
-  const parsedPrefs = notificationPreferences
-    ? studentNotifPrefsSchema.safeParse(notificationPreferences)
-    : null;
-  const safePrefs = parsedPrefs?.success ? parsedPrefs.data : {};
-  const studentPrefs = {
-    practiceReminders: safePrefs.practiceReminders ?? true,
-    coachMessages: safePrefs.coachMessages ?? true,
-    carpoolUpdates: false,
-    eventReminders: safePrefs.eventReminders ?? true,
-    rosterUpdates: false,
-  };
+  let studentPrefs = { practiceReminders: true, coachMessages: true, carpoolUpdates: false, eventReminders: true, rosterUpdates: false };
+  if (notificationPreferences != null) {
+    const parsedPrefs = studentNotifPrefsSchema.safeParse(notificationPreferences);
+    if (!parsedPrefs.success) {
+      res.status(400).json({ error: "Invalid notificationPreferences", details: parsedPrefs.error.issues });
+      return;
+    }
+    const safePrefs = parsedPrefs.data;
+    studentPrefs = {
+      practiceReminders: safePrefs.practiceReminders ?? true,
+      coachMessages: safePrefs.coachMessages ?? true,
+      carpoolUpdates: false,
+      eventReminders: safePrefs.eventReminders ?? true,
+      rosterUpdates: false,
+    };
+  }
 
   const [rider] = await db.insert(usersTable).values({
     householdId: id,
@@ -162,8 +167,11 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   updates.pushNotifications = false;
   if (notificationPreferences !== undefined) {
     const parsedRiderPrefs = studentNotifPrefsSchema.safeParse(notificationPreferences);
-    const safeRiderPrefs = parsedRiderPrefs.success ? parsedRiderPrefs.data : {};
-    // Persist canonical 5-key object; carpool/roster always false for students
+    if (!parsedRiderPrefs.success) {
+      res.status(400).json({ error: "Invalid notificationPreferences", details: parsedRiderPrefs.error.issues });
+      return;
+    }
+    const safeRiderPrefs = parsedRiderPrefs.data;
     updates.notificationPreferences = {
       practiceReminders: safeRiderPrefs.practiceReminders ?? true,
       coachMessages: safeRiderPrefs.coachMessages ?? true,
