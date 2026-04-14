@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { createNotification } from "../lib/notifications";
 
 const router = Router();
 
@@ -56,6 +57,30 @@ router.post("/events/:id/carpools", requireAuth, async (req, res) => {
     departureTime: departureTime ? new Date(departureTime) : null,
     notes: notes ?? null,
   }).returning();
+
+  (async () => {
+    try {
+      const openRequests = await db
+        .select()
+        .from(carpoolRequestsTable)
+        .where(and(eq(carpoolRequestsTable.eventId, eventId), eq(carpoolRequestsTable.status, "open")));
+      const driverName = `${me.firstName} ${me.lastName}`;
+      for (const req of openRequests) {
+        if (req.requestedByUserId !== me.id) {
+          await createNotification(
+            req.requestedByUserId,
+            "carpool_offer_posted",
+            "New Carpool Offer",
+            `${driverName} posted an offer with ${availableSeats} seat${availableSeats !== 1 ? "s" : ""} available.`,
+            `/carpools/${eventId}`
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[notifications] offer trigger failed:", err);
+    }
+  })();
+
   res.status(201).json(offer);
 });
 
@@ -195,6 +220,30 @@ router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
     notes: notes ?? null,
     status: "open",
   }).returning();
+
+  (async () => {
+    try {
+      const activeOffers = await db
+        .select()
+        .from(carpoolOffersTable)
+        .where(eq(carpoolOffersTable.eventId, eventId));
+      const requesterName = `${me.firstName} ${me.lastName}`;
+      for (const offer of activeOffers) {
+        if (offer.driverUserId !== me.id) {
+          await createNotification(
+            offer.driverUserId,
+            "carpool_request_posted",
+            "New Ride Request",
+            `${requesterName} posted a ride request for this event.`,
+            `/carpools/${eventId}`
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[notifications] request trigger failed:", err);
+    }
+  })();
+
   const result = await buildRequestWithUsers(request);
   res.status(201).json(result);
 });
@@ -381,6 +430,22 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
   }
 
   const result = await buildRequestWithUsers(updated);
+
+  (async () => {
+    try {
+      const driverName = `${me.firstName} ${me.lastName}`;
+      await createNotification(
+        updated.requestedByUserId,
+        "carpool_request_matched",
+        "Ride Matched!",
+        `${driverName} accepted your ride request and will give you a lift.`,
+        `/carpools/${updated.eventId}`
+      );
+    } catch (err) {
+      console.error("[notifications] match trigger failed:", err);
+    }
+  })();
+
   res.json(result);
 });
 

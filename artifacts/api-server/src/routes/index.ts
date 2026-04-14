@@ -11,6 +11,7 @@ import invitesRouter from "./invites";
 import dashboardRouter from "./dashboard";
 import storageRouter from "./storage";
 import teamDocumentsRouter from "./team-documents";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(messagesRouter);
 router.use(invitesRouter);
 router.use(storageRouter);
 router.use(teamDocumentsRouter);
+router.use(notificationsRouter);
 
 export default router;

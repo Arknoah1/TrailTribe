@@ -8,3 +8,4 @@ export * from "./invite_links";
 export * from "./messages";
 export * from "./event_attachments";
 export * from "./team_documents";
+export * from "./notifications";

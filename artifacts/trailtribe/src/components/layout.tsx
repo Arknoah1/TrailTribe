@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe } from "@workspace/api-client-react";
+import { NotificationBell } from "./notification-bell";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -23,7 +24,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
     : baseNavItems;
 
-  // Mobile shows all items; desktop sidebar shows all
   const mobileItems = isCoachOrAdmin
     ? [baseNavItems[0], baseNavItems[1], baseNavItems[2], adminNavItem, baseNavItems[4]]
     : baseNavItems;
@@ -32,13 +32,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-foreground">TrailTribe</h1>
-          {isCoachOrAdmin && (
-            <span className="text-xs text-primary font-semibold uppercase tracking-wider mt-0.5 block">
-              Coach View
-            </span>
-          )}
+        <div className="p-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">TrailTribe</h1>
+            {isCoachOrAdmin && (
+              <span className="text-xs text-primary font-semibold uppercase tracking-wider mt-0.5 block">
+                Coach View
+              </span>
+            )}
+          </div>
+          {me && <NotificationBell />}
         </div>
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
@@ -63,8 +66,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
+      {/* Mobile Top Bar (notification bell) */}
+      {me && (
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b border-border">
+          <span className="text-lg font-bold text-foreground">TrailTribe</span>
+          <NotificationBell />
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="flex-1 pb-16 md:pb-0 overflow-y-auto">
+      <main className={cn("flex-1 overflow-y-auto pb-16 md:pb-0", me ? "pt-12 md:pt-0" : "")}>
         {children}
       </main>
 
