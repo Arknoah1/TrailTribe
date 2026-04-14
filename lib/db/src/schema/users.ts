@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { householdsTable } from "./households";
@@ -36,6 +36,13 @@ export const usersTable = pgTable("users", {
   emailNotifications: boolean("email_notifications").notNull().default(true),
   smsNotifications: boolean("sms_notifications").notNull().default(false),
   pushNotifications: boolean("push_notifications").notNull().default(true),
+  notificationPreferences: jsonb("notification_preferences").$type<{
+    practiceReminders: boolean;
+    coachMessages: boolean;
+    carpoolUpdates: boolean;
+    eventReminders: boolean;
+    rosterUpdates: boolean;
+  }>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

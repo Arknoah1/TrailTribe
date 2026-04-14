@@ -19,16 +19,13 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell } from "lucide-react";
 import { format } from "date-fns";
 
 const profileSchema = z.object({
   firstName: z.string().min(2),
   lastName: z.string().min(2),
   phone: z.string().optional(),
-  emailNotifications: z.boolean(),
-  smsNotifications: z.boolean(),
-  pushNotifications: z.boolean(),
 });
 
 const householdSchema = z.object({
@@ -45,11 +42,167 @@ const riderSchema = z.object({
   medicalNotes: z.string().optional(),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   emailNotifications: z.boolean().optional(),
+  notifPracticeReminders: z.boolean().optional(),
+  notifCoachMessages: z.boolean().optional(),
+  notifEventReminders: z.boolean().optional(),
 });
 
 type RiderFormValues = z.infer<typeof riderSchema>;
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+
+const DEFAULT_PREFS = {
+  practiceReminders: true,
+  coachMessages: true,
+  carpoolUpdates: true,
+  eventReminders: true,
+  rosterUpdates: true,
+};
+
+type NotifPrefs = typeof DEFAULT_PREFS;
+
+// ─── NotificationsTab ────────────────────────────────────────────────────────
+
+function NotificationsTab({ user }: { user: any }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
+
+  const prefs: NotifPrefs = { ...DEFAULT_PREFS, ...(user.notificationPreferences ?? {}) };
+  const masterOn: boolean = user.notificationsEnabled ?? true;
+  const hasPhone = !!user.phone;
+  const isCoachOrAdmin = user.role === "coach" || user.role === "admin";
+
+  const save = async (patch: Record<string, any>, key: string) => {
+    setSavingKey(key);
+    try {
+      const res = await fetch(`${BASE_URL}/api/users/me`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        setRecentlySaved(key);
+        setTimeout(() => setRecentlySaved(null), 2000);
+      } else {
+        toast({ title: "Failed to save", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to save", variant: "destructive" });
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const ToggleRow = ({
+    toggleKey, label, description, value, disabled, onChange,
+  }: {
+    toggleKey: string; label: string; description: string;
+    value: boolean; disabled?: boolean; onChange: (v: boolean) => void;
+  }) => (
+    <div className={`flex items-center justify-between rounded-lg border p-4 transition-opacity ${disabled ? "opacity-50" : ""}`}>
+      <div className="space-y-0.5 flex-1 mr-4">
+        <div className="text-sm font-medium">{label}</div>
+        <div className="text-xs text-muted-foreground">{description}</div>
+      </div>
+      <div className="flex items-center gap-2">
+        {recentlySaved === toggleKey && (
+          <span className="text-xs text-green-500 font-medium">Saved</span>
+        )}
+        <Switch
+          checked={value}
+          onCheckedChange={disabled ? undefined : onChange}
+          disabled={disabled || savingKey === toggleKey}
+        />
+      </div>
+    </div>
+  );
+
+  const topics = [
+    { key: "practiceReminders", label: "Practice & training reminders", desc: "Reminders before scheduled practices and workouts." },
+    { key: "coachMessages", label: "Coach announcements", desc: "Messages and updates sent by coaches." },
+    { key: "carpoolUpdates", label: "Carpool updates", desc: "New ride offers, ride requests, and matches." },
+    { key: "eventReminders", label: "Event reminders & changes", desc: "Race schedule updates and day-before reminders." },
+    ...(isCoachOrAdmin ? [{ key: "rosterUpdates", label: "Roster updates", desc: "New families pending approval and roster changes." }] : []),
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
+          <CardDescription>Control when and how TrailTribe contacts you.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ToggleRow
+            toggleKey="notificationsEnabled"
+            label="Receive notifications"
+            description="Master switch — turn off to silence all notifications."
+            value={masterOn}
+            onChange={(v) => save({ notificationsEnabled: v }, "notificationsEnabled")}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Channels</CardTitle>
+          <CardDescription>How you want to be reached.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ToggleRow
+            toggleKey="emailNotifications"
+            label="Email"
+            description="Get event updates and messages in your inbox."
+            value={user.emailNotifications ?? true}
+            disabled={!masterOn}
+            onChange={(v) => save({ emailNotifications: v }, "emailNotifications")}
+          />
+          <ToggleRow
+            toggleKey="smsNotifications"
+            label="SMS text messages"
+            description={hasPhone ? "Get urgent updates as a text." : "Add a phone number in My Account to enable SMS."}
+            value={user.smsNotifications ?? false}
+            disabled={!masterOn || !hasPhone}
+            onChange={(v) => save({ smsNotifications: v }, "smsNotifications")}
+          />
+          <ToggleRow
+            toggleKey="pushNotifications"
+            label="In-app notifications"
+            description="See a badge when something needs your attention."
+            value={user.pushNotifications ?? true}
+            disabled={!masterOn}
+            onChange={(v) => save({ pushNotifications: v }, "pushNotifications")}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Topics</CardTitle>
+          <CardDescription>What you want to hear about.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {topics.map(({ key, label, desc }) => (
+            <ToggleRow
+              key={key}
+              toggleKey={key}
+              label={label}
+              description={desc}
+              value={prefs[key as keyof NotifPrefs] ?? true}
+              disabled={!masterOn}
+              onChange={(v) => save({ notificationPreferences: { ...prefs, [key]: v } }, key)}
+            />
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── RiderDialog ─────────────────────────────────────────────────────────────
 
 function RiderDialog({
   householdId,
@@ -58,12 +211,21 @@ function RiderDialog({
   onSaved,
 }: {
   householdId: number;
-  rider?: { id: number; firstName: string; lastName: string; grade?: number | null; allergies?: string | null; medicalNotes?: string | null; email?: string | null; emailNotifications?: boolean | null };
+  rider?: {
+    id: number; firstName: string; lastName: string;
+    grade?: number | null; allergies?: string | null; medicalNotes?: string | null;
+    email?: string | null; emailNotifications?: boolean | null;
+    notificationPreferences?: {
+      practiceReminders?: boolean; coachMessages?: boolean; eventReminders?: boolean;
+    } | null;
+  };
   onClose: () => void;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
   const riderEmail = rider?.email?.endsWith("@trailtribe.internal") ? "" : (rider?.email ?? "");
+  const riderPrefs = rider?.notificationPreferences ?? {};
+
   const form = useForm<RiderFormValues>({
     resolver: zodResolver(riderSchema),
     defaultValues: {
@@ -74,10 +236,24 @@ function RiderDialog({
       medicalNotes: rider?.medicalNotes ?? "",
       email: riderEmail,
       emailNotifications: rider?.emailNotifications ?? false,
+      notifPracticeReminders: riderPrefs.practiceReminders ?? true,
+      notifCoachMessages: riderPrefs.coachMessages ?? true,
+      notifEventReminders: riderPrefs.eventReminders ?? true,
     },
   });
 
+  const emailOn = form.watch("emailNotifications");
+
   const onSubmit = async (values: RiderFormValues) => {
+    const { notifPracticeReminders, notifCoachMessages, notifEventReminders, ...rest } = values;
+    const body = {
+      ...rest,
+      notificationPreferences: {
+        practiceReminders: notifPracticeReminders ?? true,
+        coachMessages: notifCoachMessages ?? true,
+        eventReminders: notifEventReminders ?? true,
+      },
+    };
     const url = rider
       ? `${BASE_URL}/api/households/${householdId}/riders/${rider.id}`
       : `${BASE_URL}/api/households/${householdId}/riders`;
@@ -85,7 +261,7 @@ function RiderDialog({
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       toast({ title: "Failed to save rider", variant: "destructive" });
@@ -134,19 +310,21 @@ function RiderDialog({
             <FormControl><Input placeholder="e.g. carries EpiPen" {...field} /></FormControl>
           </FormItem>
         )} />
+
         <div className="border-t pt-4 space-y-3">
+          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Notifications</p>
           <FormField control={form.control} name="email" render={({ field }) => (
             <FormItem>
               <FormLabel>Rider Email <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
               <FormControl><Input type="email" placeholder="rider@example.com" {...field} /></FormControl>
-              <FormDescription className="text-xs">If provided, the rider will receive their own team notifications.</FormDescription>
+              <FormDescription className="text-xs">If provided, the rider can receive their own team notifications.</FormDescription>
               <FormMessage />
             </FormItem>
           )} />
           <FormField control={form.control} name="emailNotifications" render={({ field }) => (
             <FormItem className="flex items-center justify-between rounded-lg border p-3">
               <div>
-                <FormLabel className="text-sm font-medium">Email Notifications</FormLabel>
+                <FormLabel className="text-sm font-medium">Email notifications</FormLabel>
                 <FormDescription className="text-xs">Send team updates to this rider's email.</FormDescription>
               </div>
               <FormControl>
@@ -154,7 +332,27 @@ function RiderDialog({
               </FormControl>
             </FormItem>
           )} />
+
+          {/* Per-topic toggles — only relevant when email is on */}
+          <div className={`space-y-2 pl-2 border-l-2 border-muted transition-opacity ${emailOn ? "" : "opacity-40 pointer-events-none"}`}>
+            <p className="text-xs text-muted-foreground">Which topics should this rider receive?</p>
+            {[
+              { name: "notifPracticeReminders" as const, label: "Practice & training reminders" },
+              { name: "notifCoachMessages" as const, label: "Coach announcements" },
+              { name: "notifEventReminders" as const, label: "Event reminders & changes" },
+            ].map(({ name, label }) => (
+              <FormField key={name} control={form.control} name={name} render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormLabel className="text-sm font-normal cursor-pointer">{label}</FormLabel>
+                  <FormControl>
+                    <Switch checked={field.value ?? true} onCheckedChange={field.onChange} disabled={!emailOn} />
+                  </FormControl>
+                </FormItem>
+              )} />
+            ))}
+          </div>
         </div>
+
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting ? "Saving..." : rider ? "Save Changes" : "Add Rider"}
         </Button>
@@ -162,6 +360,8 @@ function RiderDialog({
     </Form>
   );
 }
+
+// ─── Household setup helpers ──────────────────────────────────────────────────
 
 const createHouseholdSchema = z.object({
   name: z.string().min(2, "Family name must be at least 2 characters"),
@@ -231,9 +431,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   if (mode === "create") {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">
-          ← Back
-        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">← Back</Button>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Home className="h-5 w-5" /> Set Up Your Family</CardTitle>
@@ -277,9 +475,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
   if (mode === "join") {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">
-          ← Back
-        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setMode("choose")} className="text-muted-foreground">← Back</Button>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Join a Household</CardTitle>
@@ -329,6 +525,8 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
     </div>
   );
 }
+
+// ─── MyFamilyTab ──────────────────────────────────────────────────────────────
 
 interface TeamDoc { type: string; viewUrl: string | null; }
 
@@ -423,7 +621,6 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
 
   return (
     <div className="space-y-6">
-      {/* Household info */}
       <Form {...householdForm}>
         <form onSubmit={householdForm.handleSubmit(saveHousehold)}>
           <Card>
@@ -480,7 +677,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
                 <Plus className="h-4 w-4 mr-1" /> Add Rider
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Add a Rider</DialogTitle></DialogHeader>
               <RiderDialog householdId={householdId} onClose={() => setRiderDialogOpen(false)} onSaved={fetchRiders} />
             </DialogContent>
@@ -513,7 +710,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent>
+                      <DialogContent className="max-h-[90vh] overflow-y-auto">
                         <DialogHeader><DialogTitle>Edit Rider</DialogTitle></DialogHeader>
                         <RiderDialog householdId={householdId} rider={rider} onClose={() => { setRiderDialogOpen(false); setEditingRider(null); }} onSaved={fetchRiders} />
                       </DialogContent>
@@ -534,62 +731,61 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
         const adults = (household as any).members?.filter((m: any) => m.role !== "student") ?? [];
         return (
           <>
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between space-y-0">
-              <div>
-                <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
-                <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
-              </div>
-              <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
-                <Plus className="h-4 w-4 mr-1.5" /> Add Parent
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {adults.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No members yet.</p>
-              ) : (
-                adults.map((m: any) => (
-                  <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium flex items-center gap-2">
-                        {m.firstName} {m.lastName}
-                        {m.role === "coach" && <Badge variant="secondary" className="text-xs">Coach</Badge>}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate mt-0.5">
-                        {m.email && !m.email.endsWith("@trailtribe.internal") ? m.email : ""}
-                        {m.phone && <span className="ml-2">{m.phone}</span>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
-                      {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Invite dialog */}
-          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</DialogTitle>
-                <DialogDescription>Share this link so another parent can join your household and see the same events and notifications.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 pt-1">
-                <div className="flex gap-2">
-                  <Input value={inviteUrl} readOnly className="font-mono text-xs bg-muted" />
-                  <Button variant="outline" size="icon" onClick={copyInvite} className="shrink-0">
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
+                  <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Code: <span className="font-mono font-medium">{household.inviteCode}</span>
-                </p>
-              </div>
-            </DialogContent>
-          </Dialog>
+                <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" /> Add Parent
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {adults.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No members yet.</p>
+                ) : (
+                  adults.map((m: any) => (
+                    <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium flex items-center gap-2">
+                          {m.firstName} {m.lastName}
+                          {m.role === "coach" && <Badge variant="secondary" className="text-xs">Coach</Badge>}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                          {m.email && !m.email.endsWith("@trailtribe.internal") ? m.email : ""}
+                          {m.phone && <span className="ml-2">{m.phone}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
+                        {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</DialogTitle>
+                  <DialogDescription>Share this link so another parent can join your household and see the same events and notifications.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 pt-1">
+                  <div className="flex gap-2">
+                    <Input value={inviteUrl} readOnly className="font-mono text-xs bg-muted" />
+                    <Button variant="outline" size="icon" onClick={copyInvite} className="shrink-0">
+                      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Code: <span className="font-mono font-medium">{household.inviteCode}</span>
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
           </>
         );
       })()}
@@ -624,12 +820,8 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
                   />
                 </div>
                 {viewUrl && (
-                  <a
-                    href={viewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                  >
+                  <a href={viewUrl} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
                     <Link2 className="h-3 w-3" /> View document before signing
                   </a>
                 )}
@@ -638,10 +830,11 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
           })}
         </CardContent>
       </Card>
-
     </div>
   );
 }
+
+// ─── Profile (main page) ──────────────────────────────────────────────────────
 
 export default function Profile() {
   const { data: user, isLoading } = useGetMe();
@@ -651,14 +844,7 @@ export default function Profile() {
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      phone: "",
-      emailNotifications: true,
-      smsNotifications: false,
-      pushNotifications: true,
-    }
+    defaultValues: { firstName: "", lastName: "", phone: "" },
   });
 
   useEffect(() => {
@@ -667,9 +853,6 @@ export default function Profile() {
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone || "",
-        emailNotifications: user.emailNotifications,
-        smsNotifications: user.smsNotifications,
-        pushNotifications: user.pushNotifications,
       });
     }
   }, [user, form]);
@@ -698,15 +881,19 @@ export default function Profile() {
       </div>
 
       <Tabs defaultValue="account">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="account" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="account" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account
           </TabsTrigger>
-          <TabsTrigger value="family" className="flex items-center gap-2">
+          <TabsTrigger value="notifications" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Bell className="h-4 w-4" /> Notifications
+          </TabsTrigger>
+          <TabsTrigger value="family" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Home className="h-4 w-4" /> My Family
           </TabsTrigger>
         </TabsList>
 
+        {/* My Account tab */}
         <TabsContent value="account" className="mt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -734,7 +921,8 @@ export default function Profile() {
                   <FormField control={form.control} name="phone" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} /></FormControl>
+                      <FormDescription className="text-xs">Required to enable SMS notifications.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -746,32 +934,6 @@ export default function Profile() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notifications</CardTitle>
-                  <CardDescription>How you want to be contacted by coaches.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[
-                    { name: "emailNotifications" as const, label: "Email", desc: "Receive broadcasts via email." },
-                    { name: "smsNotifications" as const, label: "SMS Text Messages", desc: "Get texts for urgent updates." },
-                    { name: "pushNotifications" as const, label: "Push Notifications", desc: "Receive app notifications." },
-                  ].map(({ name, label, desc }) => (
-                    <FormField key={name} control={form.control} name={name} render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">{label}</FormLabel>
-                          <FormDescription>{desc}</FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )} />
-                  ))}
-                </CardContent>
-              </Card>
-
               <div className="flex justify-end">
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
@@ -780,7 +942,7 @@ export default function Profile() {
             </form>
           </Form>
 
-          <div className="pt-2 border-t">
+          <div className="pt-4 border-t mt-4">
             <Button
               variant="ghost"
               className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
@@ -792,6 +954,12 @@ export default function Profile() {
           </div>
         </TabsContent>
 
+        {/* Notifications tab */}
+        <TabsContent value="notifications" className="mt-6">
+          {user ? <NotificationsTab user={user} /> : null}
+        </TabsContent>
+
+        {/* My Family tab */}
         <TabsContent value="family" className="mt-6">
           {user?.householdId ? (
             <MyFamilyTab householdId={user.householdId} />

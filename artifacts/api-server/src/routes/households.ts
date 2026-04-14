@@ -122,7 +122,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
 router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
   const householdId = parseInt(req.params.id);
   const riderId = parseInt(req.params.riderId);
-  const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications } = req.body;
+  const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications, notificationPreferences } = req.body;
 
   const updates: Record<string, any> = {
     firstName, lastName,
@@ -133,6 +133,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   };
   if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
   if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+  if (notificationPreferences !== undefined) updates.notificationPreferences = notificationPreferences;
 
   const [updated] = await db.update(usersTable)
     .set(updates)

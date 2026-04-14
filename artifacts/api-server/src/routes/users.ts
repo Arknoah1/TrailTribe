@@ -145,11 +145,14 @@ router.put("/users/me", requireAuth, async (req, res) => {
   }
   const {
     firstName, lastName, phone, avatarUrl, gender, grade,
-    notificationsEnabled, emailNotifications, smsNotifications, pushNotifications
+    notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
+    notificationPreferences,
   } = req.body;
   const [updated] = await db.update(usersTable)
     .set({ firstName, lastName, phone, avatarUrl, gender, grade,
-      notificationsEnabled, emailNotifications, smsNotifications, pushNotifications })
+      notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
+      notificationPreferences: notificationPreferences ?? undefined,
+    })
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);
