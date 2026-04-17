@@ -339,11 +339,16 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
     return;
   }
 
-  const { offerId } = req.body;
+  const { offerId, autoCreated } = req.body;
   if (!offerId) {
     res.status(400).json({ error: "offerId is required" });
     return;
   }
+  // When the client auto-created the offer specifically for this match, the
+  // matched rider SHOULD consume a seat (matchedByDriver=false). When matching
+  // a rider to a pre-existing offer, the driver is going beyond their advertised
+  // capacity so we don't deduct from the displayed count (matchedByDriver=true).
+  const claimMatchedByDriver = !autoCreated;
 
   // Verify driver owns the offer
   const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
@@ -397,7 +402,7 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
       needsSeat: true,
       needsBikeTray: freshRequest.needsBikeTray,
       notes: freshRequest.notes ?? null,
-      matchedByDriver: true,
+      matchedByDriver: claimMatchedByDriver,
     });
 
     const [matched] = await tx

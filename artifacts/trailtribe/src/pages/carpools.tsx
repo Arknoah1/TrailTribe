@@ -304,10 +304,11 @@ export default function CarpoolBoard() {
       } else {
         offerId = myAllOffers[0].id;
       }
+      const wasAutoCreated = myAllOffers.length === 0;
       const matchRes = await authedFetch(`${BASE_URL}/api/carpool-requests/${matchingRequest.id}/match`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offerId }),
+        body: JSON.stringify({ offerId, autoCreated: wasAutoCreated }),
       });
       if (!matchRes.ok) {
         const d = await matchRes.json().catch(() => ({}));
