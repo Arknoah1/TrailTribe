@@ -840,7 +840,7 @@ export const BatchCreateEventsBody = zod.object({
 });
 
 /**
- * @summary Delete all future events in a series
+ * @summary Delete all future events in a series (coach/admin only)
  */
 export const DeleteSeriesParams = zod.object({
   seriesId: zod.coerce.string(),
@@ -855,6 +855,29 @@ export const DeleteSeriesQueryParams = zod.object({
 
 export const DeleteSeriesResponse = zod.object({
   deleted: zod.number(),
+});
+
+/**
+ * @summary Shift all future events in a series by N days (coach/admin only)
+ */
+export const RescheduleSeriesParams = zod.object({
+  seriesId: zod.coerce.string(),
+});
+
+export const RescheduleSeriesBody = zod.object({
+  shiftDays: zod
+    .number()
+    .describe(
+      "Number of days to shift (positive = forward, negative = backward)",
+    ),
+  fromDate: zod.coerce
+    .date()
+    .optional()
+    .describe("Only reschedule events on or after this date. Defaults to now."),
+});
+
+export const RescheduleSeriesResponse = zod.object({
+  rescheduled: zod.number(),
 });
 
 export const GetEventParams = zod.object({

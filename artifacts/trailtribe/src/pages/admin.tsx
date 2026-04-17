@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -198,13 +198,15 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
 
-  const { data: allEvents, refetch: refetchEvents } = useListEvents({ archived: "true" } as any);
+  const { data: allEvents, refetch: refetchEvents } = useListEvents({ archived: true });
   const deleteEvent = useDeleteEvent();
   const updateEvent = useUpdateEvent();
   const deleteSeries = useDeleteSeries();
+  const rescheduleSeries = useRescheduleSeries();
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [editingEventData, setEditingEventData] = useState<Record<string, any>>({});
   const [eventFilter, setEventFilter] = useState<"upcoming" | "all">("upcoming");
+  const [shiftDaysInputs, setShiftDaysInputs] = useState<Record<string, string>>({});
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
@@ -764,6 +766,27 @@ export default function Admin() {
               });
             };
 
+            const handleRescheduleSeries = (seriesId: string) => {
+              const raw = shiftDaysInputs[seriesId] ?? "";
+              const days = parseInt(raw, 10);
+              if (isNaN(days) || days === 0) {
+                toast({ title: "Enter a non-zero number of days to shift", variant: "destructive" });
+                return;
+              }
+              rescheduleSeries.mutate(
+                { seriesId, data: { shiftDays: days, fromDate: now.toISOString().split("T")[0] } },
+                {
+                  onSuccess: (data) => {
+                    toast({ title: `${(data as any).rescheduled} events shifted by ${days > 0 ? "+" : ""}${days} day${Math.abs(days) !== 1 ? "s" : ""}` });
+                    setShiftDaysInputs(prev => { const n = {...prev}; delete n[seriesId]; return n; });
+                    refetchEvents();
+                    queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                  },
+                  onError: () => toast({ title: "Failed to reschedule series", variant: "destructive" }),
+                }
+              );
+            };
+
             return (
               <div className="space-y-6">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -902,24 +925,46 @@ export default function Admin() {
                         const latest = group[group.length - 1];
                         return (
                           <Card key={sid}>
-                            <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                              <div>
-                                <p className="font-medium text-sm">{earliest.title.split(" — ")[0] || "Series"}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {group.length} events · {new Date(earliest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(latest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                  {futureCount > 0 && ` · ${futureCount} upcoming`}
-                                </p>
+                            <CardContent className="p-4 space-y-3">
+                              <div className="flex items-start justify-between gap-3 flex-wrap">
+                                <div>
+                                  <p className="font-medium text-sm">{earliest.title.split(" — ")[0] || "Series"}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {group.length} events · {new Date(earliest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(latest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                    {futureCount > 0 && ` · ${futureCount} upcoming`}
+                                  </p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                                  onClick={() => handleDeleteSeries(sid)}
+                                  disabled={futureCount === 0}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                  Delete {futureCount} upcoming
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                                onClick={() => handleDeleteSeries(sid)}
-                                disabled={futureCount === 0}
-                              >
-                                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                                Delete {futureCount} upcoming
-                              </Button>
+                              {futureCount > 0 && (
+                                <div className="flex items-center gap-2 pt-1 border-t border-border">
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">Shift upcoming by</span>
+                                  <Input
+                                    type="number"
+                                    placeholder="days (e.g. +7 or -3)"
+                                    value={shiftDaysInputs[sid] ?? ""}
+                                    onChange={e => setShiftDaysInputs(prev => ({ ...prev, [sid]: e.target.value }))}
+                                    className="h-7 text-xs w-36"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs shrink-0"
+                                    onClick={() => handleRescheduleSeries(sid)}
+                                  >
+                                    Shift dates
+                                  </Button>
+                                </div>
+                              )}
                             </CardContent>
                           </Card>
                         );

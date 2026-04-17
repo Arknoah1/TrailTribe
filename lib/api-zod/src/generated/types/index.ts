@@ -61,6 +61,8 @@ export * from "./podWithMembers";
 export * from "./podWithStats";
 export * from "./requestUploadUrlBody";
 export * from "./requestUploadUrlResponse";
+export * from "./rescheduleSeries200";
+export * from "./rescheduleSeriesBody";
 export * from "./rsvpBody";
 export * from "./rsvpBodyStatus";
 export * from "./rsvpCounts";

@@ -658,6 +658,17 @@ export type DeleteSeries200 = {
   deleted: number;
 };
 
+export type RescheduleSeriesBody = {
+  /** Number of days to shift (positive = forward, negative = backward) */
+  shiftDays: number;
+  /** Only reschedule events on or after this date. Defaults to now. */
+  fromDate?: string;
+};
+
+export type RescheduleSeries200 = {
+  rescheduled: number;
+};
+
 export type ListBroadcastsParams = {
   podId?: string;
 };

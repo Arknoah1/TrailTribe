@@ -457,7 +457,7 @@ paths:
     delete:
       operationId: deleteSeries
       tags: [events]
-      summary: Delete all future events in a series
+      summary: Delete all future events in a series (coach/admin only)
       parameters:
         - name: seriesId
           in: path
@@ -481,6 +481,44 @@ paths:
                   deleted:
                     type: integer
                 required: [deleted]
+
+  /series/{seriesId}/reschedule:
+    patch:
+      operationId: rescheduleSeries
+      tags: [events]
+      summary: Shift all future events in a series by N days (coach/admin only)
+      parameters:
+        - name: seriesId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shiftDays:
+                  type: integer
+                  description: Number of days to shift (positive = forward, negative = backward)
+                fromDate:
+                  type: string
+                  format: date
+                  description: Only reschedule events on or after this date. Defaults to now.
+              required: [shiftDays]
+      responses:
+        "200":
+          description: Reschedule result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rescheduled:
+                    type: integer
+                required: [rescheduled]
 
   /events/{id}:
     get:

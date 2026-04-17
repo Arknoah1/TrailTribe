@@ -57,6 +57,8 @@ import type {
   PodWithStats,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  RescheduleSeries200,
+  RescheduleSeriesBody,
   RsvpBody,
   SendBroadcastBody,
   SuccessResponse,
@@ -1755,7 +1757,7 @@ export const useBatchCreateEvents = <
 };
 
 /**
- * @summary Delete all future events in a series
+ * @summary Delete all future events in a series (coach/admin only)
  */
 export const getDeleteSeriesUrl = (
   seriesId: string,
@@ -1832,7 +1834,7 @@ export type DeleteSeriesMutationResult = NonNullable<
 export type DeleteSeriesMutationError = ErrorType<unknown>;
 
 /**
- * @summary Delete all future events in a series
+ * @summary Delete all future events in a series (coach/admin only)
  */
 export const useDeleteSeries = <
   TError = ErrorType<unknown>,
@@ -1852,6 +1854,93 @@ export const useDeleteSeries = <
   TContext
 > => {
   return useMutation(getDeleteSeriesMutationOptions(options));
+};
+
+/**
+ * @summary Shift all future events in a series by N days (coach/admin only)
+ */
+export const getRescheduleSeriesUrl = (seriesId: string) => {
+  return `/api/series/${seriesId}/reschedule`;
+};
+
+export const rescheduleSeries = async (
+  seriesId: string,
+  rescheduleSeriesBody: RescheduleSeriesBody,
+  options?: RequestInit,
+): Promise<RescheduleSeries200> => {
+  return customFetch<RescheduleSeries200>(getRescheduleSeriesUrl(seriesId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(rescheduleSeriesBody),
+  });
+};
+
+export const getRescheduleSeriesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rescheduleSeries>>,
+    TError,
+    { seriesId: string; data: BodyType<RescheduleSeriesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rescheduleSeries>>,
+  TError,
+  { seriesId: string; data: BodyType<RescheduleSeriesBody> },
+  TContext
+> => {
+  const mutationKey = ["rescheduleSeries"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rescheduleSeries>>,
+    { seriesId: string; data: BodyType<RescheduleSeriesBody> }
+  > = (props) => {
+    const { seriesId, data } = props ?? {};
+
+    return rescheduleSeries(seriesId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RescheduleSeriesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rescheduleSeries>>
+>;
+export type RescheduleSeriesMutationBody = BodyType<RescheduleSeriesBody>;
+export type RescheduleSeriesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Shift all future events in a series by N days (coach/admin only)
+ */
+export const useRescheduleSeries = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rescheduleSeries>>,
+    TError,
+    { seriesId: string; data: BodyType<RescheduleSeriesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rescheduleSeries>>,
+  TError,
+  { seriesId: string; data: BodyType<RescheduleSeriesBody> },
+  TContext
+> => {
+  return useMutation(getRescheduleSeriesMutationOptions(options));
 };
 
 export const getGetEventUrl = (id: number) => {

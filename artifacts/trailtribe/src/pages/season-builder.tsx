@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useGetMe, useListTrailheads } from "@workspace/api-client-react";
+import { useGetMe, useListTrailheads, useListEvents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
 import { randomUUID } from "@/lib/uuid";
 
@@ -65,7 +65,10 @@ function generateRows(
     if (weekdays.includes(dayOfWeek)) {
       const isoDate = cur.toISOString().split("T")[0];
       const weekOfYear = Math.ceil((cur.getTime() - new Date(cur.getFullYear(), 0, 1).getTime()) / 604800000);
-      if (weekOfYear !== lastWeek) { lastWeek = weekOfYear; if (rows.length > 0) weekNum++; }
+      if (weekOfYear !== lastWeek) {
+        lastWeek = weekOfYear;
+        if (rows.length > 0) weekNum++;
+      }
       const typeLabel = eventType.charAt(0).toUpperCase() + eventType.slice(1);
       const prefix = titlePrefix.trim() ? titlePrefix.trim() : typeLabel;
       rows.push({
@@ -83,24 +86,10 @@ function generateRows(
   return rows;
 }
 
-function EventTypeBadge({ type }: { type: EventType }) {
-  const colors: Record<EventType, string> = {
-    practice: "bg-green-500/20 text-green-400 border-green-500/30",
-    race: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-    social: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-    volunteer: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    other: "bg-muted text-muted-foreground border-border",
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${colors[type]}`}>
-      {type}
-    </span>
-  );
-}
-
 export default function SeasonBuilder() {
   const { data: me } = useGetMe();
   const { data: trailheads } = useListTrailheads();
+  const { data: existingEvents } = useListEvents({ archived: true });
   const { toast } = useToast();
   const authedFetch = useAuthedFetch();
   const [, setLocation] = useLocation();
@@ -113,12 +102,32 @@ export default function SeasonBuilder() {
   const [startTime, setStartTime] = useState("15:30");
   const [endTime, setEndTime] = useState("17:00");
   const [defaultTrailheadId, setDefaultTrailheadId] = useState<number | null>(null);
+  const [existingSeriesId, setExistingSeriesId] = useState<string>("new");
 
   const [rows, setRows] = useState<RowData[]>([]);
   const [step, setStep] = useState<"pattern" | "review">("pattern");
   const [publishing, setPublishing] = useState(false);
+  const [sortAsc, setSortAsc] = useState(true);
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
+
+  const existingSeries = useMemo(() => {
+    const map: Record<string, { seriesId: string; label: string; count: number }> = {};
+    (existingEvents ?? []).forEach(e => {
+      const sid = (e as any).seriesId as string | null;
+      if (sid) {
+        if (!map[sid]) {
+          map[sid] = {
+            seriesId: sid,
+            label: e.title.split(" — ")[0] || "Unnamed Series",
+            count: 0,
+          };
+        }
+        map[sid].count++;
+      }
+    });
+    return Object.values(map);
+  }, [existingEvents]);
 
   if (me && !isCoach) {
     return (
@@ -179,6 +188,10 @@ export default function SeasonBuilder() {
     }]);
   };
 
+  const sortedRows = sortAsc
+    ? [...rows].sort((a, b) => a.date.localeCompare(b.date))
+    : [...rows].sort((a, b) => b.date.localeCompare(a.date));
+
   const handlePublish = async () => {
     if (rows.length === 0) {
       toast({ title: "Add at least one event", variant: "destructive" });
@@ -202,10 +215,15 @@ export default function SeasonBuilder() {
         };
       });
 
+      const payload: { events: typeof events; seriesId?: string } = { events };
+      if (existingSeriesId !== "new" && existingSeriesId) {
+        payload.seriesId = existingSeriesId;
+      }
+
       const res = await authedFetch(`${BASE_URL}/api/events/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ events }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Failed to publish");
       toast({ title: `${rows.length} events published!`, description: "They are now visible on the calendar." });
@@ -261,6 +279,26 @@ export default function SeasonBuilder() {
             <CardDescription>Define the repeating pattern for your season events.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {existingSeries.length > 0 && (
+              <div className="space-y-1.5 pb-4 border-b border-border">
+                <Label>Append to existing series <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Select value={existingSeriesId} onValueChange={setExistingSeriesId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">— Create new series —</SelectItem>
+                    {existingSeries.map(s => (
+                      <SelectItem key={s.seriesId} value={s.seriesId}>
+                        {s.label} ({s.count} event{s.count !== 1 ? "s" : ""})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Add new events to an existing series instead of creating a brand-new one.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Title Prefix <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -363,11 +401,27 @@ export default function SeasonBuilder() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <CardTitle>Review Schedule</CardTitle>
-                  <CardDescription>{rows.length} event{rows.length !== 1 ? "s" : ""} — edit titles, times, or trailheads before publishing.</CardDescription>
+                  <CardDescription>
+                    {rows.length} event{rows.length !== 1 ? "s" : ""}
+                    {existingSeriesId !== "new" && existingSeries.find(s => s.seriesId === existingSeriesId) && (
+                      <> · adding to <strong>{existingSeries.find(s => s.seriesId === existingSeriesId)?.label}</strong></>
+                    )}
+                    {" — "}edit titles, times, or trailheads before publishing.
+                  </CardDescription>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button variant="outline" size="sm" onClick={() => setStep("pattern")}>
                     <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSortAsc(p => !p)}
+                    className="gap-1.5"
+                    title={sortAsc ? "Sort newest first" : "Sort oldest first"}
+                  >
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                    {sortAsc ? "Oldest first" : "Newest first"}
                   </Button>
                   <Button variant="outline" size="sm" onClick={addBlankRow} className="gap-1.5">
                     <Plus className="h-3.5 w-3.5" /> Add Row
@@ -387,7 +441,7 @@ export default function SeasonBuilder() {
                     <thead>
                       <tr className="border-b border-border">
                         <th className="w-8" />
-                        <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Date</th>
+                        <th className="text-left px-3 py-2 font-medium text-muted-foreground w-32">Date</th>
                         <th className="text-left px-3 py-2 font-medium text-muted-foreground w-10 hidden sm:table-cell">Day</th>
                         <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">Type</th>
                         <th className="text-left px-3 py-2 font-medium text-muted-foreground">Title</th>
@@ -397,7 +451,7 @@ export default function SeasonBuilder() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {rows.map(row => (
+                      {sortedRows.map(row => (
                         <tr key={row.id} className="hover:bg-muted/20 transition-colors group">
                           <td className="pl-3 py-1.5">
                             <button
@@ -485,6 +539,7 @@ export default function SeasonBuilder() {
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               {rows.length} event{rows.length !== 1 ? "s" : ""} ready to publish
+              {existingSeriesId !== "new" && " · appending to existing series"}
             </p>
             <Button
               onClick={handlePublish}

@@ -11,7 +11,7 @@ import {
   carpoolClaimsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -60,7 +60,7 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
   };
 }
 
-router.post("/events/batch", requireAuth, async (req, res) => {
+router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const { events, seriesId } = req.body as { events: any[]; seriesId?: string };
@@ -69,30 +69,32 @@ router.post("/events/batch", requireAuth, async (req, res) => {
     return;
   }
   const resolvedSeriesId = seriesId || randomUUID();
-  const created = await db.insert(eventsTable).values(
-    events.map((e: any) => ({
-      title: e.title,
-      description: e.description ?? null,
-      eventType: e.eventType ?? "practice",
-      startTime: new Date(e.startTime),
-      endTime: e.endTime ? new Date(e.endTime) : null,
-      trailheadId: e.trailheadId ?? null,
-      locationOverride: e.locationOverride ?? null,
-      googleMapsUrlOverride: e.googleMapsUrlOverride ?? null,
-      podIds: e.podIds ?? null,
-      isAllTeam: e.isAllTeam ?? true,
-      rsvpDeadline: e.rsvpDeadline ? new Date(e.rsvpDeadline) : null,
-      volunteerSlotsNeeded: e.volunteerSlotsNeeded ?? 0,
-      createdByUserId: me?.id ?? null,
-      iCalUid: randomUUID(),
-      seriesId: resolvedSeriesId,
-    }))
-  ).returning();
+  const created = await db.transaction(async (tx) => {
+    return tx.insert(eventsTable).values(
+      events.map((e: any) => ({
+        title: e.title,
+        description: e.description ?? null,
+        eventType: e.eventType ?? "practice",
+        startTime: new Date(e.startTime),
+        endTime: e.endTime ? new Date(e.endTime) : null,
+        trailheadId: e.trailheadId ?? null,
+        locationOverride: e.locationOverride ?? null,
+        googleMapsUrlOverride: e.googleMapsUrlOverride ?? null,
+        podIds: e.podIds ?? null,
+        isAllTeam: e.isAllTeam ?? true,
+        rsvpDeadline: e.rsvpDeadline ? new Date(e.rsvpDeadline) : null,
+        volunteerSlotsNeeded: e.volunteerSlotsNeeded ?? 0,
+        createdByUserId: me?.id ?? null,
+        iCalUid: randomUUID(),
+        seriesId: resolvedSeriesId,
+      }))
+    ).returning();
+  });
   const result = await Promise.all(created.map((e) => buildEventWithDetails(e, clerkUserId)));
   res.status(201).json(result);
 });
 
-router.delete("/series/:seriesId", requireAuth, async (req, res) => {
+router.delete("/series/:seriesId", requireCoachOrAdmin, async (req, res) => {
   const sid = str(req.params.seriesId);
   const fromDate = (req.query as any).fromDate;
   const cutoff = fromDate ? new Date(fromDate) : new Date();
@@ -103,6 +105,28 @@ router.delete("/series/:seriesId", requireAuth, async (req, res) => {
     await db.delete(eventsTable).where(inArray(eventsTable.id, toDelete.map(r => r.id)));
   }
   res.json({ deleted: toDelete.length });
+});
+
+router.patch("/series/:seriesId/reschedule", requireCoachOrAdmin, async (req, res) => {
+  const sid = str(req.params.seriesId);
+  const { shiftDays, fromDate } = req.body as { shiftDays: number; fromDate?: string };
+  if (typeof shiftDays !== "number" || shiftDays === 0) {
+    res.status(400).json({ error: "shiftDays must be a non-zero integer" });
+    return;
+  }
+  const cutoff = fromDate ? new Date(fromDate) : new Date();
+  const toShift = await db.select().from(eventsTable)
+    .where(and(eq(eventsTable.seriesId, sid), gte(eventsTable.startTime, cutoff)));
+  const shiftMs = shiftDays * 86_400_000;
+  await Promise.all(
+    toShift.map((e) =>
+      db.update(eventsTable).set({
+        startTime: new Date(e.startTime.getTime() + shiftMs),
+        endTime: e.endTime ? new Date(e.endTime.getTime() + shiftMs) : null,
+      }).where(eq(eventsTable.id, e.id))
+    )
+  );
+  res.json({ rescheduled: toShift.length });
 });
 
 router.get("/events", requireAuth, async (req, res) => {
