@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useListEvents } from "@workspace/api-client-react";
-import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth, addMonths } from "date-fns";
+import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { CalendarIcon, MapPin, Car, List, LayoutGrid } from "lucide-react";
@@ -19,7 +19,7 @@ function getStoredView(): CalendarView {
 
 export default function Calendar() {
   const [view, setView] = useState<CalendarView>(getStoredView);
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
 
   const switchView = (v: CalendarView) => {
     setView(v);
@@ -42,7 +42,7 @@ export default function Calendar() {
   );
 
   const handleMonthChange = (date: Date) => {
-    setCurrentMonth(date);
+    setCurrentMonth(startOfMonth(date));
   };
 
   if (isLoading) {

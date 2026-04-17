@@ -5,8 +5,8 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  addMonths,
   isSameMonth,
-  isSameDay,
   isToday,
   format,
   parseISO,
@@ -57,21 +57,9 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
     return map;
   }, [events]);
 
-  const goPrev = () => {
-    const d = new Date(month);
-    d.setMonth(d.getMonth() - 1);
-    onMonthChange(d);
-  };
-
-  const goNext = () => {
-    const d = new Date(month);
-    d.setMonth(d.getMonth() + 1);
-    onMonthChange(d);
-  };
-
-  const goToday = () => {
-    onMonthChange(new Date());
-  };
+  const goPrev = () => onMonthChange(addMonths(startOfMonth(month), -1));
+  const goNext = () => onMonthChange(addMonths(startOfMonth(month), 1));
+  const goToday = () => onMonthChange(startOfMonth(new Date()));
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
