@@ -221,8 +221,30 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (emailNotifications !== undefined) patch.emailNotifications = emailNotifications;
   if (smsNotifications !== undefined) patch.smsNotifications = smsNotifications;
   if (pushNotifications !== undefined) patch.pushNotifications = pushNotifications;
-  if (defaultCarpoolSeats !== undefined) patch.defaultCarpoolSeats = defaultCarpoolSeats === null ? null : Number(defaultCarpoolSeats);
-  if (defaultCarpoolTrays !== undefined) patch.defaultCarpoolTrays = defaultCarpoolTrays === null ? null : Number(defaultCarpoolTrays);
+  if (defaultCarpoolSeats !== undefined) {
+    if (defaultCarpoolSeats === null) {
+      patch.defaultCarpoolSeats = null;
+    } else {
+      const seats = Number(defaultCarpoolSeats);
+      if (!Number.isInteger(seats) || seats < 1 || seats > 8) {
+        res.status(400).json({ error: "defaultCarpoolSeats must be an integer between 1 and 8, or null" });
+        return;
+      }
+      patch.defaultCarpoolSeats = seats;
+    }
+  }
+  if (defaultCarpoolTrays !== undefined) {
+    if (defaultCarpoolTrays === null) {
+      patch.defaultCarpoolTrays = null;
+    } else {
+      const trays = Number(defaultCarpoolTrays);
+      if (!Number.isInteger(trays) || trays < 0 || trays > 6) {
+        res.status(400).json({ error: "defaultCarpoolTrays must be an integer between 0 and 6, or null" });
+        return;
+      }
+      patch.defaultCarpoolTrays = trays;
+    }
+  }
   if (notificationPreferences !== undefined) {
     const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
     if (!parsed.success) {

@@ -493,6 +493,9 @@ export interface UpdateCarpoolRequestBody {
 
 export interface MatchCarpoolRequestBody {
   offerId: number;
+  /** True when the client auto-created this offer specifically for the match. When true the matched rider consumes a seat (reducing displayed availability). When false (default) the driver is extending their existing offer capacity and the displayed seat count remains unchanged.
+   */
+  autoCreated?: boolean;
 }
 
 export interface CreateTrailheadBody {

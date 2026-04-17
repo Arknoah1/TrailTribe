@@ -1572,6 +1572,12 @@ export const MatchCarpoolRequestParams = zod.object({
 
 export const MatchCarpoolRequestBody = zod.object({
   offerId: zod.number(),
+  autoCreated: zod
+    .boolean()
+    .optional()
+    .describe(
+      "True when the client auto-created this offer specifically for the match. When true the matched rider consumes a seat (reducing displayed availability). When false (default) the driver is extending their existing offer capacity and the displayed seat count remains unchanged.\n",
+    ),
 });
 
 export const MatchCarpoolRequestResponse = zod
