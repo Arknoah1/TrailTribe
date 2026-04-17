@@ -80,6 +80,15 @@ export default function CarpoolBoard() {
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [matchingRequest, setMatchingRequest] = useState<any>(null);
   const [selectedOfferId, setSelectedOfferId] = useState<number | "">("");
+  const [isMatching, setIsMatching] = useState(false);
+
+  // Edit offer dialog
+  const [editOfferOpen, setEditOfferOpen] = useState(false);
+  const [editingOffer, setEditingOffer] = useState<any>(null);
+  const [editOfferSeats, setEditOfferSeats] = useState(1);
+  const [editOfferTrays, setEditOfferTrays] = useState(0);
+  const [editOfferLocation, setEditOfferLocation] = useState("");
+  const [editOfferTime, setEditOfferTime] = useState("");
 
   // Fetch household riders once we know the user
   useEffect(() => {
@@ -267,6 +276,86 @@ export default function CarpoolBoard() {
     setMatchingRequest(request);
     setSelectedOfferId(myOpenOffers.length === 1 ? myOpenOffers[0].id : "");
     setMatchDialogOpen(true);
+  };
+
+  const handleTakeThem = async () => {
+    if (!matchingRequest) return;
+    setIsMatching(true);
+    try {
+      let offerId = selectedOfferId as number;
+      if (myOpenOffers.length === 0) {
+        const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpools`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ availableSeats: 3, bikeTrayCount: 2 }),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          toast({ title: d.error || "Failed to create offer", variant: "destructive" });
+          return;
+        }
+        const newOffer = await res.json();
+        offerId = newOffer.id;
+      }
+      const matchRes = await authedFetch(`${BASE_URL}/api/carpool-requests/${matchingRequest.id}/match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ offerId }),
+      });
+      if (!matchRes.ok) {
+        const d = await matchRes.json().catch(() => ({}));
+        toast({ title: d.error || "Failed to match", variant: "destructive" });
+        return;
+      }
+      toast({ title: `You're picking up ${matchingRequest.rider?.firstName ?? "them"}!` });
+      setMatchDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+      queryClient.invalidateQueries({ queryKey: getListEventCarpoolRequestsQueryKey(eventId) });
+    } catch {
+      toast({ title: "Something went wrong", variant: "destructive" });
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
+  const openEditOffer = (offer: any) => {
+    setEditingOffer(offer);
+    setEditOfferSeats(offer.availableSeats);
+    setEditOfferTrays(offer.bikeTrayCount);
+    setEditOfferLocation(offer.departureLocation ?? "");
+    setEditOfferTime(offer.departureTime ?? "");
+    setEditOfferOpen(true);
+  };
+
+  const handleEditOffer = async () => {
+    if (!editingOffer) return;
+    const res = await authedFetch(`${BASE_URL}/api/carpools/${editingOffer.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        availableSeats: editOfferSeats,
+        bikeTrayCount: editOfferTrays,
+        departureLocation: editOfferLocation || undefined,
+        departureTime: editOfferTime || undefined,
+      }),
+    });
+    if (res.ok) {
+      toast({ title: "Offer updated" });
+      setEditOfferOpen(false);
+      queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+    } else {
+      toast({ title: "Failed to update offer", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteOffer = async (offerId: number) => {
+    const res = await authedFetch(`${BASE_URL}/api/carpools/${offerId}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) {
+      toast({ title: "Offer removed" });
+      queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+    } else {
+      toast({ title: "Failed to delete offer", variant: "destructive" });
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center">Loading carpools...</div>;
@@ -542,6 +631,11 @@ export default function CarpoolBoard() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {myOpenOffers.length === 0 && (
+              <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
+                You don't have an active offer yet. Confirming will automatically create one for you.
+              </p>
+            )}
             {myOpenOffers.length > 1 && (
               <div className="space-y-2">
                 <Label>Which of your offers?</Label>
@@ -565,14 +659,65 @@ export default function CarpoolBoard() {
             <Button variant="outline" className="flex-1" onClick={() => setMatchDialogOpen(false)}>Cancel</Button>
             <Button
               className="flex-1"
-              disabled={matchRequest.isPending || selectedOfferId === ""}
-              onClick={() => {
-                if (!matchingRequest || selectedOfferId === "") return;
-                matchRequest.mutate({ id: matchingRequest.id, data: { offerId: selectedOfferId as number } });
-              }}
+              disabled={isMatching || (myOpenOffers.length > 1 && selectedOfferId === "")}
+              onClick={handleTakeThem}
             >
-              {matchRequest.isPending ? "Matching..." : "I'll Take Them"}
+              {isMatching ? "Confirming..." : "I'll Take Them"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit offer dialog */}
+      <Dialog open={editOfferOpen} onOpenChange={setEditOfferOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Your Offer</DialogTitle>
+            <DialogDescription>Update the details of your carpool offer.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Available Seats</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={editOfferSeats}
+                  onChange={e => setEditOfferSeats(parseInt(e.target.value) || 1)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bike Trays</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={editOfferTrays}
+                  onChange={e => setEditOfferTrays(parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Departure Location (optional)</Label>
+              <Input
+                placeholder="e.g. School parking lot"
+                value={editOfferLocation}
+                onChange={e => setEditOfferLocation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Departure Time (optional)</Label>
+              <Input
+                placeholder="e.g. 3:15 PM"
+                value={editOfferTime}
+                onChange={e => setEditOfferTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditOfferOpen(false)}>Cancel</Button>
+            <Button className="flex-1" onClick={handleEditOffer}>Save Changes</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -597,15 +742,35 @@ export default function CarpoolBoard() {
                         <CardDescription>Driving</CardDescription>
                       </div>
                     </div>
-                    <div className="flex gap-2 text-center">
-                      <div className="bg-muted px-3 py-1 rounded-md">
-                        <div className="text-lg font-bold">{offer.seatsRemaining}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Seats</div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-2 text-center">
+                        <div className="bg-muted px-3 py-1 rounded-md">
+                          <div className="text-lg font-bold">{offer.seatsRemaining}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Seats</div>
+                        </div>
+                        <div className="bg-muted px-3 py-1 rounded-md">
+                          <div className="text-lg font-bold">{offer.bikeTraysRemaining}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Trays</div>
+                        </div>
                       </div>
-                      <div className="bg-muted px-3 py-1 rounded-md">
-                        <div className="text-lg font-bold">{offer.bikeTraysRemaining}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Trays</div>
-                      </div>
+                      {offer.driverUserId === me?.id && (
+                        <div className="flex flex-col gap-1 ml-1">
+                          <button
+                            onClick={() => openEditOffer(offer)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Edit offer"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteOffer(offer.id)}
+                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Delete offer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -715,7 +880,7 @@ export default function CarpoolBoard() {
               const isOpen = request.status === "open";
               const isMatched = request.status === "matched";
               const mine = isMyRequest(request);
-              const canMatch = isOpen && myOpenOffers.length > 0 && !mine;
+              const canMatch = isOpen && !mine && me?.role !== "rider";
 
               return (
                 <Card key={request.id} className={isMatched ? "border-green-500/40 bg-green-50/30 dark:bg-green-950/10" : ""}>
