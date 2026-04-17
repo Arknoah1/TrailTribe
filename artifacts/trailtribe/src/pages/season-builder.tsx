@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Link } from "wouter";
-import { randomUUID } from "@/lib/uuid";
+import { randomUUID, toLocalDateISO } from "@/lib/uuid";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -63,7 +63,7 @@ function generateRows(
   while (cur <= end) {
     const dayOfWeek = cur.getDay();
     if (weekdays.includes(dayOfWeek)) {
-      const isoDate = cur.toISOString().split("T")[0];
+      const isoDate = toLocalDateISO(cur);
       const weekOfYear = Math.ceil((cur.getTime() - new Date(cur.getFullYear(), 0, 1).getTime()) / 604800000);
       if (weekOfYear !== lastWeek) {
         lastWeek = weekOfYear;
@@ -186,7 +186,7 @@ export default function SeasonBuilder() {
   };
 
   const addBlankRow = () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = toLocalDateISO();
     setRows(prev => [...prev, {
       id: randomUUID(),
       date: today,

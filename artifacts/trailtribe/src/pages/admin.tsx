@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -757,7 +758,7 @@ export default function Admin() {
               const group = seriesGroups[seriesId];
               const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
               if (!confirm(`Delete ${futureCount} upcoming event${futureCount !== 1 ? "s" : ""} in this series?`)) return;
-              deleteSeries.mutate({ seriesId, params: { fromDate: now.toISOString().split("T")[0] } }, {
+              deleteSeries.mutate({ seriesId, params: { fromDate: toLocalDateISO(now) } }, {
                 onSuccess: (data) => {
                   toast({ title: `${(data as any).deleted} events deleted` });
                   refetchEvents();
@@ -775,7 +776,7 @@ export default function Admin() {
                 return;
               }
               rescheduleSeries.mutate(
-                { seriesId, data: { shiftDays: days, fromDate: now.toISOString().split("T")[0] } },
+                { seriesId, data: { shiftDays: days, fromDate: toLocalDateISO(now) } },
                 {
                   onSuccess: (data) => {
                     toast({ title: `${(data as any).rescheduled} events shifted by ${days > 0 ? "+" : ""}${days} day${Math.abs(days) !== 1 ? "s" : ""}` });

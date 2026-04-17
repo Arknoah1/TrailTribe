@@ -43,7 +43,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : baseNavItems;
 
   const mobileItems = isCoachOrAdmin
-    ? [baseNavItems[0], baseNavItems[1], adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
+    ? [baseNavItems[0], baseNavItems[1], baseNavItems[2], adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
     : baseNavItems;
 
   return (
