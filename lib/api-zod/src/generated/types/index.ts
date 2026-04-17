@@ -10,6 +10,7 @@ export * from "./addAttachmentBody";
 export * from "./approveUserBody";
 export * from "./approveUserBodyRole";
 export * from "./batchCreateEventsBody";
+export * from "./batchCreateEventsResult";
 export * from "./broadcast";
 export * from "./broadcastChannel";
 export * from "./broadcastWithSender";

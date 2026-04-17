@@ -304,6 +304,13 @@ export interface BatchCreateEventsBody {
   seriesId?: string;
 }
 
+export interface BatchCreateEventsResult {
+  /** Number of events created */
+  created: number;
+  /** IDs of the newly created events */
+  ids: number[];
+}
+
 export type UpdateEventBodyEventType =
   (typeof UpdateEventBodyEventType)[keyof typeof UpdateEventBodyEventType];
 

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +207,7 @@ export default function Admin() {
   const [editingEventData, setEditingEventData] = useState<Record<string, any>>({});
   const [eventFilter, setEventFilter] = useState<"upcoming" | "all">("upcoming");
   const [shiftDaysInputs, setShiftDaysInputs] = useState<Record<string, string>>({});
+  const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
@@ -923,28 +924,63 @@ export default function Admin() {
                         const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
                         const earliest = group.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
                         const latest = group[group.length - 1];
+                        const isExpanded = expandedSeries[sid] ?? false;
                         return (
                           <Card key={sid}>
                             <CardContent className="p-4 space-y-3">
                               <div className="flex items-start justify-between gap-3 flex-wrap">
-                                <div>
+                                <div className="flex-1 min-w-0">
                                   <p className="font-medium text-sm">{earliest.title.split(" — ")[0] || "Series"}</p>
                                   <p className="text-xs text-muted-foreground mt-0.5">
-                                    {group.length} events · {new Date(earliest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(latest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                    {group.length} event{group.length !== 1 ? "s" : ""} · {new Date(earliest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(latest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                                     {futureCount > 0 && ` · ${futureCount} upcoming`}
                                   </p>
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                                  onClick={() => handleDeleteSeries(sid)}
-                                  disabled={futureCount === 0}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                                  Delete {futureCount} upcoming
-                                </Button>
+                                <div className="flex gap-2 flex-wrap justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => setExpandedSeries(prev => ({ ...prev, [sid]: !isExpanded }))}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                    {isExpanded ? "Hide" : "Show"} events
+                                  </Button>
+                                  <Link href={`/season-builder?seriesId=${encodeURIComponent(sid)}`}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                                      <Plus className="h-3 w-3" /> Add more
+                                    </Button>
+                                  </Link>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                                    onClick={() => handleDeleteSeries(sid)}
+                                    disabled={futureCount === 0}
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Delete {futureCount} upcoming
+                                  </Button>
+                                </div>
                               </div>
+
+                              {isExpanded && (
+                                <div className="border-t border-border pt-2 space-y-1">
+                                  {[...group].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(ev => {
+                                    const isPast = new Date(ev.startTime) < now;
+                                    return (
+                                      <div key={ev.id} className={`flex items-center justify-between text-xs py-1 px-2 rounded ${isPast ? "text-muted-foreground" : ""}`}>
+                                        <span className="font-medium">{ev.title}</span>
+                                        <span className="text-muted-foreground ml-2 shrink-0">
+                                          {new Date(ev.startTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                                          {isPast && " · past"}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
                               {futureCount > 0 && (
                                 <div className="flex items-center gap-2 pt-1 border-t border-border">
                                   <span className="text-xs text-muted-foreground whitespace-nowrap">Shift upcoming by</span>

@@ -90,8 +90,7 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
       }))
     ).returning();
   });
-  const result = await Promise.all(created.map((e) => buildEventWithDetails(e, clerkUserId)));
-  res.status(201).json(result);
+  res.status(201).json({ created: created.length, ids: created.map(e => e.id) });
 });
 
 router.delete("/series/:seriesId", requireCoachOrAdmin, async (req, res) => {
@@ -187,7 +186,7 @@ router.get("/events/:id", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.patch("/events/:id", requireAuth, async (req, res) => {
+router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const {
@@ -214,7 +213,7 @@ router.patch("/events/:id", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.delete("/events/:id", requireAuth, async (req, res) => {
+router.delete("/events/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   await db.delete(eventsTable).where(eq(eventsTable.id, id));
   res.status(204).send();

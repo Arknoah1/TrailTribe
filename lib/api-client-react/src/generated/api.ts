@@ -20,6 +20,7 @@ import type {
   AddAttachmentBody,
   ApproveUserBody,
   BatchCreateEventsBody,
+  BatchCreateEventsResult,
   Broadcast,
   BroadcastWithSender,
   CarpoolClaim,
@@ -1680,8 +1681,8 @@ export const getBatchCreateEventsUrl = () => {
 export const batchCreateEvents = async (
   batchCreateEventsBody: BatchCreateEventsBody,
   options?: RequestInit,
-): Promise<EventWithDetails[]> => {
-  return customFetch<EventWithDetails[]>(getBatchCreateEventsUrl(), {
+): Promise<BatchCreateEventsResult> => {
+  return customFetch<BatchCreateEventsResult>(getBatchCreateEventsUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },

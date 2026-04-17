@@ -445,13 +445,11 @@ paths:
               $ref: "#/components/schemas/BatchCreateEventsBody"
       responses:
         "201":
-          description: Created events
+          description: Batch create result
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/EventWithDetails"
+                $ref: "#/components/schemas/BatchCreateEventsResult"
 
   /series/{seriesId}:
     delete:
@@ -1772,6 +1770,19 @@ components:
           type: string
           description: Optional shared series ID to group these events
       required: [events]
+
+    BatchCreateEventsResult:
+      type: object
+      properties:
+        created:
+          type: integer
+          description: Number of events created
+        ids:
+          type: array
+          items:
+            type: integer
+          description: IDs of the newly created events
+      required: [created, ids]
 
     UpdateEventBody:
       type: object

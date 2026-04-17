@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useLocation } from "wouter";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useGetMe, useListTrailheads, useListEvents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -104,10 +104,20 @@ export default function SeasonBuilder() {
   const [defaultTrailheadId, setDefaultTrailheadId] = useState<number | null>(null);
   const [existingSeriesId, setExistingSeriesId] = useState<string>("new");
 
+  const search = useSearch();
   const [rows, setRows] = useState<RowData[]>([]);
   const [step, setStep] = useState<"pattern" | "review">("pattern");
   const [publishing, setPublishing] = useState(false);
   const [sortAsc, setSortAsc] = useState(true);
+  const [filterType, setFilterType] = useState<EventType | "all">("all");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const sid = params.get("seriesId");
+    if (sid) setExistingSeriesId(sid);
+  }, [search]);
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
 
@@ -188,9 +198,18 @@ export default function SeasonBuilder() {
     }]);
   };
 
+  const filteredRows = rows.filter(r => {
+    if (filterType !== "all" && r.eventType !== filterType) return false;
+    if (filterDateFrom && r.date < filterDateFrom) return false;
+    if (filterDateTo && r.date > filterDateTo) return false;
+    return true;
+  });
+
   const sortedRows = sortAsc
-    ? [...rows].sort((a, b) => a.date.localeCompare(b.date))
-    : [...rows].sort((a, b) => b.date.localeCompare(a.date));
+    ? [...filteredRows].sort((a, b) => a.date.localeCompare(b.date))
+    : [...filteredRows].sort((a, b) => b.date.localeCompare(a.date));
+
+  const activeFilterCount = (filterType !== "all" ? 1 : 0) + (filterDateFrom ? 1 : 0) + (filterDateTo ? 1 : 0);
 
   const handlePublish = async () => {
     if (rows.length === 0) {
@@ -398,18 +417,20 @@ export default function SeasonBuilder() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <CardTitle>Review Schedule</CardTitle>
                   <CardDescription>
-                    {rows.length} event{rows.length !== 1 ? "s" : ""}
+                    {sortedRows.length === rows.length
+                      ? `${rows.length} event${rows.length !== 1 ? "s" : ""}`
+                      : `${sortedRows.length} of ${rows.length} shown`}
                     {existingSeriesId !== "new" && existingSeries.find(s => s.seriesId === existingSeriesId) && (
                       <> · adding to <strong>{existingSeries.find(s => s.seriesId === existingSeriesId)?.label}</strong></>
                     )}
                     {" — "}edit titles, times, or trailheads before publishing.
                   </CardDescription>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-2 shrink-0 flex-wrap justify-end">
                   <Button variant="outline" size="sm" onClick={() => setStep("pattern")}>
                     <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
                   </Button>
@@ -427,6 +448,52 @@ export default function SeasonBuilder() {
                     <Plus className="h-3.5 w-3.5" /> Add Row
                   </Button>
                 </div>
+              </div>
+
+              {/* Filter row */}
+              <div className="flex flex-wrap gap-2 pt-2 border-t border-border mt-2">
+                <Select
+                  value={filterType}
+                  onValueChange={v => setFilterType(v as EventType | "all")}
+                >
+                  <SelectTrigger className="h-7 text-xs w-32">
+                    <SelectValue placeholder="Type filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {EVENT_TYPES.map(t => (
+                      <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">From</span>
+                  <Input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={e => setFilterDateFrom(e.target.value)}
+                    className="h-7 text-xs w-32"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">To</span>
+                  <Input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={e => setFilterDateTo(e.target.value)}
+                    className="h-7 text-xs w-32"
+                  />
+                </div>
+                {activeFilterCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => { setFilterType("all"); setFilterDateFrom(""); setFilterDateTo(""); }}
+                  >
+                    Clear {activeFilterCount} filter{activeFilterCount !== 1 ? "s" : ""}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
