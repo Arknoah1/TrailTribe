@@ -12,11 +12,12 @@ import Profile from "./pages/profile";
 import Admin from "./pages/admin";
 import Join from "./pages/join";
 
-import { useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { ThemeContext, type Theme } from "@/lib/theme-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
@@ -36,10 +37,29 @@ function stripBase(path: string): string {
 }
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem("tt-theme") as Theme) ?? "dark";
+  });
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("tt-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(t => t === "dark" ? "light" : "dark");
   }, []);
-  return <>{children}</>;
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 function SignInPage() {

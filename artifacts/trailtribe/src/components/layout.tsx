@@ -1,9 +1,10 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck } from "lucide-react";
+import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
+import { useTheme } from "@/lib/theme-context";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -14,6 +15,22 @@ const baseNavItems = [
 ];
 
 const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
+
+function ThemeToggle({ className }: { className?: string }) {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      className={cn(
+        "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+        className
+      )}
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -41,7 +58,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </span>
             )}
           </div>
-          {me && <NotificationBell />}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            {me && <NotificationBell />}
+          </div>
         </div>
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
@@ -70,7 +90,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {me && (
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b border-border">
           <span className="text-lg font-bold text-foreground">TrailTribe</span>
-          <NotificationBell />
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
         </div>
       )}
 
