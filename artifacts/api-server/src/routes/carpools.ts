@@ -22,8 +22,12 @@ async function buildOfferWithClaims(offer: any) {
       return { ...c, rider };
     })
   );
-  const seatsClaimed = claims.filter((c) => c.needsSeat).length;
-  const bikeTraysClaimed = claims.filter((c) => c.needsBikeTray).length;
+  // Only self-claimed seats/trays (matchedByDriver = false) consume advertised
+  // capacity. Driver-initiated matches via "I'll Take Them" are tracked for trip
+  // logistics but don't reduce the displayed availability.
+  const advertisedClaims = claims.filter((c) => !c.matchedByDriver);
+  const seatsClaimed = advertisedClaims.filter((c) => c.needsSeat).length;
+  const bikeTraysClaimed = advertisedClaims.filter((c) => c.needsBikeTray).length;
   return {
     ...offer,
     driver,
@@ -372,7 +376,9 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
   // Atomically create a claim and mark the request matched in a transaction.
   // Capacity is NOT enforced here — the driver owns the offer and explicitly
   // accepted this request, so we trust their judgement on seat availability.
-  let capacityError: string | null = null;
+  // The claim is flagged matchedByDriver=true so it doesn't reduce the offer's
+  // displayed seat/tray availability in the UI.
+  let alreadyMatched = false;
   const updated = await db.transaction(async (tx) => {
     // Re-verify request is still open inside the transaction (prevents double-match races)
     const [freshRequest] = await tx
@@ -391,6 +397,7 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
       needsSeat: true,
       needsBikeTray: freshRequest.needsBikeTray,
       notes: freshRequest.notes ?? null,
+      matchedByDriver: true,
     });
 
     const [matched] = await tx
@@ -401,12 +408,12 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
 
     return matched;
   }).catch((err) => {
-    if (err.message === "ALREADY_MATCHED") { capacityError = "already_matched"; return null; }
+    if (err.message === "ALREADY_MATCHED") { alreadyMatched = true; return null; }
     throw err;
   });
 
   if (!updated) {
-    res.status(409).json({ error: "Request has already been matched" });
+    res.status(409).json({ error: alreadyMatched ? "Request has already been matched" : "Match failed" });
     return;
   }
 

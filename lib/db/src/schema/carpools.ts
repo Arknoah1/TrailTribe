@@ -37,6 +37,13 @@ export const carpoolClaimsTable = pgTable("carpool_claims", {
   needsSeat: boolean("needs_seat").notNull().default(true),
   needsBikeTray: boolean("needs_bike_tray").notNull().default(false),
   notes: text("notes"),
+  /**
+   * True when the driver manually matched this rider via the "I'll Take Them" flow.
+   * Driver-matched claims are tracked for trip logistics but do NOT consume the
+   * offer's advertised seat/tray capacity in the UI — the driver made room for
+   * this rider outside of the self-serve claim flow.
+   */
+  matchedByDriver: boolean("matched_by_driver").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
