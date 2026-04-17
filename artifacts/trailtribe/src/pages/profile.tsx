@@ -994,7 +994,7 @@ export default function Profile() {
           <Card className="mt-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Car className="h-5 w-5" /> Carpool Defaults</CardTitle>
-              <CardDescription>Set your usual capacity once — it pre-fills the offer form and is used when you quickly claim a rider.</CardDescription>
+              <CardDescription>Set your usual capacity once — it pre-fills the offer form and is used when you quickly claim a rider. Changes save automatically.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1008,6 +1008,7 @@ export default function Profile() {
                     placeholder="e.g. 2"
                     value={defaultSeats}
                     onChange={e => setDefaultSeats(e.target.value)}
+                    onBlur={saveCarpoolDefaults}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1020,14 +1021,13 @@ export default function Profile() {
                     placeholder="e.g. 1"
                     value={defaultTrays}
                     onChange={e => setDefaultTrays(e.target.value)}
+                    onBlur={saveCarpoolDefaults}
                   />
                 </div>
               </div>
               <div className="flex justify-between items-center">
                 <p className="text-xs text-muted-foreground">Leave blank if you don't usually drive.</p>
-                <Button size="sm" onClick={saveCarpoolDefaults} disabled={isSavingDefaults}>
-                  {isSavingDefaults ? "Saving..." : "Save Defaults"}
-                </Button>
+                {isSavingDefaults && <span className="text-xs text-muted-foreground">Saving...</span>}
               </div>
             </CardContent>
           </Card>

@@ -369,7 +369,9 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
     return;
   }
 
-  // Atomically verify capacity, create a claim, and mark the request matched in a transaction
+  // Atomically create a claim and mark the request matched in a transaction.
+  // Capacity is NOT enforced here — the driver owns the offer and explicitly
+  // accepted this request, so we trust their judgement on seat availability.
   let capacityError: string | null = null;
   const updated = await db.transaction(async (tx) => {
     // Re-verify request is still open inside the transaction (prevents double-match races)
@@ -381,21 +383,6 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
 
     if (!freshRequest) {
       throw new Error("ALREADY_MATCHED");
-    }
-
-    // Re-check offer capacity inside the transaction
-    const claimsForOffer = await tx.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offerId));
-    const seatsClaimed = claimsForOffer.filter((c) => c.needsSeat).length;
-    const seatsRemaining = Math.max(0, offer.availableSeats - seatsClaimed);
-    if (seatsRemaining <= 0) {
-      throw new Error("NO_SEATS");
-    }
-    if (freshRequest.needsBikeTray) {
-      const bikeTraysClaimed = claimsForOffer.filter((c) => c.needsBikeTray).length;
-      const bikeTraysRemaining = Math.max(0, offer.bikeTrayCount - bikeTraysClaimed);
-      if (bikeTraysRemaining <= 0) {
-        throw new Error("NO_TRAYS");
-      }
     }
 
     await tx.insert(carpoolClaimsTable).values({
@@ -415,18 +402,11 @@ router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
     return matched;
   }).catch((err) => {
     if (err.message === "ALREADY_MATCHED") { capacityError = "already_matched"; return null; }
-    if (err.message === "NO_SEATS") { capacityError = "no_seats"; return null; }
-    if (err.message === "NO_TRAYS") { capacityError = "no_trays"; return null; }
     throw err;
   });
 
   if (!updated) {
-    const messages: Record<string, string> = {
-      already_matched: "Request has already been matched",
-      no_seats: "This offer has no remaining seats",
-      no_trays: "This offer has no remaining bike tray spots",
-    };
-    res.status(409).json({ error: messages[capacityError ?? "already_matched"] ?? "Match failed" });
+    res.status(409).json({ error: "Request has already been matched" });
     return;
   }
 

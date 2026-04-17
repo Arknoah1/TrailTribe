@@ -275,7 +275,7 @@ export default function CarpoolBoard() {
 
   const handleMatchClick = (request: any) => {
     setMatchingRequest(request);
-    setSelectedOfferId(myOpenOffers.length === 1 ? myOpenOffers[0].id : "");
+    setSelectedOfferId(myAllOffers.length === 1 ? myAllOffers[0].id : "");
     setMatchDialogOpen(true);
   };
 
@@ -638,12 +638,12 @@ export default function CarpoolBoard() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {myOpenOffers.length === 0 && (
+            {myAllOffers.length === 0 && (
               <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
-                You don't have an active offer yet. Confirming will automatically create one for you.
+                You don't have an offer for this event yet. Confirming will automatically create one for you.
               </p>
             )}
-            {myOpenOffers.length > 1 && (
+            {myAllOffers.length > 1 && (
               <div className="space-y-2">
                 <Label>Which of your offers?</Label>
                 <select
@@ -652,7 +652,7 @@ export default function CarpoolBoard() {
                   onChange={e => setSelectedOfferId(e.target.value === "" ? "" : Number(e.target.value))}
                 >
                   <option value="">Select an offer...</option>
-                  {myOpenOffers.map((o: any) => (
+                  {myAllOffers.map((o: any) => (
                     <option key={o.id} value={o.id}>
                       {o.seatsRemaining} seat{o.seatsRemaining !== 1 ? "s" : ""} remaining
                       {o.departureLocation ? ` · ${o.departureLocation}` : ""}
@@ -666,7 +666,7 @@ export default function CarpoolBoard() {
             <Button variant="outline" className="flex-1" onClick={() => setMatchDialogOpen(false)}>Cancel</Button>
             <Button
               className="flex-1"
-              disabled={isMatching || (myOpenOffers.length > 1 && selectedOfferId === "")}
+              disabled={isMatching || (myAllOffers.length > 1 && selectedOfferId === "")}
               onClick={handleTakeThem}
             >
               {isMatching ? "Confirming..." : "I'll Take Them"}
