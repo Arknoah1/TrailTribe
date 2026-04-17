@@ -1165,6 +1165,26 @@ components:
 
     # ─── USER ─────────────────────────────────────────────────────────────────
 
+    UserNotificationPreferences:
+      type: object
+      properties:
+        practiceReminders:
+          type: boolean
+        coachMessages:
+          type: boolean
+        carpoolUpdates:
+          type: boolean
+        eventReminders:
+          type: boolean
+        rosterUpdates:
+          type: boolean
+      required:
+        - practiceReminders
+        - coachMessages
+        - carpoolUpdates
+        - eventReminders
+        - rosterUpdates
+
     User:
       type: object
       properties:
@@ -1216,6 +1236,9 @@ components:
         defaultCarpoolTrays:
           type: integer
           nullable: true
+        notificationPreferences:
+          $ref: '#/components/schemas/UserNotificationPreferences'
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1255,6 +1278,15 @@ components:
           type: boolean
         pushNotifications:
           type: boolean
+        notificationPreferences:
+          $ref: '#/components/schemas/UserNotificationPreferences'
+          nullable: true
+        defaultCarpoolSeats:
+          type: integer
+          nullable: true
+        defaultCarpoolTrays:
+          type: integer
+          nullable: true
 
     OnboardUserBody:
       type: object

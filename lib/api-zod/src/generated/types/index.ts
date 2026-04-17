@@ -75,6 +75,7 @@ export * from "./updateHouseholdBody";
 export * from "./updatePodBody";
 export * from "./updateUserBody";
 export * from "./user";
+export * from "./userNotificationPreferences";
 export * from "./userRole";
 export * from "./volunteerSignup";
 export * from "./volunteerSignupBody";

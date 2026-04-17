@@ -177,6 +177,15 @@ export const GetMeResponse = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -194,6 +203,17 @@ export const UpdateMeBody = zod.object({
   emailNotifications: zod.boolean().optional(),
   smsNotifications: zod.boolean().optional(),
   pushNotifications: zod.boolean().optional(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
+  defaultCarpoolSeats: zod.number().nullish(),
+  defaultCarpoolTrays: zod.number().nullish(),
 });
 
 export const UpdateMeResponse = zod.object({
@@ -216,6 +236,15 @@ export const UpdateMeResponse = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -248,6 +277,15 @@ export const ListUsersResponseItem = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
@@ -276,6 +314,15 @@ export const GetUserResponse = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -297,6 +344,17 @@ export const UpdateUserBody = zod.object({
   emailNotifications: zod.boolean().optional(),
   smsNotifications: zod.boolean().optional(),
   pushNotifications: zod.boolean().optional(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
+  defaultCarpoolSeats: zod.number().nullish(),
+  defaultCarpoolTrays: zod.number().nullish(),
 });
 
 export const UpdateUserResponse = zod.object({
@@ -319,6 +377,15 @@ export const UpdateUserResponse = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 
@@ -376,6 +443,15 @@ export const ListHouseholdsResponseItem = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -435,6 +511,15 @@ export const GetHouseholdResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -568,6 +653,15 @@ export const GetPodResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -592,6 +686,15 @@ export const GetPodResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         }),
       ),
@@ -902,6 +1005,15 @@ export const ListEventRsvpsResponseItem = zod
         pushNotifications: zod.boolean(),
         defaultCarpoolSeats: zod.number().nullish(),
         defaultCarpoolTrays: zod.number().nullish(),
+        notificationPreferences: zod
+          .object({
+            practiceReminders: zod.boolean(),
+            coachMessages: zod.boolean(),
+            carpoolUpdates: zod.boolean(),
+            eventReminders: zod.boolean(),
+            rosterUpdates: zod.boolean(),
+          })
+          .nullish(),
         createdAt: zod.coerce.date(),
       }),
     }),
@@ -943,6 +1055,15 @@ export const ListEventVolunteersResponseItem = zod
         pushNotifications: zod.boolean(),
         defaultCarpoolSeats: zod.number().nullish(),
         defaultCarpoolTrays: zod.number().nullish(),
+        notificationPreferences: zod
+          .object({
+            practiceReminders: zod.boolean(),
+            coachMessages: zod.boolean(),
+            carpoolUpdates: zod.boolean(),
+            eventReminders: zod.boolean(),
+            rosterUpdates: zod.boolean(),
+          })
+          .nullish(),
         createdAt: zod.coerce.date(),
       }),
     }),
@@ -1016,6 +1137,15 @@ export const ListEventCarpoolsResponseItem = zod
         pushNotifications: zod.boolean(),
         defaultCarpoolSeats: zod.number().nullish(),
         defaultCarpoolTrays: zod.number().nullish(),
+        notificationPreferences: zod
+          .object({
+            practiceReminders: zod.boolean(),
+            coachMessages: zod.boolean(),
+            carpoolUpdates: zod.boolean(),
+            eventReminders: zod.boolean(),
+            rosterUpdates: zod.boolean(),
+          })
+          .nullish(),
         createdAt: zod.coerce.date(),
       }),
       claims: zod.array(
@@ -1051,6 +1181,15 @@ export const ListEventCarpoolsResponseItem = zod
                 pushNotifications: zod.boolean(),
                 defaultCarpoolSeats: zod.number().nullish(),
                 defaultCarpoolTrays: zod.number().nullish(),
+                notificationPreferences: zod
+                  .object({
+                    practiceReminders: zod.boolean(),
+                    coachMessages: zod.boolean(),
+                    carpoolUpdates: zod.boolean(),
+                    eventReminders: zod.boolean(),
+                    rosterUpdates: zod.boolean(),
+                  })
+                  .nullish(),
                 createdAt: zod.coerce.date(),
               }),
             }),
@@ -1168,6 +1307,15 @@ export const ListEventCarpoolRequestsResponseItem = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1192,6 +1340,15 @@ export const ListEventCarpoolRequestsResponseItem = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1219,6 +1376,15 @@ export const ListEventCarpoolRequestsResponseItem = zod
               pushNotifications: zod.boolean(),
               defaultCarpoolSeats: zod.number().nullish(),
               defaultCarpoolTrays: zod.number().nullish(),
+              notificationPreferences: zod
+                .object({
+                  practiceReminders: zod.boolean(),
+                  coachMessages: zod.boolean(),
+                  carpoolUpdates: zod.boolean(),
+                  eventReminders: zod.boolean(),
+                  rosterUpdates: zod.boolean(),
+                })
+                .nullish(),
               createdAt: zod.coerce.date(),
             })
             .nullish(),
@@ -1304,6 +1470,15 @@ export const UpdateCarpoolRequestResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1328,6 +1503,15 @@ export const UpdateCarpoolRequestResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1355,6 +1539,15 @@ export const UpdateCarpoolRequestResponse = zod
               pushNotifications: zod.boolean(),
               defaultCarpoolSeats: zod.number().nullish(),
               defaultCarpoolTrays: zod.number().nullish(),
+              notificationPreferences: zod
+                .object({
+                  practiceReminders: zod.boolean(),
+                  coachMessages: zod.boolean(),
+                  carpoolUpdates: zod.boolean(),
+                  eventReminders: zod.boolean(),
+                  rosterUpdates: zod.boolean(),
+                })
+                .nullish(),
               createdAt: zod.coerce.date(),
             })
             .nullish(),
@@ -1417,6 +1610,15 @@ export const MatchCarpoolRequestResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1441,6 +1643,15 @@ export const MatchCarpoolRequestResponse = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1468,6 +1679,15 @@ export const MatchCarpoolRequestResponse = zod
               pushNotifications: zod.boolean(),
               defaultCarpoolSeats: zod.number().nullish(),
               defaultCarpoolTrays: zod.number().nullish(),
+              notificationPreferences: zod
+                .object({
+                  practiceReminders: zod.boolean(),
+                  coachMessages: zod.boolean(),
+                  carpoolUpdates: zod.boolean(),
+                  eventReminders: zod.boolean(),
+                  rosterUpdates: zod.boolean(),
+                })
+                .nullish(),
               createdAt: zod.coerce.date(),
             })
             .nullish(),
@@ -1571,6 +1791,15 @@ export const ListBroadcastsResponseItem = zod
           pushNotifications: zod.boolean(),
           defaultCarpoolSeats: zod.number().nullish(),
           defaultCarpoolTrays: zod.number().nullish(),
+          notificationPreferences: zod
+            .object({
+              practiceReminders: zod.boolean(),
+              coachMessages: zod.boolean(),
+              carpoolUpdates: zod.boolean(),
+              eventReminders: zod.boolean(),
+              rosterUpdates: zod.boolean(),
+            })
+            .nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1683,6 +1912,15 @@ export const ListPendingApprovalsResponseItem = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListPendingApprovalsResponse = zod.array(
@@ -1722,6 +1960,15 @@ export const ApproveUserResponse = zod.object({
   pushNotifications: zod.boolean(),
   defaultCarpoolSeats: zod.number().nullish(),
   defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+    })
+    .nullish(),
   createdAt: zod.coerce.date(),
 });
 

@@ -19,6 +19,14 @@ export interface SuccessResponse {
   message?: string;
 }
 
+export interface UserNotificationPreferences {
+  practiceReminders: boolean;
+  coachMessages: boolean;
+  carpoolUpdates: boolean;
+  eventReminders: boolean;
+  rosterUpdates: boolean;
+}
+
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export const UserRole = {
@@ -48,6 +56,7 @@ export interface User {
   pushNotifications: boolean;
   defaultCarpoolSeats?: number | null;
   defaultCarpoolTrays?: number | null;
+  notificationPreferences?: UserNotificationPreferences | null;
   createdAt: string;
 }
 
@@ -62,6 +71,9 @@ export interface UpdateUserBody {
   emailNotifications?: boolean;
   smsNotifications?: boolean;
   pushNotifications?: boolean;
+  notificationPreferences?: UserNotificationPreferences | null;
+  defaultCarpoolSeats?: number | null;
+  defaultCarpoolTrays?: number | null;
 }
 
 export type OnboardUserBodyRole =

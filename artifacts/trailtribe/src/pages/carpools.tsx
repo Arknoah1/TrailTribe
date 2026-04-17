@@ -299,6 +299,8 @@ export default function CarpoolBoard() {
         }
         const newOffer = await res.json();
         offerId = newOffer.id;
+      } else if (selectedOfferId) {
+        offerId = selectedOfferId as number;
       } else {
         offerId = myAllOffers[0].id;
       }

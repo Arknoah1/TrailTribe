@@ -5,6 +5,7 @@
  * TrailTribe team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserNotificationPreferences } from "./userNotificationPreferences";
 
 export interface UpdateUserBody {
   firstName?: string;
@@ -17,4 +18,7 @@ export interface UpdateUserBody {
   emailNotifications?: boolean;
   smsNotifications?: boolean;
   pushNotifications?: boolean;
+  notificationPreferences?: UserNotificationPreferences | null;
+  defaultCarpoolSeats?: number | null;
+  defaultCarpoolTrays?: number | null;
 }

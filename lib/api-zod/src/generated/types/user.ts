@@ -5,6 +5,7 @@
  * TrailTribe team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserNotificationPreferences } from "./userNotificationPreferences";
 import type { UserRole } from "./userRole";
 
 export interface User {
@@ -27,5 +28,6 @@ export interface User {
   pushNotifications: boolean;
   defaultCarpoolSeats?: number | null;
   defaultCarpoolTrays?: number | null;
+  notificationPreferences?: UserNotificationPreferences | null;
   createdAt: Date;
 }
