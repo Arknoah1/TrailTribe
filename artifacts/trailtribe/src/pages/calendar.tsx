@@ -35,10 +35,8 @@ export default function Calendar() {
     };
   }, [currentMonth]);
 
-  const listParams = useMemo(() => ({}), []);
-
   const { data: events, isLoading } = useListEvents(
-    view === "month" ? monthParams : listParams
+    view === "month" ? monthParams : undefined
   );
 
   const handleMonthChange = (date: Date) => {
