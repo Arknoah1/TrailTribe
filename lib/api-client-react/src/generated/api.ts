@@ -19,6 +19,7 @@ import type {
 import type {
   AddAttachmentBody,
   ApproveUserBody,
+  BatchCreateEventsBody,
   Broadcast,
   BroadcastWithSender,
   CarpoolClaim,
@@ -35,6 +36,8 @@ import type {
   CreatePodBody,
   CreateTrailheadBody,
   DashboardSummary,
+  DeleteSeries200,
+  DeleteSeriesParams,
   ErrorResponse,
   EventAttachment,
   EventRsvp,
@@ -1663,6 +1666,192 @@ export const useCreateEvent = <
   TContext
 > => {
   return useMutation(getCreateEventMutationOptions(options));
+};
+
+/**
+ * @summary Batch-create multiple events (season builder)
+ */
+export const getBatchCreateEventsUrl = () => {
+  return `/api/events/batch`;
+};
+
+export const batchCreateEvents = async (
+  batchCreateEventsBody: BatchCreateEventsBody,
+  options?: RequestInit,
+): Promise<EventWithDetails[]> => {
+  return customFetch<EventWithDetails[]>(getBatchCreateEventsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(batchCreateEventsBody),
+  });
+};
+
+export const getBatchCreateEventsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof batchCreateEvents>>,
+    TError,
+    { data: BodyType<BatchCreateEventsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof batchCreateEvents>>,
+  TError,
+  { data: BodyType<BatchCreateEventsBody> },
+  TContext
+> => {
+  const mutationKey = ["batchCreateEvents"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof batchCreateEvents>>,
+    { data: BodyType<BatchCreateEventsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return batchCreateEvents(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BatchCreateEventsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof batchCreateEvents>>
+>;
+export type BatchCreateEventsMutationBody = BodyType<BatchCreateEventsBody>;
+export type BatchCreateEventsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Batch-create multiple events (season builder)
+ */
+export const useBatchCreateEvents = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof batchCreateEvents>>,
+    TError,
+    { data: BodyType<BatchCreateEventsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof batchCreateEvents>>,
+  TError,
+  { data: BodyType<BatchCreateEventsBody> },
+  TContext
+> => {
+  return useMutation(getBatchCreateEventsMutationOptions(options));
+};
+
+/**
+ * @summary Delete all future events in a series
+ */
+export const getDeleteSeriesUrl = (
+  seriesId: string,
+  params?: DeleteSeriesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/series/${seriesId}?${stringifiedParams}`
+    : `/api/series/${seriesId}`;
+};
+
+export const deleteSeries = async (
+  seriesId: string,
+  params?: DeleteSeriesParams,
+  options?: RequestInit,
+): Promise<DeleteSeries200> => {
+  return customFetch<DeleteSeries200>(getDeleteSeriesUrl(seriesId, params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSeriesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSeries>>,
+    TError,
+    { seriesId: string; params?: DeleteSeriesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSeries>>,
+  TError,
+  { seriesId: string; params?: DeleteSeriesParams },
+  TContext
+> => {
+  const mutationKey = ["deleteSeries"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSeries>>,
+    { seriesId: string; params?: DeleteSeriesParams }
+  > = (props) => {
+    const { seriesId, params } = props ?? {};
+
+    return deleteSeries(seriesId, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSeriesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSeries>>
+>;
+
+export type DeleteSeriesMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete all future events in a series
+ */
+export const useDeleteSeries = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSeries>>,
+    TError,
+    { seriesId: string; params?: DeleteSeriesParams },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSeries>>,
+  TError,
+  { seriesId: string; params?: DeleteSeriesParams },
+  TContext
+> => {
+  return useMutation(getDeleteSeriesMutationOptions(options));
 };
 
 export const getGetEventUrl = (id: number) => {

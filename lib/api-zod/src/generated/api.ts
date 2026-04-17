@@ -55,6 +55,7 @@ export const GetDashboardSummaryResponse = zod.object({
         volunteerSlotsNeeded: zod.number(),
         iCalUid: zod.string(),
         isArchived: zod.boolean(),
+        seriesId: zod.string().nullish(),
         createdAt: zod.coerce.date(),
       })
       .and(
@@ -114,6 +115,7 @@ export const GetUpcomingEventsResponseItem = zod
     volunteerSlotsNeeded: zod.number(),
     iCalUid: zod.string(),
     isArchived: zod.boolean(),
+    seriesId: zod.string().nullish(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -755,6 +757,7 @@ export const ListEventsResponseItem = zod
     volunteerSlotsNeeded: zod.number(),
     iCalUid: zod.string(),
     isArchived: zod.boolean(),
+    seriesId: zod.string().nullish(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -806,6 +809,52 @@ export const CreateEventBody = zod.object({
   isAllTeam: zod.boolean().optional(),
   rsvpDeadline: zod.coerce.date().optional(),
   volunteerSlotsNeeded: zod.number().optional(),
+  seriesId: zod.string().nullish(),
+});
+
+/**
+ * @summary Batch-create multiple events (season builder)
+ */
+export const BatchCreateEventsBody = zod.object({
+  events: zod.array(
+    zod.object({
+      title: zod.string(),
+      description: zod.string().optional(),
+      eventType: zod.enum(["practice", "race", "social", "volunteer", "other"]),
+      startTime: zod.coerce.date(),
+      endTime: zod.coerce.date().optional(),
+      trailheadId: zod.number().optional(),
+      locationOverride: zod.string().optional(),
+      googleMapsUrlOverride: zod.string().optional(),
+      podIds: zod.array(zod.string()).optional(),
+      isAllTeam: zod.boolean().optional(),
+      rsvpDeadline: zod.coerce.date().optional(),
+      volunteerSlotsNeeded: zod.number().optional(),
+      seriesId: zod.string().nullish(),
+    }),
+  ),
+  seriesId: zod
+    .string()
+    .optional()
+    .describe("Optional shared series ID to group these events"),
+});
+
+/**
+ * @summary Delete all future events in a series
+ */
+export const DeleteSeriesParams = zod.object({
+  seriesId: zod.coerce.string(),
+});
+
+export const DeleteSeriesQueryParams = zod.object({
+  fromDate: zod
+    .date()
+    .optional()
+    .describe("Delete events on or after this date (ISO). Defaults to now."),
+});
+
+export const DeleteSeriesResponse = zod.object({
+  deleted: zod.number(),
 });
 
 export const GetEventParams = zod.object({
@@ -829,6 +878,7 @@ export const GetEventResponse = zod
     volunteerSlotsNeeded: zod.number(),
     iCalUid: zod.string(),
     isArchived: zod.boolean(),
+    seriesId: zod.string().nullish(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -885,6 +935,7 @@ export const UpdateEventBody = zod.object({
   rsvpDeadline: zod.coerce.date().optional(),
   volunteerSlotsNeeded: zod.number().optional(),
   isArchived: zod.boolean().optional(),
+  seriesId: zod.string().nullish(),
 });
 
 export const UpdateEventResponse = zod
@@ -904,6 +955,7 @@ export const UpdateEventResponse = zod
     volunteerSlotsNeeded: zod.number(),
     iCalUid: zod.string(),
     isArchived: zod.boolean(),
+    seriesId: zod.string().nullish(),
     createdAt: zod.coerce.date(),
   })
   .and(

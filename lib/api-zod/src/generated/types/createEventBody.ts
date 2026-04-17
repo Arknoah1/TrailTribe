@@ -20,4 +20,5 @@ export interface CreateEventBody {
   isAllTeam?: boolean;
   rsvpDeadline?: Date;
   volunteerSlotsNeeded?: number;
+  seriesId?: string | null;
 }

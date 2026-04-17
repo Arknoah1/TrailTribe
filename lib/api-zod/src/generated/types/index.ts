@@ -9,6 +9,7 @@
 export * from "./addAttachmentBody";
 export * from "./approveUserBody";
 export * from "./approveUserBodyRole";
+export * from "./batchCreateEventsBody";
 export * from "./broadcast";
 export * from "./broadcastChannel";
 export * from "./broadcastWithSender";
@@ -32,6 +33,8 @@ export * from "./createInviteLinkBody";
 export * from "./createPodBody";
 export * from "./createTrailheadBody";
 export * from "./dashboardSummary";
+export * from "./deleteSeries200";
+export * from "./deleteSeriesParams";
 export * from "./errorResponse";
 export * from "./event";
 export * from "./eventAttachment";

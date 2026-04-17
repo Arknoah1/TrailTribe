@@ -23,5 +23,6 @@ export interface Event {
   volunteerSlotsNeeded: number;
   iCalUid: string;
   isArchived: boolean;
+  seriesId?: string | null;
   createdAt: Date;
 }

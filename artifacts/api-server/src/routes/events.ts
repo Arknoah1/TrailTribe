@@ -10,7 +10,7 @@ import {
   carpoolOffersTable,
   carpoolClaimsTable,
 } from "@workspace/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 
@@ -59,6 +59,51 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
     attachments,
   };
 }
+
+router.post("/events/batch", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  const { events, seriesId } = req.body as { events: any[]; seriesId?: string };
+  if (!Array.isArray(events) || events.length === 0) {
+    res.status(400).json({ error: "events array required" });
+    return;
+  }
+  const resolvedSeriesId = seriesId || randomUUID();
+  const created = await db.insert(eventsTable).values(
+    events.map((e: any) => ({
+      title: e.title,
+      description: e.description ?? null,
+      eventType: e.eventType ?? "practice",
+      startTime: new Date(e.startTime),
+      endTime: e.endTime ? new Date(e.endTime) : null,
+      trailheadId: e.trailheadId ?? null,
+      locationOverride: e.locationOverride ?? null,
+      googleMapsUrlOverride: e.googleMapsUrlOverride ?? null,
+      podIds: e.podIds ?? null,
+      isAllTeam: e.isAllTeam ?? true,
+      rsvpDeadline: e.rsvpDeadline ? new Date(e.rsvpDeadline) : null,
+      volunteerSlotsNeeded: e.volunteerSlotsNeeded ?? 0,
+      createdByUserId: me?.id ?? null,
+      iCalUid: randomUUID(),
+      seriesId: resolvedSeriesId,
+    }))
+  ).returning();
+  const result = await Promise.all(created.map((e) => buildEventWithDetails(e, clerkUserId)));
+  res.status(201).json(result);
+});
+
+router.delete("/series/:seriesId", requireAuth, async (req, res) => {
+  const sid = str(req.params.seriesId);
+  const fromDate = (req.query as any).fromDate;
+  const cutoff = fromDate ? new Date(fromDate) : new Date();
+  const toDelete = await db.select({ id: eventsTable.id })
+    .from(eventsTable)
+    .where(and(eq(eventsTable.seriesId, sid), gte(eventsTable.startTime, cutoff)));
+  if (toDelete.length > 0) {
+    await db.delete(eventsTable).where(inArray(eventsTable.id, toDelete.map(r => r.id)));
+  }
+  res.json({ deleted: toDelete.length });
+});
 
 router.get("/events", requireAuth, async (req, res) => {
   const { startDate, endDate, eventType, podId, archived } = req.query as Record<string, string>;
@@ -123,7 +168,7 @@ router.patch("/events/:id", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const {
     title, description, eventType, startTime, endTime, trailheadId,
-    locationOverride, podIds, isAllTeam, rsvpDeadline, volunteerSlotsNeeded, isArchived
+    locationOverride, podIds, isAllTeam, rsvpDeadline, volunteerSlotsNeeded, isArchived, seriesId
   } = req.body;
   const updates: Record<string, any> = {};
   if (title !== undefined) updates.title = title;
@@ -138,6 +183,7 @@ router.patch("/events/:id", requireAuth, async (req, res) => {
   if (rsvpDeadline !== undefined) updates.rsvpDeadline = new Date(rsvpDeadline);
   if (volunteerSlotsNeeded !== undefined) updates.volunteerSlotsNeeded = volunteerSlotsNeeded;
   if (isArchived !== undefined) updates.isArchived = isArchived;
+  if (seriesId !== undefined) updates.seriesId = seriesId;
 
   const [event] = await db.update(eventsTable).set(updates).where(eq(eventsTable.id, id)).returning();
   const result = await buildEventWithDetails(event, clerkUserId);

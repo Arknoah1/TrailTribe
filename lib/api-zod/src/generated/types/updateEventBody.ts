@@ -20,4 +20,5 @@ export interface UpdateEventBody {
   rsvpDeadline?: Date;
   volunteerSlotsNeeded?: number;
   isArchived?: boolean;
+  seriesId?: string | null;
 }

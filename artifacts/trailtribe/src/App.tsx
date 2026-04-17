@@ -10,6 +10,7 @@ import Roster from "./pages/roster";
 import HouseholdDetail from "./pages/household-detail";
 import Profile from "./pages/profile";
 import Admin from "./pages/admin";
+import SeasonBuilder from "./pages/season-builder";
 import Join from "./pages/join";
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
@@ -200,6 +201,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
           <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
           <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
+          <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
           <Route path="/join/:code" component={Join} />
           <Route component={NotFound} />
         </Switch>

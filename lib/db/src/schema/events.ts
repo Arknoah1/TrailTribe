@@ -24,6 +24,7 @@ export const eventsTable = pgTable("events", {
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   iCalUid: text("ical_uid").notNull().unique(),
   isArchived: boolean("is_archived").notNull().default(false),
+  seriesId: text("series_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

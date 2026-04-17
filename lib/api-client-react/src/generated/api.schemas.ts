@@ -216,6 +216,7 @@ export interface Event {
   volunteerSlotsNeeded: number;
   iCalUid: string;
   isArchived: boolean;
+  seriesId?: string | null;
   createdAt: string;
 }
 
@@ -294,6 +295,13 @@ export interface CreateEventBody {
   isAllTeam?: boolean;
   rsvpDeadline?: string;
   volunteerSlotsNeeded?: number;
+  seriesId?: string | null;
+}
+
+export interface BatchCreateEventsBody {
+  events: CreateEventBody[];
+  /** Optional shared series ID to group these events */
+  seriesId?: string;
 }
 
 export type UpdateEventBodyEventType =
@@ -320,6 +328,7 @@ export interface UpdateEventBody {
   rsvpDeadline?: string;
   volunteerSlotsNeeded?: number;
   isArchived?: boolean;
+  seriesId?: string | null;
 }
 
 export type RsvpBodyStatus =
@@ -637,6 +646,17 @@ export const ListEventsEventType = {
   volunteer: "volunteer",
   other: "other",
 } as const;
+
+export type DeleteSeriesParams = {
+  /**
+   * Delete events on or after this date (ISO). Defaults to now.
+   */
+  fromDate?: string;
+};
+
+export type DeleteSeries200 = {
+  deleted: number;
+};
 
 export type ListBroadcastsParams = {
   podId?: string;

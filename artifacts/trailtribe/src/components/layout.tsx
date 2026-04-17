@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon } from "lucide-react";
+import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
@@ -15,6 +15,7 @@ const baseNavItems = [
 ];
 
 const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
+const seasonBuilderNavItem = { href: "/season-builder", label: "Season Builder", icon: Layers };
 
 function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
@@ -38,7 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const navItems = isCoachOrAdmin
-    ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
+    ? [...baseNavItems.slice(0, 4), adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
     : baseNavItems;
 
   const mobileItems = isCoachOrAdmin

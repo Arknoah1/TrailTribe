@@ -432,6 +432,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventWithDetails"
 
+  /events/batch:
+    post:
+      operationId: batchCreateEvents
+      tags: [events]
+      summary: Batch-create multiple events (season builder)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchCreateEventsBody"
+      responses:
+        "201":
+          description: Created events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventWithDetails"
+
+  /series/{seriesId}:
+    delete:
+      operationId: deleteSeries
+      tags: [events]
+      summary: Delete all future events in a series
+      parameters:
+        - name: seriesId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fromDate
+          in: query
+          description: Delete events on or after this date (ISO). Defaults to now.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
   /events/{id}:
     get:
       operationId: getEvent
@@ -1553,6 +1603,9 @@ components:
           type: string
         isArchived:
           type: boolean
+        seriesId:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1665,7 +1718,22 @@ components:
           format: date-time
         volunteerSlotsNeeded:
           type: integer
+        seriesId:
+          type: string
+          nullable: true
       required: [title, eventType, startTime]
+
+    BatchCreateEventsBody:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateEventBody"
+        seriesId:
+          type: string
+          description: Optional shared series ID to group these events
+      required: [events]
 
     UpdateEventBody:
       type: object
@@ -1700,6 +1768,9 @@ components:
           type: integer
         isArchived:
           type: boolean
+        seriesId:
+          type: string
+          nullable: true
 
     # ─── RSVP ─────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListPendingApprovalsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus } from "lucide-react";
+import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { Link } from "wouter";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -197,6 +198,14 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
 
+  const { data: allEvents, refetch: refetchEvents } = useListEvents({ archived: "true" } as any);
+  const deleteEvent = useDeleteEvent();
+  const updateEvent = useUpdateEvent();
+  const deleteSeries = useDeleteSeries();
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [editingEventData, setEditingEventData] = useState<Record<string, any>>({});
+  const [eventFilter, setEventFilter] = useState<"upcoming" | "all">("upcoming");
+
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
   const [roster, setRoster] = useState<any[]>([]);
@@ -343,6 +352,7 @@ export default function Admin() {
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="roster">Roster</TabsTrigger>
           <TabsTrigger value="approvals">Pending Approvals</TabsTrigger>
+          <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="pods">Pods</TabsTrigger>
           <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
@@ -679,6 +689,247 @@ export default function Admin() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="events" className="mt-6 space-y-4">
+          {(() => {
+            const now = new Date();
+            const sorted = [...(allEvents ?? [])].sort((a, b) =>
+              new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            );
+            const upcoming = sorted.filter(e => new Date(e.startTime) >= now);
+            const past = sorted.filter(e => new Date(e.startTime) < now);
+            const displayed = eventFilter === "upcoming" ? upcoming : sorted;
+
+            const seriesGroups: Record<string, typeof sorted> = {};
+            sorted.forEach(e => {
+              if ((e as any).seriesId) {
+                const sid = (e as any).seriesId as string;
+                if (!seriesGroups[sid]) seriesGroups[sid] = [];
+                seriesGroups[sid].push(e);
+              }
+            });
+            const seriesIds = Object.keys(seriesGroups);
+
+            const handleDelete = (id: number) => {
+              if (!confirm("Delete this event?")) return;
+              deleteEvent.mutate({ id }, {
+                onSuccess: () => {
+                  toast({ title: "Event deleted" });
+                  queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                  refetchEvents();
+                },
+                onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+              });
+            };
+
+            const startEdit = (e: any) => {
+              setEditingEventId(e.id);
+              const dt = new Date(e.startTime);
+              setEditingEventData({
+                title: e.title,
+                eventType: e.eventType,
+                startDate: dt.toISOString().split("T")[0],
+                startTime: dt.toTimeString().slice(0, 5),
+              });
+            };
+
+            const saveEdit = (id: number) => {
+              const { title, eventType, startDate, startTime } = editingEventData;
+              const [y, m, d] = startDate.split("-").map(Number);
+              const [h, min] = startTime.split(":").map(Number);
+              const startDt = new Date(y, m - 1, d, h, min);
+              updateEvent.mutate({ id, data: { title, eventType, startTime: startDt.toISOString() } }, {
+                onSuccess: () => {
+                  toast({ title: "Event updated" });
+                  setEditingEventId(null);
+                  refetchEvents();
+                  queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                },
+                onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+              });
+            };
+
+            const handleDeleteSeries = (seriesId: string) => {
+              const group = seriesGroups[seriesId];
+              const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
+              if (!confirm(`Delete ${futureCount} upcoming event${futureCount !== 1 ? "s" : ""} in this series?`)) return;
+              deleteSeries.mutate({ seriesId, params: { fromDate: now.toISOString().split("T")[0] } }, {
+                onSuccess: (data) => {
+                  toast({ title: `${(data as any).deleted} events deleted` });
+                  refetchEvents();
+                  queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                },
+                onError: () => toast({ title: "Failed to delete series", variant: "destructive" }),
+              });
+            };
+
+            return (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <h2 className="text-lg font-semibold">All Events</h2>
+                    <p className="text-sm text-muted-foreground">{upcoming.length} upcoming · {past.length} past</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center border border-border rounded-md overflow-hidden shrink-0">
+                      {(["upcoming", "all"] as const).map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setEventFilter(f)}
+                          className={`px-3 py-2 text-sm transition-colors capitalize ${eventFilter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                    <Link href="/season-builder">
+                      <Button size="sm" className="gap-1.5">
+                        <Layers className="h-3.5 w-3.5" /> Season Builder
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                <Card>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Date</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Type</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Title</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Series</th>
+                          <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-24">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {displayed.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                              No events found.
+                            </td>
+                          </tr>
+                        ) : displayed.map((ev: any) => {
+                          const isEditing = editingEventId === ev.id;
+                          const dt = new Date(ev.startTime);
+                          const isPast = dt < now;
+                          return (
+                            <tr key={ev.id} className={`hover:bg-muted/20 transition-colors ${isPast ? "opacity-60" : ""}`}>
+                              <td className="px-4 py-2.5 text-muted-foreground text-xs whitespace-nowrap">
+                                {isEditing ? (
+                                  <Input
+                                    type="date"
+                                    value={editingEventData.startDate}
+                                    onChange={e => setEditingEventData((p: any) => ({ ...p, startDate: e.target.value }))}
+                                    className="h-7 text-xs w-32"
+                                  />
+                                ) : (
+                                  dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 hidden sm:table-cell">
+                                {isEditing ? (
+                                  <Select value={editingEventData.eventType} onValueChange={v => setEditingEventData((p: any) => ({ ...p, eventType: v }))}>
+                                    <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      {["practice","race","social","volunteer","other"].map(t => (
+                                        <SelectItem key={t} value={t} className="capitalize text-xs">{t}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs font-normal capitalize">{ev.eventType}</Badge>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 font-medium">
+                                {isEditing ? (
+                                  <Input
+                                    value={editingEventData.title}
+                                    onChange={e => setEditingEventData((p: any) => ({ ...p, title: e.target.value }))}
+                                    className="h-7 text-xs"
+                                  />
+                                ) : (
+                                  ev.title
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 hidden md:table-cell">
+                                {ev.seriesId ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                    <Layers className="h-3 w-3" />
+                                    Series
+                                  </span>
+                                ) : <span className="text-xs text-muted-foreground">—</span>}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-center gap-1">
+                                  {isEditing ? (
+                                    <>
+                                      <Button size="sm" className="h-7 text-xs px-2" onClick={() => saveEdit(ev.id)}>Save</Button>
+                                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingEventId(null)}>Cancel</Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(ev)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(ev.id)}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+
+                {seriesIds.length > 0 && (
+                  <div>
+                    <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-primary" /> Series Management
+                    </h3>
+                    <div className="space-y-2">
+                      {seriesIds.map(sid => {
+                        const group = seriesGroups[sid];
+                        const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
+                        const earliest = group.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+                        const latest = group[group.length - 1];
+                        return (
+                          <Card key={sid}>
+                            <CardContent className="p-4 flex items-center justify-between gap-4 flex-wrap">
+                              <div>
+                                <p className="font-medium text-sm">{earliest.title.split(" — ")[0] || "Series"}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {group.length} events · {new Date(earliest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(latest.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                  {futureCount > 0 && ` · ${futureCount} upcoming`}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                                onClick={() => handleDeleteSeries(sid)}
+                                disabled={futureCount === 0}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                                Delete {futureCount} upcoming
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6 space-y-4">
