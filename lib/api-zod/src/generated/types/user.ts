@@ -25,5 +25,7 @@ export interface User {
   emailNotifications: boolean;
   smsNotifications: boolean;
   pushNotifications: boolean;
+  defaultCarpoolSeats?: number | null;
+  defaultCarpoolTrays?: number | null;
   createdAt: Date;
 }

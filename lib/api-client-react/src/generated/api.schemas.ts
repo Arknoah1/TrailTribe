@@ -28,14 +28,6 @@ export const UserRole = {
   student: "student",
 } as const;
 
-export interface UserNotificationPreferences {
-  practiceReminders: boolean;
-  coachMessages: boolean;
-  carpoolUpdates: boolean;
-  eventReminders: boolean;
-  rosterUpdates: boolean;
-}
-
 export interface User {
   id: number;
   householdId?: number | null;
@@ -54,7 +46,8 @@ export interface User {
   emailNotifications: boolean;
   smsNotifications: boolean;
   pushNotifications: boolean;
-  notificationPreferences?: UserNotificationPreferences | null;
+  defaultCarpoolSeats?: number | null;
+  defaultCarpoolTrays?: number | null;
   createdAt: string;
 }
 
@@ -69,7 +62,6 @@ export interface UpdateUserBody {
   emailNotifications?: boolean;
   smsNotifications?: boolean;
   pushNotifications?: boolean;
-  notificationPreferences?: UserNotificationPreferences;
 }
 
 export type OnboardUserBodyRole =

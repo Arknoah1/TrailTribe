@@ -37,6 +37,8 @@ export const usersTable = pgTable("users", {
   emailNotifications: boolean("email_notifications").notNull().default(true),
   smsNotifications: boolean("sms_notifications").notNull().default(false),
   pushNotifications: boolean("push_notifications").notNull().default(true),
+  defaultCarpoolSeats: integer("default_carpool_seats"),
+  defaultCarpoolTrays: integer("default_carpool_trays"),
   notificationPreferences: jsonb("notification_preferences").$type<{
     practiceReminders: boolean;
     coachMessages: boolean;

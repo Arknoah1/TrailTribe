@@ -175,6 +175,7 @@ export default function CarpoolBoard() {
   };
 
   const myOpenOffers = offers?.filter((o: any) => o.driverUserId === me?.id && o.seatsRemaining > 0) ?? [];
+  const myAllOffers = offers?.filter((o: any) => o.driverUserId === me?.id) ?? [];
 
   const handleClaimClick = (offer: any, needsTray: boolean) => {
     if (riders.length === 0) {
@@ -283,11 +284,13 @@ export default function CarpoolBoard() {
     setIsMatching(true);
     try {
       let offerId = selectedOfferId as number;
-      if (myOpenOffers.length === 0) {
+      if (myAllOffers.length === 0) {
+        const seats = me?.defaultCarpoolSeats ?? 1;
+        const trays = me?.defaultCarpoolTrays ?? 1;
         const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpools`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ availableSeats: 3, bikeTrayCount: 2 }),
+          body: JSON.stringify({ availableSeats: seats, bikeTrayCount: trays }),
         });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
@@ -296,6 +299,8 @@ export default function CarpoolBoard() {
         }
         const newOffer = await res.json();
         offerId = newOffer.id;
+      } else {
+        offerId = myAllOffers[0].id;
       }
       const matchRes = await authedFetch(`${BASE_URL}/api/carpool-requests/${matchingRequest.id}/match`, {
         method: "POST",
@@ -393,11 +398,11 @@ export default function CarpoolBoard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Available Seats</Label>
-                  <Input type="number" name="seats" min="1" required defaultValue="3" />
+                  <Input type="number" name="seats" min="1" required defaultValue={me?.defaultCarpoolSeats ?? 3} key={`seats-${me?.defaultCarpoolSeats}`} />
                 </div>
                 <div className="space-y-2">
                   <Label>Bike Trays</Label>
-                  <Input type="number" name="trays" min="0" required defaultValue="2" />
+                  <Input type="number" name="trays" min="0" required defaultValue={me?.defaultCarpoolTrays ?? 2} key={`trays-${me?.defaultCarpoolTrays}`} />
                 </div>
               </div>
               <div className="space-y-2">

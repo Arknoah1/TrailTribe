@@ -1210,6 +1210,12 @@ components:
           type: boolean
         pushNotifications:
           type: boolean
+        defaultCarpoolSeats:
+          type: integer
+          nullable: true
+        defaultCarpoolTrays:
+          type: integer
+          nullable: true
         createdAt:
           type: string
           format: date-time

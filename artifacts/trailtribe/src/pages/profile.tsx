@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car } from "lucide-react";
 import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
@@ -854,6 +854,7 @@ export default function Profile() {
   const updateMutation = useUpdateMe();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -880,6 +881,41 @@ export default function Profile() {
         toast({ title: "Error updating profile", variant: "destructive" });
       }
     });
+  };
+
+  const [defaultSeats, setDefaultSeats] = useState<string>("");
+  const [defaultTrays, setDefaultTrays] = useState<string>("");
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setDefaultSeats(user.defaultCarpoolSeats != null ? String(user.defaultCarpoolSeats) : "");
+      setDefaultTrays(user.defaultCarpoolTrays != null ? String(user.defaultCarpoolTrays) : "");
+    }
+  }, [user]);
+
+  const saveCarpoolDefaults = async () => {
+    setIsSavingDefaults(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/users/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          defaultCarpoolSeats: defaultSeats !== "" ? Number(defaultSeats) : null,
+          defaultCarpoolTrays: defaultTrays !== "" ? Number(defaultTrays) : null,
+        }),
+      });
+      if (res.ok) {
+        toast({ title: "Carpool defaults saved" });
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      } else {
+        toast({ title: "Failed to save", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to save", variant: "destructive" });
+    } finally {
+      setIsSavingDefaults(false);
+    }
   };
 
   const { signOut } = useClerk();
@@ -954,6 +990,47 @@ export default function Profile() {
               </div>
             </form>
           </Form>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Car className="h-5 w-5" /> Carpool Defaults</CardTitle>
+              <CardDescription>Set your usual capacity once — it pre-fills the offer form and is used when you quickly claim a rider.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="default-seats">Seats I can offer</Label>
+                  <Input
+                    id="default-seats"
+                    type="number"
+                    min="1"
+                    max="8"
+                    placeholder="e.g. 2"
+                    value={defaultSeats}
+                    onChange={e => setDefaultSeats(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default-trays">Bike spots I can offer</Label>
+                  <Input
+                    id="default-trays"
+                    type="number"
+                    min="0"
+                    max="6"
+                    placeholder="e.g. 1"
+                    value={defaultTrays}
+                    onChange={e => setDefaultTrays(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">Leave blank if you don't usually drive.</p>
+                <Button size="sm" onClick={saveCarpoolDefaults} disabled={isSavingDefaults}>
+                  {isSavingDefaults ? "Saving..." : "Save Defaults"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="pt-4 border-t mt-4">
             <Button

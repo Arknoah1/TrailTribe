@@ -207,7 +207,7 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   const {
     firstName, lastName, phone, avatarUrl, gender, grade,
     notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-    notificationPreferences,
+    notificationPreferences, defaultCarpoolSeats, defaultCarpoolTrays,
   } = req.body;
 
   const patch: Record<string, any> = {};
@@ -221,6 +221,8 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   if (emailNotifications !== undefined) patch.emailNotifications = emailNotifications;
   if (smsNotifications !== undefined) patch.smsNotifications = smsNotifications;
   if (pushNotifications !== undefined) patch.pushNotifications = pushNotifications;
+  if (defaultCarpoolSeats !== undefined) patch.defaultCarpoolSeats = defaultCarpoolSeats === null ? null : Number(defaultCarpoolSeats);
+  if (defaultCarpoolTrays !== undefined) patch.defaultCarpoolTrays = defaultCarpoolTrays === null ? null : Number(defaultCarpoolTrays);
   if (notificationPreferences !== undefined) {
     const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
     if (!parsed.success) {
