@@ -794,6 +794,10 @@ export default function Admin() {
 
             const saveEdit = (id: number) => {
               const { title, eventType, startDate, startTime, description, isAllTeam, podId } = editingEventData;
+              if (!isAllTeam && !podId) {
+                toast({ title: "Select a pod or check All Team", variant: "destructive" });
+                return;
+              }
               const [y, m, d] = startDate.split("-").map(Number);
               const [h, min] = startTime.split(":").map(Number);
               const startDt = new Date(y, m - 1, d, h, min);
@@ -803,7 +807,7 @@ export default function Admin() {
                   title,
                   eventType,
                   startTime: startDt.toISOString(),
-                  description: description?.trim() || undefined,
+                  description: (description ?? "").trim(),
                   isAllTeam: isAllTeam ?? true,
                   podIds: (!isAllTeam && podId) ? [podId] : [],
                 },
