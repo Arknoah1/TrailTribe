@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
 import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -231,6 +232,7 @@ export default function Admin() {
   const [localRiderPods, setLocalRiderPods] = useState<Record<number, string>>({});
   const [podOrder, setPodOrder] = useState<number[]>([]);
   const podOrderRef = useRef<number[]>([]);
+  const [podToDelete, setPodToDelete] = useState<{ id: number; name: string } | null>(null);
   useEffect(() => {
     if (pods) {
       const ids = (pods as any[]).map((p: any) => p.id);
@@ -285,8 +287,14 @@ export default function Admin() {
     }
   };
 
-  const deletePod = async (id: number, name: string) => {
-    if (!window.confirm(`Delete pod "${name}"? Riders in this pod will become unassigned.`)) return;
+  const deletePod = (id: number, name: string) => {
+    setPodToDelete({ id, name });
+  };
+
+  const confirmDeletePod = async () => {
+    if (!podToDelete) return;
+    const { id, name } = podToDelete;
+    setPodToDelete(null);
     const res = await authedFetch(`${BASE_URL}/api/pods/${id}`, { method: "DELETE" });
     if (res.ok || res.status === 204) {
       toast({ title: `Pod "${name}" deleted` });
@@ -1813,6 +1821,23 @@ export default function Admin() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!podToDelete} onOpenChange={(open) => { if (!open) setPodToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete pod "{podToDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(podToDelete && (pods as any[])?.find((p: any) => p.id === podToDelete.id)?.studentCount > 0)
+                ? `${(pods as any[]).find((p: any) => p.id === podToDelete.id)?.studentCount} rider(s) in this pod will become unassigned.`
+                : "This pod has no riders assigned. It will be permanently removed."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDeletePod}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
