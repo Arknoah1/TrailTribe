@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey } from "@workspace/api-client-react";
+import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, PodWithStats } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -178,10 +178,10 @@ export default function Calendar() {
         </div>
       </div>
 
-      {view === "list" && pods && pods.length > 0 && (
+      {view === "list" && (
         <div className="flex flex-wrap gap-2">
-          {(["all", "allteam", ...(pods as any[]).map((p: any) => String(p.id))] as string[]).map((val) => {
-            const label = val === "all" ? "All Events" : val === "allteam" ? "All Team" : (pods as any[]).find((p: any) => String(p.id) === val)?.name ?? val;
+          {(["all", "allteam"] as const).map((val) => {
+            const label = val === "all" ? "All Events" : "All Team";
             const active = podFilter === val;
             return (
               <button
@@ -194,6 +194,23 @@ export default function Calendar() {
                 }`}
               >
                 {label}
+              </button>
+            );
+          })}
+          {(pods ?? []).map((pod: PodWithStats) => {
+            const val = String(pod.id);
+            const active = podFilter === val;
+            return (
+              <button
+                key={val}
+                onClick={() => setPodFilter(val)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {pod.name}
               </button>
             );
           })}
