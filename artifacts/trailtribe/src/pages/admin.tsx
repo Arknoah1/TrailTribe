@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -222,6 +222,15 @@ export default function Admin() {
   const [editingPodId, setEditingPodId] = useState<number | null>(null);
   const [editingPodName, setEditingPodName] = useState("");
   const [localRiderPods, setLocalRiderPods] = useState<Record<number, string>>({});
+
+  // Trailhead management state
+  const { data: trailheads } = useListTrailheads();
+  const createTrailhead = useCreateTrailhead();
+  const updateTrailhead = useUpdateTrailhead();
+  const deleteTrailhead = useDeleteTrailhead();
+  const [newTrailhead, setNewTrailhead] = useState({ name: "", address: "", googleMapsUrl: "" });
+  const [editingTrailheadId, setEditingTrailheadId] = useState<number | null>(null);
+  const [editingTrailheadData, setEditingTrailheadData] = useState({ name: "", address: "", googleMapsUrl: "" });
 
   const createPod = async () => {
     if (!newPodName.trim()) return;
@@ -1149,13 +1158,177 @@ export default function Admin() {
           })()}
         </TabsContent>
 
-        <TabsContent value="trailheads" className="mt-6">
+        <TabsContent value="trailheads" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Trailhead Library</CardTitle>
+              <CardDescription>Saved meeting spots used in events and the Season Builder.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Trailhead library features coming soon.</p>
+            <CardContent className="space-y-4">
+              {!trailheads || trailheads.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No trailheads yet. Add one below.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Address</th>
+                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Map Link</th>
+                        <th className="px-4 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {trailheads.map((th) => (
+                        <tr key={th.id} className="hover:bg-muted/30 transition-colors">
+                          {editingTrailheadId === th.id ? (
+                            <>
+                              <td className="px-4 py-2">
+                                <Input
+                                  value={editingTrailheadData.name}
+                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, name: e.target.value }))}
+                                  className="h-8 text-sm"
+                                  placeholder="Name"
+                                  autoFocus
+                                />
+                              </td>
+                              <td className="px-4 py-2 hidden sm:table-cell">
+                                <Input
+                                  value={editingTrailheadData.address}
+                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, address: e.target.value }))}
+                                  className="h-8 text-sm"
+                                  placeholder="Address"
+                                />
+                              </td>
+                              <td className="px-4 py-2 hidden md:table-cell">
+                                <Input
+                                  value={editingTrailheadData.googleMapsUrl}
+                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, googleMapsUrl: e.target.value }))}
+                                  className="h-8 text-sm"
+                                  placeholder="https://maps.google.com/..."
+                                />
+                              </td>
+                              <td className="px-4 py-2 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    disabled={!editingTrailheadData.name.trim() || updateTrailhead.isPending}
+                                    onClick={() => {
+                                      updateTrailhead.mutate(
+                                        { id: th.id, data: { name: editingTrailheadData.name.trim(), address: editingTrailheadData.address.trim() || undefined, googleMapsUrl: editingTrailheadData.googleMapsUrl.trim() || undefined } },
+                                        {
+                                          onSuccess: () => {
+                                            toast({ title: "Trailhead updated" });
+                                            setEditingTrailheadId(null);
+                                            queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                                          },
+                                          onError: () => toast({ title: "Failed to update trailhead", variant: "destructive" }),
+                                        }
+                                      );
+                                    }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditingTrailheadId(null)}>Cancel</Button>
+                                </div>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-4 py-2.5 font-medium">{th.name}</td>
+                              <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{th.address || <span className="italic text-xs">—</span>}</td>
+                              <td className="px-4 py-2.5 hidden md:table-cell">
+                                {th.googleMapsUrl ? (
+                                  <a href={th.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline text-xs">
+                                    <ExternalLink className="h-3 w-3" /> Open Map
+                                  </a>
+                                ) : <span className="text-muted-foreground italic text-xs">—</span>}
+                              </td>
+                              <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => {
+                                      setEditingTrailheadId(th.id);
+                                      setEditingTrailheadData({ name: th.name, address: th.address ?? "", googleMapsUrl: th.googleMapsUrl ?? "" });
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                                    onClick={() => {
+                                      deleteTrailhead.mutate(
+                                        { id: th.id },
+                                        {
+                                          onSuccess: () => {
+                                            toast({ title: "Trailhead deleted" });
+                                            queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                                          },
+                                          onError: () => toast({ title: "Failed to delete trailhead", variant: "destructive" }),
+                                        }
+                                      );
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="pt-2 border-t space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Add Trailhead</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input
+                    placeholder="Name *"
+                    value={newTrailhead.name}
+                    onChange={(e) => setNewTrailhead(t => ({ ...t, name: e.target.value }))}
+                    className="text-sm"
+                  />
+                  <Input
+                    placeholder="Address (optional)"
+                    value={newTrailhead.address}
+                    onChange={(e) => setNewTrailhead(t => ({ ...t, address: e.target.value }))}
+                    className="text-sm"
+                  />
+                  <Input
+                    placeholder="Google Maps URL (optional)"
+                    value={newTrailhead.googleMapsUrl}
+                    onChange={(e) => setNewTrailhead(t => ({ ...t, googleMapsUrl: e.target.value }))}
+                    className="text-sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  disabled={!newTrailhead.name.trim() || createTrailhead.isPending}
+                  onClick={() => {
+                    createTrailhead.mutate(
+                      { data: { name: newTrailhead.name.trim(), address: newTrailhead.address.trim() || undefined, googleMapsUrl: newTrailhead.googleMapsUrl.trim() || undefined } },
+                      {
+                        onSuccess: () => {
+                          toast({ title: "Trailhead added" });
+                          setNewTrailhead({ name: "", address: "", googleMapsUrl: "" });
+                          queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                        },
+                        onError: () => toast({ title: "Failed to add trailhead", variant: "destructive" }),
+                      }
+                    );
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Trailhead
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
