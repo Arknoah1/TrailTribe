@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, CreateEventBodyEventType } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -211,7 +211,9 @@ export default function Admin() {
   const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
   const createEvent = useCreateEvent();
   const [showAddEvent, setShowAddEvent] = useState(false);
-  const emptyNewEvent = { title: "", eventType: "practice", startDate: "", startTime: "09:00", endTime: "", trailheadId: "" };
+  const emptyNewEvent: { title: string; eventType: CreateEventBodyEventType; startDate: string; startTime: string; endTime: string; trailheadId: string } = {
+    title: "", eventType: CreateEventBodyEventType.practice, startDate: "", startTime: "09:00", endTime: "", trailheadId: "",
+  };
   const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
@@ -946,10 +948,10 @@ export default function Admin() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Type *</Label>
-                            <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v }))}>
+                            <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
                               <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {["practice","race","social","volunteer","other"].map(t => (
+                                {(Object.values(CreateEventBodyEventType) as string[]).map(t => (
                                   <SelectItem key={t} value={t} className="capitalize text-sm">{t}</SelectItem>
                                 ))}
                               </SelectContent>
@@ -1019,7 +1021,7 @@ export default function Admin() {
                               createEvent.mutate({
                                 data: {
                                   title: newEvent.title.trim(),
-                                  eventType: newEvent.eventType as any,
+                                  eventType: newEvent.eventType,
                                   startTime: startDt.toISOString(),
                                   ...(endDt ? { endTime: endDt.toISOString() } : {}),
                                   ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
