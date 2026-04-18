@@ -181,6 +181,21 @@ function ClerkProviderWithRoutes() {
       proxyUrl={clerkProxyUrl}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+      localization={{
+        socialButtonsBlockButton: "Continue with {{provider|titleize}}",
+        signIn: {
+          start: {
+            title: "Sign in to TrailTribe",
+            subtitle: "Welcome back! Please sign in to continue",
+          },
+        },
+        signUp: {
+          start: {
+            title: "Create your TrailTribe account",
+            subtitle: "Welcome! Please fill in the details to get started",
+          },
+        },
+      }}
     >
       <QueryClientProvider client={queryClient}>
         <ClerkAuthSyncer />
