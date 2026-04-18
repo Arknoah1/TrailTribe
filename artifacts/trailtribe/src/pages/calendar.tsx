@@ -179,7 +179,7 @@ export default function Calendar() {
       </div>
 
       {view === "list" && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-nowrap sm:flex-wrap">
           {(["all", "allteam"] as const).map((val) => {
             const label = val === "all" ? "All Events" : "All Team";
             const active = podFilter === val;
