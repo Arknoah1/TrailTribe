@@ -1,21 +1,112 @@
-import { useGetEvent, useRsvpEvent } from "@workspace/api-client-react";
+import { useGetEvent, useRsvpEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
-import { MapPin, Calendar as CalendarIcon, Clock, Users, Car, FileText, ChevronLeft, Map } from "lucide-react";
+import { MapPin, Calendar as CalendarIcon, Clock, Users, Car, FileText, ChevronLeft, Map, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetEventQueryKey } from "@workspace/api-client-react";
+import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+
+const EVENT_TYPES = Object.values(UpdateEventBodyEventType) as string[];
 
 export default function EventDetail() {
   const params = useParams();
   const eventId = parseInt(params.id || "0");
   const queryClient = useQueryClient();
-  
+  const { toast } = useToast();
+
   const { data: event, isLoading } = useGetEvent(eventId, {
     query: { enabled: !!eventId, queryKey: getGetEventQueryKey(eventId) }
   });
+  const { data: me } = useGetMe();
+  const { data: trailheads } = useListTrailheads();
+  const { data: pods } = useListPods();
+  const updateEvent = useUpdateEvent();
+
+  const isCoach = me?.role === "coach" || me?.role === "admin";
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [editData, setEditData] = useState<{
+    title: string;
+    description: string;
+    eventType: string;
+    startDate: string;
+    startTime: string;
+    endTime: string;
+    trailheadId: string;
+    isAllTeam: boolean;
+    podId: string;
+  }>({
+    title: "", description: "", eventType: "practice",
+    startDate: "", startTime: "", endTime: "",
+    trailheadId: "", isAllTeam: true, podId: "",
+  });
+
+  const openEdit = () => {
+    if (!event) return;
+    const startDt = new Date(event.startTime);
+    const endDt = event.endTime ? new Date(event.endTime) : null;
+    setEditData({
+      title: event.title,
+      description: event.description ?? "",
+      eventType: event.eventType,
+      startDate: startDt.toISOString().split("T")[0],
+      startTime: startDt.toTimeString().slice(0, 5),
+      endTime: endDt ? endDt.toTimeString().slice(0, 5) : "",
+      trailheadId: event.trailhead ? String(event.trailhead.id) : "",
+      isAllTeam: event.isAllTeam ?? true,
+      podId: "",
+    });
+    setShowEdit(true);
+  };
+
+  const handleSave = () => {
+    if (!editData.title.trim() || !editData.startDate || !editData.startTime) {
+      toast({ title: "Title, date, and start time are required", variant: "destructive" });
+      return;
+    }
+    if (!editData.isAllTeam && !editData.podId) {
+      toast({ title: "Select a pod, or check All Team", variant: "destructive" });
+      return;
+    }
+    const [y, m, d] = editData.startDate.split("-").map(Number);
+    const [h, min] = editData.startTime.split(":").map(Number);
+    const startDt = new Date(y, m - 1, d, h, min);
+    let endDt: Date | null = null;
+    if (editData.endTime) {
+      const [eh, emin] = editData.endTime.split(":").map(Number);
+      endDt = new Date(y, m - 1, d, eh, emin);
+    }
+    updateEvent.mutate({
+      id: eventId,
+      data: {
+        title: editData.title.trim(),
+        ...(editData.description.trim() ? { description: editData.description.trim() } : { description: "" }),
+        eventType: editData.eventType as UpdateEventBodyEventType,
+        startTime: startDt.toISOString(),
+        ...(endDt ? { endTime: endDt.toISOString() } : { endTime: undefined }),
+        ...(editData.trailheadId ? { trailheadId: Number(editData.trailheadId) } : { trailheadId: undefined }),
+        isAllTeam: editData.isAllTeam,
+        ...(!editData.isAllTeam && editData.podId ? { podIds: [editData.podId] } : {}),
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Event updated" });
+        setShowEdit(false);
+        queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
+        queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+      },
+      onError: () => toast({ title: "Failed to update event", variant: "destructive" }),
+    });
+  };
 
   const rsvpMutation = useRsvpEvent({
     mutation: {
@@ -45,7 +136,20 @@ export default function EventDetail() {
           <Badge className="uppercase tracking-wider font-semibold">{event.eventType}</Badge>
           {event.isAllTeam && <Badge variant="outline">All Team</Badge>}
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{event.title}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{event.title}</h1>
+          {isCoach && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5 mt-1"
+              onClick={openEdit}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Event
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -91,7 +195,6 @@ export default function EventDetail() {
             </CardContent>
           </Card>
 
-          {/* Attachments if any */}
           {event.attachments && event.attachments.length > 0 && (
             <Card>
               <CardHeader>
@@ -197,6 +300,135 @@ export default function EventDetail() {
           )}
         </div>
       </div>
+
+      <Dialog open={showEdit} onOpenChange={setShowEdit}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Event</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Title *</Label>
+              <Input
+                value={editData.title}
+                onChange={e => setEditData(p => ({ ...p, title: e.target.value }))}
+                placeholder="Event title"
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Description <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                value={editData.description}
+                onChange={e => setEditData(p => ({ ...p, description: e.target.value }))}
+                placeholder="e.g. Early season skills — bring snacks"
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Type *</Label>
+              <Select value={editData.eventType} onValueChange={v => setEditData(p => ({ ...p, eventType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {EVENT_TYPES.map(t => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Date *</Label>
+              <Input
+                type="date"
+                value={editData.startDate}
+                onChange={e => setEditData(p => ({ ...p, startDate: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Start time *</Label>
+              <Input
+                type="time"
+                value={editData.startTime}
+                onChange={e => setEditData(p => ({ ...p, startTime: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">End time <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                type="time"
+                value={editData.endTime}
+                onChange={e => setEditData(p => ({ ...p, endTime: e.target.value }))}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Trailhead <span className="text-muted-foreground">(optional)</span></Label>
+              <Select
+                value={editData.trailheadId || "_none"}
+                onValueChange={v => setEditData(p => ({ ...p, trailheadId: v === "_none" ? "" : v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {(trailheads ?? []).map(t => (
+                    <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="sm:col-span-2 space-y-2">
+              <Label className="text-sm">Pod assignment</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="edit-event-all-team"
+                  type="checkbox"
+                  checked={editData.isAllTeam}
+                  onChange={e => setEditData(p => ({ ...p, isAllTeam: e.target.checked, podId: "" }))}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <label htmlFor="edit-event-all-team" className="text-sm cursor-pointer select-none">All Team</label>
+              </div>
+              {!editData.isAllTeam && (
+                <Select
+                  value={editData.podId || "_none"}
+                  onValueChange={v => setEditData(p => ({ ...p, podId: v === "_none" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select a pod..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">— select a pod —</SelectItem>
+                    {(pods ?? []).map(pod => (
+                      <SelectItem key={pod.id} value={String(pod.id)}>{pod.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              className="flex-1"
+              onClick={handleSave}
+              disabled={updateEvent.isPending}
+            >
+              {updateEvent.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setShowEdit(false)}
+              disabled={updateEvent.isPending}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

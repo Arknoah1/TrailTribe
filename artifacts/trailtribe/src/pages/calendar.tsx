@@ -1,9 +1,13 @@
 import { useState, useMemo } from "react";
-import { useListEvents, useGetCalendarSubscribeUrl } from "@workspace/api-client-react";
+import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarIcon, MapPin, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CalendarIcon, MapPin, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +18,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { MonthCalendar } from "@/components/month-calendar";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 type CalendarView = "list" | "month";
 
@@ -25,11 +31,27 @@ function getStoredView(): CalendarView {
   return "list";
 }
 
+const emptyNewEvent = {
+  title: "", description: "", eventType: CreateEventBodyEventType.practice,
+  startDate: "", startTime: "09:00", endTime: "", trailheadId: "", isAllTeam: true, podId: "",
+};
+
 export default function Calendar() {
   const [view, setView] = useState<CalendarView>(getStoredView);
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [copiedWhich, setCopiedWhich] = useState<"webcal" | "https" | null>(null);
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [newEvent, setNewEvent] = useState(emptyNewEvent);
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: me } = useGetMe();
+  const { data: trailheads } = useListTrailheads();
+  const { data: pods } = useListPods();
+  const createEvent = useCreateEvent();
+
+  const isCoach = me?.role === "coach" || me?.role === "admin";
 
   const switchView = (v: CalendarView) => {
     setView(v);
@@ -78,6 +100,16 @@ export default function Calendar() {
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
+          {isCoach && (
+            <Button
+              size="sm"
+              onClick={() => setShowAddEvent(true)}
+              className="flex items-center gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Add Event
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -180,6 +212,161 @@ export default function Calendar() {
           )}
         </div>
       )}
+
+      <Dialog open={showAddEvent} onOpenChange={open => { setShowAddEvent(open); if (!open) setNewEvent(emptyNewEvent); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Event</DialogTitle>
+            <DialogDescription>Fill in the details to create a new team event.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Title *</Label>
+              <Input
+                placeholder="e.g. Tuesday Practice"
+                value={newEvent.title}
+                onChange={e => setNewEvent(p => ({ ...p, title: e.target.value }))}
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Description <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                placeholder="e.g. Early season skills — bring snacks"
+                value={newEvent.description}
+                onChange={e => setNewEvent(p => ({ ...p, description: e.target.value }))}
+                rows={2}
+                className="resize-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Type *</Label>
+              <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.values(CreateEventBodyEventType) as string[]).map(t => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Date *</Label>
+              <Input
+                type="date"
+                value={newEvent.startDate}
+                onChange={e => setNewEvent(p => ({ ...p, startDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Start time *</Label>
+              <Input
+                type="time"
+                value={newEvent.startTime}
+                onChange={e => setNewEvent(p => ({ ...p, startTime: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">End time <span className="text-muted-foreground">(optional)</span></Label>
+              <Input
+                type="time"
+                value={newEvent.endTime}
+                onChange={e => setNewEvent(p => ({ ...p, endTime: e.target.value }))}
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <Label className="text-sm">Trailhead <span className="text-muted-foreground">(optional)</span></Label>
+              <Select
+                value={newEvent.trailheadId || "_none"}
+                onValueChange={v => setNewEvent(p => ({ ...p, trailheadId: v === "_none" ? "" : v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None</SelectItem>
+                  {(trailheads ?? []).map(t => (
+                    <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2 space-y-2">
+              <Label className="text-sm">Pod assignment</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="cal-add-all-team"
+                  type="checkbox"
+                  checked={newEvent.isAllTeam}
+                  onChange={e => setNewEvent(p => ({ ...p, isAllTeam: e.target.checked, podId: "" }))}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <label htmlFor="cal-add-all-team" className="text-sm cursor-pointer select-none">All Team</label>
+              </div>
+              {!newEvent.isAllTeam && (
+                <Select
+                  value={newEvent.podId || "_none"}
+                  onValueChange={v => setNewEvent(p => ({ ...p, podId: v === "_none" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select a pod..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">— select a pod —</SelectItem>
+                    {(pods ?? []).map(pod => (
+                      <SelectItem key={pod.id} value={String(pod.id)}>{pod.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              className="flex-1"
+              disabled={createEvent.isPending}
+              onClick={() => {
+                if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
+                  toast({ title: "Title, date, and start time are required", variant: "destructive" });
+                  return;
+                }
+                if (!newEvent.isAllTeam && !newEvent.podId) {
+                  toast({ title: "Select a pod, or check All Team", variant: "destructive" });
+                  return;
+                }
+                const [y, m, d] = newEvent.startDate.split("-").map(Number);
+                const [h, min] = newEvent.startTime.split(":").map(Number);
+                const startDt = new Date(y, m - 1, d, h, min);
+                let endDt: Date | null = null;
+                if (newEvent.endTime) {
+                  const [eh, emin] = newEvent.endTime.split(":").map(Number);
+                  endDt = new Date(y, m - 1, d, eh, emin);
+                }
+                createEvent.mutate({
+                  data: {
+                    title: newEvent.title.trim(),
+                    ...(newEvent.description.trim() ? { description: newEvent.description.trim() } : {}),
+                    eventType: newEvent.eventType,
+                    startTime: startDt.toISOString(),
+                    ...(endDt ? { endTime: endDt.toISOString() } : {}),
+                    ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
+                    isAllTeam: newEvent.isAllTeam,
+                    ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
+                  },
+                }, {
+                  onSuccess: () => {
+                    toast({ title: `"${newEvent.title.trim()}" created` });
+                    setNewEvent(emptyNewEvent);
+                    setShowAddEvent(false);
+                    queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                  },
+                  onError: () => toast({ title: "Failed to create event", variant: "destructive" }),
+                });
+              }}
+            >
+              {createEvent.isPending ? "Saving..." : "Save Event"}
+            </Button>
+            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); }} disabled={createEvent.isPending}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
         <DialogContent className="max-w-lg">

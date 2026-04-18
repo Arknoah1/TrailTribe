@@ -212,8 +212,8 @@ export default function Admin() {
   const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
   const createEvent = useCreateEvent();
   const [showAddEvent, setShowAddEvent] = useState(false);
-  const emptyNewEvent: { title: string; eventType: CreateEventBodyEventType; startDate: string; startTime: string; endTime: string; trailheadId: string } = {
-    title: "", eventType: CreateEventBodyEventType.practice, startDate: "", startTime: "09:00", endTime: "", trailheadId: "",
+  const emptyNewEvent: { title: string; description: string; eventType: CreateEventBodyEventType; startDate: string; startTime: string; endTime: string; trailheadId: string; isAllTeam: boolean; podId: string } = {
+    title: "", description: "", eventType: CreateEventBodyEventType.practice, startDate: "", startTime: "09:00", endTime: "", trailheadId: "", isAllTeam: true, podId: "",
   };
   const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
@@ -982,6 +982,16 @@ export default function Admin() {
                               className="h-8 text-sm"
                             />
                           </div>
+                          <div className="sm:col-span-2 space-y-1">
+                            <Label className="text-xs">Description <span className="text-muted-foreground">(optional)</span></Label>
+                            <textarea
+                              placeholder="e.g. Early season skills — bring snacks"
+                              value={newEvent.description}
+                              onChange={e => setNewEvent(p => ({ ...p, description: e.target.value }))}
+                              rows={2}
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                            />
+                          </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Type *</Label>
                             <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
@@ -1035,6 +1045,33 @@ export default function Admin() {
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="sm:col-span-2 space-y-2">
+                            <Label className="text-xs">Pod assignment</Label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                id="new-event-all-team"
+                                type="checkbox"
+                                checked={newEvent.isAllTeam}
+                                onChange={e => setNewEvent(p => ({ ...p, isAllTeam: e.target.checked, podId: "" }))}
+                                className="h-4 w-4 rounded border-input accent-primary"
+                              />
+                              <label htmlFor="new-event-all-team" className="text-sm cursor-pointer select-none">All Team</label>
+                            </div>
+                            {!newEvent.isAllTeam && (
+                              <Select
+                                value={newEvent.podId || "_none"}
+                                onValueChange={v => setNewEvent(p => ({ ...p, podId: v === "_none" ? "" : v }))}
+                              >
+                                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select a pod..." /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="_none">— select a pod —</SelectItem>
+                                  {(pods ?? []).map(pod => (
+                                    <SelectItem key={pod.id} value={String(pod.id)} className="text-sm">{pod.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
                         </div>
                         <div className="flex gap-2 pt-1">
                           <Button
@@ -1044,6 +1081,10 @@ export default function Admin() {
                             onClick={() => {
                               if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
                                 toast({ title: "Title, date, and start time are required", variant: "destructive" });
+                                return;
+                              }
+                              if (!newEvent.isAllTeam && !newEvent.podId) {
+                                toast({ title: "Select a pod, or check All Team", variant: "destructive" });
                                 return;
                               }
                               const [y, m, d] = newEvent.startDate.split("-").map(Number);
@@ -1057,11 +1098,13 @@ export default function Admin() {
                               createEvent.mutate({
                                 data: {
                                   title: newEvent.title.trim(),
+                                  ...(newEvent.description.trim() ? { description: newEvent.description.trim() } : {}),
                                   eventType: newEvent.eventType,
                                   startTime: startDt.toISOString(),
                                   ...(endDt ? { endTime: endDt.toISOString() } : {}),
                                   ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
-                                  isAllTeam: true,
+                                  isAllTeam: newEvent.isAllTeam,
+                                  ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
                                 },
                               }, {
                                 onSuccess: () => {
