@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, eventsTable, trailheadsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, and, gte, asc } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 
@@ -81,10 +81,11 @@ router.get("/calendar/:token/team.ics", async (req, res) => {
     return;
   }
 
+  const now = new Date();
   const events = await db
     .select()
     .from(eventsTable)
-    .where(eq(eventsTable.isArchived, false))
+    .where(and(eq(eventsTable.isArchived, false), gte(eventsTable.startTime, now)))
     .orderBy(asc(eventsTable.startTime));
 
   const trailheadIds = [...new Set(events.map(e => e.trailheadId).filter(Boolean))];
@@ -94,7 +95,7 @@ router.get("/calendar/:token/team.ics", async (req, res) => {
     rows.forEach(t => { trailheads[t.id] = t; });
   }
 
-  const now = fmtICalDate(new Date());
+  const dtstamp = fmtICalDate(new Date());
 
   const vevents = events.map(event => {
     const dtstart = fmtICalDate(new Date(event.startTime));
@@ -120,7 +121,7 @@ router.get("/calendar/:token/team.ics", async (req, res) => {
     const lines = [
       "BEGIN:VEVENT",
       foldICalLine(`UID:${event.iCalUid}@trailtribe`),
-      foldICalLine(`DTSTAMP:${now}`),
+      foldICalLine(`DTSTAMP:${dtstamp}`),
       foldICalLine(`DTSTART:${dtstart}`),
       foldICalLine(`DTEND:${dtend}`),
       foldICalLine(`LAST-MODIFIED:${fmtICalDate(new Date(event.updatedAt))}`),

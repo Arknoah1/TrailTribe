@@ -223,6 +223,14 @@ export default function Calendar() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">Click the open button to subscribe directly in your default calendar app.</p>
+                <a
+                  href={subscribeData.httpsUrl}
+                  download="trailtribe-team.ics"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Download .ics file instead
+                </a>
               </div>
 
               <div className="space-y-3 text-sm">
