@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -209,6 +209,10 @@ export default function Admin() {
   const [eventFilter, setEventFilter] = useState<"upcoming" | "all">("upcoming");
   const [shiftDaysInputs, setShiftDaysInputs] = useState<Record<string, string>>({});
   const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
+  const createEvent = useCreateEvent();
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const emptyNewEvent = { title: "", eventType: "practice", startDate: "", startTime: "09:00", endTime: "", trailheadId: "" };
+  const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
@@ -921,6 +925,141 @@ export default function Admin() {
                       </tbody>
                     </table>
                   </div>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    {showAddEvent ? (
+                      <>
+                        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                          <Plus className="h-4 w-4 text-primary" /> New Event
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="sm:col-span-2 space-y-1">
+                            <Label className="text-xs">Title *</Label>
+                            <Input
+                              placeholder="e.g. Tuesday Practice"
+                              value={newEvent.title}
+                              onChange={e => setNewEvent(p => ({ ...p, title: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Type *</Label>
+                            <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v }))}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["practice","race","social","volunteer","other"].map(t => (
+                                  <SelectItem key={t} value={t} className="capitalize text-sm">{t}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Date *</Label>
+                            <Input
+                              type="date"
+                              value={newEvent.startDate}
+                              onChange={e => setNewEvent(p => ({ ...p, startDate: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Start time *</Label>
+                            <Input
+                              type="time"
+                              value={newEvent.startTime}
+                              onChange={e => setNewEvent(p => ({ ...p, startTime: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">End time <span className="text-muted-foreground">(optional)</span></Label>
+                            <Input
+                              type="time"
+                              value={newEvent.endTime}
+                              onChange={e => setNewEvent(p => ({ ...p, endTime: e.target.value }))}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="sm:col-span-2 space-y-1">
+                            <Label className="text-xs">Trailhead <span className="text-muted-foreground">(optional)</span></Label>
+                            <Select
+                              value={newEvent.trailheadId || "_none"}
+                              onValueChange={v => setNewEvent(p => ({ ...p, trailheadId: v === "_none" ? "" : v }))}
+                            >
+                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="None" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">None</SelectItem>
+                                {(trailheads ?? []).map(t => (
+                                  <SelectItem key={t.id} value={String(t.id)} className="text-sm">{t.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <Button
+                            size="sm"
+                            className="h-8 text-sm gap-1"
+                            disabled={createEvent.isPending}
+                            onClick={() => {
+                              if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
+                                toast({ title: "Title, date, and start time are required", variant: "destructive" });
+                                return;
+                              }
+                              const [y, m, d] = newEvent.startDate.split("-").map(Number);
+                              const [h, min] = newEvent.startTime.split(":").map(Number);
+                              const startDt = new Date(y, m - 1, d, h, min);
+                              let endDt: Date | null = null;
+                              if (newEvent.endTime) {
+                                const [eh, emin] = newEvent.endTime.split(":").map(Number);
+                                endDt = new Date(y, m - 1, d, eh, emin);
+                              }
+                              createEvent.mutate({
+                                data: {
+                                  title: newEvent.title.trim(),
+                                  eventType: newEvent.eventType as any,
+                                  startTime: startDt.toISOString(),
+                                  ...(endDt ? { endTime: endDt.toISOString() } : {}),
+                                  ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
+                                  isAllTeam: true,
+                                },
+                              }, {
+                                onSuccess: () => {
+                                  toast({ title: `"${newEvent.title.trim()}" created` });
+                                  setNewEvent(emptyNewEvent);
+                                  setShowAddEvent(false);
+                                  refetchEvents();
+                                  queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                                },
+                                onError: () => toast({ title: "Failed to create event", variant: "destructive" }),
+                              });
+                            }}
+                          >
+                            {createEvent.isPending ? "Saving..." : "Save Event"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-sm"
+                            onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => setShowAddEvent(true)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Event
+                      </Button>
+                    )}
+                  </CardContent>
                 </Card>
 
                 {seriesIds.length > 0 && (
