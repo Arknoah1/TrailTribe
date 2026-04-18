@@ -132,9 +132,19 @@ export default function EventDetail() {
       </Link>
 
       <div className="space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge className="uppercase tracking-wider font-semibold">{event.eventType}</Badge>
-          {event.isAllTeam && <Badge variant="outline">All Team</Badge>}
+          {event.isAllTeam
+            ? <Badge variant="outline">All Team</Badge>
+            : event.podIds && event.podIds.length > 0
+              ? event.podIds.map(pid => {
+                  const pod = (pods ?? []).find(p => String(p.id) === String(pid));
+                  return pod
+                    ? <Badge key={pid} variant="outline">Pod: {pod.name}</Badge>
+                    : null;
+                })
+              : null
+          }
         </div>
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{event.title}</h1>

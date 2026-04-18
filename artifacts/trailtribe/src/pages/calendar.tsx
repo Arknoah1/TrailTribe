@@ -175,9 +175,22 @@ export default function Calendar() {
                       </div>
                       <div className="p-5 flex-1 flex flex-col justify-center">
                         <div className="flex items-start justify-between mb-2">
-                          <Badge variant="outline" className="uppercase bg-background tracking-wider font-semibold">
-                            {event.eventType}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge variant="outline" className="uppercase bg-background tracking-wider font-semibold">
+                              {event.eventType}
+                            </Badge>
+                            {event.isAllTeam
+                              ? <Badge variant="outline" className="bg-background">All Team</Badge>
+                              : event.podIds && event.podIds.length > 0
+                                ? event.podIds.map(pid => {
+                                    const pod = (pods ?? []).find(p => String(p.id) === String(pid));
+                                    return pod
+                                      ? <Badge key={pid} variant="outline" className="bg-background">Pod: {pod.name}</Badge>
+                                      : null;
+                                  })
+                                : null
+                            }
+                          </div>
                           {event.myRsvp && (
                             <Badge variant={event.myRsvp === "attending" ? "default" : "secondary"}>
                               {event.myRsvp === "attending" ? "Going" : event.myRsvp === "not_attending" ? "Not Going" : "Maybe"}
@@ -185,6 +198,9 @@ export default function Calendar() {
                           )}
                         </div>
                         <h3 className="text-xl font-bold mb-2">{event.title}</h3>
+                        {event.description && (
+                          <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{event.description}</p>
+                        )}
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-auto">
                           {event.trailhead && (
                             <div className="flex items-center gap-1.5">
