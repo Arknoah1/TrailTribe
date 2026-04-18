@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, eventsTable, trailheadsTable } from "@workspace/db";
-import { eq, and, gte, asc } from "drizzle-orm";
+import { eq, and, gte, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 
@@ -88,10 +88,10 @@ router.get("/calendar/:token/team.ics", async (req, res) => {
     .where(and(eq(eventsTable.isArchived, false), gte(eventsTable.startTime, now)))
     .orderBy(asc(eventsTable.startTime));
 
-  const trailheadIds = [...new Set(events.map(e => e.trailheadId).filter(Boolean))];
+  const trailheadIds = [...new Set(events.map(e => e.trailheadId).filter((id): id is number => id != null))];
   const trailheads: Record<number, typeof trailheadsTable.$inferSelect> = {};
   if (trailheadIds.length > 0) {
-    const rows = await db.select().from(trailheadsTable);
+    const rows = await db.select().from(trailheadsTable).where(inArray(trailheadsTable.id, trailheadIds));
     rows.forEach(t => { trailheads[t.id] = t; });
   }
 

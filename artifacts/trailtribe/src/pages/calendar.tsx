@@ -243,7 +243,7 @@ export default function Calendar() {
 
                 <div className="rounded-lg border p-3 space-y-1">
                   <p className="font-medium">Apple Calendar (Mac / iPhone)</p>
-                  <p className="text-xs text-muted-foreground">Click the open button above. Your Calendar app will prompt you to subscribe automatically.</p>
+                  <p className="text-xs text-muted-foreground">In Calendar, go to <span className="font-medium">File → New Calendar Subscription</span> and paste the webcal:// link above. Or just click the open button — Safari will prompt you automatically.</p>
                 </div>
 
                 <div className="rounded-lg border p-3 space-y-1">
