@@ -13,4 +13,5 @@ export interface CreateTrailheadBody {
   latitude?: number;
   longitude?: number;
   notes?: string;
+  photoObjectPath?: string;
 }

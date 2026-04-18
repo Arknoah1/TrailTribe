@@ -69,6 +69,7 @@ export const GetDashboardSummaryResponse = zod.object({
               latitude: zod.number().nullish(),
               longitude: zod.number().nullish(),
               notes: zod.string().nullish(),
+              photoObjectPath: zod.string().nullish(),
               createdAt: zod.coerce.date(),
             })
             .nullish(),
@@ -129,6 +130,7 @@ export const GetUpcomingEventsResponseItem = zod
           latitude: zod.number().nullish(),
           longitude: zod.number().nullish(),
           notes: zod.string().nullish(),
+          photoObjectPath: zod.string().nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -771,6 +773,7 @@ export const ListEventsResponseItem = zod
           latitude: zod.number().nullish(),
           longitude: zod.number().nullish(),
           notes: zod.string().nullish(),
+          photoObjectPath: zod.string().nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -915,6 +918,7 @@ export const GetEventResponse = zod
           latitude: zod.number().nullish(),
           longitude: zod.number().nullish(),
           notes: zod.string().nullish(),
+          photoObjectPath: zod.string().nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -992,6 +996,7 @@ export const UpdateEventResponse = zod
           latitude: zod.number().nullish(),
           longitude: zod.number().nullish(),
           notes: zod.string().nullish(),
+          photoObjectPath: zod.string().nullish(),
           createdAt: zod.coerce.date(),
         })
         .nullish(),
@@ -1788,6 +1793,7 @@ export const ListTrailheadsResponseItem = zod.object({
   latitude: zod.number().nullish(),
   longitude: zod.number().nullish(),
   notes: zod.string().nullish(),
+  photoObjectPath: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 export const ListTrailheadsResponse = zod.array(ListTrailheadsResponseItem);
@@ -1799,6 +1805,7 @@ export const CreateTrailheadBody = zod.object({
   latitude: zod.number().optional(),
   longitude: zod.number().optional(),
   notes: zod.string().optional(),
+  photoObjectPath: zod.string().optional(),
 });
 
 export const UpdateTrailheadParams = zod.object({
@@ -1812,6 +1819,7 @@ export const UpdateTrailheadBody = zod.object({
   latitude: zod.number().optional(),
   longitude: zod.number().optional(),
   notes: zod.string().optional(),
+  photoObjectPath: zod.string().optional(),
 });
 
 export const UpdateTrailheadResponse = zod.object({
@@ -1822,6 +1830,7 @@ export const UpdateTrailheadResponse = zod.object({
   latitude: zod.number().nullish(),
   longitude: zod.number().nullish(),
   notes: zod.string().nullish(),
+  photoObjectPath: zod.string().nullish(),
   createdAt: zod.coerce.date(),
 });
 

@@ -245,6 +245,7 @@ export interface Trailhead {
   latitude?: number | null;
   longitude?: number | null;
   notes?: string | null;
+  photoObjectPath?: string | null;
   createdAt: string;
 }
 
@@ -528,6 +529,7 @@ export interface CreateTrailheadBody {
   latitude?: number;
   longitude?: number;
   notes?: string;
+  photoObjectPath?: string;
 }
 
 export type BroadcastChannel =

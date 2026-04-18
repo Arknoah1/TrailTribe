@@ -13,7 +13,7 @@ router.get("/trailheads", requireAuth, async (req, res) => {
 });
 
 router.post("/trailheads", requireAuth, async (req, res) => {
-  const { name, address, googleMapsUrl, latitude, longitude, notes } = req.body;
+  const { name, address, googleMapsUrl, latitude, longitude, notes, photoObjectPath } = req.body;
   const [trailhead] = await db.insert(trailheadsTable).values({
     name,
     address: address ?? null,
@@ -21,15 +21,16 @@ router.post("/trailheads", requireAuth, async (req, res) => {
     latitude: latitude ?? null,
     longitude: longitude ?? null,
     notes: notes ?? null,
+    photoObjectPath: photoObjectPath ?? null,
   }).returning();
   res.status(201).json(trailhead);
 });
 
 router.patch("/trailheads/:id", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { name, address, googleMapsUrl, latitude, longitude, notes } = req.body;
+  const { name, address, googleMapsUrl, latitude, longitude, notes, photoObjectPath } = req.body;
   const [updated] = await db.update(trailheadsTable)
-    .set({ name, address, googleMapsUrl, latitude, longitude, notes })
+    .set({ name, address, googleMapsUrl, latitude, longitude, notes, photoObjectPath: photoObjectPath ?? null })
     .where(eq(trailheadsTable.id, id))
     .returning();
   res.json(updated);

@@ -14,5 +14,6 @@ export interface Trailhead {
   latitude?: number | null;
   longitude?: number | null;
   notes?: string | null;
+  photoObjectPath?: string | null;
   createdAt: Date;
 }

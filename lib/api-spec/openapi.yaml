@@ -2192,6 +2192,9 @@ components:
         notes:
           type: string
           nullable: true
+        photoObjectPath:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -2211,6 +2214,8 @@ components:
         longitude:
           type: number
         notes:
+          type: string
+        photoObjectPath:
           type: string
       required: [name]
 

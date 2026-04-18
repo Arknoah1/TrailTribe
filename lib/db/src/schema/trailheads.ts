@@ -10,6 +10,7 @@ export const trailheadsTable = pgTable("trailheads", {
   latitude: real("latitude"),
   longitude: real("longitude"),
   notes: text("notes"),
+  photoObjectPath: text("photo_object_path"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

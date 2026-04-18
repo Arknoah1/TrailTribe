@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { toLocalDateISO } from "@/lib/uuid";
@@ -234,9 +235,16 @@ export default function Admin() {
   const createTrailhead = useCreateTrailhead();
   const updateTrailhead = useUpdateTrailhead();
   const deleteTrailhead = useDeleteTrailhead();
-  const [newTrailhead, setNewTrailhead] = useState({ name: "", address: "", googleMapsUrl: "" });
+  const emptyTrailhead = { name: "", address: "", googleMapsUrl: "", notes: "", photoObjectPath: "" };
+  const [newTrailhead, setNewTrailhead] = useState(emptyTrailhead);
+  const [showAddTrailhead, setShowAddTrailhead] = useState(false);
   const [editingTrailheadId, setEditingTrailheadId] = useState<number | null>(null);
-  const [editingTrailheadData, setEditingTrailheadData] = useState({ name: "", address: "", googleMapsUrl: "" });
+  const [editingTrailheadData, setEditingTrailheadData] = useState(emptyTrailhead);
+  const [uploadingPhotoFor, setUploadingPhotoFor] = useState<"new" | number | null>(null);
+  const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+  const newPhotoRef = useRef<HTMLInputElement>(null);
+  const editPhotoRef = useRef<HTMLInputElement>(null);
 
   const createPod = async () => {
     if (!newPodName.trim()) return;
@@ -295,6 +303,34 @@ export default function Admin() {
   };
 
   useEffect(() => { fetchTeamDocs(); fetchRoster(); }, []);
+
+  const trailheadPhotoUrl = (objectPath: string) =>
+    `${BASE_URL}/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
+
+  const uploadTrailheadPhoto = useCallback(async (
+    file: File,
+    target: "new" | number,
+  ): Promise<string> => {
+    setUploadingPhotoFor(target);
+    try {
+      const urlRes = await authedFetch(`${BASE_URL}/api/storage/uploads/request-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+      const uploadRes = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "image/jpeg" },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      return objectPath as string;
+    } finally {
+      setUploadingPhotoFor(null);
+    }
+  }, [authedFetch]);
 
   const handleApprove = (userId: number, role: "coach" | "parent" | "student") => {
     const podId = selectedPods[userId];
@@ -1300,177 +1336,324 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="trailheads" className="mt-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Trailhead Library</CardTitle>
-              <CardDescription>Saved meeting spots used in events and the Season Builder.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!trailheads || trailheads.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No trailheads yet. Add one below.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40">
-                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Name</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Address</th>
-                        <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Map Link</th>
-                        <th className="px-4 py-2.5" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {trailheads.map((th) => (
-                        <tr key={th.id} className="hover:bg-muted/30 transition-colors">
-                          {editingTrailheadId === th.id ? (
-                            <>
-                              <td className="px-4 py-2">
-                                <Input
-                                  value={editingTrailheadData.name}
-                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, name: e.target.value }))}
-                                  className="h-8 text-sm"
-                                  placeholder="Name"
-                                  autoFocus
-                                />
-                              </td>
-                              <td className="px-4 py-2 hidden sm:table-cell">
-                                <Input
-                                  value={editingTrailheadData.address}
-                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, address: e.target.value }))}
-                                  className="h-8 text-sm"
-                                  placeholder="Address"
-                                />
-                              </td>
-                              <td className="px-4 py-2 hidden md:table-cell">
-                                <Input
-                                  value={editingTrailheadData.googleMapsUrl}
-                                  onChange={(e) => setEditingTrailheadData(d => ({ ...d, googleMapsUrl: e.target.value }))}
-                                  className="h-8 text-sm"
-                                  placeholder="https://maps.google.com/..."
-                                />
-                              </td>
-                              <td className="px-4 py-2 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    disabled={!editingTrailheadData.name.trim() || updateTrailhead.isPending}
-                                    onClick={() => {
-                                      updateTrailhead.mutate(
-                                        { id: th.id, data: { name: editingTrailheadData.name.trim(), address: editingTrailheadData.address.trim() || undefined, googleMapsUrl: editingTrailheadData.googleMapsUrl.trim() || undefined } },
-                                        {
-                                          onSuccess: () => {
-                                            toast({ title: "Trailhead updated" });
-                                            setEditingTrailheadId(null);
-                                            queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
-                                          },
-                                          onError: () => toast({ title: "Failed to update trailhead", variant: "destructive" }),
-                                        }
-                                      );
-                                    }}
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button size="sm" variant="ghost" onClick={() => setEditingTrailheadId(null)}>Cancel</Button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-4 py-2.5 font-medium">{th.name}</td>
-                              <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">{th.address || <span className="italic text-xs">—</span>}</td>
-                              <td className="px-4 py-2.5 hidden md:table-cell">
-                                {th.googleMapsUrl ? (
-                                  <a href={th.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline text-xs">
-                                    <ExternalLink className="h-3 w-3" /> Open Map
-                                  </a>
-                                ) : <span className="text-muted-foreground italic text-xs">—</span>}
-                              </td>
-                              <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 px-2 text-xs"
-                                    onClick={() => {
-                                      setEditingTrailheadId(th.id);
-                                      setEditingTrailheadData({ name: th.name, address: th.address ?? "", googleMapsUrl: th.googleMapsUrl ?? "" });
-                                    }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-                                    onClick={() => {
-                                      deleteTrailhead.mutate(
-                                        { id: th.id },
-                                        {
-                                          onSuccess: () => {
-                                            toast({ title: "Trailhead deleted" });
-                                            queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
-                                          },
-                                          onError: () => toast({ title: "Failed to delete trailhead", variant: "destructive" }),
-                                        }
-                                      );
-                                    }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+          <div>
+            <h2 className="text-lg font-semibold">Trailhead Library</h2>
+            <p className="text-sm text-muted-foreground mt-1">Saved meeting spots used in events and the Season Builder.</p>
+          </div>
 
-              <div className="pt-2 border-t space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Add Trailhead</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <Input
-                    placeholder="Name *"
-                    value={newTrailhead.name}
-                    onChange={(e) => setNewTrailhead(t => ({ ...t, name: e.target.value }))}
-                    className="text-sm"
-                  />
-                  <Input
-                    placeholder="Address (optional)"
-                    value={newTrailhead.address}
-                    onChange={(e) => setNewTrailhead(t => ({ ...t, address: e.target.value }))}
-                    className="text-sm"
-                  />
-                  <Input
-                    placeholder="Google Maps URL (optional)"
-                    value={newTrailhead.googleMapsUrl}
-                    onChange={(e) => setNewTrailhead(t => ({ ...t, googleMapsUrl: e.target.value }))}
-                    className="text-sm"
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  disabled={!newTrailhead.name.trim() || createTrailhead.isPending}
-                  onClick={() => {
-                    createTrailhead.mutate(
-                      { data: { name: newTrailhead.name.trim(), address: newTrailhead.address.trim() || undefined, googleMapsUrl: newTrailhead.googleMapsUrl.trim() || undefined } },
-                      {
-                        onSuccess: () => {
-                          toast({ title: "Trailhead added" });
-                          setNewTrailhead({ name: "", address: "", googleMapsUrl: "" });
-                          queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
-                        },
-                        onError: () => toast({ title: "Failed to add trailhead", variant: "destructive" }),
-                      }
-                    );
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-1" /> Add Trailhead
+          {/* Hidden file inputs */}
+          <input ref={newPhotoRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setNewPhotoPreview(URL.createObjectURL(file));
+            try {
+              const path = await uploadTrailheadPhoto(file, "new");
+              setNewTrailhead(t => ({ ...t, photoObjectPath: path }));
+            } catch {
+              toast({ title: "Photo upload failed", variant: "destructive" });
+              setNewPhotoPreview(null);
+            }
+            e.target.value = "";
+          }} />
+          <input ref={editPhotoRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file || editingTrailheadId === null) return;
+            setEditPhotoPreview(URL.createObjectURL(file));
+            try {
+              const path = await uploadTrailheadPhoto(file, editingTrailheadId);
+              setEditingTrailheadData(d => ({ ...d, photoObjectPath: path }));
+            } catch {
+              toast({ title: "Photo upload failed", variant: "destructive" });
+              setEditPhotoPreview(null);
+            }
+            e.target.value = "";
+          }} />
+
+          {/* Trailhead cards */}
+          {!trailheads || trailheads.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No trailheads yet. Add one below.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {trailheads.map((th) => (
+                <Card key={th.id} className="overflow-hidden flex flex-col">
+                  {editingTrailheadId === th.id ? (
+                    /* ── EDIT MODE ─────────────────────────────── */
+                    <CardContent className="pt-4 space-y-3 flex-1">
+                      {/* Photo */}
+                      <div className="relative rounded-lg overflow-hidden bg-muted h-36 flex items-center justify-center">
+                        {editPhotoPreview || editingTrailheadData.photoObjectPath ? (
+                          <img
+                            src={editPhotoPreview ?? trailheadPhotoUrl(editingTrailheadData.photoObjectPath)}
+                            alt="Trailhead"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Mountain className="h-10 w-10 text-muted-foreground/30" />
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="absolute bottom-2 right-2 h-7 text-xs gap-1"
+                          disabled={uploadingPhotoFor === th.id}
+                          onClick={() => editPhotoRef.current?.click()}
+                        >
+                          <ImageIcon className="h-3 w-3" />
+                          {uploadingPhotoFor === th.id ? "Uploading…" : "Change photo"}
+                        </Button>
+                        {editingTrailheadData.photoObjectPath && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="secondary"
+                            className="absolute top-2 right-2 h-6 w-6"
+                            onClick={() => { setEditingTrailheadData(d => ({ ...d, photoObjectPath: "" })); setEditPhotoPreview(null); }}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <Input
+                        value={editingTrailheadData.name}
+                        onChange={(e) => setEditingTrailheadData(d => ({ ...d, name: e.target.value }))}
+                        className="h-8 text-sm"
+                        placeholder="Name *"
+                        autoFocus
+                      />
+                      <Input
+                        value={editingTrailheadData.address}
+                        onChange={(e) => setEditingTrailheadData(d => ({ ...d, address: e.target.value }))}
+                        className="h-8 text-sm"
+                        placeholder="Address"
+                      />
+                      <Input
+                        value={editingTrailheadData.googleMapsUrl}
+                        onChange={(e) => setEditingTrailheadData(d => ({ ...d, googleMapsUrl: e.target.value }))}
+                        className="h-8 text-sm"
+                        placeholder="Google Maps URL"
+                      />
+                      <Textarea
+                        value={editingTrailheadData.notes}
+                        onChange={(e) => setEditingTrailheadData(d => ({ ...d, notes: e.target.value }))}
+                        className="text-sm min-h-[80px] resize-none"
+                        placeholder="Parking details, trail signs, route notes…"
+                      />
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          disabled={!editingTrailheadData.name.trim() || updateTrailhead.isPending || uploadingPhotoFor === th.id}
+                          onClick={() => {
+                            updateTrailhead.mutate(
+                              {
+                                id: th.id,
+                                data: {
+                                  name: editingTrailheadData.name.trim(),
+                                  address: editingTrailheadData.address.trim() || undefined,
+                                  googleMapsUrl: editingTrailheadData.googleMapsUrl.trim() || undefined,
+                                  notes: editingTrailheadData.notes.trim() || undefined,
+                                  photoObjectPath: editingTrailheadData.photoObjectPath || undefined,
+                                },
+                              },
+                              {
+                                onSuccess: () => {
+                                  toast({ title: "Trailhead updated" });
+                                  setEditingTrailheadId(null);
+                                  setEditPhotoPreview(null);
+                                  queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                                },
+                                onError: () => toast({ title: "Failed to update trailhead", variant: "destructive" }),
+                              }
+                            );
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingTrailheadId(null); setEditPhotoPreview(null); }}>Cancel</Button>
+                      </div>
+                    </CardContent>
+                  ) : (
+                    /* ── VIEW MODE ─────────────────────────────── */
+                    <>
+                      {/* Photo / placeholder */}
+                      <div className="h-36 bg-muted/60 flex items-center justify-center overflow-hidden">
+                        {th.photoObjectPath ? (
+                          <img
+                            src={trailheadPhotoUrl(th.photoObjectPath)}
+                            alt={th.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Mountain className="h-10 w-10 text-muted-foreground/30" />
+                        )}
+                      </div>
+                      <CardContent className="pt-3 pb-3 flex flex-col gap-2 flex-1">
+                        <p className="font-semibold text-sm leading-tight">{th.name}</p>
+                        {th.address && (
+                          <p className="text-xs text-muted-foreground leading-snug">{th.address}</p>
+                        )}
+                        {th.googleMapsUrl && (
+                          <a href={th.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline text-xs w-fit">
+                            <ExternalLink className="h-3 w-3" /> Open Map
+                          </a>
+                        )}
+                        {th.notes && (
+                          <p className="text-xs text-muted-foreground bg-muted/40 rounded-md px-2.5 py-2 leading-relaxed whitespace-pre-wrap mt-1">{th.notes}</p>
+                        )}
+                        <div className="flex items-center gap-1 mt-auto pt-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => {
+                              setEditingTrailheadId(th.id);
+                              setEditPhotoPreview(null);
+                              setEditingTrailheadData({
+                                name: th.name,
+                                address: th.address ?? "",
+                                googleMapsUrl: th.googleMapsUrl ?? "",
+                                notes: th.notes ?? "",
+                                photoObjectPath: th.photoObjectPath ?? "",
+                              });
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                            onClick={() => {
+                              deleteTrailhead.mutate(
+                                { id: th.id },
+                                {
+                                  onSuccess: () => {
+                                    toast({ title: "Trailhead deleted" });
+                                    queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                                  },
+                                  onError: () => toast({ title: "Failed to delete trailhead", variant: "destructive" }),
+                                }
+                              );
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Add Trailhead */}
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Add Trailhead</CardTitle>
+                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setShowAddTrailhead(v => !v); setNewTrailhead(emptyTrailhead); setNewPhotoPreview(null); }}>
+                  {showAddTrailhead ? <ChevronUp className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
-            </CardContent>
+            </CardHeader>
+            {showAddTrailhead && (
+              <CardContent className="space-y-3 pt-0">
+                {/* Photo */}
+                <div className="relative rounded-lg overflow-hidden bg-muted h-36 flex items-center justify-center">
+                  {newPhotoPreview || newTrailhead.photoObjectPath ? (
+                    <img
+                      src={newPhotoPreview ?? trailheadPhotoUrl(newTrailhead.photoObjectPath)}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Mountain className="h-10 w-10 text-muted-foreground/30" />
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="absolute bottom-2 right-2 h-7 text-xs gap-1"
+                    disabled={uploadingPhotoFor === "new"}
+                    onClick={() => newPhotoRef.current?.click()}
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    {uploadingPhotoFor === "new" ? "Uploading…" : "Add photo"}
+                  </Button>
+                  {(newPhotoPreview || newTrailhead.photoObjectPath) && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={() => { setNewTrailhead(t => ({ ...t, photoObjectPath: "" })); setNewPhotoPreview(null); }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  placeholder="Name *"
+                  value={newTrailhead.name}
+                  onChange={(e) => setNewTrailhead(t => ({ ...t, name: e.target.value }))}
+                  className="text-sm"
+                  autoFocus
+                />
+                <Input
+                  placeholder="Address (optional)"
+                  value={newTrailhead.address}
+                  onChange={(e) => setNewTrailhead(t => ({ ...t, address: e.target.value }))}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Google Maps URL (optional)"
+                  value={newTrailhead.googleMapsUrl}
+                  onChange={(e) => setNewTrailhead(t => ({ ...t, googleMapsUrl: e.target.value }))}
+                  className="text-sm"
+                />
+                <Textarea
+                  placeholder="Parking details, trail signs, route notes… (optional)"
+                  value={newTrailhead.notes}
+                  onChange={(e) => setNewTrailhead(t => ({ ...t, notes: e.target.value }))}
+                  className="text-sm min-h-[80px] resize-none"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!newTrailhead.name.trim() || createTrailhead.isPending || uploadingPhotoFor === "new"}
+                    onClick={() => {
+                      createTrailhead.mutate(
+                        {
+                          data: {
+                            name: newTrailhead.name.trim(),
+                            address: newTrailhead.address.trim() || undefined,
+                            googleMapsUrl: newTrailhead.googleMapsUrl.trim() || undefined,
+                            notes: newTrailhead.notes.trim() || undefined,
+                            photoObjectPath: newTrailhead.photoObjectPath || undefined,
+                          },
+                        },
+                        {
+                          onSuccess: () => {
+                            toast({ title: "Trailhead added" });
+                            setNewTrailhead(emptyTrailhead);
+                            setNewPhotoPreview(null);
+                            setShowAddTrailhead(false);
+                            queryClient.invalidateQueries({ queryKey: getListTrailheadsQueryKey() });
+                          },
+                          onError: () => toast({ title: "Failed to add trailhead", variant: "destructive" }),
+                        }
+                      );
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add Trailhead
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setShowAddTrailhead(false); setNewTrailhead(emptyTrailhead); setNewPhotoPreview(null); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            )}
           </Card>
         </TabsContent>
       </Tabs>
