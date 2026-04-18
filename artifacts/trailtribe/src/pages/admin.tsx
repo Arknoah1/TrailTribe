@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
 import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
@@ -786,15 +786,28 @@ export default function Admin() {
                 eventType: e.eventType,
                 startDate: dt.toISOString().split("T")[0],
                 startTime: dt.toTimeString().slice(0, 5),
+                description: e.description ?? "",
+                isAllTeam: e.isAllTeam ?? true,
+                podId: (e.podIds && e.podIds.length > 0) ? String(e.podIds[0]) : "",
               });
             };
 
             const saveEdit = (id: number) => {
-              const { title, eventType, startDate, startTime } = editingEventData;
+              const { title, eventType, startDate, startTime, description, isAllTeam, podId } = editingEventData;
               const [y, m, d] = startDate.split("-").map(Number);
               const [h, min] = startTime.split(":").map(Number);
               const startDt = new Date(y, m - 1, d, h, min);
-              updateEvent.mutate({ id, data: { title, eventType, startTime: startDt.toISOString() } }, {
+              updateEvent.mutate({
+                id,
+                data: {
+                  title,
+                  eventType,
+                  startTime: startDt.toISOString(),
+                  description: description?.trim() || undefined,
+                  isAllTeam: isAllTeam ?? true,
+                  podIds: (!isAllTeam && podId) ? [podId] : [],
+                },
+              }, {
                 onSuccess: () => {
                   toast({ title: "Event updated" });
                   setEditingEventId(null);
@@ -892,72 +905,121 @@ export default function Admin() {
                           const dt = new Date(ev.startTime);
                           const isPast = dt < now;
                           return (
-                            <tr key={ev.id} className={`hover:bg-muted/20 transition-colors ${isPast ? "opacity-60" : ""}`}>
-                              <td className="px-4 py-2.5 text-muted-foreground text-xs whitespace-nowrap">
-                                {isEditing ? (
-                                  <Input
-                                    type="date"
-                                    value={editingEventData.startDate}
-                                    onChange={e => setEditingEventData((p: any) => ({ ...p, startDate: e.target.value }))}
-                                    className="h-7 text-xs w-32"
-                                  />
-                                ) : (
-                                  dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 hidden sm:table-cell">
-                                {isEditing ? (
-                                  <Select value={editingEventData.eventType} onValueChange={v => setEditingEventData((p: any) => ({ ...p, eventType: v }))}>
-                                    <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                      {["practice","race","social","volunteer","other"].map(t => (
-                                        <SelectItem key={t} value={t} className="capitalize text-xs">{t}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Badge variant="outline" className="text-xs font-normal capitalize">{ev.eventType}</Badge>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 font-medium">
-                                {isEditing ? (
-                                  <Input
-                                    value={editingEventData.title}
-                                    onChange={e => setEditingEventData((p: any) => ({ ...p, title: e.target.value }))}
-                                    className="h-7 text-xs"
-                                  />
-                                ) : (
-                                  ev.title
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 hidden md:table-cell">
-                                {ev.seriesId ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                    <Layers className="h-3 w-3" />
-                                    Series
-                                  </span>
-                                ) : <span className="text-xs text-muted-foreground">—</span>}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center gap-1">
+                            <Fragment key={ev.id}>
+                              <tr className={`hover:bg-muted/20 transition-colors ${isPast ? "opacity-60" : ""} ${isEditing ? "bg-muted/20" : ""}`}>
+                                <td className="px-4 py-2.5 text-muted-foreground text-xs whitespace-nowrap">
                                   {isEditing ? (
-                                    <>
-                                      <Button size="sm" className="h-7 text-xs px-2" onClick={() => saveEdit(ev.id)}>Save</Button>
-                                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingEventId(null)}>Cancel</Button>
-                                    </>
+                                    <Input
+                                      type="date"
+                                      value={editingEventData.startDate}
+                                      onChange={e => setEditingEventData((p: any) => ({ ...p, startDate: e.target.value }))}
+                                      className="h-7 text-xs w-32"
+                                    />
                                   ) : (
-                                    <>
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(ev)}>
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(ev.id)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </>
+                                    dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                                   )}
-                                </div>
-                              </td>
-                            </tr>
+                                </td>
+                                <td className="px-4 py-2.5 hidden sm:table-cell">
+                                  {isEditing ? (
+                                    <Select value={editingEventData.eventType} onValueChange={v => setEditingEventData((p: any) => ({ ...p, eventType: v }))}>
+                                      <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        {["practice","race","social","volunteer","other"].map(t => (
+                                          <SelectItem key={t} value={t} className="capitalize text-xs">{t}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs font-normal capitalize">{ev.eventType}</Badge>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 font-medium">
+                                  {isEditing ? (
+                                    <Input
+                                      value={editingEventData.title}
+                                      onChange={e => setEditingEventData((p: any) => ({ ...p, title: e.target.value }))}
+                                      className="h-7 text-xs"
+                                    />
+                                  ) : (
+                                    ev.title
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 hidden md:table-cell">
+                                  {ev.seriesId ? (
+                                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                      <Layers className="h-3 w-3" />
+                                      Series
+                                    </span>
+                                  ) : <span className="text-xs text-muted-foreground">—</span>}
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <div className="flex items-center gap-1">
+                                    {isEditing ? (
+                                      <>
+                                        <Button size="sm" className="h-7 text-xs px-2" onClick={() => saveEdit(ev.id)}>Save</Button>
+                                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingEventId(null)}>Cancel</Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(ev)}>
+                                          <Pencil className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(ev.id)}>
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                              {isEditing && (
+                                <tr className="bg-muted/20">
+                                  <td colSpan={5} className="px-4 pb-3 pt-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                                      <div className="sm:col-span-2 space-y-1">
+                                        <Label className="text-xs text-muted-foreground">Description <span className="font-normal">(optional)</span></Label>
+                                        <Textarea
+                                          placeholder="e.g. Early season skills — bring snacks"
+                                          value={editingEventData.description ?? ""}
+                                          onChange={e => setEditingEventData((p: any) => ({ ...p, description: e.target.value }))}
+                                          className="text-sm min-h-[60px] resize-none"
+                                        />
+                                      </div>
+                                      <div className="sm:col-span-2 space-y-1.5">
+                                        <Label className="text-xs text-muted-foreground">Pod assignment</Label>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={editingEventData.isAllTeam ?? true}
+                                              onChange={e => setEditingEventData((p: any) => ({ ...p, isAllTeam: e.target.checked, podId: e.target.checked ? "" : p.podId }))}
+                                              className="h-4 w-4 rounded border-border accent-primary"
+                                            />
+                                            All Team
+                                          </label>
+                                          {!(editingEventData.isAllTeam ?? true) && (
+                                            <Select
+                                              value={editingEventData.podId || "_none"}
+                                              onValueChange={v => setEditingEventData((p: any) => ({ ...p, podId: v === "_none" ? "" : v }))}
+                                            >
+                                              <SelectTrigger className="h-8 w-44 text-xs">
+                                                <SelectValue placeholder="Select pod…" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="_none">— No pod —</SelectItem>
+                                                {pods?.map((pod: any) => (
+                                                  <SelectItem key={pod.id} value={String(pod.id)}>{pod.name}</SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           );
                         })}
                       </tbody>
