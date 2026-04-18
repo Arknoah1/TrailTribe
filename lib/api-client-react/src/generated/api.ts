@@ -23,6 +23,7 @@ import type {
   BatchCreateEventsResult,
   Broadcast,
   BroadcastWithSender,
+  CalendarSubscribeUrl,
   CarpoolClaim,
   CarpoolOffer,
   CarpoolOfferWithClaims,
@@ -4839,6 +4840,169 @@ export function useGetStorageObject<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetStorageObjectQueryOptions(objectPath, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get the personal iCal subscribe URL for the current user
+ */
+export const getGetCalendarSubscribeUrlUrl = () => {
+  return `/api/calendar/subscribe-url`;
+};
+
+export const getCalendarSubscribeUrl = async (
+  options?: RequestInit,
+): Promise<CalendarSubscribeUrl> => {
+  return customFetch<CalendarSubscribeUrl>(getGetCalendarSubscribeUrlUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCalendarSubscribeUrlQueryKey = () => {
+  return [`/api/calendar/subscribe-url`] as const;
+};
+
+export const getGetCalendarSubscribeUrlQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCalendarSubscribeUrl>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCalendarSubscribeUrl>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCalendarSubscribeUrlQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCalendarSubscribeUrl>>
+  > = ({ signal }) => getCalendarSubscribeUrl({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCalendarSubscribeUrl>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCalendarSubscribeUrlQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCalendarSubscribeUrl>>
+>;
+export type GetCalendarSubscribeUrlQueryError = ErrorType<void>;
+
+/**
+ * @summary Get the personal iCal subscribe URL for the current user
+ */
+
+export function useGetCalendarSubscribeUrl<
+  TData = Awaited<ReturnType<typeof getCalendarSubscribeUrl>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCalendarSubscribeUrl>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCalendarSubscribeUrlQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public iCal feed (token-authenticated, no session required)
+ */
+export const getGetTeamIcsFeedUrl = (token: string) => {
+  return `/api/calendar/${token}/team.ics`;
+};
+
+export const getTeamIcsFeed = async (
+  token: string,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getGetTeamIcsFeedUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTeamIcsFeedQueryKey = (token: string) => {
+  return [`/api/calendar/${token}/team.ics`] as const;
+};
+
+export const getGetTeamIcsFeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTeamIcsFeed>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTeamIcsFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTeamIcsFeedQueryKey(token);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTeamIcsFeed>>> = ({
+    signal,
+  }) => getTeamIcsFeed(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTeamIcsFeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTeamIcsFeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTeamIcsFeed>>
+>;
+export type GetTeamIcsFeedQueryError = ErrorType<void>;
+
+/**
+ * @summary Public iCal feed (token-authenticated, no session required)
+ */
+
+export function useGetTeamIcsFeed<
+  TData = Awaited<ReturnType<typeof getTeamIcsFeed>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTeamIcsFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTeamIcsFeedQueryOptions(token, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

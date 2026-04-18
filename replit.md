@@ -34,7 +34,7 @@ Tables defined in `lib/db/src/schema/`:
 | File | Tables |
 |------|--------|
 | `households.ts` | `households` — family unit, invite code, compliance docs |
-| `users.ts` | `users` — parents, students, coaches, admins; medical info, notification prefs |
+| `users.ts` | `users` — parents, students, coaches, admins; medical info, notification prefs, `calendarToken` (unique iCal feed token) |
 | `pods.ts` | `pods` — team sub-groups with coaches |
 | `trailheads.ts` | `trailheads` — saved GPS/Maps locations library |
 | `events.ts` | `events`, `event_rsvps`, `volunteer_signups` — practices, races, socials |

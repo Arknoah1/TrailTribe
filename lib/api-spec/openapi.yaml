@@ -32,6 +32,8 @@ tags:
     description: File storage
   - name: dashboard
     description: Dashboard summaries
+  - name: calendar
+    description: iCal calendar feed
 
 paths:
   /healthz:
@@ -1220,10 +1222,59 @@ paths:
         "200":
           description: File content
 
+  # ─── CALENDAR ────────────────────────────────────────────────────────────────
+
+  /calendar/subscribe-url:
+    get:
+      operationId: getCalendarSubscribeUrl
+      tags: [calendar]
+      summary: Get the personal iCal subscribe URL for the current user
+      responses:
+        "200":
+          description: Subscribe URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSubscribeUrl"
+        "403":
+          description: Account not yet approved
+
+  /calendar/{token}/team.ics:
+    get:
+      operationId: getTeamIcsFeed
+      tags: [calendar]
+      summary: Public iCal feed (token-authenticated, no session required)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: iCal file
+          content:
+            text/calendar:
+              schema:
+                type: string
+        "404":
+          description: Invalid token
+
 # ─── SCHEMAS ─────────────────────────────────────────────────────────────────
 
 components:
   schemas:
+    CalendarSubscribeUrl:
+      type: object
+      properties:
+        subscribeUrl:
+          type: string
+          description: webcal:// URL for one-click subscribe in calendar apps
+        httpsUrl:
+          type: string
+          description: https:// URL for direct .ics download
+      required: [subscribeUrl, httpsUrl]
+
     HealthStatus:
       type: object
       properties:

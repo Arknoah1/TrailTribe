@@ -52,6 +52,7 @@ export const usersTable = pgTable("users", {
     eventReminders: true,
     rosterUpdates: true,
   })),
+  calendarToken: text("calendar_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

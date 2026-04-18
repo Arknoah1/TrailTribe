@@ -5,6 +5,13 @@
  * TrailTribe team management API
  * OpenAPI spec version: 0.1.0
  */
+export interface CalendarSubscribeUrl {
+  /** webcal:// URL for one-click subscribe in calendar apps */
+  subscribeUrl: string;
+  /** https:// URL for direct .ics download */
+  httpsUrl: string;
+}
+
 export interface HealthStatus {
   status: string;
 }

@@ -14,6 +14,7 @@ export * from "./batchCreateEventsResult";
 export * from "./broadcast";
 export * from "./broadcastChannel";
 export * from "./broadcastWithSender";
+export * from "./calendarSubscribeUrl";
 export * from "./carpoolClaim";
 export * from "./carpoolClaimWithUser";
 export * from "./carpoolOffer";
