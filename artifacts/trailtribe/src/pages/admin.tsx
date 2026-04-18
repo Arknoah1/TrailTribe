@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, CreateEventBodyEventType } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -229,6 +229,15 @@ export default function Admin() {
   const [editingPodId, setEditingPodId] = useState<number | null>(null);
   const [editingPodName, setEditingPodName] = useState("");
   const [localRiderPods, setLocalRiderPods] = useState<Record<number, string>>({});
+  const [podOrder, setPodOrder] = useState<number[]>([]);
+  const podOrderRef = useRef<number[]>([]);
+  useEffect(() => {
+    if (pods) {
+      const ids = (pods as any[]).map((p: any) => p.id);
+      podOrderRef.current = ids;
+      setPodOrder(ids);
+    }
+  }, [pods]);
 
   // Trailhead management state
   const { data: trailheads } = useListTrailheads();
@@ -274,6 +283,34 @@ export default function Admin() {
       setEditingPodId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/pods"] });
     }
+  };
+
+  const deletePod = async (id: number, name: string) => {
+    if (!window.confirm(`Delete pod "${name}"? Riders in this pod will become unassigned.`)) return;
+    const res = await authedFetch(`${BASE_URL}/api/pods/${id}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) {
+      toast({ title: `Pod "${name}" deleted` });
+      const newOrder = podOrderRef.current.filter((pid) => pid !== id);
+      podOrderRef.current = newOrder;
+      setPodOrder(newOrder);
+      queryClient.invalidateQueries({ queryKey: ["/api/pods"] });
+    }
+  };
+
+  const movePod = async (id: number, direction: "up" | "down") => {
+    const current = [...podOrderRef.current];
+    const idx = current.indexOf(id);
+    if (idx === -1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= current.length) return;
+    [current[idx], current[swapIdx]] = [current[swapIdx], current[idx]];
+    podOrderRef.current = current;
+    setPodOrder(current);
+    await authedFetch(`${BASE_URL}/api/pods/reorder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: current }),
+    });
   };
 
   const assignRiderPod = async (riderId: number, podId: string) => {
@@ -1338,33 +1375,43 @@ export default function Admin() {
             <CardContent className="space-y-3">
               {!pods || pods.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No pods yet. Create one below.</p>
-              ) : (
-                <div className="divide-y divide-border rounded-lg border overflow-hidden">
-                  {pods.map((pod: any) => (
-                    <div key={pod.id} className="flex items-center gap-3 px-4 py-3 bg-card hover:bg-muted/30 transition-colors">
-                      {editingPodId === pod.id ? (
-                        <>
-                          <Input
-                            value={editingPodName}
-                            onChange={(e) => setEditingPodName(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") renamePod(pod.id); if (e.key === "Escape") setEditingPodId(null); }}
-                            className="h-8 text-sm"
-                            autoFocus
-                          />
-                          <Button size="sm" onClick={() => renamePod(pod.id)}>Save</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingPodId(null)}>Cancel</Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 font-medium text-sm">{pod.name}</span>
-                          <span className="text-xs text-muted-foreground">{pod.studentCount ?? 0} riders</span>
-                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setEditingPodId(pod.id); setEditingPodName(pod.name); }}>Rename</Button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              ) : (() => {
+                const orderedPods = podOrder.length
+                  ? podOrder.map((id) => (pods as any[]).find((p: any) => p.id === id)).filter(Boolean)
+                  : (pods as any[]);
+                return (
+                  <div className="divide-y divide-border rounded-lg border overflow-hidden">
+                    {orderedPods.map((pod: any, idx: number) => (
+                      <div key={pod.id} className="flex items-center gap-2 px-3 py-3 bg-card hover:bg-muted/30 transition-colors">
+                        {editingPodId === pod.id ? (
+                          <>
+                            <Input
+                              value={editingPodName}
+                              onChange={(e) => setEditingPodName(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") renamePod(pod.id); if (e.key === "Escape") setEditingPodId(null); }}
+                              className="h-8 text-sm"
+                              autoFocus
+                            />
+                            <Button size="sm" onClick={() => renamePod(pod.id)}>Save</Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingPodId(null)}>Cancel</Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex flex-col gap-0.5">
+                              <Button size="icon" variant="ghost" className="h-5 w-5" disabled={idx === 0} onClick={() => movePod(pod.id, "up")}><ChevronUp className="h-3 w-3" /></Button>
+                              <Button size="icon" variant="ghost" className="h-5 w-5" disabled={idx === orderedPods.length - 1} onClick={() => movePod(pod.id, "down")}><ChevronDown className="h-3 w-3" /></Button>
+                            </div>
+                            <span className="flex-1 font-medium text-sm">{pod.name}</span>
+                            <span className="text-xs text-muted-foreground">{pod.studentCount ?? 0} riders</span>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setEditingPodId(pod.id); setEditingPodName(pod.name); }}>Rename</Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => deletePod(pod.id, pod.name)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               <div className="flex gap-2 pt-2">
                 <Input
                   placeholder="New pod name..."

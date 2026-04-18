@@ -165,7 +165,12 @@ export interface Pod {
   color?: string | null;
   season?: string | null;
   isActive: boolean;
+  sortOrder: number;
   createdAt: string;
+}
+
+export interface ReorderPodsBody {
+  ids: number[];
 }
 
 export type PodWithStats = Pod & {

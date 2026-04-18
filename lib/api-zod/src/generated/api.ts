@@ -600,6 +600,7 @@ export const ListPodsResponseItem = zod
     color: zod.string().nullish(),
     season: zod.string().nullish(),
     isActive: zod.boolean(),
+    sortOrder: zod.number(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -632,6 +633,7 @@ export const GetPodResponse = zod
     color: zod.string().nullish(),
     season: zod.string().nullish(),
     isActive: zod.boolean(),
+    sortOrder: zod.number(),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -726,7 +728,19 @@ export const UpdatePodResponse = zod.object({
   color: zod.string().nullish(),
   season: zod.string().nullish(),
   isActive: zod.boolean(),
+  sortOrder: zod.number(),
   createdAt: zod.coerce.date(),
+});
+
+export const DeletePodParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Set pod display order
+ */
+export const ReorderPodsBody = zod.object({
+  ids: zod.array(zod.number()),
 });
 
 /**

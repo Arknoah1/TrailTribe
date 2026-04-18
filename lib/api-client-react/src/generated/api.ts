@@ -57,6 +57,7 @@ import type {
   Pod,
   PodWithMembers,
   PodWithStats,
+  ReorderPodsBody,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   RescheduleSeries200,
@@ -1496,6 +1497,170 @@ export const useUpdatePod = <
   TContext
 > => {
   return useMutation(getUpdatePodMutationOptions(options));
+};
+
+export const getDeletePodUrl = (id: number) => {
+  return `/api/pods/${id}`;
+};
+
+export const deletePod = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeletePodUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeletePodMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePod>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deletePod>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deletePod"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deletePod>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deletePod(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeletePodMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deletePod>>
+>;
+
+export type DeletePodMutationError = ErrorType<unknown>;
+
+export const useDeletePod = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deletePod>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deletePod>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeletePodMutationOptions(options));
+};
+
+/**
+ * @summary Set pod display order
+ */
+export const getReorderPodsUrl = () => {
+  return `/api/pods/reorder`;
+};
+
+export const reorderPods = async (
+  reorderPodsBody: ReorderPodsBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReorderPodsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderPodsBody),
+  });
+};
+
+export const getReorderPodsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderPods>>,
+    TError,
+    { data: BodyType<ReorderPodsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderPods>>,
+  TError,
+  { data: BodyType<ReorderPodsBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderPods"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderPods>>,
+    { data: BodyType<ReorderPodsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderPods(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderPodsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderPods>>
+>;
+export type ReorderPodsMutationBody = BodyType<ReorderPodsBody>;
+export type ReorderPodsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set pod display order
+ */
+export const useReorderPods = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderPods>>,
+    TError,
+    { data: BodyType<ReorderPodsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderPods>>,
+  TError,
+  { data: BodyType<ReorderPodsBody> },
+  TContext
+> => {
+  return useMutation(getReorderPodsMutationOptions(options));
 };
 
 /**

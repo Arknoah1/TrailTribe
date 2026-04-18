@@ -61,6 +61,7 @@ export * from "./onboardUserBodyRole";
 export * from "./pod";
 export * from "./podWithMembers";
 export * from "./podWithStats";
+export * from "./reorderPodsBody";
 export * from "./requestUploadUrlBody";
 export * from "./requestUploadUrlResponse";
 export * from "./rescheduleSeries200";

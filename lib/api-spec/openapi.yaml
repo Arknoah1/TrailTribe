@@ -376,6 +376,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Pod"
+    delete:
+      operationId: deletePod
+      tags: [pods]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Pod deleted
+
+  /pods/reorder:
+    post:
+      operationId: reorderPods
+      tags: [pods]
+      summary: Set pod display order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderPodsBody"
+      responses:
+        "204":
+          description: Reordered successfully
 
   # ─── EVENTS ──────────────────────────────────────────────────────────────────
 
@@ -1578,10 +1605,21 @@ components:
           nullable: true
         isActive:
           type: boolean
+        sortOrder:
+          type: integer
         createdAt:
           type: string
           format: date-time
-      required: [id, name, isActive, createdAt]
+      required: [id, name, isActive, sortOrder, createdAt]
+
+    ReorderPodsBody:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+      required: [ids]
 
     PodWithStats:
       allOf:
