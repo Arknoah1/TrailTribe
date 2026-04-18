@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
@@ -31,6 +31,13 @@ function getStoredView(): CalendarView {
   return "list";
 }
 
+function getStoredPodFilter(): string | null {
+  try {
+    return localStorage.getItem("tt-calendar-pod-filter");
+  } catch {}
+  return null;
+}
+
 const emptyNewEvent = {
   title: "", description: "", eventType: CreateEventBodyEventType.practice,
   startDate: "", startTime: "09:00", endTime: "", trailheadId: "", isAllTeam: true, podId: "",
@@ -53,6 +60,21 @@ export default function Calendar() {
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
 
+  const hadStoredFilter = useRef(getStoredPodFilter() !== null);
+  const [podFilter, setPodFilterState] = useState<string>(() => getStoredPodFilter() ?? "all");
+
+  const setPodFilter = (val: string) => {
+    setPodFilterState(val);
+    hadStoredFilter.current = true;
+    try { localStorage.setItem("tt-calendar-pod-filter", val); } catch {}
+  };
+
+  useEffect(() => {
+    if (!hadStoredFilter.current && me !== undefined && !isCoach && me?.podId) {
+      setPodFilter(String(me.podId));
+    }
+  }, [me]);
+
   const switchView = (v: CalendarView) => {
     setView(v);
     try { localStorage.setItem("tt-calendar-view", v); } catch {}
@@ -70,6 +92,13 @@ export default function Calendar() {
   const { data: events, isLoading } = useListEvents(
     view === "month" ? monthParams : undefined
   );
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    if (podFilter === "all") return events;
+    if (podFilter === "allteam") return events.filter(e => e.isAllTeam);
+    return events.filter(e => e.isAllTeam || (e.podIds && e.podIds.some(pid => String(pid) === podFilter)));
+  }, [events, podFilter]);
 
   const { data: subscribeData, isLoading: subscribeLoading } = useGetCalendarSubscribeUrl({
     query: { enabled: subscribeOpen },
@@ -149,6 +178,28 @@ export default function Calendar() {
         </div>
       </div>
 
+      {view === "list" && pods && pods.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {(["all", "allteam", ...(pods as any[]).map((p: any) => String(p.id))] as string[]).map((val) => {
+            const label = val === "all" ? "All Events" : val === "allteam" ? "All Team" : (pods as any[]).find((p: any) => String(p.id) === val)?.name ?? val;
+            const active = podFilter === val;
+            return (
+              <button
+                key={val}
+                onClick={() => setPodFilter(val)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {view === "month" ? (
         <MonthCalendar
           events={events ?? []}
@@ -157,8 +208,8 @@ export default function Calendar() {
         />
       ) : (
         <div className="space-y-4">
-          {events && events.length > 0 ? (
-            events.map(event => (
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map(event => (
               <Card key={event.id} className="hover-elevate transition-all">
                 <Link href={`/events/${event.id}`} className="block">
                   <CardContent className="p-0">
@@ -223,7 +274,14 @@ export default function Calendar() {
             <div className="text-center p-12 border rounded-lg bg-card">
               <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
               <h3 className="text-lg font-medium">No events found</h3>
-              <p className="text-muted-foreground">There are no upcoming events on the calendar.</p>
+              {podFilter !== "all" ? (
+                <p className="text-muted-foreground">
+                  No upcoming events for this filter.{" "}
+                  <button className="underline text-primary" onClick={() => setPodFilter("all")}>Show all events</button>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">There are no upcoming events on the calendar.</p>
+              )}
             </div>
           )}
         </div>
