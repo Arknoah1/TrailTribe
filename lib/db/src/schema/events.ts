@@ -137,3 +137,23 @@ export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTa
 
 export type InsertEventTaskSignup = z.infer<typeof insertEventTaskSignupSchema>;
 export type EventTaskSignup = typeof eventTaskSignupsTable.$inferSelect;
+
+// ─── VOLUNTEER TASK PACKS ──────────────────────────────────────────────────
+
+export const volunteerTaskPacksTable = pgTable("volunteer_task_packs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const volunteerTaskPackTasksTable = pgTable("volunteer_task_pack_tasks", {
+  id: serial("id").primaryKey(),
+  packId: integer("pack_id").notNull().references(() => volunteerTaskPacksTable.id, { onDelete: "cascade" }),
+  templateTaskId: integer("template_task_id").notNull().references(() => volunteerTemplateTasksTable.id, { onDelete: "cascade" }),
+}, (t) => [
+  uniqueIndex("vt_pack_tasks_unique").on(t.packId, t.templateTaskId),
+]);
+
+export type VolunteerTaskPack = typeof volunteerTaskPacksTable.$inferSelect;
+export type VolunteerTaskPackTask = typeof volunteerTaskPackTasksTable.$inferSelect;

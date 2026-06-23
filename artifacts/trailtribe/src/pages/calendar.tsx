@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken, PodWithStats } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
@@ -31,6 +32,8 @@ import {
 import { MonthCalendar } from "@/components/month-calendar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 type CalendarView = "list" | "month";
 
@@ -73,6 +76,9 @@ export default function Calendar() {
   const { data: pods } = useListPods();
   const createEvent = useCreateEvent();
   const regenMutation = useRegenerateCalendarToken();
+  const authedFetch = useAuthedFetch();
+  const [packs, setPacks] = useState<any[]>([]);
+  const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
 
   const handleRegenerate = () => {
     regenMutation.mutate(undefined, {
@@ -89,6 +95,66 @@ export default function Calendar() {
   };
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
+
+  useEffect(() => {
+    if (!showAddEvent || !isCoach) return;
+    authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setPacks)
+      .catch(() => {});
+  }, [showAddEvent, isCoach]);
+
+  const handleSaveEvent = async () => {
+    if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
+      toast({ title: "Title, date, and start time are required", variant: "destructive" });
+      return;
+    }
+    if (!newEvent.isAllTeam && !newEvent.podId) {
+      toast({ title: "Select a pod, or check All Team", variant: "destructive" });
+      return;
+    }
+    const [y, m, d] = newEvent.startDate.split("-").map(Number);
+    const [h, min] = newEvent.startTime.split(":").map(Number);
+    const startDt = new Date(y, m - 1, d, h, min);
+    let endDt: Date | null = null;
+    if (newEvent.endTime) {
+      const [eh, emin] = newEvent.endTime.split(":").map(Number);
+      endDt = new Date(y, m - 1, d, eh, emin);
+    }
+    try {
+      const created = await createEvent.mutateAsync({
+        data: {
+          title: newEvent.title.trim(),
+          ...(newEvent.description.trim() ? { description: newEvent.description.trim() } : {}),
+          eventType: newEvent.eventType,
+          startTime: startDt.toISOString(),
+          ...(endDt ? { endTime: endDt.toISOString() } : {}),
+          ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
+          isAllTeam: newEvent.isAllTeam,
+          ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
+        },
+      });
+      if (selectedPackId && created?.id) {
+        await authedFetch(`${BASE_URL}/api/events/${created.id}/volunteer-tasks-enabled`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: true }),
+        });
+        await authedFetch(`${BASE_URL}/api/events/${created.id}/tasks/clone-pack`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ packId: selectedPackId }),
+        });
+      }
+      toast({ title: `"${newEvent.title.trim()}" created` });
+      setNewEvent(emptyNewEvent);
+      setSelectedPackId(null);
+      setShowAddEvent(false);
+      queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+    } catch {
+      toast({ title: "Failed to create event", variant: "destructive" });
+    }
+  };
 
   const hadStoredFilter = useRef(getStoredPodFilter() !== null);
   const [podFilter, setPodFilterState] = useState<string>(() => getStoredPodFilter() ?? "all");
@@ -443,52 +509,46 @@ export default function Calendar() {
               )}
             </div>
           </div>
+
+          {isCoach && packs.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Volunteer task pack (optional)</label>
+              <Select
+                value={selectedPackId ? String(selectedPackId) : "_none"}
+                onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="— no pack —" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">— no pack —</SelectItem>
+                  {packs.map((pack: any) => (
+                    <SelectItem key={pack.id} value={String(pack.id)}>
+                      {pack.name} ({pack.tasks?.length ?? 0} tasks)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPackId && (() => {
+                const pack = packs.find((p: any) => p.id === selectedPackId);
+                return pack ? (
+                  <p className="text-xs text-muted-foreground">
+                    Will add {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} and enable sign-ups on this event.
+                  </p>
+                ) : null;
+              })()}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <Button
               className="flex-1"
               disabled={createEvent.isPending}
-              onClick={() => {
-                if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
-                  toast({ title: "Title, date, and start time are required", variant: "destructive" });
-                  return;
-                }
-                if (!newEvent.isAllTeam && !newEvent.podId) {
-                  toast({ title: "Select a pod, or check All Team", variant: "destructive" });
-                  return;
-                }
-                const [y, m, d] = newEvent.startDate.split("-").map(Number);
-                const [h, min] = newEvent.startTime.split(":").map(Number);
-                const startDt = new Date(y, m - 1, d, h, min);
-                let endDt: Date | null = null;
-                if (newEvent.endTime) {
-                  const [eh, emin] = newEvent.endTime.split(":").map(Number);
-                  endDt = new Date(y, m - 1, d, eh, emin);
-                }
-                createEvent.mutate({
-                  data: {
-                    title: newEvent.title.trim(),
-                    ...(newEvent.description.trim() ? { description: newEvent.description.trim() } : {}),
-                    eventType: newEvent.eventType,
-                    startTime: startDt.toISOString(),
-                    ...(endDt ? { endTime: endDt.toISOString() } : {}),
-                    ...(newEvent.trailheadId ? { trailheadId: Number(newEvent.trailheadId) } : {}),
-                    isAllTeam: newEvent.isAllTeam,
-                    ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
-                  },
-                }, {
-                  onSuccess: () => {
-                    toast({ title: `"${newEvent.title.trim()}" created` });
-                    setNewEvent(emptyNewEvent);
-                    setShowAddEvent(false);
-                    queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
-                  },
-                  onError: () => toast({ title: "Failed to create event", variant: "destructive" }),
-                });
-              }}
+              onClick={handleSaveEvent}
             >
               {createEvent.isPending ? "Saving..." : "Save Event"}
             </Button>
-            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); }} disabled={createEvent.isPending}>
+            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); setSelectedPackId(null); }} disabled={createEvent.isPending}>
               Cancel
             </Button>
           </div>

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   volunteerTemplateTasksTable,
+  volunteerTaskPacksTable,
+  volunteerTaskPackTasksTable,
   eventTasksTable,
   eventTaskSignupsTable,
   eventsTable,
@@ -345,6 +347,97 @@ router.delete("/events/:id/tasks/:taskId/signups/:signupId", requireCoachOrAdmin
   }
 
   res.status(204).send();
+});
+
+// ─── VOLUNTEER TASK PACKS ─────────────────────────────────────────────────────
+
+router.get("/volunteer-tasks/packs", requireCoachOrAdmin, async (req, res) => {
+  const packs = await db.select().from(volunteerTaskPacksTable).orderBy(volunteerTaskPacksTable.createdAt);
+  const packTaskRows = await db
+    .select({ packId: volunteerTaskPackTasksTable.packId, task: volunteerTemplateTasksTable })
+    .from(volunteerTaskPackTasksTable)
+    .innerJoin(volunteerTemplateTasksTable, eq(volunteerTaskPackTasksTable.templateTaskId, volunteerTemplateTasksTable.id));
+  const result = packs.map(pack => ({
+    ...pack,
+    tasks: packTaskRows.filter(r => r.packId === pack.id).map(r => r.task),
+  }));
+  res.json(result);
+});
+
+router.post("/volunteer-tasks/packs", requireCoachOrAdmin, async (req, res) => {
+  const { name, description, templateTaskIds } = req.body;
+  if (!name) { res.status(400).json({ error: "name required" }); return; }
+  const [pack] = await db.insert(volunteerTaskPacksTable).values({
+    name,
+    description: description ?? null,
+  }).returning();
+  if (Array.isArray(templateTaskIds) && templateTaskIds.length > 0) {
+    await db.insert(volunteerTaskPackTasksTable).values(
+      templateTaskIds.map((tid: number) => ({ packId: pack.id, templateTaskId: tid }))
+    ).onConflictDoNothing();
+  }
+  res.status(201).json(pack);
+});
+
+router.put("/volunteer-tasks/packs/:id", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const { name, description } = req.body;
+  const [updated] = await db.update(volunteerTaskPacksTable)
+    .set({ ...(name && { name }), description: description ?? null })
+    .where(eq(volunteerTaskPacksTable.id, id))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(updated);
+});
+
+router.delete("/volunteer-tasks/packs/:id", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  await db.delete(volunteerTaskPacksTable).where(eq(volunteerTaskPacksTable.id, id));
+  res.status(204).send();
+});
+
+router.post("/volunteer-tasks/packs/:id/tasks", requireCoachOrAdmin, async (req, res) => {
+  const packId = parseInt(str(req.params.id));
+  const { templateTaskId } = req.body;
+  if (!templateTaskId) { res.status(400).json({ error: "templateTaskId required" }); return; }
+  await db.insert(volunteerTaskPackTasksTable).values({ packId, templateTaskId }).onConflictDoNothing();
+  res.status(201).json({ ok: true });
+});
+
+router.delete("/volunteer-tasks/packs/:packId/tasks/:templateTaskId", requireCoachOrAdmin, async (req, res) => {
+  const packId = parseInt(str(req.params.packId));
+  const templateTaskId = parseInt(str(req.params.templateTaskId));
+  await db.delete(volunteerTaskPackTasksTable)
+    .where(and(eq(volunteerTaskPackTasksTable.packId, packId), eq(volunteerTaskPackTasksTable.templateTaskId, templateTaskId)));
+  res.status(204).send();
+});
+
+// POST /events/:id/tasks/clone-pack — clone all tasks from a pack onto an event
+router.post("/events/:id/tasks/clone-pack", requireCoachOrAdmin, async (req, res) => {
+  const eventId = parseInt(str(req.params.id));
+  const { packId } = req.body;
+  if (!packId) { res.status(400).json({ error: "packId required" }); return; }
+  const packTasks = await db
+    .select({ template: volunteerTemplateTasksTable })
+    .from(volunteerTaskPackTasksTable)
+    .innerJoin(volunteerTemplateTasksTable, eq(volunteerTaskPackTasksTable.templateTaskId, volunteerTemplateTasksTable.id))
+    .where(eq(volunteerTaskPackTasksTable.packId, packId));
+  if (packTasks.length === 0) {
+    res.status(404).json({ error: "Pack not found or has no tasks" });
+    return;
+  }
+  await db.insert(eventTasksTable).values(
+    packTasks.map(pt => ({
+      eventId,
+      templateTaskId: pt.template.id,
+      category: pt.template.category,
+      title: pt.template.title,
+      description: pt.template.description ?? null,
+      slotsNeeded: pt.template.slotsDefault,
+      sortOrder: pt.template.sortOrder,
+    }))
+  );
+  res.status(201).json({ added: packTasks.length });
 });
 
 // ─── MY VOLUNTEER COMMITMENTS ─────────────────────────────────────────────────

@@ -254,6 +254,83 @@ export default function Admin() {
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [editingTemplateData, setEditingTemplateData] = useState(emptyTemplate);
 
+  // Volunteer task pack state
+  const [packs, setPacks] = useState<any[]>([]);
+  const [showAddPack, setShowAddPack] = useState(false);
+  const [newPackName, setNewPackName] = useState("");
+  const [newPackDesc, setNewPackDesc] = useState("");
+  const [newPackTaskIds, setNewPackTaskIds] = useState<Set<number>>(new Set());
+  const [editingPackId, setEditingPackId] = useState<number | null>(null);
+  const [editPackName, setEditPackName] = useState("");
+  const [editPackDesc, setEditPackDesc] = useState("");
+  const [editPackTaskIds, setEditPackTaskIds] = useState<Set<number>>(new Set());
+  const [packSaving, setPackSaving] = useState(false);
+
+  const fetchPacks = useCallback(async () => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`);
+      if (res.ok) setPacks(await res.json());
+    } catch {}
+  }, [authedFetch]);
+
+  useEffect(() => { fetchPacks(); }, [fetchPacks]);
+
+  const handleCreatePack = async () => {
+    if (!newPackName.trim()) return;
+    setPackSaving(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newPackName.trim(), description: newPackDesc.trim() || undefined, templateTaskIds: Array.from(newPackTaskIds) }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "Pack created" });
+      setNewPackName(""); setNewPackDesc(""); setNewPackTaskIds(new Set()); setShowAddPack(false);
+      fetchPacks();
+    } catch { toast({ title: "Failed to create pack", variant: "destructive" }); }
+    finally { setPackSaving(false); }
+  };
+
+  const handleUpdatePack = async () => {
+    if (!editingPackId || !editPackName.trim()) return;
+    setPackSaving(true);
+    try {
+      await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs/${editingPackId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editPackName.trim(), description: editPackDesc.trim() || undefined }),
+      });
+      const original = packs.find((p: any) => p.id === editingPackId);
+      const originalIds = new Set<number>((original?.tasks ?? []).map((t: any) => t.id));
+      for (const id of editPackTaskIds) {
+        if (!originalIds.has(id)) {
+          await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs/${editingPackId}/tasks`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ templateTaskId: id }),
+          });
+        }
+      }
+      for (const id of originalIds) {
+        if (!editPackTaskIds.has(id)) {
+          await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs/${editingPackId}/tasks/${id}`, { method: "DELETE" });
+        }
+      }
+      toast({ title: "Pack updated" });
+      setEditingPackId(null);
+      fetchPacks();
+    } catch { toast({ title: "Failed to update pack", variant: "destructive" }); }
+    finally { setPackSaving(false); }
+  };
+
+  const handleDeletePack = async (id: number) => {
+    try {
+      await authedFetch(`${BASE_URL}/api/volunteer-tasks/packs/${id}`, { method: "DELETE" });
+      toast({ title: "Pack deleted" });
+      fetchPacks();
+    } catch { toast({ title: "Failed to delete pack", variant: "destructive" }); }
+  };
+
   // Trailhead management state
   const { data: trailheads } = useListTrailheads();
   const createTrailhead = useCreateTrailhead();
@@ -2046,6 +2123,138 @@ export default function Admin() {
                   </div>
                 ));
               })()}
+            </CardContent>
+          </Card>
+
+          <div className="mt-2">
+            <h2 className="text-lg font-semibold">Task Packs</h2>
+            <p className="text-sm text-muted-foreground mt-1">Named bundles of template tasks. Apply a pack to any event with one click to pre-populate all volunteer slots.</p>
+          </div>
+
+          <Card className="bg-card border-border">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{packs.length} pack{packs.length !== 1 ? "s" : ""}</span>
+                <Button size="sm" onClick={() => {
+                  setShowAddPack(true);
+                  setNewPackTaskIds(new Set(((templateTasks as any[]) ?? []).map((t: any) => t.id)));
+                }} disabled={showAddPack || editingPackId !== null}>
+                  <Plus className="h-4 w-4 mr-1" /> New Pack
+                </Button>
+              </div>
+
+              {showAddPack && (
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <p className="text-sm font-medium">New Pack</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Pack name *</label>
+                      <Input placeholder="e.g. Race Weekend" value={newPackName} onChange={e => setNewPackName(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Description (optional)</label>
+                      <Input placeholder="Brief description" value={newPackDesc} onChange={e => setNewPackDesc(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground font-medium">Include tasks</p>
+                    {(() => {
+                      const tasks = (templateTasks as any[]) ?? [];
+                      const categories = Array.from(new Set(tasks.map((t: any) => t.category))) as string[];
+                      return categories.map(cat => (
+                        <div key={cat} className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
+                            {tasks.filter((t: any) => t.category === cat).map((task: any) => (
+                              <label key={task.id} className="flex items-center gap-2 cursor-pointer text-sm py-0.5">
+                                <input type="checkbox" checked={newPackTaskIds.has(task.id)} onChange={e => {
+                                  setNewPackTaskIds(prev => { const n = new Set(prev); e.target.checked ? n.add(task.id) : n.delete(task.id); return n; });
+                                }} className="rounded accent-primary" />
+                                {task.title} <span className="text-muted-foreground text-xs">×{task.slotsDefault}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={!newPackName.trim() || packSaving} onClick={handleCreatePack}>{packSaving ? "Saving..." : "Create Pack"}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowAddPack(false); setNewPackName(""); setNewPackDesc(""); setNewPackTaskIds(new Set()); }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {packs.length === 0 && !showAddPack && (
+                <p className="text-sm text-muted-foreground text-center py-8">No packs yet. Create one above to bundle tasks for quick event setup.</p>
+              )}
+
+              {packs.map((pack: any) => (
+                <div key={pack.id} className="rounded-md border border-border">
+                  {editingPackId === pack.id ? (
+                    <div className="p-4 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Pack name *</label>
+                          <Input value={editPackName} onChange={e => setEditPackName(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Description</label>
+                          <Input value={editPackDesc} onChange={e => setEditPackDesc(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">Included tasks</p>
+                        {(() => {
+                          const tasks = (templateTasks as any[]) ?? [];
+                          const categories = Array.from(new Set(tasks.map((t: any) => t.category))) as string[];
+                          return categories.map(cat => (
+                            <div key={cat} className="space-y-1">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
+                                {tasks.filter((t: any) => t.category === cat).map((task: any) => (
+                                  <label key={task.id} className="flex items-center gap-2 cursor-pointer text-sm py-0.5">
+                                    <input type="checkbox" checked={editPackTaskIds.has(task.id)} onChange={e => {
+                                      setEditPackTaskIds(prev => { const n = new Set(prev); e.target.checked ? n.add(task.id) : n.delete(task.id); return n; });
+                                    }} className="rounded accent-primary" />
+                                    {task.title} <span className="text-muted-foreground text-xs">×{task.slotsDefault}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!editPackName.trim() || packSaving} onClick={handleUpdatePack}>{packSaving ? "Saving..." : "Save"}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingPackId(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{pack.name}</p>
+                        {pack.description && <p className="text-xs text-muted-foreground mt-0.5">{pack.description}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">{pack.tasks.length} task{pack.tasks.length !== 1 ? "s" : ""}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                          setEditingPackId(pack.id);
+                          setEditPackName(pack.name);
+                          setEditPackDesc(pack.description ?? "");
+                          setEditPackTaskIds(new Set(pack.tasks.map((t: any) => t.id)));
+                          setShowAddPack(false);
+                        }}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeletePack(pack.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </CardContent>
           </Card>
         </TabsContent>

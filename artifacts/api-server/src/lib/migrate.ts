@@ -97,6 +97,45 @@ const migrations: { name: string; sql: string }[] = [
       WHERE NOT EXISTS (SELECT 1 FROM volunteer_template_tasks LIMIT 1);
     `,
   },
+  {
+    name: "create_volunteer_task_packs_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS volunteer_task_packs (
+        id serial PRIMARY KEY,
+        name text NOT NULL,
+        description text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "create_volunteer_task_pack_tasks_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS volunteer_task_pack_tasks (
+        id serial PRIMARY KEY,
+        pack_id integer NOT NULL REFERENCES volunteer_task_packs(id) ON DELETE CASCADE,
+        template_task_id integer NOT NULL REFERENCES volunteer_template_tasks(id) ON DELETE CASCADE,
+        UNIQUE(pack_id, template_task_id)
+      );
+    `,
+  },
+  {
+    name: "seed_race_weekend_pack",
+    sql: `
+      DO $$
+      DECLARE
+        new_pack_id integer;
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM volunteer_task_packs WHERE name = 'Race Weekend') THEN
+          INSERT INTO volunteer_task_packs (name, description)
+          VALUES ('Race Weekend', 'Full race weekend coverage — Race Day roles and Bike Village setup across all days')
+          RETURNING id INTO new_pack_id;
+          INSERT INTO volunteer_task_pack_tasks (pack_id, template_task_id)
+          SELECT new_pack_id, id FROM volunteer_template_tasks;
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
