@@ -1,13 +1,19 @@
-import { useListBroadcasts } from "@workspace/api-client-react";
+import { useListBroadcasts, useListPods } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Smartphone, Bell, Search, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Mail, Smartphone, Bell, Search, CheckCircle2, XCircle, AlertCircle, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
 export default function Messages() {
   const { data: broadcasts, isLoading } = useListBroadcasts();
+  const { data: pods } = useListPods();
+
+  const podNameMap = new Map<string, string>(
+    (pods ?? []).map(p => [String(p.id), p.name])
+  );
 
   if (isLoading) return <div className="p-8 text-center">Loading messages...</div>;
 
@@ -41,10 +47,25 @@ export default function Messages() {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg">{msg.subject || "No Subject"}</CardTitle>
-                    <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
+                    <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-foreground">{msg.sender?.firstName} {msg.sender?.lastName}</span>
                       <span>•</span>
                       <span>{msg.sentAt ? format(new Date(msg.sentAt), "MMM d, yyyy 'at' h:mm a") : 'Draft'}</span>
+                    </div>
+                    <div className="mt-2">
+                      {msg.isAllTeam ? (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <Users className="h-3 w-3" /> All team
+                        </Badge>
+                      ) : msg.targetPodIds && msg.targetPodIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {msg.targetPodIds.map(podId => (
+                            <Badge key={podId} variant="secondary" className="text-xs">
+                              {podNameMap.get(podId) ?? `Pod ${podId}`}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex gap-1">
