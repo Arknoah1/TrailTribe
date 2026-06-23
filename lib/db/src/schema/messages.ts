@@ -15,6 +15,8 @@ export const broadcastsTable = pgTable("broadcasts", {
   targetPodIds: text("target_pod_ids").array(),
   isAllTeam: boolean("is_all_team").notNull().default(false),
   recipientCount: integer("recipient_count").notNull().default(0),
+  deliveredCount: integer("delivered_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

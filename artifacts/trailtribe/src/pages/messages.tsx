@@ -1,7 +1,7 @@
 import { useListBroadcasts } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, Smartphone, Bell, Search } from "lucide-react";
+import { Mail, Smartphone, Bell, Search, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -54,8 +54,36 @@ export default function Messages() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4 text-sm prose dark:prose-invert max-w-none">
-                <div className="whitespace-pre-wrap">{msg.body}</div>
+              <CardContent className="pt-4 space-y-3">
+                <div className="text-sm whitespace-pre-wrap prose dark:prose-invert max-w-none">{msg.body}</div>
+                {msg.channel === "email" && (
+                  <div className="pt-2 border-t border-border/50">
+                    {!msg.emailConfigured ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Email delivery not configured
+                      </span>
+                    ) : msg.deliveredCount != null ? (
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="flex items-center gap-1.5 text-emerald-500">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          Delivered to {msg.deliveredCount} of {msg.recipientCount} recipients
+                        </span>
+                        {msg.failedCount != null && msg.failedCount > 0 && (
+                          <span className="flex items-center gap-1.5 text-destructive">
+                            <XCircle className="h-3.5 w-3.5 shrink-0" />
+                            {msg.failedCount} failed
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Delivery status unavailable
+                      </span>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))

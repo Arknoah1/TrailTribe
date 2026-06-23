@@ -19,17 +19,22 @@ export interface SendEmailOptions {
   replyTo?: string;
 }
 
-export async function sendEmail(opts: SendEmailOptions): Promise<void> {
+export type EmailResult =
+  | { status: "sent" }
+  | { status: "skipped"; reason: "no_api_key" | "no_valid_recipients" }
+  | { status: "failed"; error: unknown };
+
+export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
   if (!resend) {
     logger.warn({ to: opts.to, subject: opts.subject }, "[email] skipping send — no API key");
-    return;
+    return { status: "skipped", reason: "no_api_key" };
   }
   try {
     const toArray = Array.isArray(opts.to) ? opts.to : [opts.to];
     const filtered = toArray.filter((e) => e && !e.endsWith("@trailtribe.internal") && !e.endsWith("@pending.trailtribe.app"));
     if (filtered.length === 0) {
       logger.info({ subject: opts.subject }, "[email] no valid recipients — skipping");
-      return;
+      return { status: "skipped", reason: "no_valid_recipients" };
     }
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
@@ -40,10 +45,13 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
     });
     if (error) {
       logger.error({ error, subject: opts.subject }, "[email] Resend error");
+      return { status: "failed", error };
     } else {
       logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
+      return { status: "sent" };
     }
   } catch (err) {
     logger.error({ err, subject: opts.subject }, "[email] unexpected error");
+    return { status: "failed", error: err };
   }
 }

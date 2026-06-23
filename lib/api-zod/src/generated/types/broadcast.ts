@@ -16,6 +16,12 @@ export interface Broadcast {
   targetPodIds?: string[] | null;
   isAllTeam: boolean;
   recipientCount: number;
+  /** Number of emails successfully delivered (null if email not configured) */
+  deliveredCount?: number | null;
+  /** Number of emails that failed to deliver (null if email not configured) */
+  failedCount?: number | null;
+  /** Whether email delivery is configured for this install */
+  emailConfigured: boolean;
   sentAt?: Date | null;
   createdAt: Date;
 }

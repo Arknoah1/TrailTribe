@@ -9,13 +9,14 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 router.get("/messages", requireAuth, async (req, res) => {
+  const emailConfigured = !!process.env.RESEND_API_KEY;
   const broadcasts = await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt);
   const result = await Promise.all(
     broadcasts.map(async (b) => {
       const sender = b.senderUserId
         ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, b.senderUserId) })
         : null;
-      return { ...b, sender: sender ?? null };
+      return { ...b, emailConfigured, sender: sender ?? null };
     })
   );
   res.json(result);
@@ -54,10 +55,13 @@ router.post("/messages", requireAuth, async (req, res) => {
   const senderName = me ? `${me.firstName} ${me.lastName}` : "Your Coach";
   const emailSubject = subject ? subject : `Message from ${senderName}`;
 
+  const emailNotConfigured = !process.env.RESEND_API_KEY;
+
   (async () => {
-    let sent = 0;
+    let delivered = 0;
+    let failed = 0;
     for (const user of emailRecipients) {
-      await sendEmail({
+      const result = await sendEmail({
         to: user.email,
         subject: emailSubject,
         text: [
@@ -69,12 +73,20 @@ router.post("/messages", requireAuth, async (req, res) => {
         ].join("\n"),
         replyTo: me?.email,
       });
-      sent++;
+      if (result.status === "sent") {
+        delivered++;
+      } else if (result.status === "failed") {
+        failed++;
+      }
     }
-    logger.info({ broadcastId: broadcast.id, sent }, "[messages] broadcast emails sent");
+    await db
+      .update(broadcastsTable)
+      .set({ deliveredCount: delivered, failedCount: failed })
+      .where(eq(broadcastsTable.id, broadcast.id));
+    logger.info({ broadcastId: broadcast.id, delivered, failed }, "[messages] broadcast emails sent");
   })().catch((err) => logger.error({ err }, "[messages] broadcast email error"));
 
-  res.status(201).json(broadcast);
+  res.status(201).json({ ...broadcast, emailConfigured: !emailNotConfigured });
 });
 
 router.post("/messages/contact-coach", requireAuth, async (req, res) => {

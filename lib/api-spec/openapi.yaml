@@ -2284,6 +2284,17 @@ components:
           type: boolean
         recipientCount:
           type: integer
+        deliveredCount:
+          type: integer
+          description: Number of emails successfully delivered (null if email not configured)
+          nullable: true
+        failedCount:
+          type: integer
+          description: Number of emails that failed to deliver (null if email not configured)
+          nullable: true
+        emailConfigured:
+          type: boolean
+          description: Whether email delivery is configured for this install
         sentAt:
           type: string
           format: date-time
@@ -2297,6 +2308,7 @@ components:
         - channel
         - isAllTeam
         - recipientCount
+        - emailConfigured
         - createdAt
 
     BroadcastWithSender:

@@ -1869,6 +1869,21 @@ export const ListBroadcastsResponseItem = zod
     targetPodIds: zod.array(zod.string()).nullish(),
     isAllTeam: zod.boolean(),
     recipientCount: zod.number(),
+    deliveredCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "Number of emails successfully delivered (null if email not configured)",
+      ),
+    failedCount: zod
+      .number()
+      .nullish()
+      .describe(
+        "Number of emails that failed to deliver (null if email not configured)",
+      ),
+    emailConfigured: zod
+      .boolean()
+      .describe("Whether email delivery is configured for this install"),
     sentAt: zod.coerce.date().nullish(),
     createdAt: zod.coerce.date(),
   })
