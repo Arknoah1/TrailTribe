@@ -2,12 +2,12 @@ import {
   useGetEvent, useRsvpEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods,
   useListEventTasks, useSignUpForEventTask, useCancelEventTaskSignup,
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
-  useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks,
+  useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
-import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +76,7 @@ export default function EventDetail() {
   const deleteTaskMut = useDeleteEventTask();
   const updateTaskMut = useUpdateEventTask();
   const addFromTemplatesMut = useCloneEventTasksFromTemplate();
+  const removeSignupMut = useRemoveEventTaskSignup();
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [selectedTplIds, setSelectedTplIds] = useState<Set<number>>(new Set());
@@ -121,6 +122,13 @@ export default function EventDetail() {
     cancelMut.mutate({ id: eventId, taskId }, {
       onSuccess: () => { invalidateTasks(); toast({ title: "Signup cancelled" }); },
       onError: () => toast({ title: "Failed to cancel", variant: "destructive" }),
+    });
+  };
+
+  const handleRemoveSignup = (taskId: number, signupId: number) => {
+    removeSignupMut.mutate({ id: eventId, taskId, signupId }, {
+      onSuccess: () => { invalidateTasks(); toast({ title: "Signup removed" }); },
+      onError: () => toast({ title: "Failed to remove signup", variant: "destructive" }),
     });
   };
 
@@ -536,6 +544,50 @@ export default function EventDetail() {
             </div>
           </div>
 
+          {volunteerTasksEnabled && isCoach && (tasks ?? []).length > 0 && (() => {
+            const allTasks = tasks ?? [];
+            const totalSlots = allTasks.reduce((sum, t) => sum + t.slotsNeeded, 0);
+            const filledSlots = allTasks.reduce((sum, t) => sum + (t.signups?.length ?? 0), 0);
+            const unfilledTasks = allTasks.filter(t => (t.signups?.length ?? 0) < t.slotsNeeded);
+            const pct = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 100;
+            const allFilled = unfilledTasks.length === 0;
+            return (
+              <Card className={`border ${allFilled ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      {allFilled
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                        : <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                      }
+                      <span className="text-sm font-semibold">
+                        {allFilled ? "All volunteer slots filled" : `${unfilledTasks.length} task${unfilledTasks.length !== 1 ? "s" : ""} need${unfilledTasks.length === 1 ? "s" : ""} volunteers`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${allFilled ? "bg-green-500" : "bg-amber-500"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">{filledSlots}/{totalSlots} slots</span>
+                    </div>
+                  </div>
+                  {!allFilled && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {unfilledTasks.map(t => (
+                        <Badge key={t.id} variant="outline" className="text-xs border-amber-500/40 text-amber-600 dark:text-amber-400">
+                          {t.title} ({t.signups?.length ?? 0}/{t.slotsNeeded})
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {volunteerTasksEnabled && (
             <>
               {/* Step 1: Attendance checkbox — non-coaches must confirm before signing up */}
@@ -633,8 +685,19 @@ export default function EventDetail() {
                                   {(task.signups ?? []).length > 0 && (
                                     <div className="mt-1.5 flex flex-wrap gap-1">
                                       {task.signups!.map(s => (
-                                        <span key={s.id} className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                                        <span key={s.id} className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">
                                           {s.user?.firstName} {s.user?.lastName}
+                                          {isCoach && (
+                                            <button
+                                              type="button"
+                                              className="ml-0.5 rounded-full hover:text-destructive transition-colors disabled:opacity-50"
+                                              title="Remove signup"
+                                              disabled={removeSignupMut.isPending}
+                                              onClick={() => handleRemoveSignup(task.id, s.id)}
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          )}
                                         </span>
                                       ))}
                                     </div>

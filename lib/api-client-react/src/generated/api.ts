@@ -3512,6 +3512,96 @@ export const useCancelEventTaskSignup = <
   return useMutation(getCancelEventTaskSignupMutationOptions(options));
 };
 
+/**
+ * @summary Coach/admin removes a specific volunteer signup by ID
+ */
+export const getRemoveEventTaskSignupUrl = (
+  id: number,
+  taskId: number,
+  signupId: number,
+) => {
+  return `/api/events/${id}/tasks/${taskId}/signups/${signupId}`;
+};
+
+export const removeEventTaskSignup = async (
+  id: number,
+  taskId: number,
+  signupId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRemoveEventTaskSignupUrl(id, taskId, signupId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveEventTaskSignupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeEventTaskSignup>>,
+    TError,
+    { id: number; taskId: number; signupId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeEventTaskSignup>>,
+  TError,
+  { id: number; taskId: number; signupId: number },
+  TContext
+> => {
+  const mutationKey = ["removeEventTaskSignup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeEventTaskSignup>>,
+    { id: number; taskId: number; signupId: number }
+  > = (props) => {
+    const { id, taskId, signupId } = props ?? {};
+
+    return removeEventTaskSignup(id, taskId, signupId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveEventTaskSignupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeEventTaskSignup>>
+>;
+
+export type RemoveEventTaskSignupMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Coach/admin removes a specific volunteer signup by ID
+ */
+export const useRemoveEventTaskSignup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeEventTaskSignup>>,
+    TError,
+    { id: number; taskId: number; signupId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeEventTaskSignup>>,
+  TError,
+  { id: number; taskId: number; signupId: number },
+  TContext
+> => {
+  return useMutation(getRemoveEventTaskSignupMutationOptions(options));
+};
+
 export const getListVolunteerTemplateTasksUrl = () => {
   return `/api/volunteer-tasks/templates`;
 };

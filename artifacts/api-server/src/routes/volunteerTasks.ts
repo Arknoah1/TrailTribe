@@ -315,6 +315,38 @@ router.delete("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) 
   res.status(204).send();
 });
 
+// Coach/admin: remove a specific volunteer signup by signupId
+router.delete("/events/:id/tasks/:taskId/signups/:signupId", requireCoachOrAdmin, async (req, res) => {
+  const eventId = parseInt(str(req.params.id));
+  const taskId = parseInt(str(req.params.taskId));
+  const signupId = parseInt(str(req.params.signupId));
+
+  // Verify the task belongs to this event
+  const task = await db.query.eventTasksTable.findFirst({
+    where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+  });
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+
+  // Delete only when all three IDs match — prevents cross-event/task IDOR
+  const result = await db
+    .delete(eventTaskSignupsTable)
+    .where(
+      and(
+        eq(eventTaskSignupsTable.id, signupId),
+        eq(eventTaskSignupsTable.eventTaskId, taskId),
+        eq(eventTaskSignupsTable.eventId, eventId),
+      )
+    )
+    .returning({ id: eventTaskSignupsTable.id });
+
+  if (result.length === 0) {
+    res.status(404).json({ error: "Signup not found" });
+    return;
+  }
+
+  res.status(204).send();
+});
+
 // ─── MY VOLUNTEER COMMITMENTS ─────────────────────────────────────────────────
 
 router.get("/users/me/volunteer-signups", requireAuth, async (req, res) => {

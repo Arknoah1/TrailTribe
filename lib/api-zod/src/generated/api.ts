@@ -1343,6 +1343,15 @@ export const CancelEventTaskSignupParams = zod.object({
   taskId: zod.coerce.number(),
 });
 
+/**
+ * @summary Coach/admin removes a specific volunteer signup by ID
+ */
+export const RemoveEventTaskSignupParams = zod.object({
+  id: zod.coerce.number(),
+  taskId: zod.coerce.number(),
+  signupId: zod.coerce.number(),
+});
+
 export const ListVolunteerTemplateTasksResponseItem = zod.object({
   id: zod.number(),
   category: zod.string(),

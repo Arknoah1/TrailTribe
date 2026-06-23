@@ -937,6 +937,31 @@ paths:
         "204":
           description: Cancelled
 
+  /events/{id}/tasks/{taskId}/signups/{signupId}:
+    delete:
+      operationId: removeEventTaskSignup
+      summary: Coach/admin removes a specific volunteer signup by ID
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: signupId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
   /volunteer-tasks/templates:
     get:
       operationId: listVolunteerTemplateTasks
