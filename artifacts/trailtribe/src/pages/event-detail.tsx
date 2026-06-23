@@ -140,7 +140,17 @@ export default function EventDetail() {
               ? event.podIds.map(pid => {
                   const pod = (pods ?? []).find(p => String(p.id) === String(pid));
                   return pod
-                    ? <Badge key={pid} variant="outline">Pod: {pod.name}</Badge>
+                    ? (
+                      <Badge key={pid} variant="outline" className="gap-1.5">
+                        {pod.color && (
+                          <span
+                            className="inline-block w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: pod.color }}
+                          />
+                        )}
+                        {pod.name}
+                      </Badge>
+                    )
                     : null;
                 })
               : null
