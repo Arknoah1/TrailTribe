@@ -15,6 +15,18 @@ function formatEventTime(start: Date): string {
   });
 }
 
+const sentReminders = new Set<string>();
+let sentRemindersDate = new Date().toISOString().slice(0, 10);
+
+function reminderKey(eventId: number, userId: number): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== sentRemindersDate) {
+    sentReminders.clear();
+    sentRemindersDate = today;
+  }
+  return `${eventId}:${userId}:${today}`;
+}
+
 async function sendEventReminders(): Promise<void> {
   try {
     const now = new Date();
@@ -66,6 +78,11 @@ async function sendEventReminders(): Promise<void> {
       const timeStr = formatEventTime(event.startTime);
 
       for (const rsvp of rsvps) {
+        const key = reminderKey(event.id, rsvp.userId);
+        if (sentReminders.has(key)) {
+          continue;
+        }
+
         const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, rsvp.userId) });
         if (!user) continue;
         if (!user.emailNotifications) continue;
@@ -90,6 +107,8 @@ async function sendEventReminders(): Promise<void> {
           subject: `Reminder: ${event.title} is tomorrow`,
           text: lines.join("\n"),
         });
+
+        sentReminders.add(key);
       }
     }
   } catch (err) {
@@ -100,7 +119,7 @@ async function sendEventReminders(): Promise<void> {
 const INTERVAL_MS = 60 * 60 * 1000;
 
 export function startEmailReminderJob(): void {
-  logger.info("[email-reminders] daily reminder job started (runs every hour, sends for events in 24–26h window)");
+  logger.info("[email-reminders] reminder job started (runs hourly, deduplicates per user per event per day)");
   sendEventReminders().catch(() => {});
   setInterval(() => {
     sendEventReminders().catch(() => {});

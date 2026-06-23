@@ -80,20 +80,19 @@ router.post("/messages", requireAuth, async (req, res) => {
 router.post("/messages/contact-coach", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  const { subject, body, podId } = req.body;
+  const { subject, body } = req.body;
 
   const allUsers = await db.select().from(usersTable).where(eq(usersTable.isActive, true));
-  const coaches = allUsers.filter(
-    (u) =>
-      (u.role === "coach" || u.role === "admin") &&
-      u.emailNotifications &&
-      (!podId || u.podId === String(podId))
+  const allCoaches = allUsers.filter(
+    (u) => (u.role === "coach" || u.role === "admin") && u.emailNotifications,
   );
 
-  if (coaches.length === 0) {
-    const fallbackCoaches = allUsers.filter((u) => u.role === "coach" || u.role === "admin");
-    coaches.push(...fallbackCoaches.filter((u) => u.emailNotifications));
-  }
+  const senderPodId = me?.podId ?? null;
+  const podCoaches = senderPodId
+    ? allCoaches.filter((u) => u.podId === senderPodId)
+    : [];
+
+  const coaches = podCoaches.length > 0 ? podCoaches : allCoaches;
 
   const senderName = me ? `${me.firstName} ${me.lastName}` : "A team family";
   const emailSubject = subject ?? `Message from ${senderName}`;
