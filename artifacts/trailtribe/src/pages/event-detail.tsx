@@ -66,7 +66,7 @@ export default function EventDetail() {
     query: { enabled: !!eventId && showVolunteerSection, queryKey: getListEventTasksQueryKey(eventId) }
   });
   const { data: templates } = useListVolunteerTemplateTasks({
-    query: { enabled: isAdmin, queryKey: getListVolunteerTemplateTasksQueryKey() }
+    query: { enabled: isCoach, queryKey: getListVolunteerTemplateTasksQueryKey() }
   });
 
   const setEnabledMut = useSetEventVolunteerTasksEnabled();
@@ -521,7 +521,7 @@ export default function EventDetail() {
               )}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {isAdmin && volunteerTasksEnabled && (
+              {isCoach && volunteerTasksEnabled && (
                 <>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowTemplateSelector(true)}>
                     <Plus className="h-3.5 w-3.5" /> Add from Templates
@@ -724,7 +724,7 @@ export default function EventDetail() {
                                       {isFull ? "Full" : "Sign Up"}
                                     </Button>
                                   )}
-                                  {isAdmin && (
+                                  {isCoach && (
                                     <>
                                       <Button
                                         variant="ghost"

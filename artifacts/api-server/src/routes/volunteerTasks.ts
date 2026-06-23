@@ -116,8 +116,8 @@ router.get("/events/:id/tasks", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-// Admin-only: create event task
-router.post("/events/:id/tasks", requireAdmin, async (req, res) => {
+// Coach or admin: create event task
+router.post("/events/:id/tasks", requireCoachOrAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { category, title, description, slotsNeeded, sortOrder } = req.body;
   if (!category || !title) {
@@ -135,8 +135,8 @@ router.post("/events/:id/tasks", requireAdmin, async (req, res) => {
   res.status(201).json(task);
 });
 
-// Admin-only: clone all templates (or selected templates) to an event
-router.post("/events/:id/tasks/clone-template", requireAdmin, async (req, res) => {
+// Coach or admin: clone all templates (or selected templates) to an event
+router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { templateTaskIds } = req.body as { templateTaskIds?: number[] };
 
@@ -219,8 +219,8 @@ router.post("/events/:id/tasks/bulk-signup", requireAuth, async (req, res) => {
   res.status(201).json({ added, skipped });
 });
 
-// Admin-only: update event task
-router.patch("/events/:id/tasks/:taskId", requireAdmin, async (req, res) => {
+// Coach or admin: update event task
+router.patch("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res) => {
   const taskId = parseInt(str(req.params.taskId));
   const { category, title, description, slotsNeeded, sortOrder } = req.body;
   const [updated] = await db.update(eventTasksTable)
@@ -237,8 +237,8 @@ router.patch("/events/:id/tasks/:taskId", requireAdmin, async (req, res) => {
   res.json(updated);
 });
 
-// Admin-only: delete event task
-router.delete("/events/:id/tasks/:taskId", requireAdmin, async (req, res) => {
+// Coach or admin: delete event task
+router.delete("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res) => {
   const taskId = parseInt(str(req.params.taskId));
   await db.delete(eventTasksTable).where(eq(eventTasksTable.id, taskId));
   res.status(204).send();
