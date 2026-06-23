@@ -17,7 +17,7 @@ const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 // ─── TEMPLATE TASKS (admin only) ─────────────────────────────────────────────
 
-router.get("/volunteer-tasks/templates", requireAdmin, async (req, res) => {
+router.get("/volunteer-tasks/templates", requireCoachOrAdmin, async (req, res) => {
   const templates = await db
     .select()
     .from(volunteerTemplateTasksTable)
@@ -25,7 +25,7 @@ router.get("/volunteer-tasks/templates", requireAdmin, async (req, res) => {
   res.json(templates);
 });
 
-router.post("/volunteer-tasks/templates", requireAdmin, async (req, res) => {
+router.post("/volunteer-tasks/templates", requireCoachOrAdmin, async (req, res) => {
   const { category, title, description, slotsDefault, sortOrder } = req.body;
   if (!category || !title) {
     res.status(400).json({ error: "category and title required" });
@@ -41,7 +41,7 @@ router.post("/volunteer-tasks/templates", requireAdmin, async (req, res) => {
   res.status(201).json(task);
 });
 
-router.put("/volunteer-tasks/templates/:id", requireAdmin, async (req, res) => {
+router.put("/volunteer-tasks/templates/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { category, title, description, slotsDefault, sortOrder } = req.body;
   const [updated] = await db.update(volunteerTemplateTasksTable)
@@ -58,7 +58,7 @@ router.put("/volunteer-tasks/templates/:id", requireAdmin, async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/volunteer-tasks/templates/:id", requireAdmin, async (req, res) => {
+router.delete("/volunteer-tasks/templates/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   await db.delete(volunteerTemplateTasksTable).where(eq(volunteerTemplateTasksTable.id, id));
   res.status(204).send();
