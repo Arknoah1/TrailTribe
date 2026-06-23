@@ -15,7 +15,7 @@ export default function Roster() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8 pt-4 md:pt-8">
 
       <div className="px-6 md:px-8 space-y-8">
       <div>

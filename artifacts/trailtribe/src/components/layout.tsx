@@ -106,7 +106,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto pb-20 md:pb-0", me ? "pt-14 md:pt-0" : "")}>
+      <main className={cn("flex-1 overflow-y-auto pb-20 md:pb-0", me ? "pt-16 md:pt-0" : "")}>
         {children}
       </main>
 

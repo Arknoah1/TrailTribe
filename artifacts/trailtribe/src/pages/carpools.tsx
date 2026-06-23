@@ -370,7 +370,7 @@ export default function CarpoolBoard() {
   if (isLoading) return <div className="p-8 text-center">Loading carpools...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8">
 
       <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

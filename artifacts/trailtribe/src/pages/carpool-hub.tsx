@@ -35,7 +35,7 @@ export default function CarpoolHub() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8">
 
       <div className="px-6 md:px-8 space-y-6">
       <div>

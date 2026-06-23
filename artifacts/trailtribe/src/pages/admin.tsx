@@ -402,7 +402,7 @@ export default function Admin() {
   const docsByType = Object.fromEntries(teamDocs.map(d => [d.type, d])) as Record<DocType, TeamDocument | undefined>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 pt-4 md:pt-8">
       <div className="px-6 md:px-8 space-y-6">
       <div>
         <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Admin Dashboard</h1>
