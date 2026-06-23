@@ -1,6 +1,6 @@
 import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold, useUpdateHouseholdCompliance,
-  getGetHouseholdQueryKey,
+  getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,7 +20,17 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 
@@ -887,6 +897,31 @@ export default function Profile() {
   const [defaultTrays, setDefaultTrays] = useState<string>("");
   const [isSavingDefaults, setIsSavingDefaults] = useState(false);
 
+  const [calCopied, setCalCopied] = useState<"webcal" | "https" | null>(null);
+  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
+  const { data: calSubscribeData, isLoading: calSubscribeLoading } = useGetCalendarSubscribeUrl({ query: { enabled: !!user, queryKey: getGetCalendarSubscribeUrlQueryKey() } });
+  const regenMutation = useRegenerateCalendarToken();
+
+  const copyCalUrl = async (text: string, which: "webcal" | "https" = "webcal") => {
+    try { await navigator.clipboard.writeText(text); } catch { return; }
+    setCalCopied(which);
+    setTimeout(() => setCalCopied(null), 2000);
+  };
+
+  const handleRegenerate = () => {
+    regenMutation.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCalendarSubscribeUrlQueryKey() });
+        toast({ title: "Calendar link regenerated", description: "Your old link will no longer sync. New link is ready." });
+        setRegenConfirmOpen(false);
+      },
+      onError: () => {
+        toast({ title: "Failed to regenerate link", variant: "destructive" });
+        setRegenConfirmOpen(false);
+      },
+    });
+  };
+
   useEffect(() => {
     if (user) {
       setDefaultSeats(user.defaultCarpoolSeats != null ? String(user.defaultCarpoolSeats) : "");
@@ -1032,6 +1067,59 @@ export default function Profile() {
             </CardContent>
           </Card>
 
+          {user && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Rss className="h-5 w-5" /> Calendar Feed</CardTitle>
+                <CardDescription>Subscribe to your personal team calendar in Google Calendar, Apple Calendar, or Outlook. Events stay automatically in sync.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {calSubscribeLoading ? (
+                  <div className="text-sm text-muted-foreground py-2">Loading your calendar link...</div>
+                ) : calSubscribeData ? (
+                  <>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">One-click subscribe</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 truncate font-mono">
+                          {calSubscribeData.subscribeUrl}
+                        </code>
+                        <Button size="icon" variant="outline" onClick={() => copyCalUrl(calSubscribeData.subscribeUrl, "webcal")} title="Copy webcal link">
+                          {calCopied === "webcal" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                        </Button>
+                        <Button size="icon" variant="outline" asChild title="Open in calendar app">
+                          <a href={calSubscribeData.subscribeUrl}><ExternalLink className="h-4 w-4" /></a>
+                        </Button>
+                      </div>
+                      <a
+                        href={calSubscribeData.httpsUrl}
+                        download="trailtribe-team.ics"
+                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                      >
+                        <Download className="h-3 w-3" /> Download .ics file instead
+                      </a>
+                    </div>
+                    <div className="pt-3 border-t flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">Rotate this link if it was shared accidentally — old subscriptions stop syncing immediately.</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={() => setRegenConfirmOpen(true)}
+                        disabled={regenMutation.isPending}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                        Regenerate link
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm text-destructive py-2">Failed to load calendar link. Try again later.</div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <div className="pt-4 border-t mt-4">
             <Button
               variant="ghost"
@@ -1058,6 +1146,23 @@ export default function Profile() {
           )}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={regenConfirmOpen} onOpenChange={setRegenConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate calendar link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a new personal feed URL. Anyone subscribed to your old link will stop receiving updates — they'll need the new link to stay in sync.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regenMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerate} disabled={regenMutation.isPending}>
+              {regenMutation.isPending ? "Regenerating..." : "Yes, regenerate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -2110,6 +2110,16 @@ export const GetStorageObjectParams = zod.object({
 });
 
 /**
+ * @summary Regenerate the personal iCal calendar token, invalidating the old link
+ */
+export const RegenerateCalendarTokenResponse = zod.object({
+  subscribeUrl: zod
+    .string()
+    .describe("webcal:\/\/ URL for one-click subscribe in calendar apps"),
+  httpsUrl: zod.string().describe("https:\/\/ URL for direct .ics download"),
+});
+
+/**
  * @summary Get the personal iCal subscribe URL for the current user
  */
 export const GetCalendarSubscribeUrlResponse = zod.object({

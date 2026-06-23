@@ -1251,6 +1251,23 @@ paths:
 
   # ─── CALENDAR ────────────────────────────────────────────────────────────────
 
+  /users/me/regenerate-calendar-token:
+    post:
+      operationId: regenerateCalendarToken
+      tags: [users]
+      summary: Regenerate the personal iCal calendar token, invalidating the old link
+      responses:
+        "200":
+          description: New subscribe URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarSubscribeUrl"
+        "403":
+          description: Account not yet approved
+        "404":
+          description: User not found
+
   /calendar/subscribe-url:
     get:
       operationId: getCalendarSubscribeUrl

@@ -8,6 +8,7 @@ import {
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import { createClerkClient } from "@clerk/express";
 import { z } from "zod";
 
@@ -261,6 +262,28 @@ router.patch("/users/me", requireAuth, async (req, res) => {
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);
+});
+
+router.post("/users/me/regenerate-calendar-token", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user.approved) { res.status(403).json({ error: "Account not yet approved" }); return; }
+
+  const token = randomUUID();
+  await db.update(usersTable).set({ calendarToken: token }).where(eq(usersTable.id, user.id));
+
+  const host =
+    (req.headers["x-forwarded-host"] as string) ||
+    (req.headers["host"] as string) ||
+    "localhost";
+  const protocol = req.headers["x-forwarded-proto"] || "https";
+  const httpsUrl = `${protocol}://${host}/api/calendar/${token}/team.ics`;
+  const subscribeUrl = `webcal://${host}/api/calendar/${token}/team.ics`;
+
+  res.json({ subscribeUrl, httpsUrl });
 });
 
 router.post("/users/onboard", requireAuth, async (req, res) => {

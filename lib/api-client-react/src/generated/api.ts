@@ -5014,6 +5014,87 @@ export function useGetStorageObject<
 }
 
 /**
+ * @summary Regenerate the personal iCal calendar token, invalidating the old link
+ */
+export const getRegenerateCalendarTokenUrl = () => {
+  return `/api/users/me/regenerate-calendar-token`;
+};
+
+export const regenerateCalendarToken = async (
+  options?: RequestInit,
+): Promise<CalendarSubscribeUrl> => {
+  return customFetch<CalendarSubscribeUrl>(getRegenerateCalendarTokenUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRegenerateCalendarTokenMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateCalendarToken>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateCalendarToken>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["regenerateCalendarToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateCalendarToken>>,
+    void
+  > = () => {
+    return regenerateCalendarToken(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateCalendarTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateCalendarToken>>
+>;
+
+export type RegenerateCalendarTokenMutationError = ErrorType<void>;
+
+/**
+ * @summary Regenerate the personal iCal calendar token, invalidating the old link
+ */
+export const useRegenerateCalendarToken = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateCalendarToken>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateCalendarToken>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getRegenerateCalendarTokenMutationOptions(options));
+};
+
+/**
  * @summary Get the personal iCal subscribe URL for the current user
  */
 export const getGetCalendarSubscribeUrlUrl = () => {

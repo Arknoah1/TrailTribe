@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, PodWithStats } from "@workspace/api-client-react";
+import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken, PodWithStats } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, MapPin, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus } from "lucide-react";
+import { CalendarIcon, MapPin, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MonthCalendar } from "@/components/month-calendar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +58,7 @@ export default function Calendar() {
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [copiedWhich, setCopiedWhich] = useState<"webcal" | "https" | null>(null);
+  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
@@ -57,6 +68,21 @@ export default function Calendar() {
   const { data: trailheads } = useListTrailheads();
   const { data: pods } = useListPods();
   const createEvent = useCreateEvent();
+  const regenMutation = useRegenerateCalendarToken();
+
+  const handleRegenerate = () => {
+    regenMutation.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCalendarSubscribeUrlQueryKey() });
+        toast({ title: "Calendar link regenerated", description: "Your old link will no longer sync. New link is ready." });
+        setRegenConfirmOpen(false);
+      },
+      onError: () => {
+        toast({ title: "Failed to regenerate link", variant: "destructive" });
+        setRegenConfirmOpen(false);
+      },
+    });
+  };
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
 
@@ -101,7 +127,7 @@ export default function Calendar() {
   }, [events, podFilter]);
 
   const { data: subscribeData, isLoading: subscribeLoading } = useGetCalendarSubscribeUrl({
-    query: { enabled: subscribeOpen },
+    query: { enabled: subscribeOpen, queryKey: getGetCalendarSubscribeUrlQueryKey() },
   });
 
   const handleMonthChange = (date: Date) => {
@@ -546,15 +572,42 @@ export default function Calendar() {
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground border-t pt-3">
-                This link is personal — do not share it. Anyone with this link can read the team schedule.
-              </p>
+              <div className="border-t pt-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">This link is personal — do not share it. Anyone with this link can read the team schedule.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => setRegenConfirmOpen(true)}
+                  disabled={regenMutation.isPending}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  Regenerate link
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="py-6 text-center text-sm text-destructive">Failed to load subscribe link. Try again.</div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={regenConfirmOpen} onOpenChange={setRegenConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate calendar link?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will create a new personal feed URL. Anyone subscribed to your old link will stop receiving updates — they'll need the new link to stay in sync.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={regenMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerate} disabled={regenMutation.isPending}>
+              {regenMutation.isPending ? "Regenerating..." : "Yes, regenerate"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
