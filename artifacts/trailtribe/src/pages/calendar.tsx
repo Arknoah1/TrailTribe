@@ -49,7 +49,10 @@ function getStoredPodFilter(): string | null {
   return null;
 }
 
-const emptyNewEvent = {
+const emptyNewEvent: {
+  title: string; description: string; eventType: CreateEventBodyEventType;
+  startDate: string; startTime: string; endTime: string; trailheadId: string; isAllTeam: boolean; podId: string;
+} = {
   title: "", description: "", eventType: CreateEventBodyEventType.practice,
   startDate: "", startTime: "09:00", endTime: "", trailheadId: "", isAllTeam: true, podId: "",
 };

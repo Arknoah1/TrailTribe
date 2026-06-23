@@ -886,7 +886,7 @@ export default function CarpoolBoard() {
               const isOpen = request.status === "open";
               const isMatched = request.status === "matched";
               const mine = isMyRequest(request);
-              const canMatch = isOpen && !mine && me?.role !== "rider";
+              const canMatch = isOpen && !mine;
 
               return (
                 <Card key={request.id} className={isMatched ? "border-primary/60 bg-primary/5" : ""}>
