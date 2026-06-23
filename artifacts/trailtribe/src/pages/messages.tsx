@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useListBroadcasts, useListPods } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,15 +6,33 @@ import { Badge } from "@/components/ui/badge";
 import { Mail, Smartphone, Bell, Search, CheckCircle2, XCircle, AlertCircle, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 
 export default function Messages() {
   const { data: broadcasts, isLoading } = useListBroadcasts();
   const { data: pods } = useListPods();
 
+  const [search, setSearch] = useState("");
+  const [podFilter, setPodFilter] = useState<string>("all");
+
   const podNameMap = new Map<string, string>(
     (pods ?? []).map(p => [String(p.id), p.name])
   );
+
+  const filtered = (broadcasts ?? []).filter(msg => {
+    const matchesSearch =
+      search.trim() === "" ||
+      (msg.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (msg.body ?? "").toLowerCase().includes(search.toLowerCase());
+
+    const matchesPod =
+      podFilter === "all" ||
+      msg.isAllTeam === true ||
+      (msg.targetPodIds ?? []).includes(podFilter);
+
+    return matchesSearch && matchesPod;
+  });
 
   if (isLoading) return <div className="p-8 text-center">Loading messages...</div>;
 
@@ -34,14 +53,36 @@ export default function Messages() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search messages..." className="pl-10 max-w-md bg-card" />
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search messages..."
+            className="pl-10 bg-card"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        {pods && pods.length > 0 && (
+          <Select value={podFilter} onValueChange={setPodFilter}>
+            <SelectTrigger className="w-full sm:w-48 bg-card">
+              <SelectValue placeholder="Filter by pod" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All audiences</SelectItem>
+              {pods.map(pod => (
+                <SelectItem key={pod.id} value={String(pod.id)}>
+                  {pod.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="space-y-4">
-        {broadcasts && broadcasts.length > 0 ? (
-          broadcasts.map(msg => (
+        {filtered.length > 0 ? (
+          filtered.map(msg => (
             <Card key={msg.id} className="overflow-hidden">
               <CardHeader className="bg-muted/50 pb-3">
                 <div className="flex justify-between items-start">
@@ -111,8 +152,12 @@ export default function Messages() {
         ) : (
           <div className="text-center p-12 border rounded-lg bg-card">
             <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium">No messages</h3>
-            <p className="text-muted-foreground">You haven't received any broadcasts yet.</p>
+            <h3 className="text-lg font-medium">No messages found</h3>
+            <p className="text-muted-foreground">
+              {search || podFilter !== "all"
+                ? "Try adjusting your search or filter."
+                : "You haven't received any broadcasts yet."}
+            </p>
           </div>
         )}
       </div>
