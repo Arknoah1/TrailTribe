@@ -18,6 +18,8 @@ import type {
 
 import type {
   AddAttachmentBody,
+  AddEventTasksFromTemplates201,
+  AddEventTasksFromTemplatesBody,
   ApproveUserBody,
   BatchCreateEventsBody,
   BatchCreateEventsResult,
@@ -44,6 +46,10 @@ import type {
   EventAttachment,
   EventRsvp,
   EventRsvpWithUser,
+  EventTask,
+  EventTaskBody,
+  EventTaskSignup,
+  EventTaskWithSignups,
   EventWithDetails,
   HealthStatus,
   Household,
@@ -64,6 +70,8 @@ import type {
   RescheduleSeriesBody,
   RsvpBody,
   SendBroadcastBody,
+  SetEventVolunteerTasksEnabledBody,
+  SignUpForEventTaskBody,
   SuccessResponse,
   Trailhead,
   UpdateCarpoolOfferBody,
@@ -77,6 +85,8 @@ import type {
   VolunteerSignup,
   VolunteerSignupBody,
   VolunteerSignupWithUser,
+  VolunteerTemplateTask,
+  VolunteerTemplateTaskBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2762,6 +2772,975 @@ export const useCancelVolunteerSignup = <
   TContext
 > => {
   return useMutation(getCancelVolunteerSignupMutationOptions(options));
+};
+
+export const getSetEventVolunteerTasksEnabledUrl = (id: number) => {
+  return `/api/events/${id}/volunteer-tasks-enabled`;
+};
+
+export const setEventVolunteerTasksEnabled = async (
+  id: number,
+  setEventVolunteerTasksEnabledBody: SetEventVolunteerTasksEnabledBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getSetEventVolunteerTasksEnabledUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setEventVolunteerTasksEnabledBody),
+  });
+};
+
+export const getSetEventVolunteerTasksEnabledMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>,
+    TError,
+    { id: number; data: BodyType<SetEventVolunteerTasksEnabledBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>,
+  TError,
+  { id: number; data: BodyType<SetEventVolunteerTasksEnabledBody> },
+  TContext
+> => {
+  const mutationKey = ["setEventVolunteerTasksEnabled"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>,
+    { id: number; data: BodyType<SetEventVolunteerTasksEnabledBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setEventVolunteerTasksEnabled(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetEventVolunteerTasksEnabledMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>
+>;
+export type SetEventVolunteerTasksEnabledMutationBody =
+  BodyType<SetEventVolunteerTasksEnabledBody>;
+export type SetEventVolunteerTasksEnabledMutationError = ErrorType<unknown>;
+
+export const useSetEventVolunteerTasksEnabled = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>,
+    TError,
+    { id: number; data: BodyType<SetEventVolunteerTasksEnabledBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setEventVolunteerTasksEnabled>>,
+  TError,
+  { id: number; data: BodyType<SetEventVolunteerTasksEnabledBody> },
+  TContext
+> => {
+  return useMutation(getSetEventVolunteerTasksEnabledMutationOptions(options));
+};
+
+export const getListEventTasksUrl = (id: number) => {
+  return `/api/events/${id}/tasks`;
+};
+
+export const listEventTasks = async (
+  id: number,
+  options?: RequestInit,
+): Promise<EventTaskWithSignups[]> => {
+  return customFetch<EventTaskWithSignups[]>(getListEventTasksUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEventTasksQueryKey = (id: number) => {
+  return [`/api/events/${id}/tasks`] as const;
+};
+
+export const getListEventTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEventTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListEventTasksQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listEventTasks>>> = ({
+    signal,
+  }) => listEventTasks(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEventTasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEventTasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEventTasks>>
+>;
+export type ListEventTasksQueryError = ErrorType<unknown>;
+
+export function useListEventTasks<
+  TData = Awaited<ReturnType<typeof listEventTasks>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listEventTasks>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEventTasksQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateEventTaskUrl = (id: number) => {
+  return `/api/events/${id}/tasks`;
+};
+
+export const createEventTask = async (
+  id: number,
+  eventTaskBody: EventTaskBody,
+  options?: RequestInit,
+): Promise<EventTask> => {
+  return customFetch<EventTask>(getCreateEventTaskUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eventTaskBody),
+  });
+};
+
+export const getCreateEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEventTask>>,
+    TError,
+    { id: number; data: BodyType<EventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createEventTask>>,
+  TError,
+  { id: number; data: BodyType<EventTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["createEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createEventTask>>,
+    { id: number; data: BodyType<EventTaskBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createEventTask(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createEventTask>>
+>;
+export type CreateEventTaskMutationBody = BodyType<EventTaskBody>;
+export type CreateEventTaskMutationError = ErrorType<unknown>;
+
+export const useCreateEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createEventTask>>,
+    TError,
+    { id: number; data: BodyType<EventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createEventTask>>,
+  TError,
+  { id: number; data: BodyType<EventTaskBody> },
+  TContext
+> => {
+  return useMutation(getCreateEventTaskMutationOptions(options));
+};
+
+export const getAddEventTasksFromTemplatesUrl = (id: number) => {
+  return `/api/events/${id}/tasks/from-templates`;
+};
+
+export const addEventTasksFromTemplates = async (
+  id: number,
+  addEventTasksFromTemplatesBody: AddEventTasksFromTemplatesBody,
+  options?: RequestInit,
+): Promise<AddEventTasksFromTemplates201> => {
+  return customFetch<AddEventTasksFromTemplates201>(
+    getAddEventTasksFromTemplatesUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(addEventTasksFromTemplatesBody),
+    },
+  );
+};
+
+export const getAddEventTasksFromTemplatesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+    TError,
+    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+  TError,
+  { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+  TContext
+> => {
+  const mutationKey = ["addEventTasksFromTemplates"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return addEventTasksFromTemplates(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddEventTasksFromTemplatesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addEventTasksFromTemplates>>
+>;
+export type AddEventTasksFromTemplatesMutationBody =
+  BodyType<AddEventTasksFromTemplatesBody>;
+export type AddEventTasksFromTemplatesMutationError = ErrorType<unknown>;
+
+export const useAddEventTasksFromTemplates = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+    TError,
+    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+  TError,
+  { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+  TContext
+> => {
+  return useMutation(getAddEventTasksFromTemplatesMutationOptions(options));
+};
+
+export const getUpdateEventTaskUrl = (id: number, taskId: number) => {
+  return `/api/events/${id}/tasks/${taskId}`;
+};
+
+export const updateEventTask = async (
+  id: number,
+  taskId: number,
+  eventTaskBody: EventTaskBody,
+  options?: RequestInit,
+): Promise<EventTask> => {
+  return customFetch<EventTask>(getUpdateEventTaskUrl(id, taskId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eventTaskBody),
+  });
+};
+
+export const getUpdateEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    TError,
+    { id: number; taskId: number; data: BodyType<EventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateEventTask>>,
+  TError,
+  { id: number; taskId: number; data: BodyType<EventTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["updateEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    { id: number; taskId: number; data: BodyType<EventTaskBody> }
+  > = (props) => {
+    const { id, taskId, data } = props ?? {};
+
+    return updateEventTask(id, taskId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateEventTask>>
+>;
+export type UpdateEventTaskMutationBody = BodyType<EventTaskBody>;
+export type UpdateEventTaskMutationError = ErrorType<unknown>;
+
+export const useUpdateEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateEventTask>>,
+    TError,
+    { id: number; taskId: number; data: BodyType<EventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateEventTask>>,
+  TError,
+  { id: number; taskId: number; data: BodyType<EventTaskBody> },
+  TContext
+> => {
+  return useMutation(getUpdateEventTaskMutationOptions(options));
+};
+
+export const getDeleteEventTaskUrl = (id: number, taskId: number) => {
+  return `/api/events/${id}/tasks/${taskId}`;
+};
+
+export const deleteEventTask = async (
+  id: number,
+  taskId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteEventTaskUrl(id, taskId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    TError,
+    { id: number; taskId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEventTask>>,
+  TError,
+  { id: number; taskId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    { id: number; taskId: number }
+  > = (props) => {
+    const { id, taskId } = props ?? {};
+
+    return deleteEventTask(id, taskId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEventTask>>
+>;
+
+export type DeleteEventTaskMutationError = ErrorType<unknown>;
+
+export const useDeleteEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEventTask>>,
+    TError,
+    { id: number; taskId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEventTask>>,
+  TError,
+  { id: number; taskId: number },
+  TContext
+> => {
+  return useMutation(getDeleteEventTaskMutationOptions(options));
+};
+
+export const getSignUpForEventTaskUrl = (id: number, taskId: number) => {
+  return `/api/events/${id}/tasks/${taskId}/signup`;
+};
+
+export const signUpForEventTask = async (
+  id: number,
+  taskId: number,
+  signUpForEventTaskBody?: SignUpForEventTaskBody,
+  options?: RequestInit,
+): Promise<EventTaskSignup> => {
+  return customFetch<EventTaskSignup>(getSignUpForEventTaskUrl(id, taskId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(signUpForEventTaskBody),
+  });
+};
+
+export const getSignUpForEventTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signUpForEventTask>>,
+    TError,
+    { id: number; taskId: number; data: BodyType<SignUpForEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signUpForEventTask>>,
+  TError,
+  { id: number; taskId: number; data: BodyType<SignUpForEventTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["signUpForEventTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signUpForEventTask>>,
+    { id: number; taskId: number; data: BodyType<SignUpForEventTaskBody> }
+  > = (props) => {
+    const { id, taskId, data } = props ?? {};
+
+    return signUpForEventTask(id, taskId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignUpForEventTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signUpForEventTask>>
+>;
+export type SignUpForEventTaskMutationBody = BodyType<SignUpForEventTaskBody>;
+export type SignUpForEventTaskMutationError = ErrorType<unknown>;
+
+export const useSignUpForEventTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signUpForEventTask>>,
+    TError,
+    { id: number; taskId: number; data: BodyType<SignUpForEventTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof signUpForEventTask>>,
+  TError,
+  { id: number; taskId: number; data: BodyType<SignUpForEventTaskBody> },
+  TContext
+> => {
+  return useMutation(getSignUpForEventTaskMutationOptions(options));
+};
+
+export const getCancelEventTaskSignupUrl = (id: number, taskId: number) => {
+  return `/api/events/${id}/tasks/${taskId}/signup`;
+};
+
+export const cancelEventTaskSignup = async (
+  id: number,
+  taskId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getCancelEventTaskSignupUrl(id, taskId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getCancelEventTaskSignupMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelEventTaskSignup>>,
+    TError,
+    { id: number; taskId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelEventTaskSignup>>,
+  TError,
+  { id: number; taskId: number },
+  TContext
+> => {
+  const mutationKey = ["cancelEventTaskSignup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelEventTaskSignup>>,
+    { id: number; taskId: number }
+  > = (props) => {
+    const { id, taskId } = props ?? {};
+
+    return cancelEventTaskSignup(id, taskId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelEventTaskSignupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelEventTaskSignup>>
+>;
+
+export type CancelEventTaskSignupMutationError = ErrorType<unknown>;
+
+export const useCancelEventTaskSignup = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelEventTaskSignup>>,
+    TError,
+    { id: number; taskId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelEventTaskSignup>>,
+  TError,
+  { id: number; taskId: number },
+  TContext
+> => {
+  return useMutation(getCancelEventTaskSignupMutationOptions(options));
+};
+
+export const getListVolunteerTemplateTasksUrl = () => {
+  return `/api/volunteer-tasks/templates`;
+};
+
+export const listVolunteerTemplateTasks = async (
+  options?: RequestInit,
+): Promise<VolunteerTemplateTask[]> => {
+  return customFetch<VolunteerTemplateTask[]>(
+    getListVolunteerTemplateTasksUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVolunteerTemplateTasksQueryKey = () => {
+  return [`/api/volunteer-tasks/templates`] as const;
+};
+
+export const getListVolunteerTemplateTasksQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVolunteerTemplateTasks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateTasks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVolunteerTemplateTasksQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVolunteerTemplateTasks>>
+  > = ({ signal }) => listVolunteerTemplateTasks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateTasks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVolunteerTemplateTasksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVolunteerTemplateTasks>>
+>;
+export type ListVolunteerTemplateTasksQueryError = ErrorType<unknown>;
+
+export function useListVolunteerTemplateTasks<
+  TData = Awaited<ReturnType<typeof listVolunteerTemplateTasks>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateTasks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVolunteerTemplateTasksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateVolunteerTemplateTaskUrl = () => {
+  return `/api/volunteer-tasks/templates`;
+};
+
+export const createVolunteerTemplateTask = async (
+  volunteerTemplateTaskBody: VolunteerTemplateTaskBody,
+  options?: RequestInit,
+): Promise<VolunteerTemplateTask> => {
+  return customFetch<VolunteerTemplateTask>(
+    getCreateVolunteerTemplateTaskUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateTaskBody),
+    },
+  );
+};
+
+export const getCreateVolunteerTemplateTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
+    TError,
+    { data: BodyType<VolunteerTemplateTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
+  TError,
+  { data: BodyType<VolunteerTemplateTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["createVolunteerTemplateTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
+    { data: BodyType<VolunteerTemplateTaskBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createVolunteerTemplateTask(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVolunteerTemplateTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVolunteerTemplateTask>>
+>;
+export type CreateVolunteerTemplateTaskMutationBody =
+  BodyType<VolunteerTemplateTaskBody>;
+export type CreateVolunteerTemplateTaskMutationError = ErrorType<unknown>;
+
+export const useCreateVolunteerTemplateTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
+    TError,
+    { data: BodyType<VolunteerTemplateTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
+  TError,
+  { data: BodyType<VolunteerTemplateTaskBody> },
+  TContext
+> => {
+  return useMutation(getCreateVolunteerTemplateTaskMutationOptions(options));
+};
+
+export const getUpdateVolunteerTemplateTaskUrl = (id: number) => {
+  return `/api/volunteer-tasks/templates/${id}`;
+};
+
+export const updateVolunteerTemplateTask = async (
+  id: number,
+  volunteerTemplateTaskBody: VolunteerTemplateTaskBody,
+  options?: RequestInit,
+): Promise<VolunteerTemplateTask> => {
+  return customFetch<VolunteerTemplateTask>(
+    getUpdateVolunteerTemplateTaskUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateTaskBody),
+    },
+  );
+};
+
+export const getUpdateVolunteerTemplateTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
+    TError,
+    { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
+  TError,
+  { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+  TContext
+> => {
+  const mutationKey = ["updateVolunteerTemplateTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
+    { id: number; data: BodyType<VolunteerTemplateTaskBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateVolunteerTemplateTask(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVolunteerTemplateTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVolunteerTemplateTask>>
+>;
+export type UpdateVolunteerTemplateTaskMutationBody =
+  BodyType<VolunteerTemplateTaskBody>;
+export type UpdateVolunteerTemplateTaskMutationError = ErrorType<unknown>;
+
+export const useUpdateVolunteerTemplateTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
+    TError,
+    { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
+  TError,
+  { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+  TContext
+> => {
+  return useMutation(getUpdateVolunteerTemplateTaskMutationOptions(options));
+};
+
+export const getDeleteVolunteerTemplateTaskUrl = (id: number) => {
+  return `/api/volunteer-tasks/templates/${id}`;
+};
+
+export const deleteVolunteerTemplateTask = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteVolunteerTemplateTaskUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteVolunteerTemplateTaskMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteVolunteerTemplateTask"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteVolunteerTemplateTask(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteVolunteerTemplateTaskMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>
+>;
+
+export type DeleteVolunteerTemplateTaskMutationError = ErrorType<unknown>;
+
+export const useDeleteVolunteerTemplateTask = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateTask>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteVolunteerTemplateTaskMutationOptions(options));
 };
 
 /**

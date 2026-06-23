@@ -21,6 +21,7 @@ export const eventsTable = pgTable("events", {
   isAllTeam: boolean("is_all_team").notNull().default(false),
   rsvpDeadline: timestamp("rsvp_deadline", { withTimezone: true }),
   volunteerSlotsNeeded: integer("volunteer_slots_needed").notNull().default(0),
+  volunteerTasksEnabled: boolean("volunteer_tasks_enabled").notNull().default(false),
   createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   iCalUid: text("ical_uid").notNull().unique(),
   isArchived: boolean("is_archived").notNull().default(false),
@@ -75,3 +76,61 @@ export const insertVolunteerSignupSchema = createInsertSchema(volunteerSignupsTa
 
 export type InsertVolunteerSignup = z.infer<typeof insertVolunteerSignupSchema>;
 export type VolunteerSignup = typeof volunteerSignupsTable.$inferSelect;
+
+// ─── VOLUNTEER TASK SYSTEM ──────────────────────────────────────────────────
+
+export const volunteerTemplateTasksTable = pgTable("volunteer_template_tasks", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  slotsDefault: integer("slots_default").notNull().default(1),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertVolunteerTemplateTaskSchema = createInsertSchema(volunteerTemplateTasksTable).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertVolunteerTemplateTask = z.infer<typeof insertVolunteerTemplateTaskSchema>;
+export type VolunteerTemplateTask = typeof volunteerTemplateTasksTable.$inferSelect;
+
+export const eventTasksTable = pgTable("event_tasks", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => eventsTable.id, { onDelete: "cascade" }),
+  templateTaskId: integer("template_task_id").references(() => volunteerTemplateTasksTable.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  slotsNeeded: integer("slots_needed").notNull().default(1),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertEventTaskSchema = createInsertSchema(eventTasksTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEventTask = z.infer<typeof insertEventTaskSchema>;
+export type EventTask = typeof eventTasksTable.$inferSelect;
+
+export const eventTaskSignupsTable = pgTable("event_task_signups", {
+  id: serial("id").primaryKey(),
+  eventTaskId: integer("event_task_id").notNull().references(() => eventTasksTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTable).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertEventTaskSignup = z.infer<typeof insertEventTaskSignupSchema>;
+export type EventTaskSignup = typeof eventTaskSignupsTable.$inferSelect;

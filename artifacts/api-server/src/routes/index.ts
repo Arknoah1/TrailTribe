@@ -13,6 +13,7 @@ import storageRouter from "./storage";
 import teamDocumentsRouter from "./team-documents";
 import notificationsRouter from "./notifications";
 import calendarRouter from "./calendar";
+import volunteerTasksRouter from "./volunteerTasks";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(storageRouter);
 router.use(teamDocumentsRouter);
 router.use(notificationsRouter);
 router.use(calendarRouter);
+router.use(volunteerTasksRouter);
 
 export default router;

@@ -405,6 +405,61 @@ export interface VolunteerSignupBody {
   notes?: string;
 }
 
+export interface VolunteerTemplateTask {
+  id: number;
+  category: string;
+  title: string;
+  description?: string | null;
+  slotsDefault: number;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface VolunteerTemplateTaskBody {
+  category: string;
+  title: string;
+  description?: string;
+  slotsDefault?: number;
+  sortOrder?: number;
+}
+
+export interface EventTask {
+  id: number;
+  eventId: number;
+  templateTaskId?: number | null;
+  category: string;
+  title: string;
+  description?: string | null;
+  slotsNeeded: number;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface EventTaskBody {
+  category: string;
+  title: string;
+  description?: string;
+  slotsNeeded?: number;
+  sortOrder?: number;
+}
+
+export interface EventTaskSignup {
+  id: number;
+  eventTaskId: number;
+  userId: number;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type EventTaskSignupWithUser = EventTaskSignup & {
+  user: User;
+};
+
+export type EventTaskWithSignups = EventTask & {
+  signups: EventTaskSignupWithUser[];
+  mySignup?: EventTaskSignup | null;
+};
+
 export interface CarpoolOffer {
   id: number;
   eventId: number;
@@ -694,6 +749,22 @@ export type RescheduleSeriesBody = {
 
 export type RescheduleSeries200 = {
   rescheduled: number;
+};
+
+export type SetEventVolunteerTasksEnabledBody = {
+  enabled: boolean;
+};
+
+export type AddEventTasksFromTemplatesBody = {
+  templateTaskIds: number[];
+};
+
+export type AddEventTasksFromTemplates201 = {
+  added: number;
+};
+
+export type SignUpForEventTaskBody = {
+  notes?: string;
 };
 
 export type ListBroadcastsParams = {

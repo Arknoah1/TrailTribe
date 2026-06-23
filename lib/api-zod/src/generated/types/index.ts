@@ -7,6 +7,8 @@
  */
 
 export * from "./addAttachmentBody";
+export * from "./addEventTasksFromTemplates201";
+export * from "./addEventTasksFromTemplatesBody";
 export * from "./approveUserBody";
 export * from "./approveUserBodyRole";
 export * from "./batchCreateEventsBody";
@@ -44,6 +46,11 @@ export * from "./eventEventType";
 export * from "./eventRsvp";
 export * from "./eventRsvpStatus";
 export * from "./eventRsvpWithUser";
+export * from "./eventTask";
+export * from "./eventTaskBody";
+export * from "./eventTaskSignup";
+export * from "./eventTaskSignupWithUser";
+export * from "./eventTaskWithSignups";
 export * from "./eventWithDetails";
 export * from "./eventWithDetailsMyRsvp";
 export * from "./healthStatus";
@@ -71,6 +78,8 @@ export * from "./rsvpBodyStatus";
 export * from "./rsvpCounts";
 export * from "./sendBroadcastBody";
 export * from "./sendBroadcastBodyChannel";
+export * from "./setEventVolunteerTasksEnabledBody";
+export * from "./signUpForEventTaskBody";
 export * from "./successResponse";
 export * from "./trailhead";
 export * from "./updateCarpoolOfferBody";
@@ -88,3 +97,5 @@ export * from "./userRole";
 export * from "./volunteerSignup";
 export * from "./volunteerSignupBody";
 export * from "./volunteerSignupWithUser";
+export * from "./volunteerTemplateTask";
+export * from "./volunteerTemplateTaskBody";

@@ -1180,6 +1180,201 @@ export const CancelVolunteerSignupParams = zod.object({
   volunteerId: zod.coerce.number(),
 });
 
+export const SetEventVolunteerTasksEnabledParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetEventVolunteerTasksEnabledBody = zod.object({
+  enabled: zod.boolean(),
+});
+
+export const ListEventTasksParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListEventTasksResponseItem = zod
+  .object({
+    id: zod.number(),
+    eventId: zod.number(),
+    templateTaskId: zod.number().nullish(),
+    category: zod.string(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    slotsNeeded: zod.number(),
+    sortOrder: zod.number(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      signups: zod.array(
+        zod
+          .object({
+            id: zod.number(),
+            eventTaskId: zod.number(),
+            userId: zod.number(),
+            notes: zod.string().nullish(),
+            createdAt: zod.coerce.date(),
+          })
+          .and(
+            zod.object({
+              user: zod.object({
+                id: zod.number(),
+                householdId: zod.number().nullish(),
+                firstName: zod.string(),
+                lastName: zod.string(),
+                email: zod.string(),
+                phone: zod.string().nullish(),
+                role: zod.enum(["admin", "coach", "parent", "student"]),
+                podId: zod.string().nullish(),
+                avatarUrl: zod.string().nullish(),
+                isActive: zod.boolean(),
+                gender: zod.string().nullish(),
+                grade: zod.number().nullish(),
+                coachCertLevel: zod.string().nullish(),
+                notificationsEnabled: zod.boolean(),
+                emailNotifications: zod.boolean(),
+                smsNotifications: zod.boolean(),
+                pushNotifications: zod.boolean(),
+                defaultCarpoolSeats: zod.number().nullish(),
+                defaultCarpoolTrays: zod.number().nullish(),
+                notificationPreferences: zod
+                  .object({
+                    practiceReminders: zod.boolean(),
+                    coachMessages: zod.boolean(),
+                    carpoolUpdates: zod.boolean(),
+                    eventReminders: zod.boolean(),
+                    rosterUpdates: zod.boolean(),
+                  })
+                  .nullish(),
+                createdAt: zod.coerce.date(),
+              }),
+            }),
+          ),
+      ),
+      mySignup: zod
+        .object({
+          id: zod.number(),
+          eventTaskId: zod.number(),
+          userId: zod.number(),
+          notes: zod.string().nullish(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListEventTasksResponse = zod.array(ListEventTasksResponseItem);
+
+export const CreateEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateEventTaskBody = zod.object({
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().optional(),
+  slotsNeeded: zod.number().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const AddEventTasksFromTemplatesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AddEventTasksFromTemplatesBody = zod.object({
+  templateTaskIds: zod.array(zod.number()),
+});
+
+export const UpdateEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+  taskId: zod.coerce.number(),
+});
+
+export const UpdateEventTaskBody = zod.object({
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().optional(),
+  slotsNeeded: zod.number().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateEventTaskResponse = zod.object({
+  id: zod.number(),
+  eventId: zod.number(),
+  templateTaskId: zod.number().nullish(),
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  slotsNeeded: zod.number(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+
+export const DeleteEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+  taskId: zod.coerce.number(),
+});
+
+export const SignUpForEventTaskParams = zod.object({
+  id: zod.coerce.number(),
+  taskId: zod.coerce.number(),
+});
+
+export const SignUpForEventTaskBody = zod.object({
+  notes: zod.string().optional(),
+});
+
+export const CancelEventTaskSignupParams = zod.object({
+  id: zod.coerce.number(),
+  taskId: zod.coerce.number(),
+});
+
+export const ListVolunteerTemplateTasksResponseItem = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  slotsDefault: zod.number(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListVolunteerTemplateTasksResponse = zod.array(
+  ListVolunteerTemplateTasksResponseItem,
+);
+
+export const CreateVolunteerTemplateTaskBody = zod.object({
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().optional(),
+  slotsDefault: zod.number().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateVolunteerTemplateTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateVolunteerTemplateTaskBody = zod.object({
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().optional(),
+  slotsDefault: zod.number().optional(),
+  sortOrder: zod.number().optional(),
+});
+
+export const UpdateVolunteerTemplateTaskResponse = zod.object({
+  id: zod.number(),
+  category: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  slotsDefault: zod.number(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+
+export const DeleteVolunteerTemplateTaskParams = zod.object({
+  id: zod.coerce.number(),
+});
+
 /**
  * @summary Add a file attachment (e.g. race PDF flyer) to an event
  */

@@ -706,6 +706,267 @@ paths:
         "204":
           description: Cancelled
 
+  /events/{id}/volunteer-tasks-enabled:
+    patch:
+      operationId: setEventVolunteerTasksEnabled
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+              required: [enabled]
+      responses:
+        "200":
+          description: Updated
+
+  /events/{id}/tasks:
+    get:
+      operationId: listEventTasks
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of event tasks with signup info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventTaskWithSignups"
+    post:
+      operationId: createEventTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTaskBody"
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTask"
+
+  /events/{id}/tasks/from-templates:
+    post:
+      operationId: addEventTasksFromTemplates
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                templateTaskIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [templateTaskIds]
+      responses:
+        "201":
+          description: Tasks added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  added:
+                    type: integer
+                required: [added]
+
+  /events/{id}/tasks/{taskId}:
+    patch:
+      operationId: updateEventTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTaskBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTask"
+    delete:
+      operationId: deleteEventTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /events/{id}/tasks/{taskId}/signup:
+    post:
+      operationId: signUpForEventTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes:
+                  type: string
+      responses:
+        "201":
+          description: Signed up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventTaskSignup"
+    delete:
+      operationId: cancelEventTaskSignup
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cancelled
+
+  /volunteer-tasks/templates:
+    get:
+      operationId: listVolunteerTemplateTasks
+      tags: [events]
+      responses:
+        "200":
+          description: List of template tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VolunteerTemplateTask"
+    post:
+      operationId: createVolunteerTemplateTask
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateTaskBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerTemplateTask"
+
+  /volunteer-tasks/templates/{id}:
+    put:
+      operationId: updateVolunteerTemplateTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateTaskBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerTemplateTask"
+    delete:
+      operationId: deleteVolunteerTemplateTask
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /events/{id}/attachments:
     post:
       operationId: addEventAttachment
@@ -2004,6 +2265,125 @@ components:
           type: string
         notes:
           type: string
+
+    # ─── VOLUNTEER TASK SYSTEM ────────────────────────────────────────────────
+
+    VolunteerTemplateTask:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slotsDefault:
+          type: integer
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, category, title, slotsDefault, sortOrder, createdAt]
+
+    VolunteerTemplateTaskBody:
+      type: object
+      properties:
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        slotsDefault:
+          type: integer
+        sortOrder:
+          type: integer
+      required: [category, title]
+
+    EventTask:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventId:
+          type: integer
+        templateTaskId:
+          type: integer
+          nullable: true
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slotsNeeded:
+          type: integer
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, eventId, category, title, slotsNeeded, sortOrder, createdAt]
+
+    EventTaskBody:
+      type: object
+      properties:
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        slotsNeeded:
+          type: integer
+        sortOrder:
+          type: integer
+      required: [category, title]
+
+    EventTaskSignup:
+      type: object
+      properties:
+        id:
+          type: integer
+        eventTaskId:
+          type: integer
+        userId:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, eventTaskId, userId, createdAt]
+
+    EventTaskSignupWithUser:
+      allOf:
+        - $ref: "#/components/schemas/EventTaskSignup"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/User"
+          required: [user]
+
+    EventTaskWithSignups:
+      allOf:
+        - $ref: "#/components/schemas/EventTask"
+        - type: object
+          properties:
+            signups:
+              type: array
+              items:
+                $ref: "#/components/schemas/EventTaskSignupWithUser"
+            mySignup:
+              $ref: "#/components/schemas/EventTaskSignup"
+              nullable: true
+          required: [signups]
 
     # ─── CARPOOL ──────────────────────────────────────────────────────────────
 

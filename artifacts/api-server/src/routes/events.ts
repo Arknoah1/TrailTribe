@@ -4,6 +4,8 @@ import {
   eventsTable,
   eventRsvpsTable,
   volunteerSignupsTable,
+  eventTasksTable,
+  eventTaskSignupsTable,
   trailheadsTable,
   eventAttachmentsTable,
   usersTable,
@@ -40,7 +42,6 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
     }
   }
 
-  const volunteers = await db.select().from(volunteerSignupsTable).where(eq(volunteerSignupsTable.eventId, event.id));
   const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
 
   const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
@@ -51,12 +52,22 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
     carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
   }
 
+  // Count unique volunteers signed up for tasks (new system)
+  const eventTasks = await db.select({ id: eventTasksTable.id }).from(eventTasksTable).where(eq(eventTasksTable.eventId, event.id));
+  let volunteerCount = 0;
+  if (eventTasks.length > 0) {
+    const taskIds = eventTasks.map((t) => t.id);
+    const taskSignups = await db.select().from(eventTaskSignupsTable).where(inArray(eventTaskSignupsTable.eventTaskId, taskIds));
+    const uniqueUserIds = new Set(taskSignups.map((s) => s.userId));
+    volunteerCount = uniqueUserIds.size;
+  }
+
   return {
     ...event,
     trailhead: trailhead ?? null,
     rsvpCounts,
     myRsvp,
-    volunteerCount: volunteers.length,
+    volunteerCount,
     carpoolSpotsAvailable,
     attachments,
   };

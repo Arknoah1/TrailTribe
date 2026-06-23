@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startEmailReminderJob } from "./lib/emailReminders";
+import { startVolunteerReminderJob } from "./lib/volunteerReminders";
 import { runMigrations } from "./lib/migrate";
 
 const rawPort = process.env["PORT"];
@@ -27,6 +28,7 @@ runMigrations()
 
       logger.info({ port }, "Server listening");
       startEmailReminderJob();
+      startVolunteerReminderJob();
     });
   })
   .catch((err) => {

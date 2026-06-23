@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType, useListVolunteerTemplateTasks, useCreateVolunteerTemplateTask, useUpdateVolunteerTemplateTask, useDeleteVolunteerTemplateTask, getListVolunteerTemplateTasksQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -241,6 +241,19 @@ export default function Admin() {
     }
   }, [pods]);
 
+  // Volunteer template task state
+  const { data: templateTasks } = useListVolunteerTemplateTasks({
+    query: { queryKey: getListVolunteerTemplateTasksQueryKey() }
+  });
+  const createTemplateMut = useCreateVolunteerTemplateTask();
+  const updateTemplateMut = useUpdateVolunteerTemplateTask();
+  const deleteTemplateMut = useDeleteVolunteerTemplateTask();
+  const emptyTemplate = { category: "", title: "", description: "", slotsDefault: 1 };
+  const [newTemplate, setNewTemplate] = useState(emptyTemplate);
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [editingTemplateData, setEditingTemplateData] = useState(emptyTemplate);
+
   // Trailhead management state
   const { data: trailheads } = useListTrailheads();
   const createTrailhead = useCreateTrailhead();
@@ -457,6 +470,7 @@ export default function Admin() {
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="pods">Pods</TabsTrigger>
           <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
+          <TabsTrigger value="volunteer-templates">Volunteer Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster" className="mt-6 space-y-4">
@@ -1838,6 +1852,201 @@ export default function Admin() {
                 </div>
               </CardContent>
             )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="volunteer-templates" className="mt-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold">Volunteer Task Templates</h2>
+            <p className="text-sm text-muted-foreground mt-1">Master library of reusable volunteer tasks. Coaches can add these to any event with one click.</p>
+          </div>
+
+          <Card className="bg-card border-border">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{(templateTasks as any[])?.length ?? 0} template{((templateTasks as any[])?.length ?? 0) !== 1 ? "s" : ""}</span>
+                <Button size="sm" onClick={() => setShowAddTemplate(true)} disabled={showAddTemplate}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Template
+                </Button>
+              </div>
+
+              {showAddTemplate && (
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <p className="text-sm font-medium">New Template</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Category</label>
+                      <Input
+                        placeholder="e.g. Course Marshal"
+                        value={newTemplate.category}
+                        onChange={e => setNewTemplate(p => ({ ...p, category: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Title</label>
+                      <Input
+                        placeholder="e.g. Start Line Marshal"
+                        value={newTemplate.title}
+                        onChange={e => setNewTemplate(p => ({ ...p, title: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs text-muted-foreground">Description (optional)</label>
+                      <Input
+                        placeholder="Brief description of the role"
+                        value={newTemplate.description}
+                        onChange={e => setNewTemplate(p => ({ ...p, description: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Default slots</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={99}
+                        value={newTemplate.slotsDefault}
+                        onChange={e => setNewTemplate(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))}
+                        className="h-8 text-sm w-24"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!newTemplate.category.trim() || !newTemplate.title.trim() || createTemplateMut.isPending}
+                      onClick={() => {
+                        createTemplateMut.mutate(
+                          { data: { category: newTemplate.category.trim(), title: newTemplate.title.trim(), description: newTemplate.description.trim() || undefined, slotsDefault: newTemplate.slotsDefault } },
+                          {
+                            onSuccess: () => {
+                              queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
+                              setNewTemplate(emptyTemplate);
+                              setShowAddTemplate(false);
+                              toast({ title: "Template added" });
+                            },
+                            onError: () => toast({ title: "Failed to add template", variant: "destructive" }),
+                          }
+                        );
+                      }}
+                    >
+                      Save Template
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowAddTemplate(false); setNewTemplate(emptyTemplate); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Group templates by category */}
+              {(() => {
+                const tasks = (templateTasks as any[]) ?? [];
+                const categories = Array.from(new Set(tasks.map((t: any) => t.category))).sort() as string[];
+                if (tasks.length === 0) {
+                  return <p className="text-sm text-muted-foreground text-center py-8">No templates yet. Add one above to get started.</p>;
+                }
+                return categories.map((cat: string) => (
+                  <div key={cat} className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
+                    <div className="space-y-2">
+                      {tasks.filter((t: any) => t.category === cat).map((task: any) => (
+                        <div key={task.id} className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
+                          {editingTemplateId === task.id ? (
+                            <div className="flex-1 space-y-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Category</label>
+                                  <Input value={editingTemplateData.category} onChange={e => setEditingTemplateData(p => ({ ...p, category: e.target.value }))} className="h-7 text-xs" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Title</label>
+                                  <Input value={editingTemplateData.title} onChange={e => setEditingTemplateData(p => ({ ...p, title: e.target.value }))} className="h-7 text-xs" />
+                                </div>
+                                <div className="space-y-1 sm:col-span-2">
+                                  <label className="text-xs text-muted-foreground">Description</label>
+                                  <Input value={editingTemplateData.description} onChange={e => setEditingTemplateData(p => ({ ...p, description: e.target.value }))} className="h-7 text-xs" />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-xs text-muted-foreground">Default slots</label>
+                                  <Input type="number" min={1} max={99} value={editingTemplateData.slotsDefault} onChange={e => setEditingTemplateData(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))} className="h-7 text-xs w-20" />
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={updateTemplateMut.isPending}
+                                  onClick={() => {
+                                    updateTemplateMut.mutate(
+                                      { id: task.id, data: { category: editingTemplateData.category.trim(), title: editingTemplateData.title.trim(), description: editingTemplateData.description.trim() || undefined, slotsDefault: editingTemplateData.slotsDefault } },
+                                      {
+                                        onSuccess: () => {
+                                          queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
+                                          setEditingTemplateId(null);
+                                          toast({ title: "Template updated" });
+                                        },
+                                        onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+                                      }
+                                    );
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTemplateId(null)}>Cancel</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium leading-tight">{task.title}</p>
+                              {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>}
+                              <p className="text-xs text-muted-foreground mt-1">{task.slotsDefault} slot{task.slotsDefault !== 1 ? "s" : ""} by default</p>
+                            </div>
+                          )}
+                          {editingTemplateId !== task.id && (
+                            <div className="flex gap-1 shrink-0">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditingTemplateId(task.id);
+                                  setEditingTemplateData({ category: task.category, title: task.title, description: task.description ?? "", slotsDefault: task.slotsDefault });
+                                }}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                disabled={deleteTemplateMut.isPending}
+                                onClick={() => {
+                                  deleteTemplateMut.mutate(
+                                    { id: task.id },
+                                    {
+                                      onSuccess: () => {
+                                        queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
+                                        toast({ title: "Template deleted" });
+                                      },
+                                      onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+                                    }
+                                  );
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
