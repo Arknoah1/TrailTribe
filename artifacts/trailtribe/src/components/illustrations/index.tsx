@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 const INK = "#0a0c10";
 
@@ -6,72 +6,6 @@ interface IllustrationProps {
   className?: string;
 }
 
-export function RidgelineBanner({ className = "", animated = false }: { className?: string; animated?: boolean }) {
-  const groupRef = useRef<SVGGElement>(null);
-  useEffect(() => {
-    if (!animated || !groupRef.current) return;
-    let frame: number;
-    let x = 0;
-    const speed = 0.3;
-    const animate = () => {
-      x -= speed;
-      if (x < -400) x = 0;
-      if (groupRef.current) groupRef.current.setAttribute("transform", `translate(${x}, 0)`);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, [animated]);
-
-  return (
-    <svg
-      viewBox="0 0 800 80"
-      preserveAspectRatio="xMidYMid slice"
-      className={`w-full overflow-hidden ${className}`}
-      aria-hidden="true"
-    >
-      <defs>
-        <clipPath id="ridge-clip">
-          <rect width="800" height="80" />
-        </clipPath>
-      </defs>
-      <g clipPath="url(#ridge-clip)">
-        <g ref={groupRef}>
-          {/* Repeat the scene twice for seamless loop */}
-          {[0, 400].map(offset => (
-            <g key={offset} transform={`translate(${offset}, 0)`}>
-              {/* Sky fill */}
-              <rect x="0" y="0" width="400" height="80" fill="transparent" />
-              {/* Far mountain range */}
-              <path
-                d="M0 60 L30 35 L55 50 L80 20 L110 40 L140 15 L165 38 L185 25 L210 42 L240 18 L265 38 L285 28 L310 45 L340 22 L365 40 L385 30 L400 48 L400 80 L0 80 Z"
-                fill="hsl(222 22% 18%)"
-                stroke={INK}
-                strokeWidth="2"
-              />
-              {/* Near ridge */}
-              <path
-                d="M0 70 L20 55 L45 65 L70 50 L90 58 L115 44 L145 56 L170 48 L195 60 L220 52 L245 65 L270 55 L295 68 L320 58 L345 70 L370 60 L395 72 L400 68 L400 80 L0 80 Z"
-                fill="hsl(226 24% 14%)"
-                stroke={INK}
-                strokeWidth="2"
-              />
-              {/* Pine trees */}
-              {[30, 80, 145, 195, 255, 310, 355].map((tx, i) => (
-                <g key={i} transform={`translate(${tx}, 0)`}>
-                  <polygon points="0,28 -8,50 8,50" fill="hsl(174 100% 22%)" stroke={INK} strokeWidth="1.5" />
-                  <polygon points="0,20 -10,44 10,44" fill="hsl(174 100% 28%)" stroke={INK} strokeWidth="1.5" />
-                  <polygon points="0,14 -12,38 12,38" fill="hsl(174 100% 20%)" stroke={INK} strokeWidth="1.5" />
-                  <rect x="-2" y="50" width="4" height="6" fill={INK} />
-                </g>
-              ))}
-            </g>
-          ))}
-        </g>
-      </g>
-    </svg>
-  );
-}
 
 export function BikeWheelArc({ className = "" }: IllustrationProps) {
   const cx = 40, cy = 40, r = 32;

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
+import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken, PodWithStats } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
@@ -158,10 +158,6 @@ export default function Calendar() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

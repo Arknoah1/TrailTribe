@@ -14,7 +14,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Car, MapPin, Clock, Plus, Bike, Pencil, Trash2, Users } from "lucide-react";
-import { RidgelineBanner, EmptyTrailState } from "@/components/illustrations";
+import { EmptyTrailState } from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -371,10 +371,6 @@ export default function CarpoolBoard() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

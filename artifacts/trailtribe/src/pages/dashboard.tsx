@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { format } from "date-fns";
 import { CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
-import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
+import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 
 export default function Dashboard() {
   const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
@@ -28,10 +28,6 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-8">
       <div>

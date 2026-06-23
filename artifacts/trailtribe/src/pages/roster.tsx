@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, User, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { RidgelineBanner, PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
+import { PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
 
 export default function Roster() {
   const { data: pods, isLoading: isLoadingPods } = useListPods();
@@ -16,10 +16,6 @@ export default function Roster() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-8">
       <div>

@@ -1,5 +1,4 @@
 import Dashboard from "./pages/dashboard";
-import { RidgelineBanner } from "@/components/illustrations";
 import Calendar from "./pages/calendar";
 import EventDetail from "./pages/event-detail";
 import CarpoolBoard from "./pages/carpools";
@@ -67,9 +66,6 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 function SignInPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
-      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner className="h-20" />
-      </div>
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center">
@@ -86,9 +82,6 @@ function SignInPage() {
 function SignUpPage() {
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
-      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner className="h-20" />
-      </div>
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center">
@@ -145,9 +138,6 @@ function ClerkAuthSyncer() {
 function Home() {
   return (
     <div className="min-h-[100dvh] w-full flex flex-col bg-background overflow-hidden">
-      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-24" />
-      </div>
       <div className="flex flex-1 flex-col items-center justify-center p-8">
         <div className="text-center max-w-sm mx-auto">
           <h1 className="font-display text-6xl tracking-widest text-primary mb-2 leading-none">TrailTribe</h1>

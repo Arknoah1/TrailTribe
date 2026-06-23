@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
-import { RidgelineBanner, EmptyTrailState } from "@/components/illustrations";
+import { EmptyTrailState } from "@/components/illustrations";
 
 export default function Messages() {
   const { data: broadcasts, isLoading } = useListBroadcasts();
@@ -39,10 +39,6 @@ export default function Messages() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

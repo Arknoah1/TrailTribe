@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { useGetMe } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
-import { RidgelineBanner } from "./illustrations";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -93,10 +92,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Sidebar footer with ridgeline */}
-        <div className="border-t-2 border-[#0a0c10] overflow-hidden">
-          <RidgelineBanner animated className="h-14 opacity-60" />
-        </div>
       </aside>
 
       {/* Mobile Top Bar */}

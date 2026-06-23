@@ -7,7 +7,7 @@ import { Car, MapPin, Calendar, ChevronRight, Bike } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
+import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 
 type EventTypeFilter = "all" | "practice" | "race";
 
@@ -36,10 +36,6 @@ export default function CarpoolHub() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Page banner */}
-      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
-        <RidgelineBanner animated className="h-16" />
-      </div>
 
       <div className="px-6 md:px-8 space-y-6">
       <div>
