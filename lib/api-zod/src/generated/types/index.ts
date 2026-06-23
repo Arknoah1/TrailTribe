@@ -63,6 +63,7 @@ export * from "./listEventsParams";
 export * from "./listUsersParams";
 export * from "./listUsersRole";
 export * from "./matchCarpoolRequestBody";
+export * from "./myVolunteerSignup";
 export * from "./onboardUserBody";
 export * from "./onboardUserBodyRole";
 export * from "./pod";

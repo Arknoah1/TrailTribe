@@ -3,24 +3,12 @@ import { eventsTable, eventTasksTable, eventTaskSignupsTable, usersTable, notifi
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { logger } from "./logger";
 
-const sentVolunteerReminders = new Set<string>();
-let sentRemindersDate = new Date().toISOString().slice(0, 10);
-
-function reminderKey(eventId: number, userId: number): string {
-  const today = new Date().toISOString().slice(0, 10);
-  if (today !== sentRemindersDate) {
-    sentVolunteerReminders.clear();
-    sentRemindersDate = today;
-  }
-  return `vol:${eventId}:${userId}:${today}`;
-}
-
 async function sendVolunteerReminders(): Promise<void> {
   try {
     const now = new Date();
-    // 3-day window: 71-73 hours from now
-    const windowStart = new Date(now.getTime() + 71 * 60 * 60 * 1000);
-    const windowEnd = new Date(now.getTime() + 73 * 60 * 60 * 1000);
+    // 3-day window: 72–96 hours from now (catches an entire day of run windows)
+    const windowStart = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+    const windowEnd = new Date(now.getTime() + 96 * 60 * 60 * 1000);
 
     const upcoming = await db
       .select()
@@ -36,7 +24,9 @@ async function sendVolunteerReminders(): Promise<void> {
 
     if (upcoming.length === 0) return;
 
-    logger.info({ count: upcoming.length }, "[volunteer-reminders] found events in 3-day window");
+    logger.info({ count: upcoming.length }, "[volunteer-reminders] found events in 72-96h window");
+
+    const today = now.toISOString().slice(0, 10);
 
     for (const event of upcoming) {
       const tasks = await db
@@ -55,8 +45,18 @@ async function sendVolunteerReminders(): Promise<void> {
       const uniqueUserIds = [...new Set(signups.map((s) => s.userId))];
 
       for (const userId of uniqueUserIds) {
-        const key = reminderKey(event.id, userId);
-        if (sentVolunteerReminders.has(key)) continue;
+        // Durable dedup: check if a volunteer_reminder notification was already
+        // sent for this user + event today (using the notifications table as log)
+        const alreadySent = await db.query.notificationsTable.findFirst({
+          where: and(
+            eq(notificationsTable.recipientUserId, userId),
+            eq(notificationsTable.type, "volunteer_reminder"),
+            eq(notificationsTable.link, `/events/${event.id}`),
+            gte(notificationsTable.createdAt, new Date(`${today}T00:00:00Z`)),
+          ),
+        });
+
+        if (alreadySent) continue;
 
         const userTasks = signups.filter((s) => s.userId === userId);
         const userTaskDetails = tasks.filter((t) => userTasks.some((s) => s.eventTaskId === t.id));
@@ -70,7 +70,6 @@ async function sendVolunteerReminders(): Promise<void> {
             body: `You're volunteering in 3 days for "${event.title}": ${taskTitles}.`,
             link: `/events/${event.id}`,
           });
-          sentVolunteerReminders.add(key);
         } catch (err) {
           logger.warn({ err, userId, eventId: event.id }, "[volunteer-reminders] failed to insert notification");
         }

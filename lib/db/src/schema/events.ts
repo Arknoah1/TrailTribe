@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
@@ -122,10 +122,13 @@ export type EventTask = typeof eventTasksTable.$inferSelect;
 export const eventTaskSignupsTable = pgTable("event_task_signups", {
   id: serial("id").primaryKey(),
   eventTaskId: integer("event_task_id").notNull().references(() => eventTasksTable.id, { onDelete: "cascade" }),
+  eventId: integer("event_id").references(() => eventsTable.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("event_task_signups_task_user_unique").on(t.eventTaskId, t.userId),
+]);
 
 export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTable).omit({
   id: true,

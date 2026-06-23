@@ -783,7 +783,7 @@ paths:
           schema:
             type: integer
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -793,7 +793,7 @@ paths:
                   type: array
                   items:
                     type: integer
-              required: [templateTaskIds]
+                  description: IDs of templates to clone. If omitted, all templates are cloned.
       responses:
         "201":
           description: Tasks added
@@ -1511,6 +1511,21 @@ paths:
           description: File content
 
   # ─── CALENDAR ────────────────────────────────────────────────────────────────
+
+  /users/me/volunteer-signups:
+    get:
+      operationId: getMyVolunteerSignups
+      tags: [users]
+      summary: List the current user's volunteer task signups with task and event details
+      responses:
+        "200":
+          description: List of volunteer signups with enriched task and event info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyVolunteerSignup"
 
   /users/me/regenerate-calendar-token:
     post:
@@ -2352,6 +2367,9 @@ components:
           type: integer
         eventTaskId:
           type: integer
+        eventId:
+          type: integer
+          nullable: true
         userId:
           type: integer
         notes:
@@ -2361,6 +2379,20 @@ components:
           type: string
           format: date-time
       required: [id, eventTaskId, userId, createdAt]
+
+    MyVolunteerSignup:
+      allOf:
+        - $ref: "#/components/schemas/EventTaskSignup"
+        - type: object
+          properties:
+            task:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/EventTask"
+            event:
+              nullable: true
+              allOf:
+                - $ref: "#/components/schemas/Event"
 
     EventTaskSignupWithUser:
       allOf:

@@ -9,6 +9,7 @@
 export interface EventTaskSignup {
   id: number;
   eventTaskId: number;
+  eventId?: number | null;
   userId: number;
   notes?: string | null;
   createdAt: Date;

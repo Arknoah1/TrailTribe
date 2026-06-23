@@ -7,5 +7,6 @@
  */
 
 export type AddEventTasksFromTemplatesBody = {
-  templateTaskIds: number[];
+  /** IDs of templates to clone. If omitted, all templates are cloned. */
+  templateTaskIds?: number[];
 };

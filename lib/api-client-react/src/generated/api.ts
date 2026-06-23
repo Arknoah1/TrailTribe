@@ -59,6 +59,7 @@ import type {
   ListEventsParams,
   ListUsersParams,
   MatchCarpoolRequestBody,
+  MyVolunteerSignup,
   OnboardUserBody,
   Pod,
   PodWithMembers,
@@ -3023,7 +3024,7 @@ export const getAddEventTasksFromTemplatesUrl = (id: number) => {
 
 export const addEventTasksFromTemplates = async (
   id: number,
-  addEventTasksFromTemplatesBody: AddEventTasksFromTemplatesBody,
+  addEventTasksFromTemplatesBody?: AddEventTasksFromTemplatesBody,
   options?: RequestInit,
 ): Promise<AddEventTasksFromTemplates201> => {
   return customFetch<AddEventTasksFromTemplates201>(
@@ -5984,6 +5985,81 @@ export function useGetStorageObject<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetStorageObjectQueryOptions(objectPath, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List the current user's volunteer task signups with task and event details
+ */
+export const getGetMyVolunteerSignupsUrl = () => {
+  return `/api/users/me/volunteer-signups`;
+};
+
+export const getMyVolunteerSignups = async (
+  options?: RequestInit,
+): Promise<MyVolunteerSignup[]> => {
+  return customFetch<MyVolunteerSignup[]>(getGetMyVolunteerSignupsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMyVolunteerSignupsQueryKey = () => {
+  return [`/api/users/me/volunteer-signups`] as const;
+};
+
+export const getGetMyVolunteerSignupsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyVolunteerSignups>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVolunteerSignups>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMyVolunteerSignupsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyVolunteerSignups>>
+  > = ({ signal }) => getMyVolunteerSignups({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVolunteerSignups>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyVolunteerSignupsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyVolunteerSignups>>
+>;
+export type GetMyVolunteerSignupsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List the current user's volunteer task signups with task and event details
+ */
+
+export function useGetMyVolunteerSignups<
+  TData = Awaited<ReturnType<typeof getMyVolunteerSignups>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyVolunteerSignups>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyVolunteerSignupsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -446,10 +446,16 @@ export interface EventTaskBody {
 export interface EventTaskSignup {
   id: number;
   eventTaskId: number;
+  eventId?: number | null;
   userId: number;
   notes?: string | null;
   createdAt: string;
 }
+
+export type MyVolunteerSignup = EventTaskSignup & {
+  task?: EventTask | null;
+  event?: Event | null;
+};
 
 export type EventTaskSignupWithUser = EventTaskSignup & {
   user: User;
@@ -756,7 +762,8 @@ export type SetEventVolunteerTasksEnabledBody = {
 };
 
 export type AddEventTasksFromTemplatesBody = {
-  templateTaskIds: number[];
+  /** IDs of templates to clone. If omitted, all templates are cloned. */
+  templateTaskIds?: number[];
 };
 
 export type AddEventTasksFromTemplates201 = {

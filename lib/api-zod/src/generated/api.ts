@@ -1211,6 +1211,7 @@ export const ListEventTasksResponseItem = zod
           .object({
             id: zod.number(),
             eventTaskId: zod.number(),
+            eventId: zod.number().nullish(),
             userId: zod.number(),
             notes: zod.string().nullish(),
             createdAt: zod.coerce.date(),
@@ -1255,6 +1256,7 @@ export const ListEventTasksResponseItem = zod
         .object({
           id: zod.number(),
           eventTaskId: zod.number(),
+          eventId: zod.number().nullish(),
           userId: zod.number(),
           notes: zod.string().nullish(),
           createdAt: zod.coerce.date(),
@@ -1281,7 +1283,12 @@ export const AddEventTasksFromTemplatesParams = zod.object({
 });
 
 export const AddEventTasksFromTemplatesBody = zod.object({
-  templateTaskIds: zod.array(zod.number()),
+  templateTaskIds: zod
+    .array(zod.number())
+    .optional()
+    .describe(
+      "IDs of templates to clone. If omitted, all templates are cloned.",
+    ),
 });
 
 export const UpdateEventTaskParams = zod.object({
@@ -2303,6 +2310,66 @@ export const RequestUploadUrlResponse = zod.object({
 export const GetStorageObjectParams = zod.object({
   objectPath: zod.coerce.string(),
 });
+
+/**
+ * @summary List the current user's volunteer task signups with task and event details
+ */
+export const GetMyVolunteerSignupsResponseItem = zod
+  .object({
+    id: zod.number(),
+    eventTaskId: zod.number(),
+    eventId: zod.number().nullish(),
+    userId: zod.number(),
+    notes: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      task: zod
+        .object({
+          id: zod.number(),
+          eventId: zod.number(),
+          templateTaskId: zod.number().nullish(),
+          category: zod.string(),
+          title: zod.string(),
+          description: zod.string().nullish(),
+          slotsNeeded: zod.number(),
+          sortOrder: zod.number(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      event: zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          description: zod.string().nullish(),
+          eventType: zod.enum([
+            "practice",
+            "race",
+            "social",
+            "volunteer",
+            "other",
+          ]),
+          startTime: zod.coerce.date(),
+          endTime: zod.coerce.date().nullish(),
+          trailheadId: zod.number().nullish(),
+          locationOverride: zod.string().nullish(),
+          googleMapsUrlOverride: zod.string().nullish(),
+          podIds: zod.array(zod.string()).nullish(),
+          isAllTeam: zod.boolean(),
+          rsvpDeadline: zod.coerce.date().nullish(),
+          volunteerSlotsNeeded: zod.number(),
+          iCalUid: zod.string(),
+          isArchived: zod.boolean(),
+          seriesId: zod.string().nullish(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+    }),
+  );
+export const GetMyVolunteerSignupsResponse = zod.array(
+  GetMyVolunteerSignupsResponseItem,
+);
 
 /**
  * @summary Regenerate the personal iCal calendar token, invalidating the old link
