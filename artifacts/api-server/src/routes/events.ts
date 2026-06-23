@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import {
   eventsTable,
   eventRsvpsTable,
-  volunteerSignupsTable,
   eventTasksTable,
   eventTaskSignupsTable,
   trailheadsTable,
@@ -310,42 +309,6 @@ router.get("/events/:id/rsvps", requireAuth, async (req, res) => {
     })
   );
   res.json(result);
-});
-
-router.get("/events/:id/volunteers", requireAuth, async (req, res) => {
-  const eventId = parseInt(str(req.params.id));
-  const volunteers = await db.select().from(volunteerSignupsTable).where(eq(volunteerSignupsTable.eventId, eventId));
-  const result = await Promise.all(
-    volunteers.map(async (v) => {
-      const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, v.userId) });
-      return { ...v, user };
-    })
-  );
-  res.json(result);
-});
-
-router.post("/events/:id/volunteers", requireAuth, async (req, res) => {
-  const eventId = parseInt(str(req.params.id));
-  const clerkUserId = (req as any).clerkUserId;
-  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!me) {
-    res.status(401).json({ error: "User not found" });
-    return;
-  }
-  const { role, notes } = req.body;
-  const [signup] = await db.insert(volunteerSignupsTable).values({
-    eventId,
-    userId: me.id,
-    role: role ?? null,
-    notes: notes ?? null,
-  }).returning();
-  res.status(201).json(signup);
-});
-
-router.delete("/events/:id/volunteers/:volunteerId", requireAuth, async (req, res) => {
-  const volunteerId = parseInt(str(req.params.volunteerId));
-  await db.delete(volunteerSignupsTable).where(eq(volunteerSignupsTable.id, volunteerId));
-  res.status(204).send();
 });
 
 router.post("/events/:id/attachments", requireAuth, async (req, res) => {

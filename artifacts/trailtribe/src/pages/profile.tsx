@@ -1,7 +1,8 @@
 import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold, useUpdateHouseholdCompliance,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
-  useGetMyVolunteerSignups,
+  useGetMyVolunteerSignups, useListEvents, useListEventTasks, useBulkSignupForEventTasks,
+  getListEventTasksQueryKey,
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -553,8 +554,84 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
 interface TeamDoc { type: string; viewUrl: string | null; }
 
+function VolunteerOpportunityCard({ event }: { event: { id: number; title: string; startTime: string } }) {
+  const { data: tasks } = useListEventTasks(event.id, {
+    query: { enabled: true, queryKey: getListEventTasksQueryKey(event.id) }
+  });
+  const bulkSignup = useBulkSignupForEventTasks();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const openTasks = (tasks ?? []).filter((t: any) => {
+    const filled = t.signups?.length ?? 0;
+    return !t.mySignup && filled < t.slotsNeeded;
+  });
+
+  if (openTasks.length === 0) return null;
+
+  const toggle = (id: number) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const handleApply = () => {
+    if (selected.size === 0) return;
+    bulkSignup.mutate(
+      { id: event.id, data: { taskIds: [...selected] } },
+      {
+        onSuccess: (result: any) => {
+          const added = result?.added ?? selected.size;
+          toast({ title: `Signed up for ${added} task${added !== 1 ? "s" : ""} at ${event.title}` });
+          setSelected(new Set());
+          queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(event.id) });
+        },
+        onError: () => toast({ title: "Sign-up failed", variant: "destructive" }),
+      }
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-sm font-semibold">{event.title}</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(event.startTime), "EEE, MMM d")}</p>
+          </div>
+          <Badge variant="outline" className="text-xs shrink-0">{openTasks.length} open</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-1.5">
+        {openTasks.map((task: any) => (
+          <label key={task.id} className="flex items-center gap-2.5 cursor-pointer py-1 rounded hover:bg-muted/40 px-1">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-primary shrink-0"
+              checked={selected.has(task.id)}
+              onChange={() => toggle(task.id)}
+            />
+            <span className="text-sm flex-1">{task.title}</span>
+            {task.category && <Badge variant="secondary" className="text-xs py-0 px-1.5">{task.category}</Badge>}
+          </label>
+        ))}
+        <Button
+          size="sm"
+          className="w-full mt-2"
+          onClick={handleApply}
+          disabled={selected.size === 0 || bulkSignup.isPending}
+        >
+          {bulkSignup.isPending ? "Signing up…" : `Sign Up${selected.size > 0 ? ` for ${selected.size}` : ""}`}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function VolunteerCommitmentsTab() {
   const { data: signups, isLoading } = useGetMyVolunteerSignups();
+  const { data: allEvents } = useListEvents();
   const now = new Date();
 
   const upcoming = (signups ?? []).filter(s => {
@@ -566,20 +643,15 @@ function VolunteerCommitmentsTab() {
     return eventStart && eventStart < now;
   });
 
+  const signedUpEventIds = new Set((signups ?? []).map(s => s.event?.id).filter(Boolean));
+  const opportunities = (allEvents ?? []).filter((e: any) => {
+    if (!e.volunteerTasksEnabled) return false;
+    const start = new Date(e.startTime);
+    return start >= now && !signedUpEventIds.has(e.id);
+  }).slice(0, 8);
+
   if (isLoading) {
     return <div className="py-8 text-center text-muted-foreground text-sm">Loading commitments…</div>;
-  }
-
-  if ((signups ?? []).length === 0) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-12 text-center text-muted-foreground">
-          <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">No volunteer sign-ups yet</p>
-          <p className="text-xs mt-1">Visit an event page to sign up for volunteer tasks.</p>
-        </CardContent>
-      </Card>
-    );
   }
 
   const renderGroup = (items: typeof signups, label: string) => {
@@ -621,14 +693,43 @@ function VolunteerCommitmentsTab() {
     );
   };
 
+  const hasContent = (signups ?? []).length > 0 || opportunities.length > 0;
+
+  if (!hasContent) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium">No volunteer activity yet</p>
+          <p className="text-xs mt-1">Visit an event page to sign up for volunteer tasks.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">My Volunteer Commitments</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Events you've signed up to help at.</p>
-      </div>
-      {renderGroup(upcoming, `Upcoming (${upcoming.length})`)}
-      {renderGroup(past, `Past (${past.length})`)}
+      {opportunities.length > 0 && (
+        <div className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold">Volunteer Opportunities</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Upcoming events with open tasks — select and sign up in one click.</p>
+          </div>
+          {opportunities.map((e: any) => (
+            <VolunteerOpportunityCard key={e.id} event={e} />
+          ))}
+        </div>
+      )}
+      {(signups ?? []).length > 0 && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">My Commitments</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Events you've signed up to help at.</p>
+          </div>
+          {renderGroup(upcoming, `Upcoming (${upcoming.length})`)}
+          {renderGroup(past, `Past (${past.length})`)}
+        </div>
+      )}
     </div>
   );
 }

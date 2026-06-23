@@ -39,6 +39,7 @@ export default function EventDetail() {
   const updateEvent = useUpdateEvent();
 
   const isCoach = me?.role === "coach" || me?.role === "admin";
+  const isAdmin = me?.role === "admin";
 
   const [showEdit, setShowEdit] = useState(false);
   const [editData, setEditData] = useState<{
@@ -65,7 +66,7 @@ export default function EventDetail() {
     query: { enabled: !!eventId && showVolunteerSection, queryKey: getListEventTasksQueryKey(eventId) }
   });
   const { data: templates } = useListVolunteerTemplateTasks({
-    query: { enabled: isCoach, queryKey: getListVolunteerTemplateTasksQueryKey() }
+    query: { enabled: isAdmin, queryKey: getListVolunteerTemplateTasksQueryKey() }
   });
 
   const setEnabledMut = useSetEventVolunteerTasksEnabled();
@@ -80,7 +81,14 @@ export default function EventDetail() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [isAttending, setIsAttending] = useState(false);
+  const attendStorageKey = `trailtribe:attending:${eventId}`;
+  const [isAttending, setIsAttendingState] = useState(() => {
+    try { return sessionStorage.getItem(`trailtribe:attending:${eventId}`) === "true"; } catch { return false; }
+  });
+  const setIsAttending = (val: boolean) => {
+    try { sessionStorage.setItem(attendStorageKey, String(val)); } catch {}
+    setIsAttendingState(val);
+  };
 
   const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(eventId) });
   const invalidateEvent = () => {
@@ -486,7 +494,7 @@ export default function EventDetail() {
               )}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {isCoach && volunteerTasksEnabled && (
+              {isAdmin && volunteerTasksEnabled && (
                 <>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowTemplateSelector(true)}>
                     <Plus className="h-3.5 w-3.5" /> Add from Templates
@@ -539,7 +547,7 @@ export default function EventDetail() {
                   <Card className="border-dashed">
                     <CardContent className="py-10 text-center text-muted-foreground">
                       <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No volunteer tasks yet.{isCoach ? " Add tasks from templates or create a custom one." : ""}</p>
+                      <p className="text-sm">No volunteer tasks yet.{isAdmin ? " Add tasks from templates or create a custom one." : ""}</p>
                     </CardContent>
                   </Card>
                 ) : (
@@ -634,7 +642,7 @@ export default function EventDetail() {
                                       {isFull ? "Full" : "Sign Up"}
                                     </Button>
                                   )}
-                                  {isCoach && (
+                                  {isAdmin && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
