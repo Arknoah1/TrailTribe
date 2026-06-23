@@ -63,6 +63,40 @@ const migrations: { name: string; sql: string }[] = [
         ON event_task_signups(event_task_id, user_id);
     `,
   },
+  {
+    name: "drop_volunteer_signups_table",
+    sql: `DROP TABLE IF EXISTS volunteer_signups;`,
+  },
+  {
+    name: "seed_volunteer_template_tasks",
+    sql: `
+      INSERT INTO volunteer_template_tasks (category, title, slots_default, sort_order)
+      SELECT category, title, slots_default, sort_order FROM (VALUES
+        ('Race Day',                          'Head Coach',              1, 10),
+        ('Race Day',                          'Mechanic',                1, 20),
+        ('Race Day',                          'Warm Ups',                2, 30),
+        ('Race Day',                          'First Aid',               1, 40),
+        ('Bike Village – Before Race Weekend','Food Shopping + Prep',    1, 10),
+        ('Bike Village – Before Race Weekend','Transport Team Items',    1, 20),
+        ('Bike Village – Before Race Weekend','Village Set Up',          2, 30),
+        ('Bike Village – Before Race Weekend','Transport Grill',         1, 40),
+        ('Bike Village – Saturday',           'Grill Chief',             2, 10),
+        ('Bike Village – Saturday',           'Food Prep',               2, 20),
+        ('Bike Village – Saturday',           'Water',                   1, 30),
+        ('Bike Village – Saturday',           'Village Breakdown',       3, 40),
+        ('Bike Village – Saturday',           'Garbage & Recycle',       1, 50),
+        ('Bike Village – Saturday',           'Lost and Found',          1, 60),
+        ('Bike Village – Sunday',             'Grill Chief',             2, 10),
+        ('Bike Village – Sunday',             'Food Prep',               2, 20),
+        ('Bike Village – Sunday',             'Water',                   1, 30),
+        ('Bike Village – Sunday',             'Village Breakdown',       3, 40),
+        ('Bike Village – Sunday',             'Garbage & Recycle',       1, 50),
+        ('Bike Village – Sunday',             'Lost and Found',          1, 60),
+        ('Bike Village – Sunday',             'Photographer (Optional)', 1, 70)
+      ) AS t(category, title, slots_default, sort_order)
+      WHERE NOT EXISTS (SELECT 1 FROM volunteer_template_tasks LIMIT 1);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

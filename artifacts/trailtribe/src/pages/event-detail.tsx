@@ -1,7 +1,7 @@
 import {
   useGetEvent, useRsvpEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods,
   useListEventTasks, useSignUpForEventTask, useCancelEventTaskSignup,
-  useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask,
+  useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
 } from "@workspace/api-client-react";
@@ -74,6 +74,7 @@ export default function EventDetail() {
   const cancelMut = useCancelEventTaskSignup();
   const createTaskMut = useCreateEventTask();
   const deleteTaskMut = useDeleteEventTask();
+  const updateTaskMut = useUpdateEventTask();
   const addFromTemplatesMut = useCloneEventTasksFromTemplate();
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -81,6 +82,8 @@ export default function EventDetail() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [editTaskForm, setEditTaskForm] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
   const attendStorageKey = `trailtribe:attending:${eventId}`;
   const [isAttending, setIsAttendingState] = useState(() => {
     try { return sessionStorage.getItem(`trailtribe:attending:${eventId}`) === "true"; } catch { return false; }
@@ -126,6 +129,22 @@ export default function EventDetail() {
       onSuccess: () => invalidateTasks(),
       onError: () => toast({ title: "Failed to delete task", variant: "destructive" }),
     });
+  };
+
+  const handleEditTaskOpen = (task: any) => {
+    setEditingTaskId(task.id);
+    setEditTaskForm({ category: task.category, title: task.title, description: task.description ?? "", slotsNeeded: task.slotsNeeded });
+  };
+
+  const handleEditTaskSave = () => {
+    if (!editingTaskId) return;
+    updateTaskMut.mutate(
+      { id: eventId, taskId: editingTaskId, data: editTaskForm },
+      {
+        onSuccess: () => { setEditingTaskId(null); invalidateTasks(); toast({ title: "Task updated" }); },
+        onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
+      }
+    );
   };
 
   const handleAddFromTemplates = () => {
@@ -643,15 +662,25 @@ export default function EventDetail() {
                                     </Button>
                                   )}
                                   {isAdmin && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                      onClick={() => handleDeleteTask(task.id)}
-                                      disabled={deleteTaskMut.isPending}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
+                                    <>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                        onClick={() => handleEditTaskOpen(task)}
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                        onClick={() => handleDeleteTask(task.id)}
+                                        disabled={deleteTaskMut.isPending}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -825,6 +854,52 @@ export default function EventDetail() {
               {createTaskMut.isPending ? "Adding..." : "Add Task"}
             </Button>
             <Button variant="outline" onClick={() => setShowAddTask(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingTaskId !== null} onOpenChange={(open) => { if (!open) setEditingTaskId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input
+                value={editTaskForm.title}
+                onChange={e => setEditTaskForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Task title"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                value={editTaskForm.description}
+                onChange={e => setEditTaskForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description"
+                rows={2}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Max volunteers</Label>
+              <Input
+                type="number"
+                min={1}
+                value={editTaskForm.slotsNeeded}
+                onChange={e => setEditTaskForm(f => ({ ...f, slotsNeeded: Math.max(1, parseInt(e.target.value) || 1) }))}
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                className="flex-1"
+                onClick={handleEditTaskSave}
+                disabled={!editTaskForm.title || updateTaskMut.isPending}
+              >
+                {updateTaskMut.isPending ? "Saving…" : "Save"}
+              </Button>
+              <Button variant="outline" onClick={() => setEditingTaskId(null)}>Cancel</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

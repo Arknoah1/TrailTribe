@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
@@ -554,6 +554,141 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
 interface TeamDoc { type: string; viewUrl: string | null; }
 
+function EventTaskLoader({
+  eventId,
+  onLoad,
+}: {
+  eventId: number;
+  onLoad: (id: number, tasks: any[]) => void;
+}) {
+  const { data: tasks } = useListEventTasks(eventId, {
+    query: { enabled: true, queryKey: getListEventTasksQueryKey(eventId) },
+  });
+  useEffect(() => {
+    if (tasks) onLoad(eventId, tasks);
+  }, [eventId, tasks, onLoad]);
+  return null;
+}
+
+function CrossEventSignupPanel({ events }: { events: any[] }) {
+  const [attendedIds, setAttendedIds] = useState<Set<number>>(new Set());
+  const [tasksByEvent, setTasksByEvent] = useState<Map<number, any[]>>(new Map());
+  const bulkSignup = useBulkSignupForEventTasks();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const handleTasksLoaded = useCallback((eventId: number, tasks: any[]) => {
+    setTasksByEvent(prev => {
+      const next = new Map(prev);
+      next.set(eventId, tasks);
+      return next;
+    });
+  }, []);
+
+  const toggleAttended = (eventId: number) => {
+    setAttendedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId); else next.add(eventId);
+      return next;
+    });
+  };
+
+  const taskGroups = useMemo(() => {
+    const map = new Map<string, { eventId: number; taskId: number; eventTitle: string }[]>();
+    for (const eventId of attendedIds) {
+      const tasks = tasksByEvent.get(eventId) ?? [];
+      const event = events.find((e: any) => e.id === eventId);
+      for (const task of tasks) {
+        if (task.mySignup) continue;
+        const filled = task.signups?.length ?? 0;
+        if (filled >= task.slotsNeeded) continue;
+        if (!map.has(task.title)) map.set(task.title, []);
+        map.get(task.title)!.push({ eventId, taskId: task.id, eventTitle: event?.title ?? "" });
+      }
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [attendedIds, tasksByEvent, events]);
+
+  const applyTask = (title: string, occurrences: { eventId: number; taskId: number }[]) => {
+    Promise.all(
+      occurrences.map(({ eventId, taskId }) =>
+        bulkSignup.mutateAsync({ id: eventId, data: { taskIds: [taskId] } }).catch(() => null)
+      )
+    ).then(() => {
+      const n = occurrences.length;
+      toast({ title: `Signed up for "${title}" at ${n} event${n !== 1 ? "s" : ""}` });
+      occurrences.forEach(({ eventId }) =>
+        queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(eventId) })
+      );
+    });
+  };
+
+  if (events.length < 2) return null;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold">Apply to Multiple Events</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Check the events you're attending, then sign up for recurring tasks across all of them at once.
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        {events.map((e: any) => (
+          <label key={e.id} className="flex items-center gap-2.5 cursor-pointer px-3 py-2 rounded border hover:bg-muted/30">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-primary shrink-0"
+              checked={attendedIds.has(e.id)}
+              onChange={() => toggleAttended(e.id)}
+            />
+            <span className="text-sm flex-1">{e.title}</span>
+            <span className="text-xs text-muted-foreground">{format(new Date(e.startTime), "MMM d")}</span>
+          </label>
+        ))}
+      </div>
+
+      {[...attendedIds].map(id => (
+        <EventTaskLoader key={id} eventId={id} onLoad={handleTasksLoaded} />
+      ))}
+
+      {attendedIds.size > 0 && taskGroups.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Open tasks at your attended events
+          </h3>
+          {taskGroups.map(([title, occurrences]) => (
+            <div key={title} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {occurrences.length === 1
+                    ? occurrences[0].eventTitle
+                    : `${occurrences.length} events`}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant={occurrences.length > 1 ? "default" : "outline"}
+                onClick={() => applyTask(title, occurrences)}
+                disabled={bulkSignup.isPending}
+                className="shrink-0"
+              >
+                {occurrences.length > 1 ? `Sign up at all ${occurrences.length}` : "Sign up"}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {attendedIds.size > 0 && taskGroups.length === 0 && [...attendedIds].every(id => tasksByEvent.has(id)) && (
+        <p className="text-sm text-muted-foreground text-center py-3">No open tasks at your selected events.</p>
+      )}
+    </div>
+  );
+}
+
 function VolunteerOpportunityCard({ event }: { event: { id: number; title: string; startTime: string } }) {
   const { data: tasks } = useListEventTasks(event.id, {
     query: { enabled: true, queryKey: getListEventTasksQueryKey(event.id) }
@@ -720,6 +855,7 @@ function VolunteerCommitmentsTab() {
           ))}
         </div>
       )}
+      <CrossEventSignupPanel events={opportunities} />
       {(signups ?? []).length > 0 && (
         <div className="space-y-4">
           <div>

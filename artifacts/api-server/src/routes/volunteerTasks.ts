@@ -17,7 +17,7 @@ const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 // ─── TEMPLATE TASKS (admin only) ─────────────────────────────────────────────
 
-router.get("/volunteer-tasks/templates", requireAuth, async (req, res) => {
+router.get("/volunteer-tasks/templates", requireAdmin, async (req, res) => {
   const templates = await db
     .select()
     .from(volunteerTemplateTasksTable)
