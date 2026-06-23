@@ -5,10 +5,13 @@ import {
   carpoolClaimsTable,
   carpoolRequestsTable,
   usersTable,
+  eventsTable,
 } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
+import { sendEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -124,6 +127,34 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
     needsBikeTray: needsBikeTray ?? false,
     notes: notes ?? null,
   }).returning();
+
+  (async () => {
+    try {
+      const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
+      if (!offer) return;
+      const driver = await db.query.usersTable.findFirst({ where: eq(usersTable.id, offer.driverUserId) });
+      if (!driver || !driver.emailNotifications) return;
+      const rider = await db.query.usersTable.findFirst({ where: eq(usersTable.id, riderUserId) });
+      const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, offer.eventId) });
+      const riderName = rider ? `${rider.firstName} ${rider.lastName}` : "Someone";
+      const eventName = event?.title ?? "your event";
+      await sendEmail({
+        to: driver.email,
+        subject: `${riderName} claimed your carpool spot`,
+        text: [
+          `Hi ${driver.firstName},`,
+          ``,
+          `${riderName} just claimed a spot in your carpool for ${eventName}.`,
+          ``,
+          `Head to TrailTribe to view the full carpool board.`,
+          `— TrailTribe`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      logger.error({ err }, "[carpools] claim notification email error");
+    }
+  })();
+
   res.status(201).json(claim);
 });
 

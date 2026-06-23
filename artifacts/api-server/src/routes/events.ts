@@ -13,6 +13,8 @@ import {
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
+import { sendEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -247,6 +249,42 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
       lastRsvp = created;
     }
   }
+
+  if (status === "attending" && me.emailNotifications) {
+    (async () => {
+      try {
+        const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
+        if (!event) return;
+        const trailhead = event.trailheadId
+          ? await db.query.trailheadsTable.findFirst({ where: eq(trailheadsTable.id, event.trailheadId) })
+          : null;
+        const locationLine = event.locationOverride ?? trailhead?.name ?? "Location TBD";
+        const dateStr = event.startTime.toLocaleString("en-US", {
+          weekday: "long", month: "long", day: "numeric",
+          hour: "numeric", minute: "2-digit", timeZoneName: "short",
+        });
+        await sendEmail({
+          to: me.email,
+          subject: `You're set for ${event.title}`,
+          text: [
+            `Hi ${me.firstName},`,
+            ``,
+            `You're confirmed for:`,
+            ``,
+            `  ${event.title}`,
+            `  ${dateStr}`,
+            `  ${locationLine}`,
+            ``,
+            `See you on the trail!`,
+            `— TrailTribe`,
+          ].join("\n"),
+        });
+      } catch (err) {
+        logger.error({ err }, "[events] rsvp confirmation email error");
+      }
+    })();
+  }
+
   res.json(lastRsvp);
 });
 
