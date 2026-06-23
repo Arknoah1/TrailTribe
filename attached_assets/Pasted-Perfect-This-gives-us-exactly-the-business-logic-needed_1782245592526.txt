@@ -1,0 +1,71 @@
+Perfect. This gives us exactly the business logic needed to build a highly functional system.
+
+Here is your comprehensive **Project Management Plan**, followed by a clean, copy-pasteable **Replit Task List** that you can feed directly to the Replit Agent to build the feature.
+
+---
+
+## Project Management Plan: MTBChat Volunteer Module
+
+### Feature Overview
+
+A dynamic, event-driven volunteer scheduling system integrated into the existing mountain bike team communication application. It replaces static spreadsheet tracking with user profile integration, multi-event registration flows, and admin-managed task templating.
+
+### Core Architecture & Logic Flow
+
+1. **The Volunteer Sign-Up Funnel:**
+* **Step 1 (Availability):** User is presented with the full season calendar and checks off which race weekends they are attending.
+* **Step 2 (Task Assignment):** Based on their active weekends, they are shown a structured grid or list of open tasks. They can use a "Select All" toggle to claim a recurring task (e.g., *Food Prep*) across all their active weekends, or pick distinct tasks dynamically per event.
+
+
+
+
+2. **Database Relationships:**
+* `Events` have many `Tasks`.
+* `Tasks` have a `max_volunteers` constraint, a `description`, and belong to a specific category (e.g., Coaching, Bike Village).
+
+
+* `VolunteerSlots` join a `User`, a `Task`, and an `Event` together.
+
+
+3. **Admin Controls:** Admins manage a **Master Template** of tasks. When creating a new race weekend, they can clone the template, which instantiates the default tasks and volunteer caps for that event, with the ability to add, edit, or delete items on a one-off basis (like the *Winthrop Camp Check-In*).
+
+
+
+---
+
+## Replit Agent Task List
+
+Copy and paste the section below directly into your Replit Agent chat to begin the build.
+
+```markdown
+### Feature Specification: Dynamic Multi-Event Volunteer Sign-Up System
+
+Please build a Volunteer Sign-Up feature for our mountain bike team communication application based on the following specific requirements and technical task list. 
+
+#### 1. Database Schema Extensions
+- [ ] Create a `VolunteerTemplateTask` model to hold master reusable tasks. Fields: `title` (string), `category` (string, e.g., 'Coaching', 'Bike Village'), `description` (text), `default_max_volunteers` (integer).
+- [ ] Create an `EventTask` model for specific events. Fields: `event_id` (foreign key), `title` (string), `category` (string), `description` (text), `max_volunteers` (integer).
+- [ ] Create a `VolunteerAssignment` join table. Fields: `user_id` (foreign key), `event_task_id` (foreign key), `event_id` (foreign key), `timestamp` (datetime).
+- [ ] Update the `Event` model if necessary to ensure it tracks dates and location metadata.
+
+#### 2. Admin Management Dashboard (Backend & UI)
+- [ ] Build a Template Manager view where team admins can create, read, update, and delete master volunteer tasks (e.g., "Grill chief", "First Aid", "Village Breakdown").
+- [ ] Build an Event Setup flow for admins. When a new event is generated, allow the admin to "Clone from Master Template". 
+- [ ] Allow admins to modify individual task names, descriptions, and maximum volunteer limits for a specific event after cloning, or add localized one-off tasks (e.g., "Winthrop Camp Check-In").
+
+#### 3. Volunteer Registration Flow (User UI)
+- [ ] **Screen 1: Attendance Checklist.** Create a view displaying upcoming seasonal events. Users must check boxes confirming which events they are attending before proceeding.
+- [ ] **Screen 2: Task Assignment Grid/List.** 
+  - Only display tasks for the events the user marked they are attending.
+  - Group tasks neatly by category (e.g., "Coaching", "Bike Village").
+  - Implement a "Apply to all my attended events" utility toggle for recurring tasks (e.g., allowing a user to sign up for "Food Prep" across all their selected weekends in one click).
+  - Automatically fetch and bind the logged-in user's profile details (Name, Phone Number) to the slot when they click "Sign Up" — no manual typing required.
+- [ ] **Capacity Guardrails:** 
+  - Display the current filled count vs total capacity for each task (e.g., "1/2 filled").
+  - Disable the "Sign Up" button and display a "Full" badge if a task reaches its maximum volunteer limit defined by the admin.
+
+#### 4. Notification & Reminder Engine
+- [ ] Create a background worker or cron-job wrapper script to check for upcoming events.
+- [ ] Trigger an automated notification (Push or Email depending on current app layout) to committed volunteers 3 days prior to an event, summarizing their assigned tasks and descriptions.
+
+```
