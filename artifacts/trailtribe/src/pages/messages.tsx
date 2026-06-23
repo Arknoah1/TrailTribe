@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
+import { RidgelineBanner, EmptyTrailState } from "@/components/illustrations";
 
 export default function Messages() {
   const { data: broadcasts, isLoading } = useListBroadcasts();
@@ -37,11 +38,17 @@ export default function Messages() {
   if (isLoading) return <div className="p-8 text-center">Loading messages...</div>;
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
+
+      <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Messages</h1>
-          <p className="text-muted-foreground mt-1">Archive of team broadcasts and announcements.</p>
+          <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Messages</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Archive of team broadcasts and announcements.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -150,16 +157,11 @@ export default function Messages() {
             </Card>
           ))
         ) : (
-          <div className="text-center p-12 border rounded-lg bg-card">
-            <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium">No messages found</h3>
-            <p className="text-muted-foreground">
-              {search || podFilter !== "all"
-                ? "Try adjusting your search or filter."
-                : "You haven't received any broadcasts yet."}
-            </p>
-          </div>
+          <EmptyTrailState
+            message={search || podFilter !== "all" ? "Try adjusting your search or filter." : "No broadcasts yet."}
+          />
         )}
+      </div>
       </div>
     </div>
   );

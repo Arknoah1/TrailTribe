@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { useListEvents, useGetCalendarSubscribeUrl, useGetMe, useCreateEvent, useListTrailheads, useListPods, CreateEventBodyEventType, getListEventsQueryKey, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken, PodWithStats } from "@workspace/api-client-react";
 import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from "date-fns";
 import { Link } from "wouter";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, MapPin, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { CalendarIcon, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -146,12 +147,27 @@ export default function Calendar() {
     return <div className="p-8 text-center">Loading calendar...</div>;
   }
 
+  const eventTypeColor = (type: string) => {
+    switch (type) {
+      case "race": return "bg-accent";
+      case "practice": return "bg-primary";
+      case "social": return "bg-muted-foreground";
+      default: return "bg-secondary";
+    }
+  };
+
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
+
+      <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="text-muted-foreground mt-1">Upcoming practices, races, and events.</p>
+          <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Calendar</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Upcoming practices, races, and events.</p>
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
@@ -253,11 +269,13 @@ export default function Calendar() {
         <div className="space-y-4">
           {filteredEvents.length > 0 ? (
             filteredEvents.map(event => (
-              <Card key={event.id} className="hover-elevate transition-all">
+              <Card key={event.id} className="cel-hover transition-all cursor-pointer overflow-hidden">
                 <Link href={`/events/${event.id}`} className="block">
                   <CardContent className="p-0">
                     <div className="flex flex-col md:flex-row">
-                      <div className="bg-muted md:w-48 p-4 flex md:flex-col items-center md:justify-center justify-between border-b md:border-b-0 md:border-r border-border">
+                      {/* Event type stripe */}
+                      <div className={`hidden md:block w-1.5 shrink-0 ${eventTypeColor(event.eventType)}`} />
+                      <div className="bg-secondary md:w-44 p-4 flex md:flex-col items-center md:justify-center justify-between border-b-2 md:border-b-0 md:border-r-2 border-[#0a0c10]">
                         <div className="text-center">
                           <div className="text-sm font-semibold uppercase text-primary">{format(new Date(event.startTime), "MMM")}</div>
                           <div className="text-3xl font-bold">{format(new Date(event.startTime), "d")}</div>
@@ -298,7 +316,7 @@ export default function Calendar() {
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-auto">
                           {event.trailhead && (
                             <div className="flex items-center gap-1.5">
-                              <MapPin className="h-4 w-4" />
+                              <TrailDot className="h-4 w-4 shrink-0" />
                               {event.trailhead.name}
                             </div>
                           )}
@@ -314,18 +332,11 @@ export default function Calendar() {
               </Card>
             ))
           ) : (
-            <div className="text-center p-12 border rounded-lg bg-card">
-              <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-medium">No events found</h3>
-              {podFilter !== "all" ? (
-                <p className="text-muted-foreground">
-                  No upcoming events for this filter.{" "}
-                  <button className="underline text-primary" onClick={() => setPodFilter("all")}>Show all events</button>
-                </p>
-              ) : (
-                <p className="text-muted-foreground">There are no upcoming events on the calendar.</p>
+            <EmptyTrailState message={podFilter !== "all" ? "No upcoming events for this filter." : "No upcoming events yet."}>
+              {podFilter !== "all" && (
+                <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => setPodFilter("all")}>Show all events</button>
               )}
-            </div>
+            </EmptyTrailState>
           )}
         </div>
       )}
@@ -608,6 +619,7 @@ export default function Calendar() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

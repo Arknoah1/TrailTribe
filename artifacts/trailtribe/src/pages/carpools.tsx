@@ -14,6 +14,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Car, MapPin, Clock, Plus, Bike, Pencil, Trash2, Users } from "lucide-react";
+import { RidgelineBanner, EmptyTrailState } from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -369,15 +370,20 @@ export default function CarpoolBoard() {
   if (isLoading) return <div className="p-8 text-center">Loading carpools...</div>;
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
-      <Link href={`/events/${eventId}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="h-4 w-4 mr-1" /> Back to Event
-      </Link>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
 
+      <div className="px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Carpool Board</h1>
-          <p className="text-muted-foreground mt-1">Offer a ride or grab a seat.</p>
+          <Link href={`/events/${eventId}`} className="inline-flex items-center text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-primary mb-2">
+            <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Back to Event
+          </Link>
+          <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Carpool Board</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Offer a ride or grab a seat.</p>
         </div>
         <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
           <DialogTrigger asChild>
@@ -732,33 +738,33 @@ export default function CarpoolBoard() {
 
       {/* ── RIDES AVAILABLE ─────────────────────────────────── */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+        <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2 border-b-2 border-[#0a0c10] pb-2">
           <Car className="h-5 w-5 text-primary" /> Rides Available
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {offers && offers.length > 0 ? (
             offers.map(offer => (
-              <Card key={offer.id}>
-                <CardHeader className="pb-3 border-b">
+              <Card key={offer.id} className="overflow-hidden">
+                <CardHeader className="pb-3 border-b-2 border-[#0a0c10]">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
-                      <div className="bg-primary/10 p-2 rounded-full">
+                      <div className="bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
                         <Car className="h-5 w-5 text-primary" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{offer.driver?.firstName} {offer.driver?.lastName}</CardTitle>
-                        <CardDescription>Driving</CardDescription>
+                        <CardDescription className="text-xs uppercase tracking-wide font-bold">Driving</CardDescription>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex gap-2 text-center">
-                        <div className="bg-muted px-3 py-1 rounded-md">
-                          <div className="text-lg font-bold">{offer.seatsRemaining}</div>
-                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Seats</div>
+                        <div className="bg-secondary border-2 border-[#0a0c10] px-3 py-1 rounded-lg">
+                          <div className="text-lg font-bold text-primary">{offer.seatsRemaining}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Seats</div>
                         </div>
-                        <div className="bg-muted px-3 py-1 rounded-md">
-                          <div className="text-lg font-bold">{offer.bikeTraysRemaining}</div>
-                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Trays</div>
+                        <div className="bg-secondary border-2 border-[#0a0c10] px-3 py-1 rounded-lg">
+                          <div className="text-lg font-bold text-primary">{offer.bikeTraysRemaining}</div>
+                          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Trays</div>
                         </div>
                       </div>
                       {offer.driverUserId === me?.id && (
@@ -857,12 +863,8 @@ export default function CarpoolBoard() {
               </Card>
             ))
           ) : (
-            <div className="col-span-full text-center p-12 border rounded-lg bg-card">
-              <Car className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-medium">No carpools yet</h3>
-              <p className="text-muted-foreground max-w-sm mx-auto mt-2">
-                No one has offered a ride for this event yet. Be the first to offer a ride!
-              </p>
+            <div className="col-span-full">
+              <EmptyTrailState message="No rides offered yet. Be the first!" />
             </div>
           )}
         </div>
@@ -871,7 +873,7 @@ export default function CarpoolBoard() {
       {/* ── RIDES NEEDED ─────────────────────────────────────── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight flex items-center gap-2">
+          <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" /> Rides Needed
           </h2>
           <Button variant="outline" size="sm" onClick={() => {
@@ -891,7 +893,7 @@ export default function CarpoolBoard() {
               const canMatch = isOpen && !mine && me?.role !== "rider";
 
               return (
-                <Card key={request.id} className={isMatched ? "border-green-500/40 bg-green-50/30 dark:bg-green-950/10" : ""}>
+                <Card key={request.id} className={isMatched ? "border-primary/60 bg-primary/5" : ""}>
                   <CardContent className="pt-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -961,15 +963,12 @@ export default function CarpoolBoard() {
               );
             })
           ) : (
-            <div className="col-span-full text-center p-12 border rounded-lg bg-card">
-              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-medium">No ride requests yet</h3>
-              <p className="text-muted-foreground max-w-sm mx-auto mt-2">
-                Need a ride to this event? Post a request and a driver will match you.
-              </p>
+            <div className="col-span-full">
+              <EmptyTrailState message="No ride requests yet. Need a ride? Post one above." />
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

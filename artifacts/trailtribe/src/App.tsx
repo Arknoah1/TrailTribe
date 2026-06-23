@@ -1,4 +1,5 @@
 import Dashboard from "./pages/dashboard";
+import { RidgelineBanner } from "@/components/illustrations";
 import Calendar from "./pages/calendar";
 import EventDetail from "./pages/event-detail";
 import CarpoolBoard from "./pages/carpools";
@@ -65,16 +66,38 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+    <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
+      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner className="h-20" />
+      </div>
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTribe</h1>
+            <p className="text-muted-foreground text-sm font-medium">Welcome back, rider.</p>
+          </div>
+          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+        </div>
+      </div>
     </div>
   );
 }
 
 function SignUpPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+    <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
+      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner className="h-20" />
+      </div>
+      <div className="flex flex-1 items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTribe</h1>
+            <p className="text-muted-foreground text-sm font-medium">Join the crew.</p>
+          </div>
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -121,19 +144,30 @@ function ClerkAuthSyncer() {
 
 function Home() {
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center bg-background p-6">
-      <div className="text-center max-w-md mx-auto">
-        <h1 className="text-5xl font-bold tracking-tight mb-4 text-primary">TrailTribe</h1>
-        <p className="text-muted-foreground mb-8 text-lg font-medium">
-          The app mountain bike parents actually want to open.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <a href={`${basePath}/sign-up`} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8">
-            Get Started
-          </a>
-          <a href={`${basePath}/sign-in`} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8">
-            Sign In
-          </a>
+    <div className="min-h-[100dvh] w-full flex flex-col bg-background overflow-hidden">
+      <div className="w-full overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-24" />
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center p-8">
+        <div className="text-center max-w-sm mx-auto">
+          <h1 className="font-display text-6xl tracking-widest text-primary mb-2 leading-none">TrailTribe</h1>
+          <p className="text-muted-foreground mb-8 text-base font-medium">
+            The app mountain bike parents actually want to open.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href={`${basePath}/sign-up`}
+              className="inline-flex items-center justify-center min-h-[44px] rounded-lg border-2 border-[#0a0c10] bg-primary text-primary-foreground font-bold uppercase tracking-wide text-sm px-8 shadow-cel cel-interactive transition-all"
+            >
+              Get Started
+            </a>
+            <a
+              href={`${basePath}/sign-in`}
+              className="inline-flex items-center justify-center min-h-[44px] rounded-lg border-2 border-[#0a0c10] border-dashed bg-transparent text-foreground font-bold uppercase tracking-wide text-sm px-8 transition-all hover:bg-secondary"
+            >
+              Sign In
+            </a>
+          </div>
         </div>
       </div>
     </div>
@@ -181,6 +215,27 @@ function ClerkProviderWithRoutes() {
       proxyUrl={clerkProxyUrl}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+      appearance={{
+        variables: {
+          colorPrimary: "#00c2a8",
+          colorBackground: "#0f1115",
+          colorInputBackground: "#1c1f26",
+          colorInputText: "#e8e9eb",
+          colorText: "#e8e9eb",
+          colorTextSecondary: "#8a8f99",
+          colorDanger: "#ef4444",
+          borderRadius: "0.5rem",
+          fontFamily: "'DM Sans', sans-serif",
+        },
+        elements: {
+          card: "shadow-none !border-2 !border-[#0a0c10] bg-[#0f1115] !rounded-xl",
+          formButtonPrimary: "!bg-[#00c2a8] !text-[#0a0c10] !font-bold !uppercase !tracking-wide !text-sm !border-2 !border-[#0a0c10] hover:!bg-[#00a892] !transition-all",
+          footerActionLink: "!text-[#00c2a8] !font-semibold hover:!underline",
+          headerTitle: "!font-bold !text-lg",
+          socialButtonsBlockButton: "!border-2 !border-[#0a0c10] !bg-[#1c1f26] hover:!bg-[#262b35] !text-[#e8e9eb] !font-medium !transition-all",
+          identityPreviewEditButton: "!text-[#00c2a8]",
+        },
+      }}
       localization={{
         socialButtonsBlockButton: "Continue with {{provider|titleize}}",
         signIn: {

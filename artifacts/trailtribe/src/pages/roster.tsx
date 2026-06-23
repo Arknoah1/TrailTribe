@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, User, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { RidgelineBanner, PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
 
 export default function Roster() {
   const { data: pods, isLoading: isLoadingPods } = useListPods();
@@ -14,10 +15,16 @@ export default function Roster() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
+
+      <div className="px-6 md:px-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Team Roster</h1>
-        <p className="text-muted-foreground mt-1">Directory of all athletes, parents, and coaches.</p>
+        <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Team Roster</h1>
+        <p className="text-muted-foreground mt-1 text-sm">Directory of all athletes, parents, and coaches.</p>
       </div>
 
       <div className="space-y-8">
@@ -27,9 +34,11 @@ export default function Roster() {
 
           return (
             <div key={pod.id} className="space-y-4">
-              <div className="flex items-center gap-3 border-b pb-2">
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: pod.color || 'hsl(var(--primary))' }} />
-                <h2 className="text-2xl font-bold">{pod.name}</h2>
+              <div className="flex items-center gap-3 border-b-2 border-[#0a0c10] pb-3">
+                <div className="relative w-8 h-8 shrink-0">
+                  <PodBadgeShape color={pod.color || 'hsl(174 100% 38%)'} className="w-8 h-8" />
+                </div>
+                <h2 className="font-display text-3xl tracking-wider leading-none">{pod.name}</h2>
               </div>
 
               {podCoaches.length > 0 && (
@@ -96,11 +105,12 @@ export default function Roster() {
                 })}
               </div>
               {podHouseholds.length === 0 && (
-                <div className="text-sm text-muted-foreground italic pl-2">No families in this pod yet.</div>
+                <EmptyTrailState message="No families in this pod yet." className="py-8" />
               )}
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

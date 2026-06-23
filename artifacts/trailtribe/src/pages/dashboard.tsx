@@ -1,8 +1,9 @@
 import { useGetUpcomingEvents } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { MapPin, CalendarDays, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
+import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
 
 export default function Dashboard() {
   const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
@@ -17,65 +18,75 @@ export default function Dashboard() {
     </div>;
   }
 
+  const eventTypeStripe = (type: string) => {
+    switch (type) {
+      case "race": return "bg-accent";
+      case "practice": return "bg-primary";
+      default: return "bg-muted-foreground";
+    }
+  };
+
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
+
+      <div className="px-6 md:px-8 space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">What's happening this week.</p>
+        <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Dashboard</h1>
+        <p className="text-muted-foreground mt-1 text-sm">What's happening this week.</p>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Upcoming Events</h2>
-          <Link href="/calendar" className="text-sm text-primary hover:underline font-medium">View Calendar</Link>
+          <h2 className="font-display text-2xl tracking-wider leading-none">Upcoming Events</h2>
+          <Link href="/calendar" className="text-sm text-primary hover:underline font-bold uppercase tracking-wide">View Calendar</Link>
         </div>
 
         {events && events.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {events.map(event => (
-              <Card key={event.id} className="overflow-hidden flex flex-col">
-                <div className="bg-primary/10 px-4 py-2 border-b border-border flex justify-between items-center">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-primary">{event.eventType}</span>
+              <Card key={event.id} className="overflow-hidden flex flex-col cel-hover cursor-pointer">
+                <div className={`h-1.5 ${eventTypeStripe(event.eventType)}`} />
+                <div className="bg-secondary px-4 py-2 border-b-2 border-[#0a0c10] flex justify-between items-center">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-primary">{event.eventType}</span>
                   <span className="text-xs font-medium text-muted-foreground">{format(new Date(event.startTime), "MMM d, yyyy")}</span>
                 </div>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg"><Link href={`/events/${event.id}`} className="hover:underline">{event.title}</Link></CardTitle>
+                  <CardTitle className="text-lg"><Link href={`/events/${event.id}`} className="hover:text-primary transition-colors">{event.title}</Link></CardTitle>
                   {event.trailhead && (
                     <CardDescription className="flex items-center gap-1 mt-1">
-                      <MapPin className="h-3.5 w-3.5" />
+                      <TrailDot className="h-4 w-4 shrink-0" />
                       {event.trailhead.name}
                     </CardDescription>
                   )}
                 </CardHeader>
                 <CardContent className="mt-auto">
-                  <div className="flex items-center justify-between text-sm mt-4 pt-4 border-t border-border/50">
+                  <div className="flex items-center justify-between text-sm mt-4 pt-4 border-t-2 border-[#0a0c10]">
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">My RSVP:</span>
+                      <span className="text-muted-foreground text-xs uppercase font-bold tracking-wide">RSVP:</span>
                       {event.myRsvp === "attending" ? (
-                        <span className="flex items-center gap-1 text-green-600 dark:text-green-500 font-medium"><CheckCircle2 className="h-4 w-4" /> Yes</span>
+                        <span className="flex items-center gap-1 text-primary font-bold text-xs uppercase tracking-wide"><CheckCircle2 className="h-3.5 w-3.5" /> YES</span>
                       ) : event.myRsvp === "not_attending" ? (
-                        <span className="flex items-center gap-1 text-destructive font-medium"><XCircle className="h-4 w-4" /> No</span>
+                        <span className="flex items-center gap-1 text-destructive font-bold text-xs uppercase tracking-wide"><XCircle className="h-3.5 w-3.5" /> NO</span>
                       ) : event.myRsvp === "maybe" ? (
-                        <span className="flex items-center gap-1 text-amber-600 dark:text-amber-500 font-medium"><HelpCircle className="h-4 w-4" /> Maybe</span>
+                        <span className="flex items-center gap-1 text-accent font-bold text-xs uppercase tracking-wide"><HelpCircle className="h-3.5 w-3.5" /> MAYBE</span>
                       ) : (
-                        <span className="text-muted-foreground italic">None</span>
+                        <span className="text-muted-foreground text-xs italic">None</span>
                       )}
                     </div>
-                    <Link href={`/events/${event.id}`} className="text-primary hover:underline font-medium">Details</Link>
+                    <Link href={`/events/${event.id}`} className="text-primary font-bold text-xs uppercase tracking-wide hover:underline">Details →</Link>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-              <CalendarDays className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-medium">No upcoming events</h3>
-              <p className="text-muted-foreground max-w-sm mt-2">There are no events scheduled for your pod in the near future.</p>
-            </CardContent>
-          </Card>
+          <EmptyTrailState message="No upcoming events for your pod." />
         )}
+      </div>
       </div>
     </div>
   );

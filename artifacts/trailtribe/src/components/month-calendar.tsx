@@ -20,12 +20,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const EVENT_TYPE_COLORS: Record<string, string> = {
-  practice: "bg-emerald-600 text-white hover:bg-emerald-700",
-  race: "bg-red-600 text-white hover:bg-red-700",
-  social: "bg-purple-600 text-white hover:bg-purple-700",
-  volunteer: "bg-amber-500 text-white hover:bg-amber-600",
-  other: "bg-muted text-muted-foreground hover:bg-muted/80",
+const INK = "#0a0c10";
+
+const EVENT_TYPE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  practice: { bg: "bg-primary", text: "text-primary-foreground", dot: "bg-primary" },
+  race:     { bg: "bg-accent",  text: "text-accent-foreground",  dot: "bg-accent" },
+  social:   { bg: "bg-secondary border border-primary/40", text: "text-primary", dot: "bg-primary/60" },
+  volunteer:{ bg: "bg-accent/20 border border-accent/40", text: "text-accent", dot: "bg-accent/70" },
+  other:    { bg: "bg-secondary", text: "text-muted-foreground", dot: "bg-muted-foreground" },
 };
 
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -75,23 +77,34 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+      {/* Calendar container */}
+      <div
+        className="rounded-xl bg-card overflow-hidden"
+        style={{ border: `2px solid ${INK}`, boxShadow: `4px 4px 0 ${INK}` }}
+      >
+        {/* Month nav header */}
+        <div
+          className="flex items-center justify-between px-4 py-3 bg-secondary"
+          style={{ borderBottom: `2px solid ${INK}` }}
+        >
           <button
             onClick={goPrev}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            className="p-1.5 rounded-md cel-interactive transition-colors text-muted-foreground hover:text-foreground"
             aria-label="Previous month"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
 
           <div className="flex items-center gap-3">
-            <h2 className="text-base font-semibold">{format(month, "MMMM yyyy")}</h2>
+            <h2 className="font-display text-2xl tracking-wider leading-none">
+              {format(month, "MMMM yyyy")}
+            </h2>
             <button
               onClick={goToday}
-              className="text-xs px-2.5 py-1 rounded-md border border-border hover:bg-muted transition-colors font-medium"
+              className="text-xs px-3 py-1.5 rounded-lg border-2 font-bold uppercase tracking-wide hover:bg-muted transition-colors cel-interactive"
+              style={{ borderColor: INK }}
             >
               Today
             </button>
@@ -99,23 +112,28 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
 
           <button
             onClick={goNext}
-            className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            className="p-1.5 rounded-md cel-interactive transition-colors text-muted-foreground hover:text-foreground"
             aria-label="Next month"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
 
-        <div className="grid grid-cols-7 border-b border-border">
+        {/* DOW header row */}
+        <div className="grid grid-cols-7" style={{ borderBottom: `2px solid ${INK}` }}>
           {DOW_LABELS.map((d) => (
-            <div key={d} className="py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div
+              key={d}
+              className="py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
+            >
               {d}
             </div>
           ))}
         </div>
 
+        {/* Day grid */}
         <div className="grid grid-cols-7">
           {days.map((day, idx) => {
             const key = format(day, "yyyy-MM-dd");
@@ -130,42 +148,59 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
               <div
                 key={key}
                 className={cn(
-                  "min-h-[5rem] p-1 border-border",
-                  !isLastRow && "border-b",
-                  idx % 7 !== 6 && "border-r",
-                  !inMonth && "bg-muted/20",
+                  "min-h-[5rem] p-1",
+                  !inMonth && "bg-secondary/40",
                   today && "bg-primary/5"
                 )}
+                style={{
+                  borderBottom: !isLastRow ? `1px solid ${INK}` : undefined,
+                  borderRight: idx % 7 !== 6 ? `1px solid ${INK}` : undefined,
+                }}
               >
-                <div className={cn(
-                  "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full mb-1 mx-auto",
-                  today
-                    ? "bg-primary text-primary-foreground font-bold"
-                    : inMonth
-                    ? "text-foreground"
-                    : "text-muted-foreground/50"
-                )}>
-                  {format(day, "d")}
+                {/* Day number + amber has-events dot */}
+                <div className="flex flex-col items-center mb-1">
+                  <div className={cn(
+                    "text-xs font-bold w-6 h-6 flex items-center justify-center",
+                    today
+                      ? "rounded-sm border-2 bg-accent text-accent-foreground"
+                      : inMonth
+                      ? "text-foreground"
+                      : "text-muted-foreground/40"
+                  )}
+                  style={today ? { borderColor: INK } : undefined}
+                  >
+                    {format(day, "d")}
+                  </div>
+                  {/* Amber dot — always shown when day has any events */}
+                  {dayEvents.length > 0 && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent mt-0.5 shrink-0" style={{ border: `1px solid ${INK}` }} />
+                  )}
                 </div>
 
+                {/* Event pills */}
                 <div className="space-y-0.5">
-                  {showEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      onClick={() => navigate(`/events/${event.id}`)}
-                      className={cn(
-                        "w-full text-left text-[10px] leading-tight px-1.5 py-0.5 rounded truncate font-medium transition-colors",
-                        EVENT_TYPE_COLORS[event.eventType] ?? EVENT_TYPE_COLORS.other
-                      )}
-                      title={event.title}
-                    >
-                      {event.title}
-                    </button>
-                  ))}
+                  {showEvents.map((event) => {
+                    const colors = EVENT_TYPE_COLORS[event.eventType] ?? EVENT_TYPE_COLORS.other;
+                    return (
+                      <button
+                        key={event.id}
+                        onClick={() => navigate(`/events/${event.id}`)}
+                        className={cn(
+                          "w-full text-left text-[10px] leading-tight px-1.5 py-0.5 rounded-sm truncate font-bold transition-all cel-interactive",
+                          colors.bg,
+                          colors.text
+                        )}
+                        style={{ borderColor: INK }}
+                        title={event.title}
+                      >
+                        {event.title}
+                      </button>
+                    );
+                  })}
                   {overflow > 0 && (
                     <button
                       onClick={() => setExpandedDay(key)}
-                      className="w-full text-left text-[10px] px-1.5 py-0.5 rounded text-muted-foreground hover:bg-muted/60 transition-colors font-medium"
+                      className="w-full text-left text-[10px] px-1.5 py-0.5 rounded-sm text-primary font-bold hover:bg-primary/10 transition-colors uppercase tracking-wide"
                     >
                       +{overflow} more
                     </button>
@@ -176,49 +211,66 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
           })}
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-2.5 border-t border-border bg-muted/20 flex-wrap">
+        {/* Legend footer */}
+        <div
+          className="flex items-center gap-3 px-4 py-2.5 bg-secondary flex-wrap"
+          style={{ borderTop: `2px solid ${INK}` }}
+        >
           {[
             { type: "practice", label: "Practice" },
             { type: "race", label: "Race" },
             { type: "social", label: "Social" },
             { type: "volunteer", label: "Volunteer" },
             { type: "other", label: "Other" },
-          ].map(({ type, label }) => (
-            <div key={type} className="flex items-center gap-1.5">
-              <div className={cn("w-2.5 h-2.5 rounded-sm", EVENT_TYPE_COLORS[type].split(" ")[0])} />
-              <span className="text-xs text-muted-foreground">{label}</span>
-            </div>
-          ))}
+          ].map(({ type, label }) => {
+            const colors = EVENT_TYPE_COLORS[type];
+            return (
+              <div key={type} className="flex items-center gap-1.5">
+                <div className={cn("w-2.5 h-2.5 rounded-sm border", colors.dot)}
+                  style={{ borderColor: INK }} />
+                <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
+      {/* Day overflow sheet */}
       <Sheet open={expandedDay !== null} onOpenChange={(open) => { if (!open) setExpandedDay(null); }}>
-        <SheetContent side="bottom" className="max-h-[70vh] overflow-y-auto rounded-t-xl">
+        <SheetContent
+          side="bottom"
+          className="max-h-[70vh] overflow-y-auto rounded-t-xl"
+          style={{ border: `2px solid ${INK}`, borderBottom: "none", boxShadow: `0 -4px 0 ${INK}` }}
+        >
           <SheetHeader className="mb-4">
-            <SheetTitle>{expandedDayLabel}</SheetTitle>
+            <SheetTitle className="font-display text-2xl tracking-wider leading-none">
+              {expandedDayLabel}
+            </SheetTitle>
           </SheetHeader>
           <div className="space-y-2 pb-4">
-            {expandedDayEvents.map((event) => (
-              <button
-                key={event.id}
-                onClick={() => {
-                  setExpandedDay(null);
-                  navigate(`/events/${event.id}`);
-                }}
-                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors text-left"
-              >
-                <div className={cn(
-                  "w-2.5 h-2.5 rounded-full shrink-0",
-                  (EVENT_TYPE_COLORS[event.eventType] ?? EVENT_TYPE_COLORS.other).split(" ")[0]
-                )} />
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{event.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(parseISO(event.startTime), "h:mm a")} · {event.eventType}
+            {expandedDayEvents.map((event) => {
+              const colors = EVENT_TYPE_COLORS[event.eventType] ?? EVENT_TYPE_COLORS.other;
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => {
+                    setExpandedDay(null);
+                    navigate(`/events/${event.id}`);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border-2 hover:bg-secondary transition-colors text-left cel-interactive"
+                  style={{ borderColor: INK, boxShadow: `2px 2px 0 ${INK}` }}
+                >
+                  <div className={cn("w-3 h-3 rounded-sm border shrink-0", colors.dot)}
+                    style={{ borderColor: INK }} />
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm truncate">{event.title}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                      {format(parseISO(event.startTime), "h:mm a")} · {event.eventType}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </SheetContent>
       </Sheet>

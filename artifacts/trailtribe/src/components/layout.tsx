@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useGetMe } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
+import { RidgelineBanner } from "./illustrations";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -15,7 +16,7 @@ const baseNavItems = [
 ];
 
 const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
-const seasonBuilderNavItem = { href: "/season-builder", label: "Season Builder", icon: Layers };
+const seasonBuilderNavItem = { href: "/season-builder", label: "Season", icon: Layers };
 
 function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
@@ -23,10 +24,10 @@ function ThemeToggle({ className }: { className?: string }) {
     <button
       onClick={toggleTheme}
       className={cn(
-        "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors",
+        "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border-2 border-[#0a0c10] bg-secondary text-muted-foreground hover:text-foreground shadow-cel-sm cel-interactive transition-colors",
         className
       )}
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
     >
       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>
@@ -49,21 +50,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
-        <div className="p-6 flex items-start justify-between">
+      <aside className="hidden md:flex w-64 flex-col border-r-2 border-[#0a0c10] bg-card">
+        {/* Wordmark */}
+        <div className="p-6 flex items-start justify-between border-b-2 border-[#0a0c10]">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">TrailTribe</h1>
+            <h1 className="font-display text-3xl tracking-wider text-primary leading-none">TrailTribe</h1>
             {isCoachOrAdmin && (
-              <span className="text-xs text-primary font-semibold uppercase tracking-wider mt-0.5 block">
+              <span className="text-[10px] text-accent font-bold uppercase tracking-[0.12em] mt-1 block">
                 Coach View
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <ThemeToggle />
             {me && <NotificationBell />}
           </div>
         </div>
+
+        {/* Nav links */}
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -73,25 +77,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold uppercase tracking-wide transition-all border-2 cel-interactive",
                   isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "border-[#0a0c10] bg-primary text-primary-foreground shadow-cel-sm"
+                    : "border-transparent text-muted-foreground hover:border-[#0a0c10] hover:bg-secondary hover:text-foreground hover:shadow-cel-sm"
                 )}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-5 w-5 shrink-0" />
                 {item.label}
+                {isActive && (
+                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-current" />
+                )}
               </Link>
             );
           })}
         </nav>
+
+        {/* Sidebar footer with ridgeline */}
+        <div className="border-t-2 border-[#0a0c10] overflow-hidden">
+          <RidgelineBanner animated className="h-14 opacity-60" />
+        </div>
       </aside>
 
-      {/* Mobile Top Bar (notification bell) */}
+      {/* Mobile Top Bar */}
       {me && (
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b border-border">
-          <span className="text-lg font-bold text-foreground">TrailTribe</span>
-          <div className="flex items-center gap-1">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
+          <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTribe</span>
+          <div className="flex items-center gap-1.5">
             <ThemeToggle />
             <NotificationBell />
           </div>
@@ -99,12 +111,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main Content */}
-      <main className={cn("flex-1 overflow-y-auto pb-16 md:pb-0", me ? "pt-12 md:pt-0" : "")}>
+      <main className={cn("flex-1 overflow-y-auto pb-20 md:pb-0", me ? "pt-14 md:pt-0" : "")}>
         {children}
       </main>
 
-      {/* Mobile Bottom Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-card flex justify-around p-2 z-50">
+      {/* Mobile Bottom Bar — ridgeline divider + 64px tabs */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+        {/* Ridgeline silhouette chrome strip */}
+        <svg
+          viewBox="0 0 390 16"
+          className="w-full block"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          style={{ height: 14, marginBottom: -1 }}
+        >
+          <path
+            d="M0 16 L0 10 L20 8 L40 12 L60 6 L80 10 L100 4 L118 9 L130 5 L145 11 L160 7 L175 10 L190 3 L205 8 L220 5 L235 10 L250 6 L265 12 L280 8 L295 5 L310 9 L325 4 L340 10 L355 7 L370 11 L390 6 L390 16 Z"
+            fill="hsl(var(--card))"
+            stroke="#0a0c10"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <nav
+          className="bg-card border-t-2 border-[#0a0c10] flex justify-around items-stretch"
+          style={{ height: 64 }}
+        >
         {mobileItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.href || location.startsWith(item.href + "/");
@@ -113,18 +145,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 text-xs font-medium transition-colors min-w-0 flex-1",
+                "flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wide transition-all min-w-0 flex-1 relative",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Icon className="h-5 w-5" />
-              <span className="truncate">{item.label}</span>
+              {isActive && (
+                <span className="absolute top-0 left-2 right-2 h-1 bg-primary rounded-b-sm" />
+              )}
+              <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
+              <span className="truncate leading-none">{item.label}</span>
             </Link>
           );
         })}
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 }

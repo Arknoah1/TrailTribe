@@ -7,6 +7,7 @@ import { Car, MapPin, Calendar, ChevronRight, Bike } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { RidgelineBanner, EmptyTrailState, TrailDot } from "@/components/illustrations";
 
 type EventTypeFilter = "all" | "practice" | "race";
 
@@ -34,24 +35,30 @@ export default function CarpoolHub() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Page banner */}
+      <div className="overflow-hidden border-b-2 border-[#0a0c10]">
+        <RidgelineBanner animated className="h-16" />
+      </div>
+
+      <div className="px-6 md:px-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Carpools</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Carpools</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
           Find a ride or offer one — pick an event to see the board.
         </p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {(["all", "practice", "race"] as const).map(type => (
           <button
             key={type}
             onClick={() => setFilter(type)}
             className={cn(
-              "px-4 py-1.5 rounded-full text-sm font-medium border transition-colors capitalize",
+              "min-h-[44px] px-4 py-2 rounded-lg text-sm font-bold border-2 border-[#0a0c10] uppercase tracking-wide transition-all cel-interactive",
               filter === type
-                ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-foreground"
+                ? "bg-primary text-primary-foreground shadow-cel-sm"
+                : "bg-secondary text-muted-foreground hover:text-foreground shadow-cel-sm"
             )}
           >
             {type === "all" ? "All Events" : type === "practice" ? "Practices" : "Races"}
@@ -60,15 +67,9 @@ export default function CarpoolHub() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-            <Car className="h-12 w-12 text-muted-foreground mb-4 opacity-40" />
-            <h3 className="text-lg font-medium">No upcoming events</h3>
-            <p className="text-muted-foreground mt-2 max-w-sm">
-              There are no upcoming {filter !== "all" ? filter + " " : ""}events with carpool boards right now.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyTrailState
+          message={`No upcoming ${filter !== "all" ? filter + " " : ""}events with carpool boards right now.`}
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map(event => (
@@ -128,6 +129,7 @@ export default function CarpoolHub() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
