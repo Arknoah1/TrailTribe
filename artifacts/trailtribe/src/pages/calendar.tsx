@@ -78,6 +78,8 @@ export default function Calendar() {
   const regenMutation = useRegenerateCalendarToken();
   const authedFetch = useAuthedFetch();
   const [packs, setPacks] = useState<any[]>([]);
+  const [packsLoading, setPacksLoading] = useState(false);
+  const [volunteerEnabled, setVolunteerEnabled] = useState(false);
   const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
 
   const handleRegenerate = () => {
@@ -98,10 +100,12 @@ export default function Calendar() {
 
   useEffect(() => {
     if (!showAddEvent || !isCoach) return;
+    setPacksLoading(true);
     authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`)
       .then(r => r.ok ? r.json() : [])
       .then(setPacks)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setPacksLoading(false));
   }, [showAddEvent, isCoach]);
 
   const handleSaveEvent = async () => {
@@ -134,20 +138,23 @@ export default function Calendar() {
           ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
         },
       });
-      if (selectedPackId && created?.id) {
+      if (volunteerEnabled && created?.id) {
         await authedFetch(`${BASE_URL}/api/events/${created.id}/volunteer-tasks-enabled`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ enabled: true }),
         });
-        await authedFetch(`${BASE_URL}/api/events/${created.id}/tasks/clone-pack`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ packId: selectedPackId }),
-        });
+        if (selectedPackId) {
+          await authedFetch(`${BASE_URL}/api/events/${created.id}/tasks/clone-pack`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ packId: selectedPackId }),
+          });
+        }
       }
       toast({ title: `"${newEvent.title.trim()}" created` });
       setNewEvent(emptyNewEvent);
+      setVolunteerEnabled(false);
       setSelectedPackId(null);
       setShowAddEvent(false);
       queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
@@ -510,33 +517,61 @@ export default function Calendar() {
             </div>
           </div>
 
-          {isCoach && packs.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Volunteer task pack (optional)</label>
-              <Select
-                value={selectedPackId ? String(selectedPackId) : "_none"}
-                onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="— no pack —" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">— no pack —</SelectItem>
-                  {packs.map((pack: any) => (
-                    <SelectItem key={pack.id} value={String(pack.id)}>
-                      {pack.name} ({pack.tasks?.length ?? 0} tasks)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedPackId && (() => {
-                const pack = packs.find((p: any) => p.id === selectedPackId);
-                return pack ? (
-                  <p className="text-xs text-muted-foreground">
-                    Will add {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} and enable sign-ups on this event.
-                  </p>
-                ) : null;
-              })()}
+          {isCoach && (
+            <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <input
+                  id="cal-volunteer-enabled"
+                  type="checkbox"
+                  checked={volunteerEnabled}
+                  onChange={e => {
+                    setVolunteerEnabled(e.target.checked);
+                    if (!e.target.checked) setSelectedPackId(null);
+                  }}
+                  className="h-4 w-4 rounded border-input accent-primary"
+                />
+                <label htmlFor="cal-volunteer-enabled" className="text-sm font-medium cursor-pointer select-none">
+                  Enable volunteer sign-ups
+                </label>
+              </div>
+              {volunteerEnabled && (
+                <div className="space-y-1.5 pl-6">
+                  <label className="text-xs text-muted-foreground">Apply a task pack (optional)</label>
+                  {packsLoading ? (
+                    <p className="text-xs text-muted-foreground italic">Loading packs…</p>
+                  ) : packs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">No task packs defined yet — you can add tasks manually after creating the event.</p>
+                  ) : (
+                    <Select
+                      value={selectedPackId ? String(selectedPackId) : "_none"}
+                      onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="— no pack —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">— no pack, start empty —</SelectItem>
+                        {packs.map((pack: any) => (
+                          <SelectItem key={pack.id} value={String(pack.id)}>
+                            {pack.name} ({pack.tasks?.length ?? 0} tasks)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {selectedPackId && (() => {
+                    const pack = packs.find((p: any) => p.id === selectedPackId);
+                    return pack ? (
+                      <p className="text-xs text-muted-foreground">
+                        Will pre-populate {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} from the "{pack.name}" pack.
+                      </p>
+                    ) : null;
+                  })()}
+                  {!selectedPackId && (
+                    <p className="text-xs text-muted-foreground">Sign-ups will be enabled with an empty task list — add tasks from the event page.</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -548,7 +583,7 @@ export default function Calendar() {
             >
               {createEvent.isPending ? "Saving..." : "Save Event"}
             </Button>
-            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); setSelectedPackId(null); }} disabled={createEvent.isPending}>
+            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); setVolunteerEnabled(false); setSelectedPackId(null); }} disabled={createEvent.isPending}>
               Cancel
             </Button>
           </div>
