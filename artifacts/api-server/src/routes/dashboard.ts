@@ -6,7 +6,7 @@ import {
   podsTable,
   eventsTable,
   eventRsvpsTable,
-  volunteerSignupsTable,
+  eventTaskSignupsTable,
   carpoolOffersTable,
   carpoolClaimsTable,
   eventAttachmentsTable,
@@ -59,7 +59,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
           myRsvp = myRsvpRow?.status ?? null;
         }
       }
-      const volunteers = await db.select().from(volunteerSignupsTable).where(eq(volunteerSignupsTable.eventId, event.id));
+      const volunteerSignups = await db.select().from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.eventId, event.id));
       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
       let carpoolSpotsAvailable = 0;
@@ -73,7 +73,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
         trailhead: trailhead ?? null,
         rsvpCounts,
         myRsvp,
-        volunteerCount: volunteers.length,
+        volunteerCount: volunteerSignups.length,
         carpoolSpotsAvailable,
         attachments,
       };
@@ -129,7 +129,7 @@ router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
           myRsvp = myRsvpRow?.status ?? null;
         }
       }
-      const volunteers = await db.select().from(volunteerSignupsTable).where(eq(volunteerSignupsTable.eventId, event.id));
+      const volunteerSignups = await db.select().from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.eventId, event.id));
       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
       let carpoolSpotsAvailable = 0;
@@ -142,7 +142,7 @@ router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
         trailhead: trailhead ?? null,
         rsvpCounts,
         myRsvp,
-        volunteerCount: volunteers.length,
+        volunteerCount: volunteerSignups.length,
         carpoolSpotsAvailable,
         attachments,
       };

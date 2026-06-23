@@ -473,6 +473,63 @@ export default function Calendar() {
                 onChange={e => setNewEvent(p => ({ ...p, endTime: e.target.value }))}
               />
             </div>
+            {isCoach && (
+              <div className="sm:col-span-2 rounded-lg border border-border p-3 bg-muted/20 space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="cal-volunteer-enabled"
+                    type="checkbox"
+                    checked={volunteerEnabled}
+                    onChange={e => {
+                      setVolunteerEnabled(e.target.checked);
+                      if (!e.target.checked) setSelectedPackId(null);
+                    }}
+                    className="h-4 w-4 rounded border-input accent-primary"
+                  />
+                  <label htmlFor="cal-volunteer-enabled" className="text-sm font-medium cursor-pointer select-none">
+                    Enable volunteer sign-ups
+                  </label>
+                </div>
+                {volunteerEnabled && (
+                  <div className="space-y-1.5 pl-6">
+                    <label className="text-xs text-muted-foreground">Apply a task pack (optional)</label>
+                    {packsLoading ? (
+                      <p className="text-xs text-muted-foreground italic">Loading packs…</p>
+                    ) : packs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">No task packs defined yet — you can add tasks manually after creating the event.</p>
+                    ) : (
+                      <Select
+                        value={selectedPackId ? String(selectedPackId) : "_none"}
+                        onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
+                      >
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="— no pack —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">— no pack, start empty —</SelectItem>
+                          {packs.map((pack: any) => (
+                            <SelectItem key={pack.id} value={String(pack.id)}>
+                              {pack.name} ({pack.tasks?.length ?? 0} tasks)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {selectedPackId && (() => {
+                      const pack = packs.find((p: any) => p.id === selectedPackId);
+                      return pack ? (
+                        <p className="text-xs text-muted-foreground">
+                          Will pre-populate {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} from the "{pack.name}" pack.
+                        </p>
+                      ) : null;
+                    })()}
+                    {!selectedPackId && (
+                      <p className="text-xs text-muted-foreground">Sign-ups enabled with an empty task list — add tasks from the event page.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="sm:col-span-2 space-y-1.5">
               <Label className="text-sm">Trailhead <span className="text-muted-foreground">(optional)</span></Label>
               <Select
@@ -516,64 +573,6 @@ export default function Calendar() {
               )}
             </div>
           </div>
-
-          {isCoach && (
-            <div className="space-y-3 rounded-lg border border-border p-3 bg-muted/20">
-              <div className="flex items-center gap-2">
-                <input
-                  id="cal-volunteer-enabled"
-                  type="checkbox"
-                  checked={volunteerEnabled}
-                  onChange={e => {
-                    setVolunteerEnabled(e.target.checked);
-                    if (!e.target.checked) setSelectedPackId(null);
-                  }}
-                  className="h-4 w-4 rounded border-input accent-primary"
-                />
-                <label htmlFor="cal-volunteer-enabled" className="text-sm font-medium cursor-pointer select-none">
-                  Enable volunteer sign-ups
-                </label>
-              </div>
-              {volunteerEnabled && (
-                <div className="space-y-1.5 pl-6">
-                  <label className="text-xs text-muted-foreground">Apply a task pack (optional)</label>
-                  {packsLoading ? (
-                    <p className="text-xs text-muted-foreground italic">Loading packs…</p>
-                  ) : packs.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">No task packs defined yet — you can add tasks manually after creating the event.</p>
-                  ) : (
-                    <Select
-                      value={selectedPackId ? String(selectedPackId) : "_none"}
-                      onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="— no pack —" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="_none">— no pack, start empty —</SelectItem>
-                        {packs.map((pack: any) => (
-                          <SelectItem key={pack.id} value={String(pack.id)}>
-                            {pack.name} ({pack.tasks?.length ?? 0} tasks)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {selectedPackId && (() => {
-                    const pack = packs.find((p: any) => p.id === selectedPackId);
-                    return pack ? (
-                      <p className="text-xs text-muted-foreground">
-                        Will pre-populate {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} from the "{pack.name}" pack.
-                      </p>
-                    ) : null;
-                  })()}
-                  {!selectedPackId && (
-                    <p className="text-xs text-muted-foreground">Sign-ups will be enabled with an empty task list — add tasks from the event page.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="flex gap-2 pt-2">
             <Button
