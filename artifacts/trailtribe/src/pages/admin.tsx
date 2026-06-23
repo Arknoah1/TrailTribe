@@ -958,14 +958,25 @@ export default function Admin() {
                               <tr className={`hover:bg-muted/20 transition-colors ${isPast ? "opacity-60" : ""} ${isEditing ? "bg-muted/20" : ""}`}>
                                 <td className="px-4 py-2.5 text-muted-foreground text-xs whitespace-nowrap">
                                   {isEditing ? (
-                                    <Input
-                                      type="date"
-                                      value={editingEventData.startDate}
-                                      onChange={e => setEditingEventData((p: any) => ({ ...p, startDate: e.target.value }))}
-                                      className="h-7 text-xs w-32"
-                                    />
+                                    <div className="flex flex-col gap-1">
+                                      <Input
+                                        type="date"
+                                        value={editingEventData.startDate}
+                                        onChange={e => setEditingEventData((p: any) => ({ ...p, startDate: e.target.value }))}
+                                        className="h-7 text-xs w-32"
+                                      />
+                                      <Input
+                                        type="time"
+                                        value={editingEventData.startTime}
+                                        onChange={e => setEditingEventData((p: any) => ({ ...p, startTime: e.target.value }))}
+                                        className="h-7 text-xs w-32"
+                                      />
+                                    </div>
                                   ) : (
-                                    dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                    <div>
+                                      <div>{dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>
+                                      <div className="text-muted-foreground/70">{dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</div>
+                                    </div>
                                   )}
                                 </td>
                                 <td className="px-4 py-2.5 hidden sm:table-cell">
@@ -1639,13 +1650,21 @@ export default function Admin() {
                   ) : (
                     /* ── VIEW MODE ─────────────────────────────── */
                     <>
-                      {/* Photo / placeholder */}
+                      {/* Photo / map preview / placeholder */}
                       <div className="h-36 bg-muted/60 flex items-center justify-center overflow-hidden">
                         {th.photoObjectPath ? (
                           <img
                             src={trailheadPhotoUrl(th.photoObjectPath)}
                             alt={th.name}
                             className="w-full h-full object-cover"
+                          />
+                        ) : (th.address || th.googleMapsUrl) ? (
+                          <iframe
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(th.address ?? th.name)}&output=embed`}
+                            className="w-full h-full border-0 pointer-events-none"
+                            title={`Map of ${th.name}`}
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
                           />
                         ) : (
                           <Mountain className="h-10 w-10 text-muted-foreground/30" />
