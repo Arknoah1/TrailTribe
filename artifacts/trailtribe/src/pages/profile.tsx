@@ -1,6 +1,7 @@
 import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold, useUpdateHouseholdCompliance,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
+  useGetMyVolunteerSignups,
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -552,6 +553,86 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
 interface TeamDoc { type: string; viewUrl: string | null; }
 
+function VolunteerCommitmentsTab() {
+  const { data: signups, isLoading } = useGetMyVolunteerSignups();
+  const now = new Date();
+
+  const upcoming = (signups ?? []).filter(s => {
+    const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
+    return eventStart && eventStart >= now;
+  });
+  const past = (signups ?? []).filter(s => {
+    const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
+    return eventStart && eventStart < now;
+  });
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground text-sm">Loading commitments…</div>;
+  }
+
+  if ((signups ?? []).length === 0) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium">No volunteer sign-ups yet</p>
+          <p className="text-xs mt-1">Visit an event page to sign up for volunteer tasks.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const renderGroup = (items: typeof signups, label: string) => {
+    if (!items || items.length === 0) return null;
+    return (
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</h3>
+        {items.map(s => {
+          const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
+          return (
+            <Card key={s.id} className="overflow-hidden">
+              <CardContent className="p-4 flex items-start gap-3">
+                <ClipboardCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm truncate">{s.task?.title ?? "Unknown task"}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {s.event?.title ?? "Unknown event"}
+                    {eventStart && (
+                      <> · {format(eventStart, "EEE, MMM d")}</>
+                    )}
+                  </div>
+                  {s.task?.category && (
+                    <Badge variant="secondary" className="mt-1.5 text-xs py-0 px-1.5">{s.task.category}</Badge>
+                  )}
+                </div>
+                {s.event?.id && (
+                  <a
+                    href={`/events/${s.event.id}`}
+                    className="text-xs text-primary hover:underline shrink-0 mt-0.5 font-medium"
+                  >
+                    View
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">My Volunteer Commitments</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Events you've signed up to help at.</p>
+      </div>
+      {renderGroup(upcoming, `Upcoming (${upcoming.length})`)}
+      {renderGroup(past, `Past (${past.length})`)}
+    </div>
+  );
+}
+
 function MyFamilyTab({ householdId }: { householdId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -965,7 +1046,7 @@ export default function Profile() {
       </div>
 
       <Tabs defaultValue="account">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="account" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account
           </TabsTrigger>
@@ -974,6 +1055,9 @@ export default function Profile() {
           </TabsTrigger>
           <TabsTrigger value="family" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Home className="h-4 w-4" /> My Family
+          </TabsTrigger>
+          <TabsTrigger value="volunteer" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardCheck className="h-4 w-4" /> Volunteer
           </TabsTrigger>
         </TabsList>
 
@@ -1144,6 +1228,11 @@ export default function Profile() {
           ) : (
             <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
           )}
+        </TabsContent>
+
+        {/* Volunteer Commitments tab */}
+        <TabsContent value="volunteer" className="mt-6">
+          <VolunteerCommitmentsTab />
         </TabsContent>
       </Tabs>
 

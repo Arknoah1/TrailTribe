@@ -116,7 +116,8 @@ router.get("/events/:id/tasks", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/events/:id/tasks", requireCoachOrAdmin, async (req, res) => {
+// Admin-only: create event task
+router.post("/events/:id/tasks", requireAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { category, title, description, slotsNeeded, sortOrder } = req.body;
   if (!category || !title) {
@@ -134,14 +135,13 @@ router.post("/events/:id/tasks", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json(task);
 });
 
-// Clone from templates: if templateTaskIds is provided, only clone those; if omitted/empty, clone ALL templates
-router.post("/events/:id/tasks/from-templates", requireCoachOrAdmin, async (req, res) => {
+// Admin-only: clone all templates (or selected templates) to an event
+router.post("/events/:id/tasks/clone-template", requireAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { templateTaskIds } = req.body as { templateTaskIds?: number[] };
 
   let templates;
   if (!templateTaskIds || templateTaskIds.length === 0) {
-    // Clone all templates
     templates = await db
       .select()
       .from(volunteerTemplateTasksTable)
@@ -173,7 +173,54 @@ router.post("/events/:id/tasks/from-templates", requireCoachOrAdmin, async (req,
   res.status(201).json({ added: templates.length });
 });
 
-router.patch("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res) => {
+// Bulk signup: sign the current user up for multiple tasks; skip silently if already signed up or at capacity
+router.post("/events/:id/tasks/bulk-signup", requireAuth, async (req, res) => {
+  const eventId = parseInt(str(req.params.id));
+  const { taskIds } = req.body as { taskIds?: number[] };
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    res.status(400).json({ error: "taskIds array required" });
+    return;
+  }
+
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const taskId of taskIds) {
+    const task = await db.query.eventTasksTable.findFirst({
+      where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+    });
+    if (!task) { skipped++; continue; }
+
+    const existing = await db.query.eventTaskSignupsTable.findFirst({
+      where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
+    });
+    if (existing) { skipped++; continue; }
+
+    const [{ currentCount }] = await db
+      .select({ currentCount: count() })
+      .from(eventTaskSignupsTable)
+      .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
+
+    if (currentCount >= task.slotsNeeded) { skipped++; continue; }
+
+    await db.insert(eventTaskSignupsTable).values({
+      eventTaskId: taskId,
+      eventId,
+      userId: me.id,
+      notes: null,
+    });
+    added++;
+  }
+
+  res.status(201).json({ added, skipped });
+});
+
+// Admin-only: update event task
+router.patch("/events/:id/tasks/:taskId", requireAdmin, async (req, res) => {
   const taskId = parseInt(str(req.params.taskId));
   const { category, title, description, slotsNeeded, sortOrder } = req.body;
   const [updated] = await db.update(eventTasksTable)
@@ -190,7 +237,8 @@ router.patch("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res) 
   res.json(updated);
 });
 
-router.delete("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res) => {
+// Admin-only: delete event task
+router.delete("/events/:id/tasks/:taskId", requireAdmin, async (req, res) => {
   const taskId = parseInt(str(req.params.taskId));
   await db.delete(eventTasksTable).where(eq(eventTasksTable.id, taskId));
   res.status(204).send();
@@ -212,13 +260,11 @@ router.post("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) =>
   });
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
 
-  // Check if already signed up
   const existing = await db.query.eventTaskSignupsTable.findFirst({
     where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
   });
   if (existing) { res.status(409).json({ error: "Already signed up" }); return; }
 
-  // Enforce capacity — count current signups against slotsNeeded
   const [{ currentCount }] = await db
     .select({ currentCount: count() })
     .from(eventTaskSignupsTable)
@@ -236,7 +282,6 @@ router.post("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) =>
     notes: notes ?? null,
   }).returning();
 
-  // In-app notification to the user confirming their signup
   try {
     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
     if (event) {
@@ -282,7 +327,6 @@ router.get("/users/me/volunteer-signups", requireAuth, async (req, res) => {
     .from(eventTaskSignupsTable)
     .where(eq(eventTaskSignupsTable.userId, me.id));
 
-  // Enrich each signup with task and event details
   const enriched = await Promise.all(
     signups.map(async (s) => {
       const task = await db.query.eventTasksTable.findFirst({ where: eq(eventTasksTable.id, s.eventTaskId) });
@@ -293,7 +337,6 @@ router.get("/users/me/volunteer-signups", requireAuth, async (req, res) => {
     })
   );
 
-  // Sort by event start time ascending (upcoming first)
   enriched.sort((a, b) => {
     const aTime = a.event?.startTime?.getTime() ?? 0;
     const bTime = b.event?.startTime?.getTime() ?? 0;

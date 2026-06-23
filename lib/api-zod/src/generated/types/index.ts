@@ -7,8 +7,6 @@
  */
 
 export * from "./addAttachmentBody";
-export * from "./addEventTasksFromTemplates201";
-export * from "./addEventTasksFromTemplatesBody";
 export * from "./approveUserBody";
 export * from "./approveUserBodyRole";
 export * from "./batchCreateEventsBody";
@@ -16,6 +14,8 @@ export * from "./batchCreateEventsResult";
 export * from "./broadcast";
 export * from "./broadcastChannel";
 export * from "./broadcastWithSender";
+export * from "./bulkSignupForEventTasks201";
+export * from "./bulkSignupForEventTasksBody";
 export * from "./calendarSubscribeUrl";
 export * from "./carpoolClaim";
 export * from "./carpoolClaimWithUser";
@@ -26,6 +26,8 @@ export * from "./carpoolRequestStatus";
 export * from "./carpoolRequestWithUsers";
 export * from "./carpoolRequestWithUsersMatchedOffer";
 export * from "./claimCarpoolBody";
+export * from "./cloneEventTasksFromTemplate201";
+export * from "./cloneEventTasksFromTemplateBody";
 export * from "./complianceStats";
 export * from "./contactCoachBody";
 export * from "./createCarpoolOfferBody";

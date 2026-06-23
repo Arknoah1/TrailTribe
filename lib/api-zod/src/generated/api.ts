@@ -1278,17 +1278,25 @@ export const CreateEventTaskBody = zod.object({
   sortOrder: zod.number().optional(),
 });
 
-export const AddEventTasksFromTemplatesParams = zod.object({
+export const CloneEventTasksFromTemplateParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const AddEventTasksFromTemplatesBody = zod.object({
+export const CloneEventTasksFromTemplateBody = zod.object({
   templateTaskIds: zod
     .array(zod.number())
     .optional()
     .describe(
       "IDs of templates to clone. If omitted, all templates are cloned.",
     ),
+});
+
+export const BulkSignupForEventTasksParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const BulkSignupForEventTasksBody = zod.object({
+  taskIds: zod.array(zod.number()),
 });
 
 export const UpdateEventTaskParams = zod.object({

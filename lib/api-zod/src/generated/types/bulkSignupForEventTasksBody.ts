@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AddEventTasksFromTemplates201 = {
-  added: number;
+export type BulkSignupForEventTasksBody = {
+  taskIds: number[];
 };

@@ -772,9 +772,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventTask"
 
-  /events/{id}/tasks/from-templates:
+  /events/{id}/tasks/clone-template:
     post:
-      operationId: addEventTasksFromTemplates
+      operationId: cloneEventTasksFromTemplate
       tags: [events]
       parameters:
         - name: id
@@ -805,6 +805,42 @@ paths:
                   added:
                     type: integer
                 required: [added]
+
+  /events/{id}/tasks/bulk-signup:
+    post:
+      operationId: bulkSignupForEventTasks
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                taskIds:
+                  type: array
+                  items:
+                    type: integer
+              required: [taskIds]
+      responses:
+        "201":
+          description: Bulk signup result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  added:
+                    type: integer
+                  skipped:
+                    type: integer
+                required: [added, skipped]
 
   /events/{id}/tasks/{taskId}:
     patch:

@@ -97,6 +97,7 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
         isAllTeam: e.isAllTeam ?? true,
         rsvpDeadline: e.rsvpDeadline ? new Date(e.rsvpDeadline) : null,
         volunteerSlotsNeeded: e.volunteerSlotsNeeded ?? 0,
+        volunteerTasksEnabled: e.volunteerTasksEnabled ?? false,
         createdByUserId: me?.id ?? null,
         iCalUid: randomUUID(),
         seriesId: resolvedSeriesId,

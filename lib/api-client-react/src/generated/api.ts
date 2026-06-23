@@ -18,19 +18,21 @@ import type {
 
 import type {
   AddAttachmentBody,
-  AddEventTasksFromTemplates201,
-  AddEventTasksFromTemplatesBody,
   ApproveUserBody,
   BatchCreateEventsBody,
   BatchCreateEventsResult,
   Broadcast,
   BroadcastWithSender,
+  BulkSignupForEventTasks201,
+  BulkSignupForEventTasksBody,
   CalendarSubscribeUrl,
   CarpoolClaim,
   CarpoolOffer,
   CarpoolOfferWithClaims,
   CarpoolRequestWithUsers,
   ClaimCarpoolBody,
+  CloneEventTasksFromTemplate201,
+  CloneEventTasksFromTemplateBody,
   ContactCoachBody,
   CreateCarpoolOfferBody,
   CreateCarpoolRequestBody,
@@ -3018,44 +3020,44 @@ export const useCreateEventTask = <
   return useMutation(getCreateEventTaskMutationOptions(options));
 };
 
-export const getAddEventTasksFromTemplatesUrl = (id: number) => {
-  return `/api/events/${id}/tasks/from-templates`;
+export const getCloneEventTasksFromTemplateUrl = (id: number) => {
+  return `/api/events/${id}/tasks/clone-template`;
 };
 
-export const addEventTasksFromTemplates = async (
+export const cloneEventTasksFromTemplate = async (
   id: number,
-  addEventTasksFromTemplatesBody?: AddEventTasksFromTemplatesBody,
+  cloneEventTasksFromTemplateBody?: CloneEventTasksFromTemplateBody,
   options?: RequestInit,
-): Promise<AddEventTasksFromTemplates201> => {
-  return customFetch<AddEventTasksFromTemplates201>(
-    getAddEventTasksFromTemplatesUrl(id),
+): Promise<CloneEventTasksFromTemplate201> => {
+  return customFetch<CloneEventTasksFromTemplate201>(
+    getCloneEventTasksFromTemplateUrl(id),
     {
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(addEventTasksFromTemplatesBody),
+      body: JSON.stringify(cloneEventTasksFromTemplateBody),
     },
   );
 };
 
-export const getAddEventTasksFromTemplatesMutationOptions = <
+export const getCloneEventTasksFromTemplateMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+    Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>,
     TError,
-    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+    { id: number; data: BodyType<CloneEventTasksFromTemplateBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+  Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>,
   TError,
-  { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+  { id: number; data: BodyType<CloneEventTasksFromTemplateBody> },
   TContext
 > => {
-  const mutationKey = ["addEventTasksFromTemplates"];
+  const mutationKey = ["cloneEventTasksFromTemplate"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -3065,42 +3067,127 @@ export const getAddEventTasksFromTemplatesMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
-    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> }
+    Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>,
+    { id: number; data: BodyType<CloneEventTasksFromTemplateBody> }
   > = (props) => {
     const { id, data } = props ?? {};
 
-    return addEventTasksFromTemplates(id, data, requestOptions);
+    return cloneEventTasksFromTemplate(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AddEventTasksFromTemplatesMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addEventTasksFromTemplates>>
+export type CloneEventTasksFromTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>
 >;
-export type AddEventTasksFromTemplatesMutationBody =
-  BodyType<AddEventTasksFromTemplatesBody>;
-export type AddEventTasksFromTemplatesMutationError = ErrorType<unknown>;
+export type CloneEventTasksFromTemplateMutationBody =
+  BodyType<CloneEventTasksFromTemplateBody>;
+export type CloneEventTasksFromTemplateMutationError = ErrorType<unknown>;
 
-export const useAddEventTasksFromTemplates = <
+export const useCloneEventTasksFromTemplate = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+    Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>,
     TError,
-    { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+    { id: number; data: BodyType<CloneEventTasksFromTemplateBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof addEventTasksFromTemplates>>,
+  Awaited<ReturnType<typeof cloneEventTasksFromTemplate>>,
   TError,
-  { id: number; data: BodyType<AddEventTasksFromTemplatesBody> },
+  { id: number; data: BodyType<CloneEventTasksFromTemplateBody> },
   TContext
 > => {
-  return useMutation(getAddEventTasksFromTemplatesMutationOptions(options));
+  return useMutation(getCloneEventTasksFromTemplateMutationOptions(options));
+};
+
+export const getBulkSignupForEventTasksUrl = (id: number) => {
+  return `/api/events/${id}/tasks/bulk-signup`;
+};
+
+export const bulkSignupForEventTasks = async (
+  id: number,
+  bulkSignupForEventTasksBody: BulkSignupForEventTasksBody,
+  options?: RequestInit,
+): Promise<BulkSignupForEventTasks201> => {
+  return customFetch<BulkSignupForEventTasks201>(
+    getBulkSignupForEventTasksUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(bulkSignupForEventTasksBody),
+    },
+  );
+};
+
+export const getBulkSignupForEventTasksMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkSignupForEventTasks>>,
+    TError,
+    { id: number; data: BodyType<BulkSignupForEventTasksBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkSignupForEventTasks>>,
+  TError,
+  { id: number; data: BodyType<BulkSignupForEventTasksBody> },
+  TContext
+> => {
+  const mutationKey = ["bulkSignupForEventTasks"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkSignupForEventTasks>>,
+    { id: number; data: BodyType<BulkSignupForEventTasksBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return bulkSignupForEventTasks(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkSignupForEventTasksMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkSignupForEventTasks>>
+>;
+export type BulkSignupForEventTasksMutationBody =
+  BodyType<BulkSignupForEventTasksBody>;
+export type BulkSignupForEventTasksMutationError = ErrorType<unknown>;
+
+export const useBulkSignupForEventTasks = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkSignupForEventTasks>>,
+    TError,
+    { id: number; data: BodyType<BulkSignupForEventTasksBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof bulkSignupForEventTasks>>,
+  TError,
+  { id: number; data: BodyType<BulkSignupForEventTasksBody> },
+  TContext
+> => {
+  return useMutation(getBulkSignupForEventTasksMutationOptions(options));
 };
 
 export const getUpdateEventTaskUrl = (id: number, taskId: number) => {

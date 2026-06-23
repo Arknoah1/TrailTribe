@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
 import { randomUUID, toLocalDateISO } from "@/lib/uuid";
 
@@ -112,6 +113,7 @@ export default function SeasonBuilder() {
   const [filterType, setFilterType] = useState<EventType | "all">("all");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [volunteerEnabled, setVolunteerEnabled] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(search);
@@ -231,6 +233,7 @@ export default function SeasonBuilder() {
           endTime: endDt.toISOString(),
           trailheadId: r.trailheadId,
           isAllTeam: true,
+          volunteerTasksEnabled: volunteerEnabled,
         };
       });
 
@@ -401,6 +404,23 @@ export default function SeasonBuilder() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="pt-4 border-t border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium flex items-center gap-1.5">
+                    <Users className="h-4 w-4 text-primary" /> Enable volunteer sign-ups
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Volunteer task sign-ups will be open for all events in this batch. Add tasks to each event after publishing.
+                  </p>
+                </div>
+                <Switch
+                  checked={volunteerEnabled}
+                  onCheckedChange={setVolunteerEnabled}
+                />
+              </div>
             </div>
 
             <div className="flex justify-end pt-2">

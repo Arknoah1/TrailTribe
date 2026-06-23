@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type AddEventTasksFromTemplatesBody = {
+export type CloneEventTasksFromTemplateBody = {
   /** IDs of templates to clone. If omitted, all templates are cloned. */
   templateTaskIds?: number[];
 };

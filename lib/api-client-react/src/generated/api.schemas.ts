@@ -761,13 +761,22 @@ export type SetEventVolunteerTasksEnabledBody = {
   enabled: boolean;
 };
 
-export type AddEventTasksFromTemplatesBody = {
+export type CloneEventTasksFromTemplateBody = {
   /** IDs of templates to clone. If omitted, all templates are cloned. */
   templateTaskIds?: number[];
 };
 
-export type AddEventTasksFromTemplates201 = {
+export type CloneEventTasksFromTemplate201 = {
   added: number;
+};
+
+export type BulkSignupForEventTasksBody = {
+  taskIds: number[];
+};
+
+export type BulkSignupForEventTasks201 = {
+  added: number;
+  skipped: number;
 };
 
 export type SignUpForEventTaskBody = {

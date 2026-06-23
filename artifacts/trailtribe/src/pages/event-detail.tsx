@@ -2,7 +2,7 @@ import {
   useGetEvent, useRsvpEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods,
   useListEventTasks, useSignUpForEventTask, useCancelEventTaskSignup,
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask,
-  useAddEventTasksFromTemplates, useListVolunteerTemplateTasks,
+  useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
@@ -73,13 +73,14 @@ export default function EventDetail() {
   const cancelMut = useCancelEventTaskSignup();
   const createTaskMut = useCreateEventTask();
   const deleteTaskMut = useDeleteEventTask();
-  const addFromTemplatesMut = useAddEventTasksFromTemplates();
+  const addFromTemplatesMut = useCloneEventTasksFromTemplate();
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [selectedTplIds, setSelectedTplIds] = useState<Set<number>>(new Set());
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [isAttending, setIsAttending] = useState(false);
 
   const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(eventId) });
   const invalidateEvent = () => {
@@ -509,14 +510,39 @@ export default function EventDetail() {
           </div>
 
           {volunteerTasksEnabled && (
-            (tasks ?? []).length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="py-10 text-center text-muted-foreground">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No volunteer tasks yet.{isCoach ? " Add tasks from templates or create a custom one." : ""}</p>
-                </CardContent>
-              </Card>
-            ) : (
+            <>
+              {/* Step 1: Attendance checkbox — non-coaches must confirm before signing up */}
+              {!isCoach && (tasks ?? []).length > 0 && (
+                <Card className={`border transition-colors ${isAttending ? "border-primary/30 bg-primary/5" : "border-border"}`}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="attending-check"
+                      checked={isAttending}
+                      onChange={e => setIsAttending(e.target.checked)}
+                      className="h-4 w-4 rounded accent-primary shrink-0 cursor-pointer"
+                    />
+                    <label htmlFor="attending-check" className="text-sm font-medium cursor-pointer select-none flex-1">
+                      I'm planning to attend this event
+                      <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                        Check this to see and sign up for volunteer tasks
+                      </span>
+                    </label>
+                    {isAttending && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Step 2: Task grid — visible only after attendance confirmed (or for coaches always) */}
+              {(isAttending || isCoach) && (
+                (tasks ?? []).length === 0 ? (
+                  <Card className="border-dashed">
+                    <CardContent className="py-10 text-center text-muted-foreground">
+                      <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No volunteer tasks yet.{isCoach ? " Add tasks from templates or create a custom one." : ""}</p>
+                    </CardContent>
+                  </Card>
+                ) : (
               <div className="space-y-3">
                 {categories.map((category) => {
                   const catTasks = tasksByCategory[category] ?? [];
@@ -629,7 +655,9 @@ export default function EventDetail() {
                   );
                 })}
               </div>
-            )
+                )
+              )}
+            </>
           )}
         </div>
       )}
