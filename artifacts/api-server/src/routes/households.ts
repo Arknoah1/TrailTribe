@@ -59,7 +59,11 @@ function canSeeMedical(requester: Requester, householdId: number | null): boolea
 
 router.get("/households", requireAuth, async (req, res) => {
   const requester = await getRequester(req);
-  const households = await db.select().from(householdsTable);
+  const enrolledOnly = req.query.enrolledOnly === "true";
+  const baseQuery = enrolledOnly
+    ? db.select().from(householdsTable).where(eq(householdsTable.seasonEnrolled, true))
+    : db.select().from(householdsTable);
+  const households = await baseQuery;
   const result = await Promise.all(
     households.map(async (h) => {
       const members = await db.select().from(usersTable).where(eq(usersTable.householdId, h.id));

@@ -185,6 +185,47 @@ const migrations: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    name: "create_seasons_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS seasons (
+        id serial PRIMARY KEY,
+        name text NOT NULL,
+        status text NOT NULL DEFAULT 'active',
+        start_date timestamptz NOT NULL DEFAULT now(),
+        end_date timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "add_season_enrolled_to_households",
+    sql: `
+      ALTER TABLE households
+        ADD COLUMN IF NOT EXISTS season_enrolled boolean NOT NULL DEFAULT false;
+    `,
+  },
+  {
+    name: "create_season_roster_snapshots_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS season_roster_snapshots (
+        id serial PRIMARY KEY,
+        season_id integer NOT NULL REFERENCES seasons(id),
+        household_id integer NOT NULL,
+        family_name text NOT NULL,
+        pod_name text,
+        enrolled boolean NOT NULL DEFAULT false,
+        liability_waiver_signed boolean NOT NULL DEFAULT false,
+        media_release_signed boolean NOT NULL DEFAULT false,
+        code_of_conduct_signed boolean NOT NULL DEFAULT false,
+        emergency_contact_name text,
+        emergency_contact_phone text,
+        members jsonb NOT NULL DEFAULT '[]',
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

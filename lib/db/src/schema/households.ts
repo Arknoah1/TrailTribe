@@ -16,6 +16,7 @@ export const householdsTable = pgTable("households", {
   mediaReleaseSignedAt: timestamp("media_release_signed_at", { withTimezone: true }),
   codeOfConductSigned: boolean("code_of_conduct_signed").notNull().default(false),
   codeOfConductSignedAt: timestamp("code_of_conduct_signed_at", { withTimezone: true }),
+  seasonEnrolled: boolean("season_enrolled").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

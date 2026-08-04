@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState, useEffect, useRef, useCallback, Fragment } from "react";
@@ -17,6 +17,7 @@ import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
 import SeasonBuilder from "./season-builder";
+import SeasonsTab from "./admin-seasons";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -552,6 +553,9 @@ export default function Admin() {
           <TabsTrigger value="season-builder" className="flex items-center gap-1.5">
             <Layers className="h-3.5 w-3.5" /> Season Builder
           </TabsTrigger>
+          <TabsTrigger value="seasons" className="flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" /> Seasons
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster" className="mt-6 space-y-4">
@@ -561,6 +565,29 @@ export default function Admin() {
               <p className="text-sm text-muted-foreground">{roster.length} {roster.length === 1 ? "family" : "families"} registered</p>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const res = await authedFetch(`${BASE_URL}/api/seasons/active`);
+                    const active = res.ok ? await res.json() : null;
+                    const id = active?.id;
+                    const url = id ? `${BASE_URL}/api/seasons/${id}/export.csv` : null;
+                    if (!url) { toast({ title: "No active season — start one in the Seasons tab first", variant: "destructive" }); return; }
+                    const dlRes = await authedFetch(url);
+                    if (!dlRes.ok) { toast({ title: "Export failed", variant: "destructive" }); return; }
+                    const blob = await dlRes.blob();
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${(active.name ?? "roster").replace(/[^a-z0-9]/gi, "-")}-roster.csv`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  } catch { toast({ title: "Export failed", variant: "destructive" }); }
+                }}
+                className="shrink-0"
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
+              </Button>
               <Input
                 placeholder="Search families or riders..."
                 value={rosterSearch}
@@ -2265,6 +2292,10 @@ export default function Admin() {
 
         <TabsContent value="season-builder" className="mt-6">
           <SeasonBuilder />
+        </TabsContent>
+
+        <TabsContent value="seasons" className="mt-6">
+          <SeasonsTab />
         </TabsContent>
       </Tabs>
 

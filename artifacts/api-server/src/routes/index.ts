@@ -15,6 +15,7 @@ import notificationsRouter from "./notifications";
 import calendarRouter from "./calendar";
 import volunteerTasksRouter from "./volunteerTasks";
 import boardRouter from "./board";
+import seasonsRouter from "./seasons";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(notificationsRouter);
 router.use(calendarRouter);
 router.use(volunteerTasksRouter);
 router.use(boardRouter);
+router.use(seasonsRouter);
 
 export default router;

@@ -10,3 +10,4 @@ export * from "./event_attachments";
 export * from "./team_documents";
 export * from "./notifications";
 export * from "./board";
+export * from "./seasons";
