@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
+import { useAdminView } from "@/hooks/use-admin-view";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -40,11 +41,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const unreadCount = typeof unreadData === "number" ? unreadData : (unreadData as any)?.count ?? 0;
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
-  const navItems = isCoachOrAdmin
+  const { adminViewEnabled } = useAdminView();
+  const showAdminTabs = isCoachOrAdmin && adminViewEnabled;
+
+  const navItems = showAdminTabs
     ? [...baseNavItems.slice(0, 4), adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
     : baseNavItems;
 
-  const mobileItems = isCoachOrAdmin
+  const mobileItems = showAdminTabs
     ? [baseNavItems[0], baseNavItems[1], baseNavItems[2], adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
     : baseNavItems;
 
@@ -57,8 +61,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div>
             <h1 className="font-display text-3xl tracking-wider text-primary leading-none">TrailTribe</h1>
             {isCoachOrAdmin && (
-              <span className="text-[10px] text-accent font-bold uppercase tracking-[0.12em] mt-1 block">
-                Coach View
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-[0.12em] mt-1 block",
+                adminViewEnabled ? "text-destructive" : "text-accent"
+              )}>
+                {adminViewEnabled ? "Admin Mode" : "Coach View"}
               </span>
             )}
           </div>

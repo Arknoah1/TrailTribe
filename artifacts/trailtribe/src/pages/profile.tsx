@@ -22,7 +22,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck } from "lucide-react";
+import { useAdminView } from "@/hooks/use-admin-view";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1274,6 +1275,8 @@ export default function Profile() {
   };
 
   const { signOut } = useClerk();
+  const { adminViewEnabled, setAdminView } = useAdminView();
+  const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
 
   if (isLoading) return <div className="p-8 text-center">Loading profile...</div>;
 
@@ -1439,6 +1442,33 @@ export default function Profile() {
                 ) : (
                   <div className="text-sm text-destructive py-2">Failed to load calendar link. Try again later.</div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {isCoachOrAdmin && (
+            <Card className="mt-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5" /> Admin Mode
+                </CardTitle>
+                <CardDescription>
+                  Show or hide the Admin and Season Builder tabs in your navigation.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5 flex-1 mr-4">
+                    <div className="text-sm font-medium">Show admin tabs</div>
+                    <div className="text-xs text-muted-foreground">
+                      Enables the Admin and Season Builder tabs. Turn off for a cleaner view during day-to-day use.
+                    </div>
+                  </div>
+                  <Switch
+                    checked={adminViewEnabled}
+                    onCheckedChange={setAdminView}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}
