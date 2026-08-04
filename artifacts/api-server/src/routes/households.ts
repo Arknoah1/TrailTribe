@@ -19,12 +19,41 @@ function generateInviteCode(): string {
   return randomBytes(6).toString("hex");
 }
 
+// ── Medical-field privacy helpers ──────────────────────────────────────────
+const MEDICAL_FIELDS = ["allergies", "medications", "medicalNotes"] as const;
+
+function stripMedical<T>(user: T): T {
+  const u = { ...(user as Record<string, unknown>) };
+  for (const f of MEDICAL_FIELDS) delete u[f];
+  return u as T;
+}
+
+function shapeMedical<T>(user: T, canSee: boolean): T {
+  return canSee ? user : stripMedical(user);
+}
+
+async function getRequester(req: any) {
+  const clerkUserId = (req as any).clerkUserId as string | null;
+  if (!clerkUserId) return null;
+  return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+}
+
+type Requester = Awaited<ReturnType<typeof getRequester>>;
+
+function canSeeMedical(requester: Requester, householdId: number | null): boolean {
+  if (!requester) return false;
+  if (requester.role === "coach" || requester.role === "admin") return true;
+  return householdId !== null && requester.householdId === householdId;
+}
+
 router.get("/households", requireAuth, async (req, res) => {
+  const requester = await getRequester(req);
   const households = await db.select().from(householdsTable);
   const result = await Promise.all(
     households.map(async (h) => {
       const members = await db.select().from(usersTable).where(eq(usersTable.householdId, h.id));
-      return { ...h, members };
+      const see = canSeeMedical(requester, h.id);
+      return { ...h, members: members.map((m) => shapeMedical(m, see)) };
     })
   );
   res.json(result);
@@ -63,8 +92,12 @@ router.get("/households/:id", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Household not found" });
     return;
   }
-  const members = await db.select().from(usersTable).where(eq(usersTable.householdId, id));
-  res.json({ ...household, members });
+  const [requester, members] = await Promise.all([
+    getRequester(req),
+    db.select().from(usersTable).where(eq(usersTable.householdId, id)),
+  ]);
+  const see = canSeeMedical(requester, id);
+  res.json({ ...household, members: members.map((m) => shapeMedical(m, see)) });
 });
 
 router.patch("/households/:id", requireAuth, async (req, res) => {
@@ -100,14 +133,28 @@ router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
 
 router.get("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const riders = await db.select().from(usersTable)
-    .where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student")));
-  res.json(riders);
+  const [requester, riders] = await Promise.all([
+    getRequester(req),
+    db.select().from(usersTable).where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student"))),
+  ]);
+  const see = canSeeMedical(requester, id);
+  res.json(riders.map((r) => shapeMedical(r, see)));
 });
 
 router.post("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { firstName, lastName, grade, allergies, medications, medicalNotes, dateOfBirth, email, emailNotifications, notificationPreferences } = req.body;
+
+  // IDOR guard: requester must belong to this household or be coach/admin
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!canSeeMedical(requester, id) && requester.role !== "coach" && requester.role !== "admin") {
+    if (requester.householdId !== id) {
+      res.status(403).json({ error: "Forbidden: you are not a member of this household" });
+      return;
+    }
+  }
+
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
 

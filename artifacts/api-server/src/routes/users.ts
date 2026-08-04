@@ -25,6 +25,31 @@ const notificationPreferencesSchema = z.object({
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
+// ── Medical-field privacy helpers ──────────────────────────────────────────
+const MEDICAL_FIELDS = ["allergies", "medications", "medicalNotes"] as const;
+
+function stripMedical<T>(user: T): T {
+  const u = { ...(user as Record<string, unknown>) };
+  for (const f of MEDICAL_FIELDS) delete u[f];
+  return u as T;
+}
+
+function shapeMedical<T>(user: T, canSee: boolean): T {
+  return canSee ? user : stripMedical(user);
+}
+
+async function getRequester(req: any) {
+  const clerkUserId = (req as any).clerkUserId as string | null;
+  if (!clerkUserId) return null;
+  return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+}
+
+type Requester = Awaited<ReturnType<typeof getRequester>>;
+
+function isCoachOrAdmin(requester: Requester): boolean {
+  return requester?.role === "coach" || requester?.role === "admin";
+}
+
 const DEFAULT_NOTIFICATION_PREFS = {
   practiceReminders: true,
   coachMessages: true,
@@ -351,7 +376,6 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
 
 router.get("/users", requireAuth, async (req, res) => {
   const { role, podId, search } = req.query as Record<string, string>;
-  let query = db.select().from(usersTable);
   const conditions = [];
   if (role) conditions.push(eq(usersTable.role, role as any));
   if (podId) conditions.push(eq(usersTable.podId, podId));
@@ -364,20 +388,30 @@ router.get("/users", requireAuth, async (req, res) => {
       )!
     );
   }
-  const users = conditions.length > 0
-    ? await db.select().from(usersTable).where(and(...conditions))
-    : await db.select().from(usersTable);
-  res.json(users);
+  const [requester, users] = await Promise.all([
+    getRequester(req),
+    conditions.length > 0
+      ? db.select().from(usersTable).where(and(...conditions))
+      : db.select().from(usersTable),
+  ]);
+  const see = isCoachOrAdmin(requester);
+  res.json(users.map((u) => shapeMedical(u, see)));
 });
 
 router.get("/users/:id", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+  const [requester, user] = await Promise.all([
+    getRequester(req),
+    db.query.usersTable.findFirst({ where: eq(usersTable.id, id) }),
+  ]);
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(user);
+  // Coaches/admins see all; household members see their own riders' medical data
+  const see = isCoachOrAdmin(requester) ||
+    (!!requester?.householdId && requester.householdId === user.householdId);
+  res.json(shapeMedical(user, see));
 });
 
 router.patch("/users/:id", requireCoachOrAdmin, async (req, res) => {
