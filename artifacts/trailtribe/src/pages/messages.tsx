@@ -348,18 +348,18 @@ export default function Messages() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:inline-flex bg-muted/50 border-2 border-[#0a0c10] p-1 h-auto gap-1">
-          <TabsTrigger value="general" className="data-[state=active]:bg-card data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
+          <TabsTrigger value="general" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
             General
           </TabsTrigger>
           {me?.podId && (
-            <TabsTrigger value="pod" className="data-[state=active]:bg-card data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
+            <TabsTrigger value="pod" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
               My Pod
             </TabsTrigger>
           )}
-          <TabsTrigger value="events" className="data-[state=active]:bg-card data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
+          <TabsTrigger value="events" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
             Events
           </TabsTrigger>
-          <TabsTrigger value="announcements" className="data-[state=active]:bg-card data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
+          <TabsTrigger value="announcements" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
             Broadcasts
           </TabsTrigger>
         </TabsList>
