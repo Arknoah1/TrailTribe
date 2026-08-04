@@ -7,6 +7,7 @@ import {
 } from "@workspace/db";
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { notifyCoachesOfNewFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
 import { createClerkClient } from "@clerk/express";
@@ -61,6 +62,10 @@ async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$
         role: "parent",
         notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
       }).returning();
+      // Notify coaches/admins that a new family is waiting for approval (fire-and-forget)
+      if (user) {
+        notifyCoachesOfNewFamily({ firstName, lastName, email }).catch(() => {});
+      }
     }
     return user ?? null;
   } catch {
@@ -324,6 +329,14 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
     podId,
     email: `${clerkUserId}@pending.trailtribe.app`,
   }).returning();
+
+  // Notify coaches/admins that a new family is waiting for approval (fire-and-forget)
+  // Only for parents/coaches (not for students added by parents)
+  const newUserRole = role ?? "parent";
+  if (user && (newUserRole === "parent" || newUserRole === "coach")) {
+    const displayEmail = user.email;
+    notifyCoachesOfNewFamily({ firstName, lastName, email: displayEmail }).catch(() => {});
+  }
 
   res.status(201).json(user);
 });
