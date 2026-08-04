@@ -169,6 +169,16 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "create_object_acl_policies_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS object_acl_policies (
+        object_path text PRIMARY KEY,
+        policy      jsonb NOT NULL,
+        created_at  timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
     name: "seed_race_weekend_pack",
     sql: `
       DO $$

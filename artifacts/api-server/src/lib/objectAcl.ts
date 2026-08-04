@@ -1,16 +1,17 @@
 import { File } from "@google-cloud/storage";
+import { db, pool, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
 
-// Can be flexibly defined according to the use case.
-//
-// Examples:
-// - USER_LIST: the users from a list stored in the database;
-// - EMAIL_DOMAIN: the users whose email is in a specific domain;
-// - GROUP_MEMBER: the users who are members of a specific group;
-// - SUBSCRIBER: the users who are subscribers of a specific service / content
-//   creator.
-export enum ObjectAccessGroupType {}
+/**
+ * AUTHENTICATED_USER — any user with a valid Clerk session (team-wide access).
+ * HOUSEHOLD_MEMBER   — any user whose householdId matches the group id.
+ */
+export enum ObjectAccessGroupType {
+  AUTHENTICATED_USER = "AUTHENTICATED_USER",
+  HOUSEHOLD_MEMBER = "HOUSEHOLD_MEMBER",
+}
 
 export interface ObjectAccessGroup {
   type: ObjectAccessGroupType;
@@ -55,17 +56,107 @@ abstract class BaseObjectAccessGroup implements ObjectAccessGroup {
   public abstract hasMember(userId: string): Promise<boolean>;
 }
 
+/**
+ * Matches any authenticated user — used to grant team-wide read access for
+ * coach/admin uploads.
+ */
+class AuthenticatedUserAccessGroup extends BaseObjectAccessGroup {
+  constructor() {
+    super(ObjectAccessGroupType.AUTHENTICATED_USER, "all");
+  }
+
+  public async hasMember(userId: string): Promise<boolean> {
+    return userId != null && userId.length > 0;
+  }
+}
+
+/**
+ * Matches any user whose householdId equals the group id — used to restrict
+ * parent uploads to their own household.
+ */
+class HouseholdMemberAccessGroup extends BaseObjectAccessGroup {
+  constructor(householdId: string) {
+    super(ObjectAccessGroupType.HOUSEHOLD_MEMBER, householdId);
+  }
+
+  public async hasMember(userId: string): Promise<boolean> {
+    const user = await db.query.usersTable.findFirst({
+      where: eq(usersTable.clerkUserId, userId),
+    });
+    if (!user || user.householdId == null) {
+      return false;
+    }
+    return String(user.householdId) === this.id;
+  }
+}
+
 function createObjectAccessGroup(
   group: ObjectAccessGroup,
 ): BaseObjectAccessGroup {
   switch (group.type) {
-    // Implement per access group type, e.g.:
-    // case "USER_LIST":
-    //   return new UserListAccessGroup(group.id);
+    case ObjectAccessGroupType.AUTHENTICATED_USER:
+      return new AuthenticatedUserAccessGroup();
+    case ObjectAccessGroupType.HOUSEHOLD_MEMBER:
+      return new HouseholdMemberAccessGroup(group.id);
     default:
       throw new Error(`Unknown access group type: ${group.type}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Durable ACL store (Postgres)
+//
+// GCS does not allow setting metadata on an object that does not yet exist.
+// When a presigned upload URL is requested we store the intended policy in
+// the `object_acl_policies` DB table (created by the migration).  The table
+// survives server restarts and works across multiple server instances.
+//
+// On the first download the policy is also written to the GCS object's custom
+// metadata so subsequent reads can skip the DB query.
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist an ACL policy for an object path that may not exist in GCS yet.
+ * Called at upload-URL-request time.
+ */
+export async function storePendingObjectAcl(
+  objectPath: string,
+  policy: ObjectAclPolicy,
+): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO object_acl_policies (object_path, policy)
+       VALUES ($1, $2)
+       ON CONFLICT (object_path) DO UPDATE SET policy = EXCLUDED.policy`,
+      [objectPath, JSON.stringify(policy)],
+    );
+  } finally {
+    client.release();
+  }
+}
+
+async function getDbObjectAclPolicy(
+  objectPath: string,
+): Promise<ObjectAclPolicy | null> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query<{ policy: ObjectAclPolicy }>(
+      `SELECT policy FROM object_acl_policies WHERE object_path = $1`,
+      [objectPath],
+    );
+    if (result.rows.length === 0) {
+      return null;
+    }
+    return result.rows[0].policy;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Core ACL helpers
+// ---------------------------------------------------------------------------
 
 export async function setObjectAclPolicy(
   objectFile: File,
@@ -83,15 +174,43 @@ export async function setObjectAclPolicy(
   });
 }
 
+/**
+ * Returns the ACL policy for an object, checking:
+ *   1. GCS object custom metadata (fastest path after first download)
+ *   2. Postgres `object_acl_policies` table (durable fallback for newly
+ *      uploaded objects whose metadata hasn't been written yet)
+ *
+ * When the policy is found in the DB but not on the object, it is lazily
+ * persisted to GCS metadata so future calls hit the fast path.
+ */
 export async function getObjectAclPolicy(
   objectFile: File,
 ): Promise<ObjectAclPolicy | null> {
+  // 1. Check GCS metadata (fast path).
   const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
-  if (!aclPolicy) {
+  const raw = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
+  if (raw) {
+    return JSON.parse(raw as string);
+  }
+
+  // 2. Fall back to the DB store.
+  // objectFile.name is the GCS object name e.g. "uploads/<uuid>".
+  // The DB key uses the normalised path "/objects/<name>".
+  const objectPath = `/objects/${objectFile.name}`;
+  const dbPolicy = await getDbObjectAclPolicy(objectPath);
+  if (!dbPolicy) {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+
+  // 3. Lazily promote the policy to GCS metadata so subsequent reads are fast.
+  try {
+    await setObjectAclPolicy(objectFile, dbPolicy);
+  } catch {
+    // Object may not exist yet in edge cases — that's fine, we already have
+    // the policy from the DB and will return it below.
+  }
+
+  return dbPolicy;
 }
 
 export async function canAccessObject({

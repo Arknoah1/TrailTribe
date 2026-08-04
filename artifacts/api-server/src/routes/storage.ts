@@ -5,8 +5,17 @@ import {
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission, canAccessObject, getObjectAclPolicy } from "../lib/objectAcl";
+import {
+  ObjectPermission,
+  ObjectAccessGroupType,
+  canAccessObject,
+  getObjectAclPolicy,
+  storePendingObjectAcl,
+  type ObjectAclPolicy,
+} from "../lib/objectAcl";
 import { requireAuth } from "../middlewares/requireAuth";
+import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -17,6 +26,12 @@ const objectStorageService = new ObjectStorageService();
  * Request a presigned URL for file upload.
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
+ *
+ * An ACL policy is stored immediately so that when the file is first downloaded
+ * the access check enforces the right ownership/visibility rules:
+ *  - coach/admin → private visibility, team-wide read via AUTHENTICATED_USER group
+ *  - parent/student → private visibility, household-scoped read via HOUSEHOLD_MEMBER group
+ *    (or owner-only if the user has no household)
  */
 router.post("/storage/uploads/request-url", requireAuth, async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
@@ -27,9 +42,58 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
   try {
     const { name, size, contentType } = parsed.data;
+    const clerkUserId = (req as any).clerkUserId as string;
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+
+    // Look up the uploading user to determine ACL scope.
+    const user = await db.query.usersTable.findFirst({
+      where: eq(usersTable.clerkUserId, clerkUserId),
+    });
+
+    let aclPolicy: ObjectAclPolicy;
+
+    if (user && (user.role === "coach" || user.role === "admin")) {
+      // Coach/admin uploads are readable by the whole team.
+      aclPolicy = {
+        owner: clerkUserId,
+        visibility: "private",
+        aclRules: [
+          {
+            group: { type: ObjectAccessGroupType.AUTHENTICATED_USER, id: "all" },
+            permission: ObjectPermission.READ,
+          },
+        ],
+      };
+    } else if (user && user.householdId != null) {
+      // Parent/student uploads are readable by their household members only.
+      aclPolicy = {
+        owner: clerkUserId,
+        visibility: "private",
+        aclRules: [
+          {
+            group: {
+              type: ObjectAccessGroupType.HOUSEHOLD_MEMBER,
+              id: String(user.householdId),
+            },
+            permission: ObjectPermission.READ,
+          },
+        ],
+      };
+    } else {
+      // Fallback: owner-only access.
+      aclPolicy = {
+        owner: clerkUserId,
+        visibility: "private",
+        aclRules: [],
+      };
+    }
+
+    // Persist the policy durably before handing out the upload URL.
+    // If this fails we must not return the URL — the file would otherwise
+    // become permanently unreadable (fail-closed path in the download handler).
+    await storePendingObjectAcl(objectPath, aclPolicy);
 
     res.json(
       RequestUploadUrlResponse.parse({
@@ -92,9 +156,16 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
 
-    // If the object has an ACL policy, enforce it; otherwise allow any authenticated user
-    // (team resources like documents and trailhead photos have no per-user ACL).
+    // Objects under /objects/uploads/* are user-uploaded files that always
+    // carry an ACL policy set at upload time.  If no policy is found (neither
+    // in GCS metadata nor in the DB), deny access rather than falling open.
+    //
+    // Objects under other paths (e.g. team documents, trailhead photos) are
+    // team resources without per-user ACLs — they remain accessible to any
+    // authenticated user.
+    const isUserUpload = wildcardPath.startsWith("uploads/");
     const aclPolicy = await getObjectAclPolicy(objectFile);
+
     if (aclPolicy) {
       const clerkUserId = (req as any).clerkUserId as string;
       const allowed = await canAccessObject({
@@ -106,6 +177,11 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
         res.status(403).json({ error: "Forbidden" });
         return;
       }
+    } else if (isUserUpload) {
+      // No ACL found for a user-uploaded file — fail closed.
+      req.log.warn({ objectPath }, "User-uploaded object has no ACL policy; denying access");
+      res.status(403).json({ error: "Forbidden" });
+      return;
     }
 
     const response = await objectStorageService.downloadObject(objectFile);

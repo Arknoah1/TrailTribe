@@ -4,6 +4,11 @@ import { teamDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { ObjectStorageService } from "../lib/objectStorage";
+import {
+  ObjectAccessGroupType,
+  ObjectPermission,
+  storePendingObjectAcl,
+} from "../lib/objectAcl";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -77,10 +82,35 @@ router.delete("/team-documents/:type", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
+/**
+ * POST /team-documents/upload-url
+ *
+ * Generates a presigned PUT URL for a team document upload.
+ * Team documents are coach/admin resources readable by the whole team, so the
+ * ACL policy grants AUTHENTICATED_USER read access.  The policy is persisted
+ * to the DB before the URL is returned — if that write fails the request fails
+ * so the upload URL is never handed out without a recorded policy.
+ */
 router.post("/team-documents/upload-url", requireAuth, async (req, res) => {
   try {
+    const clerkUserId = (req as any).clerkUserId as string;
+
     const uploadURL = await storage.getObjectEntityUploadURL();
     const objectPath = storage.normalizeObjectEntityPath(uploadURL);
+
+    // Team documents are managed by coaches/admins and visible to all team
+    // members — grant team-wide read access.
+    await storePendingObjectAcl(objectPath, {
+      owner: clerkUserId,
+      visibility: "private",
+      aclRules: [
+        {
+          group: { type: ObjectAccessGroupType.AUTHENTICATED_USER, id: "all" },
+          permission: ObjectPermission.READ,
+        },
+      ],
+    });
+
     res.json({ uploadURL, objectPath });
   } catch (err) {
     res.status(500).json({ error: "Failed to generate upload URL" });
