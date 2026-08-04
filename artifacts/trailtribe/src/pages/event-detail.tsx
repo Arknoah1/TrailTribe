@@ -4,10 +4,11 @@ import {
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
+  useListBoardThreads, useListBoardPosts, getListBoardPostsQueryKey
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
-import { format } from "date-fns";
-import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,69 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 const EVENT_TYPES = Object.values(UpdateEventBodyEventType) as string[];
+
+function EventDiscussion({ eventId }: { eventId: number }) {
+  const { data: threads } = useListBoardThreads({ scope: "event", eventId });
+  const thread = threads?.[0];
+
+  const { data: posts } = useListBoardPosts(thread?.id ?? 0, {
+    query: { enabled: !!thread?.id, queryKey: getListBoardPostsQueryKey(thread?.id ?? 0) }
+  });
+
+  if (!thread) return null;
+
+  const recentPosts = (posts ?? []).slice(-3);
+
+  return (
+    <Card className="border-2 border-[#0a0c10] shadow-cel-sm mt-8 bg-card">
+      <CardHeader className="pb-3 border-b-2 border-[#0a0c10] bg-muted/50">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-primary" /> Event Discussion
+          </CardTitle>
+          <Badge variant="secondary" className="font-bold">{thread.replyCount} replies</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y-2 divide-[#0a0c10]/10">
+          {recentPosts.length > 0 ? (
+            recentPosts.map((post) => (
+              <div key={post.id} className="p-4 flex gap-3 hover:bg-muted/30 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-secondary border border-[#0a0c10] flex items-center justify-center font-bold text-xs shrink-0">
+                  {post.author ? (post.author.firstName[0] + post.author.lastName[0]) : "?"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-bold text-sm text-foreground">
+                      {post.author ? `${post.author.firstName} ${post.author.lastName}` : "Unknown"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground line-clamp-1">
+                    {post.isDeleted ? <span className="italic">[deleted]</span> : post.body}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="p-6 text-center text-sm text-muted-foreground font-medium">
+              No replies yet. Be the first to start the conversation!
+            </div>
+          )}
+        </div>
+        <div className="p-4 bg-muted/30 border-t-2 border-[#0a0c10]">
+          <Button asChild className="w-full cel-interactive border-2 border-[#0a0c10]">
+            <Link href={`/messages/thread/${thread.id}`}>
+              Join the Discussion
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function EventDetail() {
   const params = useParams();
@@ -761,6 +825,9 @@ export default function EventDetail() {
           )}
         </div>
       )}
+
+      {/* ─── EVENT DISCUSSION ──────────────────────────────────────────────────── */}
+      <EventDiscussion eventId={eventId} />
 
       {/* ─── EDIT EVENT DIALOG ─────────────────────────────────────────────────── */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>

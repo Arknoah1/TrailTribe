@@ -21,6 +21,9 @@ import type {
   ApproveUserBody,
   BatchCreateEventsBody,
   BatchCreateEventsResult,
+  BoardPostWithAuthor,
+  BoardThread,
+  BoardThreadWithDetails,
   Broadcast,
   BroadcastWithSender,
   BulkSignupForEventTasks201,
@@ -34,6 +37,8 @@ import type {
   CloneEventTasksFromTemplate201,
   CloneEventTasksFromTemplateBody,
   ContactCoachBody,
+  CreateBoardPostBody,
+  CreateBoardThreadBody,
   CreateCarpoolOfferBody,
   CreateCarpoolRequestBody,
   CreateEventBody,
@@ -53,10 +58,14 @@ import type {
   EventTaskSignup,
   EventTaskWithSignups,
   EventWithDetails,
+  GetBoardUnreadCount200,
+  GetLinkPreviewParams,
   HealthStatus,
   Household,
   HouseholdWithMembers,
   InviteLink,
+  LinkPreviewResult,
+  ListBoardThreadsParams,
   ListBroadcastsParams,
   ListEventsParams,
   ListUsersParams,
@@ -5518,6 +5527,952 @@ export const useContactCoach = <
 > => {
   return useMutation(getContactCoachMutationOptions(options));
 };
+
+/**
+ * @summary List board threads by scope (general, pod, event)
+ */
+export const getListBoardThreadsUrl = (params?: ListBoardThreadsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/board/threads?${stringifiedParams}`
+    : `/api/board/threads`;
+};
+
+export const listBoardThreads = async (
+  params?: ListBoardThreadsParams,
+  options?: RequestInit,
+): Promise<BoardThreadWithDetails[]> => {
+  return customFetch<BoardThreadWithDetails[]>(getListBoardThreadsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBoardThreadsQueryKey = (
+  params?: ListBoardThreadsParams,
+) => {
+  return [`/api/board/threads`, ...(params ? [params] : [])] as const;
+};
+
+export const getListBoardThreadsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBoardThreads>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBoardThreadsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBoardThreads>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBoardThreadsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBoardThreads>>
+  > = ({ signal }) => listBoardThreads(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardThreads>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBoardThreadsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBoardThreads>>
+>;
+export type ListBoardThreadsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List board threads by scope (general, pod, event)
+ */
+
+export function useListBoardThreads<
+  TData = Awaited<ReturnType<typeof listBoardThreads>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBoardThreadsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBoardThreads>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBoardThreadsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new thread
+ */
+export const getCreateBoardThreadUrl = () => {
+  return `/api/board/threads`;
+};
+
+export const createBoardThread = async (
+  createBoardThreadBody: CreateBoardThreadBody,
+  options?: RequestInit,
+): Promise<BoardThreadWithDetails> => {
+  return customFetch<BoardThreadWithDetails>(getCreateBoardThreadUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createBoardThreadBody),
+  });
+};
+
+export const getCreateBoardThreadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardThread>>,
+    TError,
+    { data: BodyType<CreateBoardThreadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBoardThread>>,
+  TError,
+  { data: BodyType<CreateBoardThreadBody> },
+  TContext
+> => {
+  const mutationKey = ["createBoardThread"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBoardThread>>,
+    { data: BodyType<CreateBoardThreadBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createBoardThread(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBoardThreadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBoardThread>>
+>;
+export type CreateBoardThreadMutationBody = BodyType<CreateBoardThreadBody>;
+export type CreateBoardThreadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new thread
+ */
+export const useCreateBoardThread = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardThread>>,
+    TError,
+    { data: BodyType<CreateBoardThreadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBoardThread>>,
+  TError,
+  { data: BodyType<CreateBoardThreadBody> },
+  TContext
+> => {
+  return useMutation(getCreateBoardThreadMutationOptions(options));
+};
+
+/**
+ * @summary Get a single thread
+ */
+export const getGetBoardThreadUrl = (id: number) => {
+  return `/api/board/threads/${id}`;
+};
+
+export const getBoardThread = async (
+  id: number,
+  options?: RequestInit,
+): Promise<BoardThreadWithDetails> => {
+  return customFetch<BoardThreadWithDetails>(getGetBoardThreadUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoardThreadQueryKey = (id: number) => {
+  return [`/api/board/threads/${id}`] as const;
+};
+
+export const getGetBoardThreadQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardThread>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardThread>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBoardThreadQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBoardThread>>> = ({
+    signal,
+  }) => getBoardThread(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardThread>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardThreadQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardThread>>
+>;
+export type GetBoardThreadQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a single thread
+ */
+
+export function useGetBoardThread<
+  TData = Awaited<ReturnType<typeof getBoardThread>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardThread>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardThreadQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Delete a thread (author or coach/admin)
+ */
+export const getDeleteBoardThreadUrl = (id: number) => {
+  return `/api/board/threads/${id}`;
+};
+
+export const deleteBoardThread = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBoardThreadUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBoardThreadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBoardThread>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBoardThread>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBoardThread"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBoardThread>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBoardThread(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBoardThreadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBoardThread>>
+>;
+
+export type DeleteBoardThreadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a thread (author or coach/admin)
+ */
+export const useDeleteBoardThread = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBoardThread>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBoardThread>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBoardThreadMutationOptions(options));
+};
+
+/**
+ * @summary List posts in a thread
+ */
+export const getListBoardPostsUrl = (id: number) => {
+  return `/api/board/threads/${id}/posts`;
+};
+
+export const listBoardPosts = async (
+  id: number,
+  options?: RequestInit,
+): Promise<BoardPostWithAuthor[]> => {
+  return customFetch<BoardPostWithAuthor[]>(getListBoardPostsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBoardPostsQueryKey = (id: number) => {
+  return [`/api/board/threads/${id}/posts`] as const;
+};
+
+export const getListBoardPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBoardPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBoardPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBoardPostsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBoardPosts>>> = ({
+    signal,
+  }) => listBoardPosts(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardPosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBoardPostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBoardPosts>>
+>;
+export type ListBoardPostsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List posts in a thread
+ */
+
+export function useListBoardPosts<
+  TData = Awaited<ReturnType<typeof listBoardPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBoardPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBoardPostsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Reply to a thread
+ */
+export const getCreateBoardPostUrl = (id: number) => {
+  return `/api/board/threads/${id}/posts`;
+};
+
+export const createBoardPost = async (
+  id: number,
+  createBoardPostBody: CreateBoardPostBody,
+  options?: RequestInit,
+): Promise<BoardPostWithAuthor> => {
+  return customFetch<BoardPostWithAuthor>(getCreateBoardPostUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createBoardPostBody),
+  });
+};
+
+export const getCreateBoardPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardPost>>,
+    TError,
+    { id: number; data: BodyType<CreateBoardPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBoardPost>>,
+  TError,
+  { id: number; data: BodyType<CreateBoardPostBody> },
+  TContext
+> => {
+  const mutationKey = ["createBoardPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBoardPost>>,
+    { id: number; data: BodyType<CreateBoardPostBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createBoardPost(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBoardPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBoardPost>>
+>;
+export type CreateBoardPostMutationBody = BodyType<CreateBoardPostBody>;
+export type CreateBoardPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reply to a thread
+ */
+export const useCreateBoardPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardPost>>,
+    TError,
+    { id: number; data: BodyType<CreateBoardPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBoardPost>>,
+  TError,
+  { id: number; data: BodyType<CreateBoardPostBody> },
+  TContext
+> => {
+  return useMutation(getCreateBoardPostMutationOptions(options));
+};
+
+/**
+ * @summary Delete a post (author or coach/admin, soft-delete)
+ */
+export const getDeleteBoardPostUrl = (id: number) => {
+  return `/api/board/posts/${id}`;
+};
+
+export const deleteBoardPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteBoardPostUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteBoardPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBoardPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteBoardPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteBoardPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBoardPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteBoardPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteBoardPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteBoardPost>>
+>;
+
+export type DeleteBoardPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a post (author or coach/admin, soft-delete)
+ */
+export const useDeleteBoardPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBoardPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteBoardPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteBoardPostMutationOptions(options));
+};
+
+/**
+ * @summary Toggle pin on a thread (coach/admin only)
+ */
+export const getPinBoardThreadUrl = (id: number) => {
+  return `/api/board/threads/${id}/pin`;
+};
+
+export const pinBoardThread = async (
+  id: number,
+  options?: RequestInit,
+): Promise<BoardThread> => {
+  return customFetch<BoardThread>(getPinBoardThreadUrl(id), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getPinBoardThreadMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinBoardThread>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof pinBoardThread>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["pinBoardThread"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof pinBoardThread>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return pinBoardThread(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PinBoardThreadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof pinBoardThread>>
+>;
+
+export type PinBoardThreadMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Toggle pin on a thread (coach/admin only)
+ */
+export const usePinBoardThread = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pinBoardThread>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof pinBoardThread>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getPinBoardThreadMutationOptions(options));
+};
+
+/**
+ * @summary Count threads with new activity since last visit
+ */
+export const getGetBoardUnreadCountUrl = () => {
+  return `/api/board/unread-count`;
+};
+
+export const getBoardUnreadCount = async (
+  options?: RequestInit,
+): Promise<GetBoardUnreadCount200> => {
+  return customFetch<GetBoardUnreadCount200>(getGetBoardUnreadCountUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoardUnreadCountQueryKey = () => {
+  return [`/api/board/unread-count`] as const;
+};
+
+export const getGetBoardUnreadCountQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardUnreadCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardUnreadCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBoardUnreadCountQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBoardUnreadCount>>
+  > = ({ signal }) => getBoardUnreadCount({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardUnreadCount>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardUnreadCountQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardUnreadCount>>
+>;
+export type GetBoardUnreadCountQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Count threads with new activity since last visit
+ */
+
+export function useGetBoardUnreadCount<
+  TData = Awaited<ReturnType<typeof getBoardUnreadCount>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardUnreadCount>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardUnreadCountQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Mark board as seen (updates last-seen timestamp)
+ */
+export const getMarkBoardSeenUrl = () => {
+  return `/api/board/seen`;
+};
+
+export const markBoardSeen = async (
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getMarkBoardSeenUrl(), {
+    ...options,
+    method: "PATCH",
+  });
+};
+
+export const getMarkBoardSeenMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markBoardSeen>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof markBoardSeen>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["markBoardSeen"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof markBoardSeen>>,
+    void
+  > = () => {
+    return markBoardSeen(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MarkBoardSeenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof markBoardSeen>>
+>;
+
+export type MarkBoardSeenMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark board as seen (updates last-seen timestamp)
+ */
+export const useMarkBoardSeen = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof markBoardSeen>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof markBoardSeen>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getMarkBoardSeenMutationOptions(options));
+};
+
+/**
+ * @summary Fetch og:title and og:description for a URL
+ */
+export const getGetLinkPreviewUrl = (params: GetLinkPreviewParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/board/link-preview?${stringifiedParams}`
+    : `/api/board/link-preview`;
+};
+
+export const getLinkPreview = async (
+  params: GetLinkPreviewParams,
+  options?: RequestInit,
+): Promise<LinkPreviewResult> => {
+  return customFetch<LinkPreviewResult>(getGetLinkPreviewUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetLinkPreviewQueryKey = (params?: GetLinkPreviewParams) => {
+  return [`/api/board/link-preview`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetLinkPreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getLinkPreview>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetLinkPreviewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLinkPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetLinkPreviewQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getLinkPreview>>> = ({
+    signal,
+  }) => getLinkPreview(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getLinkPreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetLinkPreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getLinkPreview>>
+>;
+export type GetLinkPreviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Fetch og:title and og:description for a URL
+ */
+
+export function useGetLinkPreview<
+  TData = Awaited<ReturnType<typeof getLinkPreview>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetLinkPreviewParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getLinkPreview>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetLinkPreviewQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List invite links (admin only)

@@ -1,0 +1,554 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import {
+  boardThreadsTable,
+  boardPostsTable,
+  usersTable,
+  eventsTable,
+} from "@workspace/db";
+import { eq, and, desc, isNull, or, inArray, gt, gte } from "drizzle-orm";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { createNotification } from "../lib/notifications";
+import { logger } from "../lib/logger";
+import { promises as dnsPromises } from "dns";
+
+const router = Router();
+const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function enrichThread(thread: typeof boardThreadsTable.$inferSelect) {
+  const author = thread.authorUserId
+    ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, thread.authorUserId) })
+    : null;
+  const event = thread.eventId
+    ? await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })
+    : null;
+  return {
+    ...thread,
+    author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
+    event: event ? { id: event.id, title: event.title, startTime: event.startTime } : null,
+  };
+}
+
+async function enrichPost(post: typeof boardPostsTable.$inferSelect) {
+  const author = post.authorUserId
+    ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, post.authorUserId) })
+    : null;
+  return {
+    ...post,
+    // Redact body for soft-deleted posts so raw API consumers cannot read deleted content
+    body: post.isDeleted ? "" : post.body,
+    author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
+  };
+}
+
+async function notifyThreadParticipants(threadId: number, actorUserId: number, threadTitle: string) {
+  // Collect all unique user IDs who posted or authored the thread (excluding actor)
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  const posts = await db.select({ authorUserId: boardPostsTable.authorUserId })
+    .from(boardPostsTable)
+    .where(and(eq(boardPostsTable.threadId, threadId), eq(boardPostsTable.isDeleted, false)));
+
+  const participantIds = new Set<number>();
+  if (thread?.authorUserId) participantIds.add(thread.authorUserId);
+  for (const p of posts) {
+    if (p.authorUserId) participantIds.add(p.authorUserId);
+  }
+  participantIds.delete(actorUserId);
+
+  for (const userId of participantIds) {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+    if (!user) continue;
+    if (user.notificationPreferences?.boardReplies === false) continue;
+    await createNotification(
+      userId,
+      "boardReplies",
+      "New reply on the board",
+      `Someone replied to "${threadTitle}"`,
+      `/messages/thread/${threadId}`
+    );
+  }
+}
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
+// ─── Authorization helpers ─────────────────────────────────────────────────────
+
+async function getMe(clerkUserId: string) {
+  return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+}
+
+function canAccessPodThread(me: typeof usersTable.$inferSelect, threadPodId: string | null): boolean {
+  if (!threadPodId) return true; // general or event threads — open to all
+  if (me.role === "coach" || me.role === "admin") return true;
+  return me.podId === threadPodId;
+}
+
+/**
+ * Returns true if the user can access an event-linked thread.
+ * Events have a `podIds` array; if it is empty/null the event is team-wide.
+ * Coaches/admins always have access.
+ */
+async function canAccessEventThread(
+  me: typeof usersTable.$inferSelect,
+  eventId: number
+): Promise<boolean> {
+  if (me.role === "coach" || me.role === "admin") return true;
+  const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
+  if (!event) return false;
+  // No pod restriction: open to all team members
+  if (!event.podIds || event.podIds.length === 0) return true;
+  return me.podId != null && event.podIds.includes(me.podId);
+}
+
+/**
+ * Centralized access check for a board thread.
+ * - Pod-scoped threads: user must be in that pod (or coach/admin).
+ * - Event-linked threads: user must be in the event audience (or coach/admin).
+ * - General threads: open to all authenticated users.
+ */
+async function canAccessThread(
+  me: typeof usersTable.$inferSelect,
+  thread: typeof boardThreadsTable.$inferSelect
+): Promise<boolean> {
+  if (thread.podId) {
+    return canAccessPodThread(me, thread.podId);
+  }
+  if (thread.eventId) {
+    return canAccessEventThread(me, thread.eventId);
+  }
+  return true; // general thread
+}
+
+// GET /board/threads?scope=general|pod|event&podId=&eventId=
+router.get("/board/threads", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const { scope, podId, eventId } = req.query as Record<string, string>;
+
+  // Pod-scoped list: enforce pod membership
+  if (scope === "pod" && podId) {
+    const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+    if (!isCoachOrAdmin && me.podId !== podId) {
+      res.status(403).json({ error: "Not a member of this pod" }); return;
+    }
+  }
+
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+
+  // Pod-access filter applied to every query: only show pod-scoped threads the user
+  // belongs to. Event threads with no pod_id are always visible to all users.
+  const podVisibilityFilter = isCoachOrAdmin
+    ? undefined
+    : me.podId
+      ? or(isNull(boardThreadsTable.podId), eq(boardThreadsTable.podId, me.podId))
+      : isNull(boardThreadsTable.podId);
+
+  let threads: (typeof boardThreadsTable.$inferSelect)[];
+
+  if (scope === "event") {
+    // Fetch candidate event threads, then post-filter by event pod assignments
+    let candidates: (typeof boardThreadsTable.$inferSelect)[];
+    if (eventId) {
+      candidates = await db.select().from(boardThreadsTable)
+        .where(eq(boardThreadsTable.eventId, parseInt(eventId)))
+        .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
+    } else {
+      candidates = await db.select().from(boardThreadsTable)
+        .where(gt(boardThreadsTable.eventId, 0))
+        .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
+    }
+    // Enforce event audience: filter out events the user's pod isn't invited to
+    const accessResults = await Promise.all(
+      candidates.map((t) => canAccessEventThread(me, t.eventId!))
+    );
+    threads = candidates.filter((_, i) => accessResults[i]);
+  } else if (scope === "pod" && podId) {
+    threads = await db.select().from(boardThreadsTable)
+      .where(and(eq(boardThreadsTable.podId, podId), isNull(boardThreadsTable.eventId)))
+      .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
+  } else {
+    // general: no podId, no eventId
+    threads = await db.select().from(boardThreadsTable)
+      .where(and(isNull(boardThreadsTable.podId), isNull(boardThreadsTable.eventId)))
+      .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
+  }
+
+  const result = await Promise.all(threads.map(enrichThread));
+  res.json(result);
+});
+
+// POST /board/threads
+router.post("/board/threads", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const { title, body, podId, eventId } = req.body;
+  if (!title || !body) { res.status(400).json({ error: "title and body required" }); return; }
+
+  // Disallow ambiguous scope: a thread must be general, pod-scoped, OR event-linked — not a mix
+  if (podId && eventId) {
+    res.status(400).json({ error: "A thread cannot have both podId and eventId" }); return;
+  }
+
+  // Pod threads: creator must be a member of that pod (or coach/admin)
+  if (podId && !canAccessPodThread(me, podId)) {
+    res.status(403).json({ error: "Not a member of this pod" }); return;
+  }
+
+  // Event threads: creator must be in the event's audience (or coach/admin)
+  if (eventId && !(await canAccessEventThread(me, parseInt(eventId)))) {
+    res.status(403).json({ error: "Not in this event's audience" }); return;
+  }
+
+  const [thread] = await db.insert(boardThreadsTable).values({
+    title,
+    body,
+    authorUserId: me.id,
+    podId: podId ?? null,
+    eventId: eventId ?? null,
+    isPinned: false,
+    isLocked: false,
+    replyCount: 0,
+  }).returning();
+
+  const result = await enrichThread(thread);
+  res.status(201).json(result);
+});
+
+// GET /board/threads/:id
+router.get("/board/threads/:id", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const id = parseInt(str(req.params.id));
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, id) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  const result = await enrichThread(thread);
+  res.json(result);
+});
+
+// GET /board/threads/:id/posts
+router.get("/board/threads/:id/posts", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const threadId = parseInt(str(req.params.id));
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const posts = await db.select().from(boardPostsTable)
+    .where(eq(boardPostsTable.threadId, threadId))
+    .orderBy(boardPostsTable.createdAt);
+  const result = await Promise.all(posts.map(enrichPost));
+  res.json(result);
+});
+
+// POST /board/threads/:id/posts
+router.post("/board/threads/:id/posts", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const threadId = parseInt(str(req.params.id));
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  if (thread.isLocked && me.role !== "coach" && me.role !== "admin") {
+    res.status(403).json({ error: "Thread is locked" }); return;
+  }
+
+  const { body } = req.body;
+  if (!body) { res.status(400).json({ error: "body required" }); return; }
+
+  const [post] = await db.insert(boardPostsTable).values({
+    threadId,
+    authorUserId: me.id,
+    body,
+    isDeleted: false,
+  }).returning();
+
+  // Update thread reply count and lastReplyAt
+  await db.update(boardThreadsTable).set({
+    replyCount: thread.replyCount + 1,
+    lastReplyAt: new Date(),
+  }).where(eq(boardThreadsTable.id, threadId));
+
+  // Notify participants (non-blocking)
+  notifyThreadParticipants(threadId, me.id, thread.title)
+    .catch((err) => logger.error({ err }, "[board] notify participants error"));
+
+  const result = await enrichPost(post);
+  res.status(201).json(result);
+});
+
+// DELETE /board/threads/:id — coach/admin or thread author
+router.delete("/board/threads/:id", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const threadId = parseInt(str(req.params.id));
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+  if (!isCoachOrAdmin && thread.authorUserId !== me.id) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  await db.delete(boardThreadsTable).where(eq(boardThreadsTable.id, threadId));
+  res.status(204).send();
+});
+
+// DELETE /board/posts/:id — coach/admin or post author
+router.delete("/board/posts/:id", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const postId = parseInt(str(req.params.id));
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, postId) });
+  if (!post) { res.status(404).json({ error: "Post not found" }); return; }
+
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+  if (!isCoachOrAdmin && post.authorUserId !== me.id) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Soft-delete: mark isDeleted so thread keeps reply count integrity
+  await db.update(boardPostsTable).set({ isDeleted: true }).where(eq(boardPostsTable.id, postId));
+  res.status(204).send();
+});
+
+// PATCH /board/threads/:id/pin — toggle isPinned (coach/admin only)
+router.patch("/board/threads/:id/pin", requireCoachOrAdmin, async (req, res) => {
+  const threadId = parseInt(str(req.params.id));
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+
+  const [updated] = await db.update(boardThreadsTable)
+    .set({ isPinned: !thread.isPinned })
+    .where(eq(boardThreadsTable.id, threadId))
+    .returning();
+  res.json(updated);
+});
+
+// GET /board/unread-count — threads with new activity since boardLastSeenAt, respecting pod/event access
+router.get("/board/unread-count", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ count: 0 }); return; }
+
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+
+  // Step 1: Fetch all candidate threads respecting pod-level visibility.
+  // Event threads (podId IS NULL + eventId set) pass this filter and are further
+  // filtered below by event audience. General threads always pass.
+  const candidates = await db.select().from(boardThreadsTable)
+    .where(
+      isCoachOrAdmin
+        ? undefined
+        : me.podId
+          ? or(isNull(boardThreadsTable.podId), eq(boardThreadsTable.podId, me.podId))
+          : isNull(boardThreadsTable.podId)
+    );
+
+  // Step 2: Apply event-audience filter for event-linked threads.
+  const accessResults = await Promise.all(
+    candidates.map((t) =>
+      t.eventId ? canAccessEventThread(me, t.eventId) : Promise.resolve(true)
+    )
+  );
+  const accessibleIds = candidates
+    .filter((_, i) => accessResults[i])
+    .map((t) => t.id);
+
+  if (accessibleIds.length === 0) {
+    res.json({ count: 0 }); return;
+  }
+
+  if (!me.boardLastSeenAt) {
+    // First visit — count all accessible threads (new threads without replies count too)
+    res.json({ count: accessibleIds.length });
+    return;
+  }
+
+  // Returning visit: count threads with new activity since last visit.
+  // New activity = thread created after boardLastSeenAt OR a reply posted after boardLastSeenAt.
+  const seenAt = me.boardLastSeenAt;
+  const threads = await db.select().from(boardThreadsTable)
+    .where(
+      and(
+        inArray(boardThreadsTable.id, accessibleIds),
+        or(
+          gt(boardThreadsTable.createdAt, seenAt),
+          gt(boardThreadsTable.lastReplyAt, seenAt)
+        )
+      )
+    );
+  res.json({ count: threads.length });
+});
+
+// PATCH /board/seen — update boardLastSeenAt to now
+router.patch("/board/seen", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  await db.update(usersTable).set({ boardLastSeenAt: new Date() }).where(eq(usersTable.id, me.id));
+  res.json({ success: true });
+});
+
+// ─── SSRF protection helpers ───────────────────────────────────────────────────
+
+/** Returns true if the address is a private/loopback/link-local IP. */
+function isPrivateIP(addr: string): boolean {
+  // IPv6 loopback / link-local / ULA
+  if (/^::1$/.test(addr)) return true;
+  if (/^fe80:/i.test(addr)) return true;
+  if (/^fc[0-9a-f]{2}:/i.test(addr) || /^fd[0-9a-f]{2}:/i.test(addr)) return true;
+  // IPv4
+  const parts = addr.split(".").map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+  const [a, b] = parts;
+  if (a === 127) return true;           // loopback
+  if (a === 10) return true;            // RFC1918 class A
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918 class B
+  if (a === 192 && b === 168) return true;           // RFC1918 class C
+  if (a === 169 && b === 254) return true;           // link-local
+  if (a === 0) return true;             // 0.0.0.0
+  if (addr === "255.255.255.255") return true;
+  return false;
+}
+
+async function isSafeExternalHost(hostname: string): Promise<boolean> {
+  // Block bare hostnames (no dot) — internal service names
+  if (!hostname.includes(".")) return false;
+  try {
+    const v4 = await dnsPromises.resolve4(hostname).catch(() => [] as string[]);
+    const v6 = await dnsPromises.resolve6(hostname).catch(() => [] as string[]);
+    const all = [...v4, ...v6];
+    if (all.length === 0) return false; // DNS failed — block
+    return all.every((ip) => !isPrivateIP(ip));
+  } catch {
+    return false;
+  }
+}
+
+// GET /board/link-preview?url= — fetch og: tags for a URL
+router.get("/board/link-preview", requireAuth, async (req, res) => {
+  const { url } = req.query as { url: string };
+  if (!url) { res.status(400).json({ error: "url required" }); return; }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    res.status(400).json({ error: "Invalid URL" }); return;
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    res.status(400).json({ error: "Invalid URL" }); return;
+  }
+
+  // SSRF protection: block private IPs and internal hostnames
+  const safe = await isSafeExternalHost(parsed.hostname);
+  if (!safe) {
+    res.status(400).json({ error: "URL not allowed" }); return;
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": "TrailTribeBot/1.0 (link preview)" },
+      signal: AbortSignal.timeout(5000),
+      redirect: "manual", // Never follow redirects — prevents redirect-based SSRF bypass
+    });
+
+    // Block redirect responses; any 3xx is treated as a failed fetch
+    if (response.status >= 300 && response.status < 400) {
+      res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
+    }
+
+    // Enforce content-type — only parse HTML
+    const ct = response.headers.get("content-type") ?? "";
+    if (!ct.includes("text/html") && !ct.includes("text/plain")) {
+      res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
+    }
+
+    // Enforce response size — read at most 256 KB
+    const MAX_BYTES = 256 * 1024;
+    const reader = response.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        chunks.push(value);
+        if (totalBytes >= MAX_BYTES) { reader.cancel(); break; }
+      }
+    }
+    const html = new TextDecoder().decode(
+      chunks.reduce((acc, c) => { const merged = new Uint8Array(acc.length + c.length); merged.set(acc); merged.set(c, acc.length); return merged; }, new Uint8Array(0))
+    );
+
+    const getTag = (property: string): string | null => {
+      const match = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"))
+        ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`, "i"));
+      return match?.[1]?.trim() ?? null;
+    };
+
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+
+    const title = getTag("og:title") ?? titleMatch?.[1]?.trim() ?? parsed.hostname;
+    const description = getTag("og:description") ?? getTag("description") ?? null;
+
+    res.json({ url, title, description, hostname: parsed.hostname });
+  } catch (err) {
+    logger.warn({ url, err }, "[board] link preview fetch error");
+    res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname });
+  }
+});
+
+export default router;
+
+// ─── Utility for event auto-thread creation ───────────────────────────────────
+
+export async function createEventThread(eventId: number, eventTitle: string, authorUserId?: number | null): Promise<void> {
+  try {
+    // Check if a thread already exists for this event
+    const existing = await db.query.boardThreadsTable.findFirst({
+      where: eq(boardThreadsTable.eventId, eventId),
+    });
+    if (existing) return;
+
+    await db.insert(boardThreadsTable).values({
+      title: `Discussion: ${eventTitle}`,
+      body: `Use this thread to coordinate for ${eventTitle} — meet-up spots, ride shares, questions, or anything else.`,
+      authorUserId: authorUserId ?? null,
+      podId: null,
+      eventId,
+      isPinned: false,
+      isLocked: false,
+      replyCount: 0,
+    });
+  } catch (err) {
+    logger.error({ err, eventId }, "[board] failed to create event thread");
+  }
+}

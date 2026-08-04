@@ -188,6 +188,7 @@ export const GetMeResponse = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -214,6 +215,7 @@ export const UpdateMeBody = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   defaultCarpoolSeats: zod.number().nullish(),
@@ -247,6 +249,7 @@ export const UpdateMeResponse = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -288,6 +291,7 @@ export const ListUsersResponseItem = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -325,6 +329,7 @@ export const GetUserResponse = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -355,6 +360,7 @@ export const UpdateUserBody = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   defaultCarpoolSeats: zod.number().nullish(),
@@ -388,6 +394,7 @@ export const UpdateUserResponse = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -454,6 +461,7 @@ export const ListHouseholdsResponseItem = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -522,6 +530,7 @@ export const GetHouseholdResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -666,6 +675,7 @@ export const GetPodResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -699,6 +709,7 @@ export const GetPodResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1106,6 +1117,7 @@ export const ListEventRsvpsResponseItem = zod
             carpoolUpdates: zod.boolean(),
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
+            boardReplies: zod.boolean(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -1156,6 +1168,7 @@ export const ListEventVolunteersResponseItem = zod
             carpoolUpdates: zod.boolean(),
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
+            boardReplies: zod.boolean(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -1245,6 +1258,7 @@ export const ListEventTasksResponseItem = zod
                     carpoolUpdates: zod.boolean(),
                     eventReminders: zod.boolean(),
                     rosterUpdates: zod.boolean(),
+                    boardReplies: zod.boolean(),
                   })
                   .nullish(),
                 createdAt: zod.coerce.date(),
@@ -1457,6 +1471,7 @@ export const ListEventCarpoolsResponseItem = zod
             carpoolUpdates: zod.boolean(),
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
+            boardReplies: zod.boolean(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -1501,6 +1516,7 @@ export const ListEventCarpoolsResponseItem = zod
                     carpoolUpdates: zod.boolean(),
                     eventReminders: zod.boolean(),
                     rosterUpdates: zod.boolean(),
+                    boardReplies: zod.boolean(),
                   })
                   .nullish(),
                 createdAt: zod.coerce.date(),
@@ -1627,6 +1643,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1660,6 +1677,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1696,6 +1714,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
                   carpoolUpdates: zod.boolean(),
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
+                  boardReplies: zod.boolean(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -1790,6 +1809,7 @@ export const UpdateCarpoolRequestResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1823,6 +1843,7 @@ export const UpdateCarpoolRequestResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1859,6 +1880,7 @@ export const UpdateCarpoolRequestResponse = zod
                   carpoolUpdates: zod.boolean(),
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
+                  boardReplies: zod.boolean(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -1936,6 +1958,7 @@ export const MatchCarpoolRequestResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1969,6 +1992,7 @@ export const MatchCarpoolRequestResponse = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2005,6 +2029,7 @@ export const MatchCarpoolRequestResponse = zod
                   carpoolUpdates: zod.boolean(),
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
+                  boardReplies: zod.boolean(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -2136,6 +2161,7 @@ export const ListBroadcastsResponseItem = zod
               carpoolUpdates: zod.boolean(),
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
+              boardReplies: zod.boolean(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2171,6 +2197,209 @@ export const ContactCoachBody = zod.object({
 export const ContactCoachResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
+});
+
+/**
+ * @summary List board threads by scope (general, pod, event)
+ */
+export const ListBoardThreadsQueryParams = zod.object({
+  scope: zod.enum(["general", "pod", "event"]).optional(),
+  podId: zod.coerce.string().optional(),
+  eventId: zod.coerce.number().optional(),
+});
+
+export const ListBoardThreadsResponseItem = zod
+  .object({
+    id: zod.number(),
+    title: zod.string(),
+    body: zod.string(),
+    authorUserId: zod.number().nullish(),
+    podId: zod.string().nullish(),
+    eventId: zod.number().nullish(),
+    isPinned: zod.boolean(),
+    isLocked: zod.boolean(),
+    replyCount: zod.number(),
+    lastReplyAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      author: zod
+        .object({
+          id: zod.number(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          avatarUrl: zod.string().nullish(),
+        })
+        .nullish(),
+      event: zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          startTime: zod.coerce.date(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListBoardThreadsResponse = zod.array(ListBoardThreadsResponseItem);
+
+/**
+ * @summary Create a new thread
+ */
+export const CreateBoardThreadBody = zod.object({
+  title: zod.string(),
+  body: zod.string(),
+  podId: zod.string().nullish(),
+  eventId: zod.number().nullish(),
+});
+
+/**
+ * @summary Get a single thread
+ */
+export const GetBoardThreadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetBoardThreadResponse = zod
+  .object({
+    id: zod.number(),
+    title: zod.string(),
+    body: zod.string(),
+    authorUserId: zod.number().nullish(),
+    podId: zod.string().nullish(),
+    eventId: zod.number().nullish(),
+    isPinned: zod.boolean(),
+    isLocked: zod.boolean(),
+    replyCount: zod.number(),
+    lastReplyAt: zod.coerce.date().nullish(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      author: zod
+        .object({
+          id: zod.number(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          avatarUrl: zod.string().nullish(),
+        })
+        .nullish(),
+      event: zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          startTime: zod.coerce.date(),
+        })
+        .nullish(),
+    }),
+  );
+
+/**
+ * @summary Delete a thread (author or coach/admin)
+ */
+export const DeleteBoardThreadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List posts in a thread
+ */
+export const ListBoardPostsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListBoardPostsResponseItem = zod
+  .object({
+    id: zod.number(),
+    threadId: zod.number(),
+    authorUserId: zod.number().nullish(),
+    body: zod.string(),
+    isDeleted: zod.boolean(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      author: zod
+        .object({
+          id: zod.number(),
+          firstName: zod.string(),
+          lastName: zod.string(),
+          avatarUrl: zod.string().nullish(),
+        })
+        .nullish(),
+    }),
+  );
+export const ListBoardPostsResponse = zod.array(ListBoardPostsResponseItem);
+
+/**
+ * @summary Reply to a thread
+ */
+export const CreateBoardPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateBoardPostBody = zod.object({
+  body: zod.string(),
+});
+
+/**
+ * @summary Delete a post (author or coach/admin, soft-delete)
+ */
+export const DeleteBoardPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Toggle pin on a thread (coach/admin only)
+ */
+export const PinBoardThreadParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const PinBoardThreadResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  body: zod.string(),
+  authorUserId: zod.number().nullish(),
+  podId: zod.string().nullish(),
+  eventId: zod.number().nullish(),
+  isPinned: zod.boolean(),
+  isLocked: zod.boolean(),
+  replyCount: zod.number(),
+  lastReplyAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Count threads with new activity since last visit
+ */
+export const GetBoardUnreadCountResponse = zod.object({
+  count: zod.number(),
+});
+
+/**
+ * @summary Mark board as seen (updates last-seen timestamp)
+ */
+export const MarkBoardSeenResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Fetch og:title and og:description for a URL
+ */
+export const GetLinkPreviewQueryParams = zod.object({
+  url: zod.coerce.string(),
+});
+
+export const GetLinkPreviewResponse = zod.object({
+  url: zod.string(),
+  title: zod.string(),
+  description: zod.string().nullish(),
+  hostname: zod.string(),
 });
 
 /**
@@ -2257,6 +2486,7 @@ export const ListPendingApprovalsResponseItem = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -2305,6 +2535,7 @@ export const ApproveUserResponse = zod.object({
       carpoolUpdates: zod.boolean(),
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),

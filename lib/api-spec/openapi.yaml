@@ -26,6 +26,8 @@ tags:
     description: Trailhead library
   - name: messages
     description: Messaging/broadcasts
+  - name: board
+    description: Community message board (threads and replies)
   - name: invites
     description: Invite links
   - name: storage
@@ -1418,6 +1420,219 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  # ─── BOARD ───────────────────────────────────────────────────────────────────
+
+  /board/threads:
+    get:
+      operationId: listBoardThreads
+      tags: [board]
+      summary: List board threads by scope (general, pod, event)
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [general, pod, event]
+        - name: podId
+          in: query
+          schema:
+            type: string
+        - name: eventId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardThreadWithDetails"
+    post:
+      operationId: createBoardThread
+      tags: [board]
+      summary: Create a new thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBoardThreadBody"
+      responses:
+        "201":
+          description: Created thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThreadWithDetails"
+
+  /board/threads/{id}:
+    get:
+      operationId: getBoardThread
+      tags: [board]
+      summary: Get a single thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThreadWithDetails"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBoardThread
+      tags: [board]
+      summary: Delete a thread (author or coach/admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /board/threads/{id}/posts:
+    get:
+      operationId: listBoardPosts
+      tags: [board]
+      summary: List posts in a thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardPostWithAuthor"
+    post:
+      operationId: createBoardPost
+      tags: [board]
+      summary: Reply to a thread
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBoardPostBody"
+      responses:
+        "201":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardPostWithAuthor"
+
+  /board/posts/{id}:
+    delete:
+      operationId: deleteBoardPost
+      tags: [board]
+      summary: Delete a post (author or coach/admin, soft-delete)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /board/threads/{id}/pin:
+    patch:
+      operationId: pinBoardThread
+      tags: [board]
+      summary: Toggle pin on a thread (coach/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThread"
+
+  /board/unread-count:
+    get:
+      operationId: getBoardUnreadCount
+      tags: [board]
+      summary: Count threads with new activity since last visit
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                required: [count]
+
+  /board/seen:
+    patch:
+      operationId: markBoardSeen
+      tags: [board]
+      summary: Mark board as seen (updates last-seen timestamp)
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /board/link-preview:
+    get:
+      operationId: getLinkPreview
+      tags: [board]
+      summary: Fetch og:title and og:description for a URL
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Link preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkPreviewResult"
+
   # ─── INVITES ─────────────────────────────────────────────────────────────────
 
   /invites:
@@ -1696,12 +1911,15 @@ components:
           type: boolean
         rosterUpdates:
           type: boolean
+        boardReplies:
+          type: boolean
       required:
         - practiceReminders
         - coachMessages
         - carpoolUpdates
         - eventReminders
         - rosterUpdates
+        - boardReplies
 
     User:
       type: object
@@ -2746,6 +2964,146 @@ components:
         photoObjectPath:
           type: string
       required: [name]
+
+    # ─── BOARD ────────────────────────────────────────────────────────────────
+
+    BoardAuthor:
+      type: object
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+      required: [id, firstName, lastName]
+
+    BoardEventRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+      required: [id, title, startTime]
+
+    BoardThread:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        authorUserId:
+          type: integer
+          nullable: true
+        podId:
+          type: string
+          nullable: true
+        eventId:
+          type: integer
+          nullable: true
+        isPinned:
+          type: boolean
+        isLocked:
+          type: boolean
+        replyCount:
+          type: integer
+        lastReplyAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, title, body, isPinned, isLocked, replyCount, createdAt, updatedAt]
+
+    BoardThreadWithDetails:
+      allOf:
+        - $ref: "#/components/schemas/BoardThread"
+        - type: object
+          properties:
+            author:
+              $ref: "#/components/schemas/BoardAuthor"
+              nullable: true
+            event:
+              $ref: "#/components/schemas/BoardEventRef"
+              nullable: true
+
+    BoardPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        threadId:
+          type: integer
+        authorUserId:
+          type: integer
+          nullable: true
+        body:
+          type: string
+        isDeleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, threadId, body, isDeleted, createdAt]
+
+    BoardPostWithAuthor:
+      allOf:
+        - $ref: "#/components/schemas/BoardPost"
+        - type: object
+          properties:
+            author:
+              $ref: "#/components/schemas/BoardAuthor"
+              nullable: true
+
+    CreateBoardThreadBody:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        podId:
+          type: string
+          nullable: true
+        eventId:
+          type: integer
+          nullable: true
+      required: [title, body]
+
+    CreateBoardPostBody:
+      type: object
+      properties:
+        body:
+          type: string
+      required: [body]
+
+    LinkPreviewResult:
+      type: object
+      properties:
+        url:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        hostname:
+          type: string
+      required: [url, title, hostname]
 
     # ─── MESSAGES ─────────────────────────────────────────────────────────────
 

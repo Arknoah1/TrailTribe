@@ -120,6 +120,55 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "create_board_threads_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS board_threads (
+        id serial PRIMARY KEY,
+        title text NOT NULL,
+        body text NOT NULL,
+        author_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        pod_id text,
+        event_id integer REFERENCES events(id) ON DELETE CASCADE,
+        is_pinned boolean NOT NULL DEFAULT false,
+        is_locked boolean NOT NULL DEFAULT false,
+        reply_count integer NOT NULL DEFAULT 0,
+        last_reply_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "create_board_posts_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS board_posts (
+        id serial PRIMARY KEY,
+        thread_id integer NOT NULL REFERENCES board_threads(id) ON DELETE CASCADE,
+        author_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        body text NOT NULL,
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "add_board_last_seen_at_to_users",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS board_last_seen_at timestamptz;
+    `,
+  },
+  {
+    name: "add_board_replies_to_notification_prefs",
+    sql: `
+      UPDATE users
+      SET notification_preferences = notification_preferences || '{"boardReplies": true}'
+      WHERE notification_preferences IS NOT NULL
+        AND NOT (notification_preferences ? 'boardReplies');
+    `,
+  },
+  {
     name: "seed_race_weekend_pack",
     sql: `
       DO $$

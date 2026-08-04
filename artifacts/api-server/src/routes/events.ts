@@ -16,6 +16,7 @@ import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { createEventThread } from "./board";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -103,6 +104,13 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
       }))
     ).returning();
   });
+
+  // Auto-create discussion threads for each event (non-blocking)
+  for (const ev of created) {
+    createEventThread(ev.id, ev.title, me?.id ?? null)
+      .catch((err) => logger.error({ err, eventId: ev.id }, "[events/batch] failed to auto-create board thread"));
+  }
+
   res.status(201).json({ created: created.length, ids: created.map(e => e.id) });
 });
 
@@ -184,6 +192,11 @@ router.post("/events", requireAuth, async (req, res) => {
   }).returning();
 
   const result = await buildEventWithDetails(event, clerkUserId);
+
+  // Auto-create a discussion thread for this event (non-blocking)
+  createEventThread(event.id, event.title, me?.id ?? null)
+    .catch((err) => logger.error({ err }, "[events] failed to auto-create board thread"));
+
   res.status(201).json(result);
 });
 

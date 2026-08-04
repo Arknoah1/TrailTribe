@@ -19,6 +19,7 @@ const notificationPreferencesSchema = z.object({
   carpoolUpdates: z.boolean(),
   eventReminders: z.boolean(),
   rosterUpdates: z.boolean(),
+  boardReplies: z.boolean().optional().default(true),
 });
 
 const router = Router();
@@ -30,6 +31,7 @@ const DEFAULT_NOTIFICATION_PREFS = {
   carpoolUpdates: true,
   eventReminders: true,
   rosterUpdates: true,
+  boardReplies: true,
 };
 
 async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$inferSelect | null> {

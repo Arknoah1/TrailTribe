@@ -12,4 +12,5 @@ export interface UserNotificationPreferences {
   carpoolUpdates: boolean;
   eventReminders: boolean;
   rosterUpdates: boolean;
+  boardReplies: boolean;
 }

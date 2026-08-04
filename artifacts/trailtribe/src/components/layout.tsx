@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useLocation } from "wouter";
 import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
 
@@ -36,6 +36,8 @@ function ThemeToggle({ className }: { className?: string }) {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { data: me } = useGetMe();
+  const { data: unreadData } = useGetBoardUnreadCount({ query: { refetchInterval: 30000, queryKey: getGetBoardUnreadCountQueryKey() } });
+  const unreadCount = typeof unreadData === "number" ? unreadData : (unreadData as any)?.count ?? 0;
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const navItems = isCoachOrAdmin
@@ -82,7 +84,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     : "border-transparent text-muted-foreground hover:border-[#0a0c10] hover:bg-secondary hover:text-foreground hover:shadow-cel-sm"
                 )}
               >
-                <Icon className="h-5 w-5 shrink-0" />
+                <div className="relative">
+                  <Icon className="h-5 w-5 shrink-0" />
+                  {item.href === "/messages" && unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center border border-card shadow-sm">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </div>
                 {item.label}
                 {isActive && (
                   <div className="ml-auto w-1.5 h-1.5 rounded-full bg-current" />
@@ -149,7 +158,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {isActive && (
                 <span className="absolute top-0 left-2 right-2 h-1 bg-primary rounded-b-sm" />
               )}
-              <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
+              <div className="relative">
+                <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-primary")} />
+                {item.href === "/messages" && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-bold flex items-center justify-center border border-card shadow-sm z-10">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
               <span className="truncate leading-none">{item.label}</span>
             </Link>
           );

@@ -112,7 +112,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
 
   // Validate and build canonical student prefs — carpool/roster are always false for students
-  let studentPrefs = { practiceReminders: true, coachMessages: true, carpoolUpdates: false, eventReminders: true, rosterUpdates: false };
+  let studentPrefs = { practiceReminders: true, coachMessages: true, carpoolUpdates: false, eventReminders: true, rosterUpdates: false, boardReplies: true };
   if (notificationPreferences != null) {
     const parsedPrefs = studentNotifPrefsSchema.safeParse(notificationPreferences);
     if (!parsedPrefs.success) {
@@ -126,6 +126,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
       carpoolUpdates: false,
       eventReminders: safePrefs.eventReminders ?? true,
       rosterUpdates: false,
+      boardReplies: true,
     };
   }
 
@@ -179,6 +180,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
       carpoolUpdates: false,
       eventReminders: safeRiderPrefs.eventReminders ?? true,
       rosterUpdates: false,
+      boardReplies: true,
     };
   }
 

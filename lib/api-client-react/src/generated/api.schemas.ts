@@ -32,6 +32,7 @@ export interface UserNotificationPreferences {
   carpoolUpdates: boolean;
   eventReminders: boolean;
   rosterUpdates: boolean;
+  boardReplies: boolean;
 }
 
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
@@ -598,6 +599,70 @@ export interface CreateTrailheadBody {
   photoObjectPath?: string;
 }
 
+export interface BoardAuthor {
+  id: number;
+  firstName: string;
+  lastName: string;
+  avatarUrl?: string | null;
+}
+
+export interface BoardEventRef {
+  id: number;
+  title: string;
+  startTime: string;
+}
+
+export interface BoardThread {
+  id: number;
+  title: string;
+  body: string;
+  authorUserId?: number | null;
+  podId?: string | null;
+  eventId?: number | null;
+  isPinned: boolean;
+  isLocked: boolean;
+  replyCount: number;
+  lastReplyAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BoardThreadWithDetails = BoardThread & {
+  author?: BoardAuthor | null;
+  event?: BoardEventRef | null;
+};
+
+export interface BoardPost {
+  id: number;
+  threadId: number;
+  authorUserId?: number | null;
+  body: string;
+  isDeleted: boolean;
+  createdAt: string;
+}
+
+export type BoardPostWithAuthor = BoardPost & {
+  author?: BoardAuthor | null;
+};
+
+export interface CreateBoardThreadBody {
+  title: string;
+  body: string;
+  podId?: string | null;
+  eventId?: number | null;
+}
+
+export interface CreateBoardPostBody {
+  body: string;
+}
+
+export interface LinkPreviewResult {
+  url: string;
+  title: string;
+  description?: string | null;
+  hostname: string;
+}
+
 export type BroadcastChannel =
   (typeof BroadcastChannel)[keyof typeof BroadcastChannel];
 
@@ -785,4 +850,27 @@ export type SignUpForEventTaskBody = {
 
 export type ListBroadcastsParams = {
   podId?: string;
+};
+
+export type ListBoardThreadsParams = {
+  scope?: ListBoardThreadsScope;
+  podId?: string;
+  eventId?: number;
+};
+
+export type ListBoardThreadsScope =
+  (typeof ListBoardThreadsScope)[keyof typeof ListBoardThreadsScope];
+
+export const ListBoardThreadsScope = {
+  general: "general",
+  pod: "pod",
+  event: "event",
+} as const;
+
+export type GetBoardUnreadCount200 = {
+  count: number;
+};
+
+export type GetLinkPreviewParams = {
+  url: string;
 };

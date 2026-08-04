@@ -71,6 +71,7 @@ const DEFAULT_PREFS: UserNotificationPreferences = {
   carpoolUpdates: true,
   eventReminders: true,
   rosterUpdates: true,
+  boardReplies: true,
 };
 
 
@@ -145,6 +146,7 @@ function NotificationsTab({ user }: { user: User }) {
   const topics = [
     { key: "practiceReminders", label: "Practice & training reminders", desc: "Reminders before scheduled practices and workouts." },
     { key: "coachMessages", label: "Coach announcements", desc: "Messages and updates sent by coaches." },
+    { key: "boardReplies", label: "Board replies", desc: "Get notified when someone replies to a thread you're in." },
     { key: "carpoolUpdates", label: "Carpool updates", desc: "New ride offers, ride requests, and matches." },
     { key: "eventReminders", label: "Event reminders & changes", desc: "Race schedule updates and day-before reminders." },
     ...(isCoachOrAdmin ? [{ key: "rosterUpdates", label: "Roster updates", desc: "New families pending approval and roster changes." }] : []),
