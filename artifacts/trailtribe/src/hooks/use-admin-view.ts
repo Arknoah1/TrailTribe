@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const STORAGE_KEY = "trailtribe_admin_view_enabled";
+const STORAGE_KEY = "trailtribe_admin_view_v2";
 
 /**
  * Persists the admin view preference in localStorage.
