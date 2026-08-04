@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
@@ -30,7 +31,37 @@ app.use(
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// Security headers
+app.use(helmet());
+
+// CORS — lock to an explicit origin allowlist; falls back to the Replit dev domain in development
+const allowedOrigins: string[] = [];
+if (process.env.ALLOWED_ORIGINS) {
+  allowedOrigins.push(
+    ...process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+  );
+}
+if (process.env.REPLIT_DEV_DOMAIN) {
+  allowedOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
+
+app.use(
+  cors({
+    credentials: true,
+    origin:
+      allowedOrigins.length > 0
+        ? (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+            // Allow same-origin and server-to-server requests (no Origin header)
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(null, false);
+            }
+          }
+        : true, // No env vars configured — open during early local dev only
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

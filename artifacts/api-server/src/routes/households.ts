@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { householdsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 
@@ -18,6 +19,16 @@ const studentNotifPrefsSchema = z.object({
 function generateInviteCode(): string {
   return randomBytes(6).toString("hex");
 }
+
+const createHouseholdSchema = z.object({
+  name: z.string().min(1, "Family name is required"),
+  podId: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  emergencyContactName: z.string().nullable().optional(),
+  emergencyContactPhone: z.string().nullable().optional(),
+});
+
+const updateHouseholdSchema = createHouseholdSchema.partial();
 
 // ── Medical-field privacy helpers ──────────────────────────────────────────
 const MEDICAL_FIELDS = ["allergies", "medications", "medicalNotes"] as const;
@@ -60,7 +71,12 @@ router.get("/households", requireAuth, async (req, res) => {
 });
 
 router.post("/households", requireAuth, async (req, res) => {
-  const { name, podId, address, emergencyContactName, emergencyContactPhone } = req.body;
+  const parsed = createHouseholdSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+  const { name, podId, address, emergencyContactName, emergencyContactPhone } = parsed.data;
   const [household] = await db.insert(householdsTable).values({
     name,
     inviteCode: generateInviteCode(),
@@ -72,8 +88,8 @@ router.post("/households", requireAuth, async (req, res) => {
   res.status(201).json(household);
 });
 
-router.get("/households/by-invite/:code", async (req, res) => {
-  const { code } = req.params;
+router.get("/households/by-invite/:code", publicLookupLimiter, async (req, res) => {
+  const code = str(req.params.code);
   const household = await db.query.householdsTable.findFirst({
     where: eq(householdsTable.inviteCode, code),
   });
@@ -102,7 +118,12 @@ router.get("/households/:id", requireAuth, async (req, res) => {
 
 router.patch("/households/:id", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { name, address, emergencyContactName, emergencyContactPhone } = req.body;
+  const parsed = updateHouseholdSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+  const { name, address, emergencyContactName, emergencyContactPhone } = parsed.data;
   const [updated] = await db.update(householdsTable)
     .set({ name, address, emergencyContactName, emergencyContactPhone })
     .where(eq(householdsTable.id, id))

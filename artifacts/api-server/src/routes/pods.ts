@@ -3,9 +3,19 @@ import { db } from "@workspace/db";
 import { podsTable, usersTable, householdsTable } from "@workspace/db";
 import { eq, asc, sql } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { z } from "zod";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
+
+const podBodySchema = z.object({
+  name: z.string().min(1, "Pod name is required"),
+  description: z.string().nullable().optional(),
+  headCoachId: z.number().int().nullable().optional(),
+  color: z.string().nullable().optional(),
+  season: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+});
 
 router.get("/pods", requireAuth, async (req, res) => {
   const pods = await db.select().from(podsTable).orderBy(asc(podsTable.sortOrder), asc(podsTable.id));
@@ -46,7 +56,12 @@ router.post("/pods/reorder", requireCoachOrAdmin, async (req, res) => {
 });
 
 router.post("/pods", requireCoachOrAdmin, async (req, res) => {
-  const { name, description, headCoachId, color, season } = req.body;
+  const parsed = podBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+  const { name, description, headCoachId, color, season } = parsed.data;
   const [maxRow] = await db
     .select({ max: sql<number>`COALESCE(MAX(sort_order), -1)` })
     .from(podsTable);
@@ -75,7 +90,12 @@ router.get("/pods/:id", requireAuth, async (req, res) => {
 
 router.patch("/pods/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { name, description, headCoachId, color, season, isActive } = req.body;
+  const parsed = podBodySchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+  const { name, description, headCoachId, color, season, isActive } = parsed.data;
   const [updated] = await db.update(podsTable)
     .set({ name, description, headCoachId, color, season, isActive })
     .where(eq(podsTable.id, id))

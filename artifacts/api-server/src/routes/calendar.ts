@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, eventsTable, trailheadsTable } from "@workspace/db";
 import { eq, and, gte, asc, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -70,7 +71,7 @@ router.get("/calendar/subscribe-url", requireAuth, async (req, res) => {
   res.json({ subscribeUrl, httpsUrl });
 });
 
-router.get("/calendar/:token/team.ics", async (req, res) => {
+router.get("/calendar/:token/team.ics", publicLookupLimiter, async (req, res) => {
   const token = str(req.params.token);
   const user = await db.query.usersTable.findFirst({
     where: eq(usersTable.calendarToken, token),

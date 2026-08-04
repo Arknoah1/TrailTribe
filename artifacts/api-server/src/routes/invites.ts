@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { inviteLinksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin, optionalAuth } from "../middlewares/requireAuth";
+import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 
 const router = Router();
@@ -28,7 +29,7 @@ router.post("/invites", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json(invite);
 });
 
-router.get("/invites/:code", optionalAuth, async (req, res) => {
+router.get("/invites/:code", publicLookupLimiter, optionalAuth, async (req, res) => {
   const code = str(req.params.code);
   const invite = await db.query.inviteLinksTable.findFirst({ where: eq(inviteLinksTable.code, code) });
   if (!invite || !invite.isActive) {
