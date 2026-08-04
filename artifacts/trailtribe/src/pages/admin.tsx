@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
+import SeasonBuilder from "./season-builder";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -548,6 +549,9 @@ export default function Admin() {
           <TabsTrigger value="pods">Pods</TabsTrigger>
           <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
           <TabsTrigger value="volunteer-templates">Volunteer Templates</TabsTrigger>
+          <TabsTrigger value="season-builder" className="flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5" /> Season Builder
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster" className="mt-6 space-y-4">
@@ -2257,6 +2261,10 @@ export default function Admin() {
               ))}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="season-builder" className="mt-6">
+          <SeasonBuilder />
         </TabsContent>
       </Tabs>
 

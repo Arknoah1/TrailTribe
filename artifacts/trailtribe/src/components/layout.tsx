@@ -44,13 +44,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { adminViewEnabled } = useAdminView();
   const showAdminTabs = isCoachOrAdmin && adminViewEnabled;
 
+  // Desktop sidebar: Admin tab visible when admin mode on; Season Builder lives inside Admin now
   const navItems = showAdminTabs
-    ? [...baseNavItems.slice(0, 4), adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
+    ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
     : baseNavItems;
 
-  const mobileItems = showAdminTabs
-    ? [baseNavItems[0], baseNavItems[1], baseNavItems[2], adminNavItem, seasonBuilderNavItem, baseNavItems[4]]
-    : baseNavItems;
+  // Mobile bottom nav: always the same 5 items — Admin accessible via top bar
+  const mobileItems = baseNavItems;
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background">
@@ -115,6 +115,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
           <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTribe</span>
           <div className="flex items-center gap-1.5">
+            {showAdminTabs && (
+              <Link href="/admin">
+                <button
+                  className={cn(
+                    "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border-2 border-[#0a0c10] shadow-cel-sm cel-interactive transition-colors",
+                    location.startsWith("/admin")
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  )}
+                  title="Admin"
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                </button>
+              </Link>
+            )}
             <ThemeToggle />
             <NotificationBell />
           </div>
