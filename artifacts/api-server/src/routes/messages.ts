@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { broadcastsTable, usersTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
@@ -22,7 +22,7 @@ router.get("/messages", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/messages", requireAuth, async (req, res) => {
+router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const { subject, body, channel, targetPodIds, isAllTeam } = req.body;

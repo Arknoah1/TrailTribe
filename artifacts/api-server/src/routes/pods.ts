@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { podsTable, usersTable, householdsTable } from "@workspace/db";
 import { eq, asc, sql } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -31,7 +31,7 @@ router.get("/pods", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/pods/reorder", requireAuth, async (req, res) => {
+router.post("/pods/reorder", requireCoachOrAdmin, async (req, res) => {
   const { ids } = req.body as { ids: number[] };
   if (!Array.isArray(ids)) {
     res.status(400).json({ error: "ids must be an array" });
@@ -45,7 +45,7 @@ router.post("/pods/reorder", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-router.post("/pods", requireAuth, async (req, res) => {
+router.post("/pods", requireCoachOrAdmin, async (req, res) => {
   const { name, description, headCoachId, color, season } = req.body;
   const [maxRow] = await db
     .select({ max: sql<number>`COALESCE(MAX(sort_order), -1)` })
@@ -73,7 +73,7 @@ router.get("/pods/:id", requireAuth, async (req, res) => {
   res.json({ ...pod, members, coaches });
 });
 
-router.patch("/pods/:id", requireAuth, async (req, res) => {
+router.patch("/pods/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { name, description, headCoachId, color, season, isActive } = req.body;
   const [updated] = await db.update(podsTable)
@@ -83,7 +83,7 @@ router.patch("/pods/:id", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/pods/:id", requireAuth, async (req, res) => {
+router.delete("/pods/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   await db.update(usersTable).set({ podId: null }).where(eq(usersTable.podId, String(id)));
   await db.update(householdsTable).set({ podId: null }).where(eq(householdsTable.podId, String(id)));

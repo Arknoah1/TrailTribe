@@ -6,7 +6,7 @@ import {
   inviteLinksTable,
 } from "@workspace/db";
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { notifyCoachesOfNewFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
@@ -141,7 +141,7 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
   res.json({ household, user: updated });
 });
 
-router.patch("/users/:id/pod", requireAuth, async (req, res) => {
+router.patch("/users/:id/pod", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { podId } = req.body;
   const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
@@ -153,8 +153,14 @@ router.patch("/users/:id/pod", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-router.patch("/users/:id/role", requireAuth, async (req, res) => {
+router.patch("/users/:id/role", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
+  // Prevent a coach/admin from demoting or promoting themselves
+  const requestingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, (req as any).clerkUserId) });
+  if (requestingUser?.id === id) {
+    res.status(403).json({ error: "You cannot change your own role" });
+    return;
+  }
   const { role } = req.body;
   if (!["parent", "coach"].includes(role)) {
     res.status(400).json({ error: "Role must be 'parent' or 'coach'" });
@@ -374,7 +380,7 @@ router.get("/users/:id", requireAuth, async (req, res) => {
   res.json(user);
 });
 
-router.patch("/users/:id", requireAuth, async (req, res) => {
+router.patch("/users/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { firstName, lastName, phone, role, podId, householdId,
     notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
@@ -387,14 +393,14 @@ router.patch("/users/:id", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-router.get("/pending-approvals", requireAuth, async (req, res) => {
+router.get("/pending-approvals", requireCoachOrAdmin, async (req, res) => {
   // Students are never in the approval flow — they're added directly by parents
   const pending = await db.select().from(usersTable)
     .where(and(eq(usersTable.approved, false), or(eq(usersTable.role, "parent"), eq(usersTable.role, "coach"))));
   res.json(pending);
 });
 
-router.post("/pending-approvals/:id/approve", requireAuth, async (req, res) => {
+router.post("/pending-approvals/:id/approve", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const { podId, householdId, role } = req.body;
 

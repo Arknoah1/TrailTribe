@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { inviteLinksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth, optionalAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin, optionalAuth } from "../middlewares/requireAuth";
 import { randomBytes } from "crypto";
 
 const router = Router();
@@ -13,7 +13,7 @@ router.get("/invites", requireAuth, async (req, res) => {
   res.json(invites);
 });
 
-router.post("/invites", requireAuth, async (req, res) => {
+router.post("/invites", requireCoachOrAdmin, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const { householdId, podId, label } = req.body;
   const code = randomBytes(8).toString("hex");
