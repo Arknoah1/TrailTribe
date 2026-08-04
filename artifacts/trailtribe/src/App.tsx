@@ -12,10 +12,12 @@ import Profile from "./pages/profile";
 import Admin from "./pages/admin";
 import SeasonBuilder from "./pages/season-builder";
 import Join from "./pages/join";
+import Onboarding from "./pages/onboarding";
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { useGetMe } from "@workspace/api-client-react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeContext, type Theme } from "@/lib/theme-context";
@@ -177,13 +179,54 @@ function HomeRedirect() {
   );
 }
 
+// Redirect users who have no household to the onboarding wizard.
+// Coaches/admins are exempt — they're created by the system and may not have a household.
+function OnboardingGuard({ children }: { children: React.ReactNode }) {
+  const { data: me, isLoading } = useGetMe();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && me && !me.householdId && me.role === "parent") {
+      setLocation("/onboarding");
+    }
+  }, [me, isLoading, setLocation]);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Don't render the layout while redirecting
+  if (me && !me.householdId && me.role === "parent") return null;
+
+  return <>{children}</>;
+}
+
 function ProtectedRoute({ component: Component }: { component: React.ComponentType<any> }) {
   return (
     <>
       <Show when="signed-in">
-        <Layout>
-          <Component />
-        </Layout>
+        <OnboardingGuard>
+          <Layout>
+            <Component />
+          </Layout>
+        </OnboardingGuard>
+      </Show>
+      <Show when="signed-out">
+        <Redirect to="/sign-in" />
+      </Show>
+    </>
+  );
+}
+
+function OnboardingRoute() {
+  return (
+    <>
+      <Show when="signed-in">
+        <Onboarding />
       </Show>
       <Show when="signed-out">
         <Redirect to="/sign-in" />
@@ -262,6 +305,7 @@ function ClerkProviderWithRoutes() {
           <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
           <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
           <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
+          <Route path="/onboarding" component={OnboardingRoute} />
           <Route path="/join/:code" component={Join} />
           <Route component={NotFound} />
         </Switch>
