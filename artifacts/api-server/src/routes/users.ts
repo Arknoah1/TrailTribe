@@ -22,6 +22,45 @@ const notificationPreferencesSchema = z.object({
   boardReplies: z.boolean().optional().default(true),
 });
 
+const userRoleSchema = z.enum(["parent", "coach", "admin", "student"]);
+
+// Schema for PATCH /users/:id (coach/admin editing a family member)
+const patchUserByIdSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phone: z.string().max(30).nullable().optional(),
+  role: userRoleSchema.optional(),
+  podId: z.string().max(100).nullable().optional(),
+  householdId: z.number().int().positive().nullable().optional(),
+  notificationsEnabled: z.boolean().optional(),
+  emailNotifications: z.boolean().optional(),
+  smsNotifications: z.boolean().optional(),
+  pushNotifications: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+}).strict();
+
+// Schema for POST /pending-approvals/:id/approve
+const approveUserSchema = z.object({
+  podId: z.string().max(100).nullable().optional(),
+  householdId: z.number().int().positive().nullable().optional(),
+  role: userRoleSchema.optional(),
+}).strict();
+
+// Schema for PUT /users/me (full self-update)
+const putUsersMeSchema = z.object({
+  firstName: z.string().min(1).max(100).optional(),
+  lastName: z.string().min(1).max(100).optional(),
+  phone: z.string().max(30).nullable().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
+  gender: z.enum(["male", "female", "non_binary", "prefer_not_to_say"]).nullable().optional(),
+  grade: z.number().int().nullable().optional(),
+  notificationsEnabled: z.boolean().optional(),
+  emailNotifications: z.boolean().optional(),
+  smsNotifications: z.boolean().optional(),
+  pushNotifications: z.boolean().optional(),
+  notificationPreferences: notificationPreferencesSchema.optional(),
+}).strict();
+
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
@@ -209,27 +248,17 @@ router.put("/users/me", requireAuth, async (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const {
-    firstName, lastName, phone, avatarUrl, gender, grade,
-    notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-    notificationPreferences,
-  } = req.body;
 
-  let validatedPrefs: typeof DEFAULT_NOTIFICATION_PREFS | undefined;
-  if (notificationPreferences !== undefined) {
-    const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Invalid notificationPreferences", details: parsed.error.issues });
-      return;
-    }
-    validatedPrefs = parsed.data;
+  const parsed = putUsersMeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
   }
 
+  const { notificationPreferences, ...rest } = parsed.data;
+
   const [updated] = await db.update(usersTable)
-    .set({ firstName, lastName, phone, avatarUrl, gender, grade,
-      notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-      notificationPreferences: validatedPrefs,
-    })
+    .set({ ...rest, notificationPreferences })
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);
@@ -416,14 +445,25 @@ router.get("/users/:id", requireAuth, async (req, res) => {
 
 router.patch("/users/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { firstName, lastName, phone, role, podId, householdId,
-    notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
-    isActive } = req.body;
+
+  const parsed = patchUserByIdSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+
+  if (Object.keys(parsed.data).length === 0) {
+    const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
+    if (!target) { res.status(404).json({ error: "User not found" }); return; }
+    res.json(target);
+    return;
+  }
+
   const [updated] = await db.update(usersTable)
-    .set({ firstName, lastName, phone, role, podId, householdId,
-      notificationsEnabled, emailNotifications, smsNotifications, pushNotifications, isActive })
+    .set(parsed.data)
     .where(eq(usersTable.id, id))
     .returning();
+  if (!updated) { res.status(404).json({ error: "User not found" }); return; }
   res.json(updated);
 });
 
@@ -436,7 +476,14 @@ router.get("/pending-approvals", requireCoachOrAdmin, async (req, res) => {
 
 router.post("/pending-approvals/:id/approve", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { podId, householdId, role } = req.body;
+
+  const parsed = approveUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
+    return;
+  }
+
+  const { podId, householdId, role } = parsed.data;
 
   const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!existing) { res.status(404).json({ error: "User not found" }); return; }
