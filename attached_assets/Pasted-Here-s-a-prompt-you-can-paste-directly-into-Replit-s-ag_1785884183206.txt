@@ -1,0 +1,43 @@
+Here's a prompt you can paste directly into Replit's agent to drive the fixes, ordered by priority:
+
+---
+
+**Fix authorization, data exposure, and object storage security issues in the TrailTribe API server (`artifacts/api-server`). Work through these in order:**
+
+**1. Broken access control / privilege escalation (CRITICAL — fix first)**
+In `src/routes/users.ts`:
+- `PATCH /users/:id/role` — restrict to `requireCoachOrAdmin`, and disallow a user from changing their own role.
+- `PATCH /users/:id` — restrict to `requireCoachOrAdmin` for changes to `role`, `isActive`, `householdId`, `podId`. If this route is also meant to let a user edit their own basic info, split it: keep a separate self-service path (`PUT/PATCH /users/me`, which already exists) and lock this one down to admin/coach for editing *other* users.
+- `PATCH /users/:id/pod` — restrict to `requireCoachOrAdmin`.
+- `GET /pending-approvals` and `POST /pending-approvals/:id/approve` — restrict both to `requireCoachOrAdmin`.
+
+In `src/routes/pods.ts`:
+- `POST /pods`, `PATCH /pods/:id`, `DELETE /pods/:id`, `POST /pods/reorder` — restrict all to `requireCoachOrAdmin`. `GET` routes can stay `requireAuth`.
+
+Use the existing `requireCoachOrAdmin` middleware from `middlewares/requireAuth.ts` — it's already used correctly in `routes/events.ts` and `routes/volunteerTasks.ts`, follow that same pattern.
+
+**2. Medical/PII data exposure**
+`allergies`, `medications`, and `medicalNotes` on the `users` table are currently returned to any authenticated user via `GET /households`, `GET /users`, `GET /users/:id`, and `GET /households/:id/riders`. Per the product spec, these fields should only be visible to coaches/admins (or the student's own household). Add response-shaping logic (strip these fields for non-coach/admin requesters who aren't in the same household) in `routes/households.ts` and `routes/users.ts`.
+
+Also fix the IDOR in `routes/households.ts`: `POST/PATCH/DELETE /households/:id/riders/:riderId` currently lets any authenticated user act on any household ID. Verify the requesting user belongs to that household (or is coach/admin) before allowing rider create/edit/delete.
+
+**3. Object storage security**
+In `src/routes/storage.ts`:
+- `GET /storage/objects/*path` — the ACL check is commented out (leftover Replit-auth boilerplate, never adapted for Clerk). Uncomment and rewrite it to use Clerk's `getAuth(req)` plus the existing `canAccessObjectEntity` helper in `lib/objectStorage.ts` / `lib/objectAcl.ts` — that infrastructure already exists, it just needs to be wired to the actual auth system in use.
+- `POST /storage/uploads/request-url` — add `requireAuth`. This currently has no auth at all, letting anyone generate signed upload URLs to the bucket.
+
+**4. Other authorization gaps**
+- `routes/messages.ts`: `POST /messages` (team/pod broadcast) should be `requireCoachOrAdmin`, not just `requireAuth`.
+- `routes/invites.ts`: `POST /invites` should be `requireCoachOrAdmin`, not just `requireAuth`.
+
+**5. CORS hardening**
+In `src/app.ts`, replace `cors({ credentials: true, origin: true })` (reflects any origin) with an explicit allowlist of the actual frontend origin(s), read from an env var.
+
+**6. Add baseline hardening**
+- Add `helmet` for security headers.
+- Add `express-rate-limit` on auth-adjacent and public-lookup endpoints, particularly `GET /households/by-invite/:code`, `GET /invites/:code`, and `GET /calendar/:token/team.ics`.
+
+**7. Input validation consistency**
+Several write routes (`households.ts`, `pods.ts`, `users.ts`) take fields straight off `req.body` without validating against the existing `@workspace/api-zod` schemas, even though that pattern is already used correctly in `routes/storage.ts`. Add `.safeParse()` validation using the matching generated Zod schema at the top of each write handler, returning 400 on failure, consistent with how `storage.ts` and the `notificationPreferences` validation in `users.ts` already do it.
+
+**After each change, run `pnpm run typecheck` and confirm the affected routes still return correctly for their intended (permitted) callers before moving to the next item.**
