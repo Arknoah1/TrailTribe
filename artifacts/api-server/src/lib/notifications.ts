@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { notificationsTable, usersTable } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and } from "drizzle-orm";
 import { sendEmail } from "./email";
 
 export async function createNotification(
@@ -25,6 +25,62 @@ export async function createNotification(
     });
   } catch (err) {
     console.error("[notifications] Failed to create notification:", err);
+  }
+}
+
+/**
+ * Notify all coaches and admins that a returning family has re-enrolled.
+ * Sends both an in-app notification and an optional email (best-effort, non-blocking).
+ */
+export async function notifyCoachesOfReturningFamily(user: {
+  firstName: string;
+  lastName: string;
+  email: string;
+}): Promise<void> {
+  try {
+    const coaches = await db.query.usersTable.findMany({
+      where: or(eq(usersTable.role, "coach"), eq(usersTable.role, "admin")),
+    });
+    if (coaches.length === 0) return;
+
+    const fullName = `${user.firstName} ${user.lastName}`.trim();
+
+    await Promise.all(
+      coaches.map((coach) =>
+        createNotification(
+          coach.id,
+          "returning_family_reenrolled",
+          "Returning family re-enrolled",
+          `${fullName} has re-enrolled for the new season. Assign them to a pod.`,
+          "/admin"
+        )
+      )
+    );
+
+    const emailRecipients = coaches
+      .filter((c) => c.emailNotifications && c.email)
+      .map((c) => c.email);
+
+    if (emailRecipients.length > 0) {
+      await sendEmail({
+        to: emailRecipients,
+        subject: "Returning family re-enrolled — TrailTribe",
+        text: [
+          `Hi,`,
+          ``,
+          `A returning family has re-enrolled for the new season.`,
+          ``,
+          `Name:  ${fullName}`,
+          `Email: ${user.email}`,
+          ``,
+          `Visit the Admin page to assign them to a pod.`,
+          ``,
+          `— TrailTribe`,
+        ].join("\n"),
+      });
+    }
+  } catch (err) {
+    console.error("[notifications] Failed to notify coaches of returning family:", err);
   }
 }
 

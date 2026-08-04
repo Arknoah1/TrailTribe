@@ -862,20 +862,55 @@ export default function Admin() {
         <TabsContent value="approvals" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>New Signups Awaiting Approval</CardTitle>
-              <CardDescription>Review and approve new family accounts. Co-parents who join via invite link are auto-approved.</CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Signups Awaiting Approval</CardTitle>
+                  <CardDescription className="mt-1">Review and approve new or returning family accounts. Co-parents who join via invite link are auto-approved.</CardDescription>
+                </div>
+                {pendingUsers && pendingUsers.some((u: any) => u.isReturningFamily) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={async () => {
+                      try {
+                        const res = await authedFetch(`${BASE_URL}/api/pending-approvals/bulk-approve-returning`, { method: "POST" });
+                        const data = res.ok ? await res.json() : null;
+                        if (!data) { toast({ title: "Bulk approve failed", variant: "destructive" }); return; }
+                        toast({ title: `Approved ${data.approved} returning ${data.approved === 1 ? "family" : "families"}` });
+                        queryClient.invalidateQueries({ queryKey: getListPendingApprovalsQueryKey() });
+                        fetchRoster();
+                      } catch { toast({ title: "Bulk approve failed", variant: "destructive" }); }
+                    }}
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1.5" /> Approve all returning families
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
                 <div className="py-8 text-center text-muted-foreground">Loading...</div>
               ) : pendingUsers && pendingUsers.length > 0 ? (
                 <div className="divide-y">
-                  {pendingUsers.map(user => (
+                  {pendingUsers.map((user: any) => (
                     <div key={user.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <div className="font-semibold text-lg">{user.firstName} {user.lastName}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-lg">{user.firstName} {user.lastName}</span>
+                          {user.isReturningFamily && (
+                            <Badge variant="secondary" className="text-xs font-medium text-amber-600 dark:text-amber-400 border-amber-300/50 bg-amber-50 dark:bg-amber-950/30">
+                              Returning
+                            </Badge>
+                          )}
+                        </div>
                         <div className="text-sm text-muted-foreground">{user.email}</div>
-                        <div className="text-sm mt-1">Role: <span className="font-medium capitalize">{user.role}</span></div>
+                        <div className="text-sm mt-1 flex items-center gap-2">
+                          <span>Role: <span className="font-medium capitalize">{user.role}</span></span>
+                          {user.householdName && (
+                            <span className="text-muted-foreground">· {user.householdName}</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         {user.role === "coach" && (

@@ -14,6 +14,7 @@ import Admin from "./pages/admin";
 import SeasonBuilder from "./pages/season-builder";
 import Join from "./pages/join";
 import Onboarding from "./pages/onboarding";
+import Reenroll from "./pages/reenroll";
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
@@ -180,15 +181,20 @@ function HomeRedirect() {
   );
 }
 
-// Redirect users who have no household to the onboarding wizard.
+// Redirect users who have no household to onboarding, or returning parents to re-enrollment.
 // Coaches/admins are exempt — they're created by the system and may not have a household.
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { data: me, isLoading } = useGetMe();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isLoading && me && !me.householdId && me.role === "parent") {
-      setLocation("/onboarding");
+    if (!isLoading && me && me.role === "parent") {
+      const meAny = me as any;
+      if (!me.householdId) {
+        setLocation("/onboarding");
+      } else if (!meAny.approved && meAny.isReturningFamily) {
+        setLocation("/reenroll");
+      }
     }
   }, [me, isLoading, setLocation]);
 
@@ -201,7 +207,11 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Don't render the layout while redirecting
-  if (me && !me.householdId && me.role === "parent") return null;
+  if (me && me.role === "parent") {
+    const meAny = me as any;
+    if (!me.householdId) return null;
+    if (!meAny.approved && meAny.isReturningFamily) return null;
+  }
 
   return <>{children}</>;
 }
@@ -308,6 +318,12 @@ function ClerkProviderWithRoutes() {
           <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
           <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
           <Route path="/onboarding" component={OnboardingRoute} />
+          <Route path="/reenroll" component={() => (
+            <>
+              <Show when="signed-in"><Reenroll /></Show>
+              <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+            </>
+          )} />
           <Route path="/join/:code" component={Join} />
           <Route component={NotFound} />
         </Switch>

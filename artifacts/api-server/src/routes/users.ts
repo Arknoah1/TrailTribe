@@ -4,10 +4,11 @@ import {
   usersTable,
   householdsTable,
   inviteLinksTable,
+  seasonsTable,
 } from "@workspace/db";
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
-import { notifyCoachesOfNewFamily } from "../lib/notifications";
+import { notifyCoachesOfNewFamily, notifyCoachesOfReturningFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
 import { createClerkClient } from "@clerk/express";
@@ -98,6 +99,20 @@ const DEFAULT_NOTIFICATION_PREFS = {
   boardReplies: true,
 };
 
+/** A household is "returning" if it predates the active season and hasn't re-enrolled yet. */
+async function getIsReturningFamily(householdId: number | null): Promise<boolean> {
+  if (!householdId) return false;
+  const [activeSeason, household] = await Promise.all([
+    db.query.seasonsTable.findFirst({ where: eq(seasonsTable.status, "active") }),
+    db.query.householdsTable.findFirst({ where: eq(householdsTable.id, householdId) }),
+  ]);
+  if (!activeSeason || !household) return false;
+  return (
+    new Date(household.createdAt) < new Date(activeSeason.startDate) &&
+    !household.seasonEnrolled
+  );
+}
+
 async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$inferSelect | null> {
   let user = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
@@ -154,8 +169,12 @@ router.get("/users/me", requireAuth, async (req, res) => {
       .returning();
     user = updated ?? user;
   }
+  const isReturningFamily = user.role === "parent" && !user.approved
+    ? await getIsReturningFamily(user.householdId ?? null)
+    : false;
+
   res.setHeader("Cache-Control", "no-store");
-  res.json(user);
+  res.json({ ...user, isReturningFamily });
 });
 
 router.post("/users/me/household", requireAuth, async (req, res) => {
@@ -331,6 +350,65 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
+// ── Re-enroll a returning family for the new season ────────────────────────
+// All three compliance booleans must be true.  Updates household + approves user.
+router.post("/users/me/reenroll", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const user = await getOrCreateUser(clerkUserId);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.role !== "parent") { res.status(403).json({ error: "Only parents can re-enroll" }); return; }
+  if (!user.householdId) { res.status(400).json({ error: "No household associated with this account" }); return; }
+
+  const reenrollSchema = z.object({
+    liabilityWaiverSigned: z.literal(true, { errorMap: () => ({ message: "Liability waiver must be signed" }) }),
+    mediaReleaseSigned: z.literal(true, { errorMap: () => ({ message: "Media release must be signed" }) }),
+    codeOfConductSigned: z.literal(true, { errorMap: () => ({ message: "Code of conduct must be signed" }) }),
+  });
+
+  const parsed = reenrollSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "All three compliance documents must be signed", details: parsed.error.issues });
+    return;
+  }
+
+  const returning = await getIsReturningFamily(user.householdId);
+  if (!returning) {
+    res.status(409).json({ error: "This account is not in a returning-family state" });
+    return;
+  }
+
+  const now = new Date();
+
+  const [updatedHousehold] = await db
+    .update(householdsTable)
+    .set({
+      liabilityWaiverSigned: true,
+      liabilityWaiverSignedAt: now,
+      mediaReleaseSigned: true,
+      mediaReleaseSignedAt: now,
+      codeOfConductSigned: true,
+      codeOfConductSignedAt: now,
+      seasonEnrolled: true,
+    })
+    .where(eq(householdsTable.id, user.householdId))
+    .returning();
+
+  const [updatedUser] = await db
+    .update(usersTable)
+    .set({ approved: true })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  // Notify coaches (fire-and-forget)
+  notifyCoachesOfReturningFamily({
+    firstName: user.firstName ?? "",
+    lastName: user.lastName ?? "",
+    email: user.email ?? "",
+  }).catch(() => {});
+
+  res.json({ user: updatedUser, household: updatedHousehold });
+});
+
 router.post("/users/me/regenerate-calendar-token", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const user = await db.query.usersTable.findFirst({
@@ -471,7 +549,84 @@ router.get("/pending-approvals", requireCoachOrAdmin, async (req, res) => {
   // Students are never in the approval flow — they're added directly by parents
   const pending = await db.select().from(usersTable)
     .where(and(eq(usersTable.approved, false), or(eq(usersTable.role, "parent"), eq(usersTable.role, "coach"))));
-  res.json(pending);
+
+  // Enrich each pending user with isReturningFamily + householdName
+  const activeSeason = await db.query.seasonsTable.findFirst({
+    where: eq(seasonsTable.status, "active"),
+  });
+
+  const enriched = await Promise.all(pending.map(async (u) => {
+    let isReturningFamily = false;
+    let householdName: string | null = null;
+    if (u.householdId) {
+      const h = await db.query.householdsTable.findFirst({
+        where: eq(householdsTable.id, u.householdId),
+      });
+      if (h) {
+        householdName = h.name ?? null;
+        if (activeSeason && new Date(h.createdAt) < new Date(activeSeason.startDate) && !h.seasonEnrolled) {
+          isReturningFamily = true;
+        }
+      }
+    }
+    return { ...u, isReturningFamily, householdName };
+  }));
+
+  res.json(enriched);
+});
+
+router.post("/pending-approvals/bulk-approve-returning", requireCoachOrAdmin, async (req, res) => {
+  const activeSeason = await db.query.seasonsTable.findFirst({
+    where: eq(seasonsTable.status, "active"),
+  });
+  if (!activeSeason) {
+    res.status(409).json({ error: "No active season — start a season before bulk-approving returning families" });
+    return;
+  }
+
+  const pending = await db.select().from(usersTable)
+    .where(and(eq(usersTable.approved, false), or(eq(usersTable.role, "parent"), eq(usersTable.role, "coach"))));
+
+  const returningIds: number[] = [];
+  for (const u of pending) {
+    if (!u.householdId) continue;
+    const h = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, u.householdId) });
+    if (h && new Date(h.createdAt) < new Date(activeSeason.startDate) && !h.seasonEnrolled) {
+      returningIds.push(u.id);
+    }
+  }
+
+  if (returningIds.length === 0) {
+    res.json({ approved: 0 });
+    return;
+  }
+
+  const now = new Date();
+
+  // Approve users and fully enroll their households (compliance coach-vouched)
+  await Promise.all(
+    returningIds.map((id) => db.update(usersTable).set({ approved: true }).where(eq(usersTable.id, id)))
+  );
+
+  // Collect unique household IDs for the approved users
+  const approvedUsers = pending.filter((u) => returningIds.includes(u.id));
+  const householdIds = [...new Set(approvedUsers.map((u) => u.householdId).filter(Boolean))] as number[];
+
+  await Promise.all(
+    householdIds.map((hid) =>
+      db.update(householdsTable).set({
+        seasonEnrolled: true,
+        liabilityWaiverSigned: true,
+        liabilityWaiverSignedAt: now,
+        mediaReleaseSigned: true,
+        mediaReleaseSignedAt: now,
+        codeOfConductSigned: true,
+        codeOfConductSignedAt: now,
+      }).where(eq(householdsTable.id, hid))
+    )
+  );
+
+  res.json({ approved: returningIds.length });
 });
 
 router.post("/pending-approvals/:id/approve", requireCoachOrAdmin, async (req, res) => {
