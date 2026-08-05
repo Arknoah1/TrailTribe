@@ -96,11 +96,30 @@ export default function SeasonsTab() {
   const archivedSeasons = seasons.filter((s) => s.status === "closed");
 
   useEffect(() => {
-    if (activeSeason) {
-      fetchReturningHouseholds(activeSeason);
-    } else {
+    if (!activeSeason) {
       setReturningHouseholds([]);
+      return;
     }
+
+    fetchReturningHouseholds(activeSeason);
+
+    // Re-fetch every 30 seconds so enrolled families disappear without a manual refresh
+    const interval = setInterval(() => {
+      fetchReturningHouseholds(activeSeason);
+    }, 30_000);
+
+    // Also re-fetch whenever the coach switches back to this browser tab
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchReturningHouseholds(activeSeason);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSeason?.id]);
 
