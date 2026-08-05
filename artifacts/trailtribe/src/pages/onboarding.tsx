@@ -393,8 +393,7 @@ function StepRiders({ householdId, onNext }: { householdId: number; onNext: () =
       ));
       onNext();
     } catch {
-      toast({ title: "Couldn't save riders — add them from Profile", variant: "destructive" });
-      onNext();
+      toast({ title: "Couldn't save riders. Please try again or add them later from Profile.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
