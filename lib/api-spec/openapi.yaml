@@ -2317,6 +2317,21 @@ components:
         - isArchived
         - createdAt
 
+    HouseholdMemberRsvp:
+      type: object
+      properties:
+        userId:
+          type: integer
+        firstName:
+          type: string
+        isMe:
+          type: boolean
+        status:
+          type: string
+          enum: [attending, not_attending, maybe]
+          nullable: true
+      required: [userId, firstName, isMe]
+
     EventWithDetails:
       allOf:
         - $ref: "#/components/schemas/Event"
@@ -2329,6 +2344,11 @@ components:
               type: string
               enum: [attending, not_attending, maybe]
               nullable: true
+            householdRsvps:
+              type: array
+              nullable: true
+              items:
+                $ref: "#/components/schemas/HouseholdMemberRsvp"
             rsvpCounts:
               $ref: "#/components/schemas/RsvpCounts"
             volunteerCount:

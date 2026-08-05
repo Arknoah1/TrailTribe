@@ -233,6 +233,23 @@ export interface Event {
   createdAt: string;
 }
 
+export type HouseholdMemberRsvpStatus =
+  | (typeof HouseholdMemberRsvpStatus)[keyof typeof HouseholdMemberRsvpStatus]
+  | null;
+
+export const HouseholdMemberRsvpStatus = {
+  attending: "attending",
+  not_attending: "not_attending",
+  maybe: "maybe",
+} as const;
+
+export interface HouseholdMemberRsvp {
+  userId: number;
+  firstName: string;
+  isMe: boolean;
+  status?: HouseholdMemberRsvpStatus;
+}
+
 export type EventWithDetailsMyRsvp =
   | (typeof EventWithDetailsMyRsvp)[keyof typeof EventWithDetailsMyRsvp]
   | null;
@@ -273,6 +290,7 @@ export interface EventAttachment {
 export type EventWithDetails = Event & {
   trailhead?: Trailhead | null;
   myRsvp?: EventWithDetailsMyRsvp;
+  householdRsvps?: HouseholdMemberRsvp[] | null;
   rsvpCounts: RsvpCounts;
   volunteerCount: number;
   carpoolSpotsAvailable: number;

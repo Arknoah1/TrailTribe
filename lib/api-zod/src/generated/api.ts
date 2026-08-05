@@ -74,6 +74,18 @@ export const GetDashboardSummaryResponse = zod.object({
             })
             .nullish(),
           myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          householdRsvps: zod
+            .array(
+              zod.object({
+                userId: zod.number(),
+                firstName: zod.string(),
+                isMe: zod.boolean(),
+                status: zod
+                  .enum(["attending", "not_attending", "maybe"])
+                  .nullish(),
+              }),
+            )
+            .nullish(),
           rsvpCounts: zod.object({
             attending: zod.number(),
             notAttending: zod.number(),
@@ -135,6 +147,16 @@ export const GetUpcomingEventsResponseItem = zod
         })
         .nullish(),
       myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+      householdRsvps: zod
+        .array(
+          zod.object({
+            userId: zod.number(),
+            firstName: zod.string(),
+            isMe: zod.boolean(),
+            status: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          }),
+        )
+        .nullish(),
       rsvpCounts: zod.object({
         attending: zod.number(),
         notAttending: zod.number(),
@@ -803,6 +825,16 @@ export const ListEventsResponseItem = zod
         })
         .nullish(),
       myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+      householdRsvps: zod
+        .array(
+          zod.object({
+            userId: zod.number(),
+            firstName: zod.string(),
+            isMe: zod.boolean(),
+            status: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          }),
+        )
+        .nullish(),
       rsvpCounts: zod.object({
         attending: zod.number(),
         notAttending: zod.number(),
@@ -948,6 +980,16 @@ export const GetEventResponse = zod
         })
         .nullish(),
       myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+      householdRsvps: zod
+        .array(
+          zod.object({
+            userId: zod.number(),
+            firstName: zod.string(),
+            isMe: zod.boolean(),
+            status: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          }),
+        )
+        .nullish(),
       rsvpCounts: zod.object({
         attending: zod.number(),
         notAttending: zod.number(),
@@ -1026,6 +1068,16 @@ export const UpdateEventResponse = zod
         })
         .nullish(),
       myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+      householdRsvps: zod
+        .array(
+          zod.object({
+            userId: zod.number(),
+            firstName: zod.string(),
+            isMe: zod.boolean(),
+            status: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          }),
+        )
+        .nullish(),
       rsvpCounts: zod.object({
         attending: zod.number(),
         notAttending: zod.number(),

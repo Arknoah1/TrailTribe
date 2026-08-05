@@ -8,12 +8,14 @@
 import type { Event } from "./event";
 import type { EventAttachment } from "./eventAttachment";
 import type { EventWithDetailsMyRsvp } from "./eventWithDetailsMyRsvp";
+import type { HouseholdMemberRsvp } from "./householdMemberRsvp";
 import type { RsvpCounts } from "./rsvpCounts";
 import type { Trailhead } from "./trailhead";
 
 export type EventWithDetails = Event & {
   trailhead?: Trailhead | null;
   myRsvp?: EventWithDetailsMyRsvp;
+  householdRsvps?: HouseholdMemberRsvp[] | null;
   rsvpCounts: RsvpCounts;
   volunteerCount: number;
   carpoolSpotsAvailable: number;

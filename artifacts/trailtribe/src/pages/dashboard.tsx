@@ -90,7 +90,29 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between text-sm mt-4 pt-4 border-t-2 border-[#0a0c10]">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground text-xs uppercase font-bold tracking-wide">RSVP:</span>
-                        {event.myRsvp === "attending" ? (
+                        {event.householdRsvps && event.householdRsvps.length > 0 ? (
+                          (() => {
+                            const attending = event.householdRsvps!.filter(m => m.status === "attending");
+                            const notAttending = event.householdRsvps!.filter(m => m.status === "not_attending");
+                            if (attending.length > 0) {
+                              const names = attending.map(m => m.isMe ? "You" : m.firstName);
+                              return (
+                                <span className="flex items-center gap-1 text-primary font-bold text-xs uppercase tracking-wide">
+                                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                  {names.join(" · ")} going
+                                </span>
+                              );
+                            } else if (notAttending.length === event.householdRsvps!.length) {
+                              return (
+                                <span className="flex items-center gap-1 text-destructive font-bold text-xs uppercase tracking-wide">
+                                  <XCircle className="h-3.5 w-3.5" /> Not going
+                                </span>
+                              );
+                            } else {
+                              return <span className="text-muted-foreground text-xs italic">None</span>;
+                            }
+                          })()
+                        ) : event.myRsvp === "attending" ? (
                           <span className="flex items-center gap-1 text-primary font-bold text-xs uppercase tracking-wide"><CheckCircle2 className="h-3.5 w-3.5" /> YES</span>
                         ) : event.myRsvp === "not_attending" ? (
                           <span className="flex items-center gap-1 text-destructive font-bold text-xs uppercase tracking-wide"><XCircle className="h-3.5 w-3.5" /> NO</span>
