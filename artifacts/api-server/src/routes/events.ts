@@ -243,7 +243,7 @@ router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
   if (endTime !== undefined) updates.endTime = new Date(endTime);
   if (trailheadId !== undefined) updates.trailheadId = trailheadId;
   if (locationOverride !== undefined) updates.locationOverride = locationOverride;
-  if (podIds !== undefined) updates.podIds = podIds;
+  if (podIds !== undefined) updates.podIds = podIds ? [...new Set(podIds as string[])] : podIds;
   if (isAllTeam !== undefined) updates.isAllTeam = isAllTeam;
   if (rsvpDeadline !== undefined) updates.rsvpDeadline = new Date(rsvpDeadline);
   if (volunteerSlotsNeeded !== undefined) updates.volunteerSlotsNeeded = volunteerSlotsNeeded;

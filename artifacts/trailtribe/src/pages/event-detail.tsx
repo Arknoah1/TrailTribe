@@ -306,7 +306,7 @@ export default function EventDetail() {
       endTime: endDt ? endDt.toTimeString().slice(0, 5) : "",
       trailheadId: event.trailhead ? String(event.trailhead.id) : "",
       isAllTeam: event.isAllTeam ?? true,
-      podId: "",
+      podId: (event.podIds && event.podIds.length > 0) ? String(event.podIds[0]) : "",
     });
     setShowEdit(true);
   };
@@ -439,7 +439,7 @@ export default function EventDetail() {
           {event.isAllTeam
             ? <Badge variant="outline">All Team</Badge>
             : event.podIds && event.podIds.length > 0
-              ? event.podIds.map(pid => {
+              ? [...new Set(event.podIds)].map(pid => {
                   const pod = (pods ?? []).find(p => String(p.id) === String(pid));
                   return pod
                     ? (
