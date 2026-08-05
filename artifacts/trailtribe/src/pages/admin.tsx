@@ -1344,7 +1344,7 @@ export default function Admin() {
                                 <td className="px-4 py-2.5 hidden sm:table-cell">
                                   {isEditing ? (
                                     <Select value={editingEventData.eventType} onValueChange={v => setEditingEventData((p: any) => ({ ...p, eventType: v }))}>
-                                      <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="h-7 text-xs w-24 capitalize"><SelectValue /></SelectTrigger>
                                       <SelectContent>
                                         {["practice","race","social","volunteer","other"].map(t => (
                                           <SelectItem key={t} value={t} className="capitalize text-xs">{t}</SelectItem>
@@ -1479,7 +1479,7 @@ export default function Admin() {
                           <div className="space-y-1">
                             <Label className="text-xs">Type *</Label>
                             <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
-                              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-sm capitalize"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {(Object.values(CreateEventBodyEventType) as string[]).map(t => (
                                   <SelectItem key={t} value={t} className="capitalize text-sm">{t}</SelectItem>

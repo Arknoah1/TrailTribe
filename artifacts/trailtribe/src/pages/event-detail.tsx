@@ -446,12 +446,10 @@ export default function EventDetail() {
                   return pod
                     ? (
                       <Badge key={pid} variant="outline" className="gap-1.5">
-                        {pod.color && (
-                          <span
-                            className="inline-block w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: pod.color }}
-                          />
-                        )}
+                        <span
+                          className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: pod.color ?? "#94a3b8" }}
+                        />
                         {pod.name}
                       </Badge>
                     )
@@ -1121,7 +1119,7 @@ export default function EventDetail() {
             <div className="space-y-1.5">
               <Label className="text-sm">Type *</Label>
               <Select value={editData.eventType} onValueChange={v => setEditData(p => ({ ...p, eventType: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="capitalize"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {EVENT_TYPES.map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                 </SelectContent>
