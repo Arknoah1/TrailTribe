@@ -263,10 +263,9 @@ function ClerkProviderWithRoutes() {
         variables: {
           colorPrimary: "#00c2a8",
           colorBackground: "#0f1115",
-          colorInputBackground: "#1c1f26",
-          colorInputText: "#e8e9eb",
-          colorText: "#e8e9eb",
-          colorTextSecondary: "#8a8f99",
+          colorInput: "#e8e9eb",
+          colorForeground: "#e8e9eb",
+          colorMutedForeground: "#8a8f99",
           colorDanger: "#ef4444",
           borderRadius: "0.5rem",
           fontFamily: "'DM Sans', sans-serif",
