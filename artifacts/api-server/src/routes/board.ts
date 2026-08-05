@@ -7,7 +7,7 @@ import {
   eventsTable,
 } from "@workspace/db";
 import { eq, and, desc, isNull, or, inArray, gt, gte } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { promises as dnsPromises } from "dns";
@@ -122,7 +122,7 @@ async function canAccessThread(
 }
 
 // GET /board/threads?scope=general|pod|event&podId=&eventId=
-router.get("/board/threads", requireAuth, async (req, res) => {
+router.get("/board/threads", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
@@ -221,7 +221,7 @@ router.post("/board/threads", requireAuth, async (req, res) => {
 });
 
 // GET /board/threads/:id
-router.get("/board/threads/:id", requireAuth, async (req, res) => {
+router.get("/board/threads/:id", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
@@ -237,7 +237,7 @@ router.get("/board/threads/:id", requireAuth, async (req, res) => {
 });
 
 // GET /board/threads/:id/posts
-router.get("/board/threads/:id/posts", requireAuth, async (req, res) => {
+router.get("/board/threads/:id/posts", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }

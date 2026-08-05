@@ -7,7 +7,7 @@ import {
   seasonsTable,
 } from "@workspace/db";
 import { eq, and, ilike, or, isNull } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { notifyCoachesOfNewFamily, notifyCoachesOfReturningFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
@@ -481,7 +481,7 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
   res.status(201).json(user);
 });
 
-router.get("/users", requireAuth, async (req, res) => {
+router.get("/users", requireApproved, async (req, res) => {
   const { role, podId, search } = req.query as Record<string, string>;
   const conditions = [];
   if (role) conditions.push(eq(usersTable.role, role as any));
@@ -505,7 +505,7 @@ router.get("/users", requireAuth, async (req, res) => {
   res.json(users.map((u) => shapeMedical(u, see)));
 });
 
-router.get("/users/:id", requireAuth, async (req, res) => {
+router.get("/users/:id", requireApproved, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const [requester, user] = await Promise.all([
     getRequester(req),

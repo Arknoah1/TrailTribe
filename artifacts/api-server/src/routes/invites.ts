@@ -9,7 +9,7 @@ import { randomBytes } from "crypto";
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
-router.get("/invites", requireAuth, async (req, res) => {
+router.get("/invites", requireCoachOrAdmin, async (req, res) => {
   const invites = await db.select().from(inviteLinksTable).orderBy(inviteLinksTable.createdAt);
   res.json(invites);
 });
@@ -39,7 +39,7 @@ router.get("/invites/:code", publicLookupLimiter, optionalAuth, async (req, res)
   res.json(invite);
 });
 
-router.patch("/invites/:id/deactivate", requireAuth, async (req, res) => {
+router.patch("/invites/:id/deactivate", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const [updated] = await db.update(inviteLinksTable)
     .set({ isActive: false })

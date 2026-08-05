@@ -8,7 +8,7 @@ import {
   eventsTable,
 } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -40,7 +40,7 @@ async function buildOfferWithClaims(offer: any) {
   };
 }
 
-router.get("/events/:id/carpools", requireAuth, async (req, res) => {
+router.get("/events/:id/carpools", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, eventId));
   const result = await Promise.all(offers.map(buildOfferWithClaims));

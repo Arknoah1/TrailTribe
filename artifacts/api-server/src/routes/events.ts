@@ -12,7 +12,7 @@ import {
   carpoolClaimsTable,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -165,7 +165,7 @@ router.patch("/series/:seriesId/reschedule", requireCoachOrAdmin, async (req, re
   res.json({ rescheduled: toShift.length });
 });
 
-router.get("/events", requireAuth, async (req, res) => {
+router.get("/events", requireApproved, async (req, res) => {
   const { startDate, endDate, eventType, podId, archived } = req.query as Record<string, string>;
   const clerkUserId = (req as any).clerkUserId;
   const conditions: any[] = [];
@@ -216,7 +216,7 @@ router.post("/events", requireAuth, async (req, res) => {
   res.status(201).json(result);
 });
 
-router.get("/events/:id", requireAuth, async (req, res) => {
+router.get("/events/:id", requireApproved, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });

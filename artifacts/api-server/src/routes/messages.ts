@@ -2,13 +2,13 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { broadcastsTable, usersTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
-router.get("/messages", requireAuth, async (req, res) => {
+router.get("/messages", requireApproved, async (req, res) => {
   const emailConfigured = !!process.env.RESEND_API_KEY;
   const broadcasts = await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt);
   const result = await Promise.all(
