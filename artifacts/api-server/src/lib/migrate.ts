@@ -217,6 +217,47 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "clear_seed_data",
+    sql: `
+      DO $$
+      BEGIN
+        -- Guard: only run if the known seed households are still present.
+        -- Once they're deleted the invite codes are gone and this becomes a no-op.
+        IF EXISTS (
+          SELECT 1 FROM households
+          WHERE invite_code IN (
+            '36054529c4fe','a1b2c3d4e5f6','b2c3d4e5f601',
+            'c3d4e5f60102','d4e5f6010203','e5f601020304'
+          )
+        ) THEN
+          DELETE FROM event_task_signups;
+          DELETE FROM event_tasks;
+          DELETE FROM event_rsvps;
+          DELETE FROM event_attachments;
+          DELETE FROM carpool_claims;
+          DELETE FROM carpool_requests;
+          DELETE FROM carpool_offers;
+          DELETE FROM board_posts;
+          DELETE FROM board_threads;
+          DELETE FROM notifications;
+          DELETE FROM broadcasts;
+          DELETE FROM invite_links;
+          DELETE FROM season_roster_snapshots;
+          DELETE FROM seasons;
+          DELETE FROM team_documents;
+          UPDATE events SET series_id = NULL;
+          DELETE FROM events;
+          DELETE FROM pods;
+          DELETE FROM users WHERE clerk_user_id IS NULL;
+          DELETE FROM households
+            WHERE id NOT IN (
+              SELECT DISTINCT household_id FROM users WHERE household_id IS NOT NULL
+            );
+        END IF;
+      END $$;
+    `,
+  },
+  {
     name: "create_season_roster_snapshots_table",
     sql: `
       CREATE TABLE IF NOT EXISTS season_roster_snapshots (
