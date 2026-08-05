@@ -291,6 +291,42 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   res.json(updated);
 });
 
+router.delete("/households/:id/members/:userId", requireAuth, async (req, res) => {
+  const householdId = parseInt(str(req.params.id));
+  const targetUserId = parseInt(str(req.params.userId));
+
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Must be a member of this household OR coach/admin
+  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== householdId) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  // Cannot remove yourself
+  if (requester.id === targetUserId) {
+    res.status(400).json({ error: "Cannot remove yourself from a household" }); return;
+  }
+
+  // Find the target — must be an adult (non-student) in this household
+  const target = await db.query.usersTable.findFirst({
+    where: and(eq(usersTable.id, targetUserId), eq(usersTable.householdId, householdId)),
+  });
+  if (!target || target.role === "student") { res.status(404).json({ error: "Member not found" }); return; }
+
+  // Regular parents cannot remove a coach
+  if (target.role === "coach" && requester.role !== "coach" && requester.role !== "admin") {
+    res.status(403).json({ error: "Only coaches or admins can remove a coach" }); return;
+  }
+
+  // Detach from household — keep the user account intact
+  await db.update(usersTable)
+    .set({ householdId: null })
+    .where(and(eq(usersTable.id, targetUserId), eq(usersTable.householdId, householdId)));
+
+  res.status(204).send();
+});
+
 router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
   const householdId = parseInt(str(req.params.id));
   const riderId = parseInt(str(req.params.riderId));

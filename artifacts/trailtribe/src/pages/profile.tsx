@@ -873,7 +873,7 @@ function VolunteerCommitmentsTab() {
   );
 }
 
-function MyFamilyTab({ householdId }: { householdId: number }) {
+function MyFamilyTab({ householdId, currentUserId }: { householdId: number; currentUserId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
@@ -888,6 +888,7 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
   const [editingRider, setEditingRider] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
   const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
 
   useEffect(() => {
@@ -940,6 +941,20 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders/${riderId}`, { method: "DELETE" });
     if (res.ok) { toast({ title: "Rider removed" }); fetchRiders(); }
     else toast({ title: "Failed to remove rider", variant: "destructive" });
+  };
+
+  const removeMember = async () => {
+    if (!memberToRemove) return;
+    const target = memberToRemove;
+    setMemberToRemove(null);
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/members/${target.id}`, { method: "DELETE" });
+    if (res.ok) {
+      toast({ title: `${target.firstName} removed from household` });
+      queryClient.invalidateQueries({ queryKey: getGetHouseholdQueryKey(householdId) });
+    } else {
+      const body = await res.json().catch(() => ({}));
+      toast({ title: body.error ?? "Failed to remove member", variant: "destructive" });
+    }
   };
 
   const inviteUrl = household
@@ -1101,15 +1116,47 @@ function MyFamilyTab({ householdId }: { householdId: number }) {
                           {m.phone && <span className="ml-2">{m.phone}</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
-                        {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
+                          {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
+                        </div>
+                        {m.id !== currentUserId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => setMemberToRemove(m)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))
                 )}
               </CardContent>
             </Card>
+
+            <AlertDialog open={!!memberToRemove} onOpenChange={(o) => { if (!o) setMemberToRemove(null); }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove family member?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {memberToRemove?.firstName} {memberToRemove?.lastName} will be removed from your household. Their account stays intact — they can rejoin via invite link if needed.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={removeMember}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Remove
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
               <DialogContent>
@@ -1493,7 +1540,7 @@ export default function Profile() {
         {/* My Family tab */}
         <TabsContent value="family" className="mt-6">
           {user?.householdId ? (
-            <MyFamilyTab householdId={user.householdId} />
+            <MyFamilyTab householdId={user.householdId} currentUserId={user.id} />
           ) : (
             <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
           )}

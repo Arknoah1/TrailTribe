@@ -1,0 +1,42 @@
+[
+  {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide1Title.tsx",
+    "title": "TrailTribe",
+    "description": "Title slide — full-bleed trail photo with brand overlay",
+    "speakerNotes": ""
+  },
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide2Coaches.tsx",
+    "title": "Everything coaches need, in one place",
+    "description": "Four coach features: event scheduling, RSVP tracking, broadcasts, roster management",
+    "speakerNotes": ""
+  },
+  {
+    "id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide3Families.tsx",
+    "title": "Built for busy families",
+    "description": "Four family features: household RSVPs, carpools, calendar sync, reminders",
+    "speakerNotes": ""
+  },
+  {
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide4Season.tsx",
+    "title": "How your season runs",
+    "description": "Four numbered steps: invite, pods, notifications, re-enrollment",
+    "speakerNotes": ""
+  },
+  {
+    "id": "886313e1-3b8a-5372-9b90-0c9aee199e5d",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide5CTA.tsx",
+    "title": "Ready to ride?",
+    "description": "Closing slide — golden hour image with call to action",
+    "speakerNotes": ""
+  }
+]

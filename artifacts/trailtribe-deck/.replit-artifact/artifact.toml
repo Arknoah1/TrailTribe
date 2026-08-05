@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/trailtribe-deck/"
+title = "TrailTribe Deck"
+description = "A 5-slide general overview deck for TrailTribe — the youth mountain bike team app — aimed at coaches and parents. Covers what the app does for coaches, what it offers families, how a season flows, and a closing call to action."
+version = "1.0.0"
+id = "artifacts/trailtribe-deck"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/trailtribe-deck/" ]
+localPort = 23580
+
+[services.development]
+run = "pnpm --filter @workspace/trailtribe-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trailtribe-deck", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trailtribe-deck/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23580"
+BASE_PATH = "/trailtribe-deck/"
