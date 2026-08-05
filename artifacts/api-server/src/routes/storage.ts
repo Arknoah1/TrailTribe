@@ -14,7 +14,7 @@ import {
   type ObjectAclPolicy,
 } from "../lib/objectAcl";
 import { requireAuth } from "../middlewares/requireAuth";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, teamDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -178,10 +178,33 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
         return;
       }
     } else if (isUserUpload) {
-      // No ACL found for a user-uploaded file — fail closed.
-      req.log.warn({ objectPath }, "User-uploaded object has no ACL policy; denying access");
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      // No ACL found for a user-uploaded file.  Before failing closed, check
+      // whether this object belongs to a team document — those carry implicit
+      // team-wide read access and their ACL may have been lost (e.g. after a
+      // DB incident).  If it is a team document, restore the policy and serve.
+      const teamDoc = await db.query.teamDocumentsTable.findFirst({
+        where: eq(teamDocumentsTable.objectPath, objectPath),
+      });
+
+      if (teamDoc) {
+        const restoredPolicy: ObjectAclPolicy = {
+          owner: "system",
+          visibility: "private",
+          aclRules: [
+            {
+              group: { type: ObjectAccessGroupType.AUTHENTICATED_USER, id: "all" },
+              permission: ObjectPermission.READ,
+            },
+          ],
+        };
+        await storePendingObjectAcl(objectPath, restoredPolicy);
+        req.log.info({ objectPath }, "Restored missing ACL policy for team document");
+        // fall through to serve the file
+      } else {
+        req.log.warn({ objectPath }, "User-uploaded object has no ACL policy; denying access");
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
     }
 
     const response = await objectStorageService.downloadObject(objectFile);
