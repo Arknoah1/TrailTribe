@@ -31,7 +31,23 @@ interface HouseholdRow {
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   createdAt: string;
+  lastReminderSentAt: string | null;
   members: { id: number; firstName: string; lastName: string; role: string }[];
+}
+
+const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function reminderCooldownActive(lastReminderSentAt: string | null): boolean {
+  if (!lastReminderSentAt) return false;
+  return Date.now() - new Date(lastReminderSentAt).getTime() < REMINDER_COOLDOWN_MS;
+}
+
+function reminderCooldownLabel(lastReminderSentAt: string | null): string {
+  if (!lastReminderSentAt) return "";
+  const remainingMs = REMINDER_COOLDOWN_MS - (Date.now() - new Date(lastReminderSentAt).getTime());
+  if (remainingMs <= 0) return "";
+  const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
+  return `Sent ${hours}h ago`;
 }
 
 export default function SeasonsTab() {
@@ -204,6 +220,12 @@ export default function SeasonsTab() {
         toast({ title: data.error ?? `Failed to send reminder to ${familyName}`, variant: "destructive" });
       } else {
         toast({ title: `Reminder sent to ${familyName}` });
+        // Update local state so the button reflects the cooldown immediately
+        setReturningHouseholds((prev) =>
+          prev.map((h) =>
+            h.id === householdId ? { ...h, lastReminderSentAt: new Date().toISOString() } : h
+          )
+        );
       }
     } catch {
       toast({ title: `Failed to send reminder to ${familyName}`, variant: "destructive" });
@@ -312,6 +334,8 @@ export default function SeasonsTab() {
                   {returningHouseholds.map((h) => {
                     const riders = h.members.filter((m) => m.role === "student");
                     const isSending = remindingIds.has(h.id);
+                    const onCooldown = reminderCooldownActive(h.lastReminderSentAt);
+                    const cooldownLabel = reminderCooldownLabel(h.lastReminderSentAt);
                     return (
                       <div key={h.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/40 text-sm">
                         <div className="flex items-center gap-2 min-w-0">
@@ -326,11 +350,12 @@ export default function SeasonsTab() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs shrink-0 ml-2"
-                          disabled={isSending}
+                          disabled={isSending || onCooldown}
+                          title={onCooldown ? `Reminder already sent. ${cooldownLabel} — wait 24 h before sending another.` : undefined}
                           onClick={() => handleRemindHousehold(h.id, h.name)}
                         >
                           <Mail className="h-3 w-3 mr-1" />
-                          {isSending ? "Sending…" : "Remind"}
+                          {isSending ? "Sending…" : onCooldown ? cooldownLabel : "Remind"}
                         </Button>
                       </div>
                     );

@@ -432,6 +432,8 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
 });
 
 // ── Send re-enrollment reminder to a single returning household ────────────
+const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin, async (req, res) => {
   const householdId = parseInt(str(req.params.householdId));
   if (isNaN(householdId)) {
@@ -465,6 +467,20 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
   if (household.createdAt >= seasonStart) {
     res.status(409).json({ error: "This household is new this season, not a returning family." });
     return;
+  }
+
+  // Cooldown check — prevent duplicate reminders within 24 hours
+  if (household.lastReminderSentAt) {
+    const elapsed = Date.now() - new Date(household.lastReminderSentAt).getTime();
+    if (elapsed < REMINDER_COOLDOWN_MS) {
+      const remainingMs = REMINDER_COOLDOWN_MS - elapsed;
+      const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+      res.status(429).json({
+        error: `A reminder was already sent to this family within the last 24 hours. Please wait ${remainingHours} more ${remainingHours === 1 ? "hour" : "hours"} before sending another.`,
+        cooldownUntil: new Date(new Date(household.lastReminderSentAt).getTime() + REMINDER_COOLDOWN_MS).toISOString(),
+      });
+      return;
+    }
   }
 
   // Find the primary contact (oldest parent/coach account with an email)
@@ -501,7 +517,14 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
     return;
   }
 
-  res.json({ sent: 1, email: contact.email });
+  // Record the timestamp so the cooldown window is enforced on subsequent calls
+  const now = new Date();
+  await db
+    .update(householdsTable)
+    .set({ lastReminderSentAt: now })
+    .where(eq(householdsTable.id, householdId));
+
+  res.json({ sent: 1, email: contact.email, reminderSentAt: now.toISOString() });
 });
 
 export default router;

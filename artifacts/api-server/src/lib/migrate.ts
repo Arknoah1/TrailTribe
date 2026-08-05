@@ -281,6 +281,13 @@ const migrations: { name: string; sql: string }[] = [
       ON CONFLICT (id) DO NOTHING;
     `,
   },
+  {
+    name: "add_last_reminder_sent_at_to_households",
+    sql: `
+      ALTER TABLE households
+        ADD COLUMN IF NOT EXISTS last_reminder_sent_at timestamptz;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
