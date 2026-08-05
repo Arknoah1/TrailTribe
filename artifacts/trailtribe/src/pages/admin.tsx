@@ -1873,9 +1873,19 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="trailheads" className="mt-6 space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold">Trailhead Library</h2>
-            <p className="text-sm text-muted-foreground mt-1">Saved meeting spots used in events and the Season Builder.</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Trailhead Library</h2>
+              <p className="text-sm text-muted-foreground mt-1">Saved meeting spots used in events and the Season Builder.</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 shrink-0"
+              onClick={() => { setShowAddTrailhead(v => !v); setNewTrailhead(emptyTrailhead); setNewPhotoPreview(null); }}
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Trailhead
+            </Button>
           </div>
 
           {/* Hidden file inputs */}
@@ -2092,17 +2102,17 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Add Trailhead */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Add Trailhead</CardTitle>
-                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setShowAddTrailhead(v => !v); setNewTrailhead(emptyTrailhead); setNewPhotoPreview(null); }}>
-                  {showAddTrailhead ? <ChevronUp className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                </Button>
-              </div>
-            </CardHeader>
-            {showAddTrailhead && (
+          {/* Add Trailhead form */}
+          {showAddTrailhead && (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">New Trailhead</CardTitle>
+                  <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => { setShowAddTrailhead(false); setNewTrailhead(emptyTrailhead); setNewPhotoPreview(null); }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
               <CardContent className="space-y-3 pt-0">
                 {/* Photo */}
                 <div className="relative rounded-lg overflow-hidden bg-muted h-36 flex items-center justify-center">
@@ -2198,8 +2208,8 @@ export default function Admin() {
                   </Button>
                 </div>
               </CardContent>
-            )}
-          </Card>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="volunteer-templates" className="mt-6 space-y-6">
