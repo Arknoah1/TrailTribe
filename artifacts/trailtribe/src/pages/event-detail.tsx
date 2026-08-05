@@ -366,19 +366,25 @@ export default function EventDetail() {
   const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
 
   useEffect(() => {
-    if (!isParent || !(me as any)?.householdId) return;
+    if (!(me as any)?.householdId) return;
     authedFetch(`${BASE_URL}/api/households/${(me as any).householdId}/riders`)
       .then((r) => r.ok ? r.json() : [])
       .then((data) => { setHouseholdRiders(data ?? []); setRidersLoaded(true); })
       .catch(() => setRidersLoaded(true));
-  }, [isParent, (me as any)?.householdId]);
+  }, [(me as any)?.householdId]);
 
-  const allMembers: { id: number; name: string; isRider: boolean }[] = isParent && me
-    ? [
-        { id: (me as any).id, name: me.firstName ?? "You", isRider: false },
-        ...householdRiders.map((r) => ({ id: r.id, name: r.firstName, isRider: true })),
-      ]
-    : [];
+  // Parents: riders only (parent attendance doesn't matter to the team).
+  // Coaches/admins: self first, then riders (coach headcount matters).
+  const allMembers: { id: number; name: string; isRider: boolean }[] = (() => {
+    if (!me) return [];
+    const riders = householdRiders.map((r) => ({ id: r.id, name: r.firstName, isRider: true }));
+    if (isParent) return riders;
+    if (isCoach) return [
+      { id: (me as any).id, name: me.firstName ?? "You", isRider: false },
+      ...riders,
+    ];
+    return [];
+  })();
 
   const rsvpMutation = useRsvpEvent({
     mutation: {
@@ -392,9 +398,9 @@ export default function EventDetail() {
     rsvpMutation.mutate({ id: eventId, data: { status } });
   };
 
-  /** For parents: open the member picker. For coaches: submit immediately. */
+  /** Open the picker if there are household members to select, otherwise submit immediately. */
   const startRsvp = (status: "attending" | "not_attending" | "maybe") => {
-    if (isParent && ridersLoaded && allMembers.length > 1) {
+    if (ridersLoaded && allMembers.length > 0) {
       setPendingStatus(status);
       // Pre-check all members for every status; user unchecks individuals as needed
       setSelectedMemberIds(allMembers.map((m) => m.id));
@@ -587,6 +593,17 @@ export default function EventDetail() {
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     Confirm RSVP
+                  </Button>
+                </div>
+              ) : isParent && ridersLoaded && allMembers.length === 0 ? (
+                /* ── Parent with no riders yet ──────────────────────────── */
+                <div className="py-4 text-center space-y-2">
+                  <Bike className="h-8 w-8 mx-auto text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">
+                    Add riders to your household to track event attendance.
+                  </p>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="/profile">Manage Household</a>
                   </Button>
                 </div>
               ) : (

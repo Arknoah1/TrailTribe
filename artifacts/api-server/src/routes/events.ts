@@ -286,7 +286,8 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
     const deduped = [...new Set(userIds.map(Number).filter(Boolean))];
 
     const allowedIds = new Set<number>([me.id]);
-    if (me.role === "parent" && me.householdId) {
+    // Parents, coaches, and admins may all RSVP for riders in their own household
+    if ((me.role === "parent" || me.role === "coach" || me.role === "admin") && me.householdId) {
       const householdStudents = await db
         .select({ id: usersTable.id })
         .from(usersTable)
