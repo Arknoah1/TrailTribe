@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronLeft, Check, X, Phone, User, Home as HomeIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatPhone } from "@/lib/utils";
 
 export default function HouseholdDetail() {
   const params = useParams();
@@ -125,7 +126,7 @@ export default function HouseholdDetail() {
                 <div className="pt-2 border-t">
                   <span className="text-muted-foreground text-xs block mb-1">Emergency Contact</span>
                   <div className="font-medium">{household.emergencyContactName}</div>
-                  <div>{household.emergencyContactPhone}</div>
+                  <div>{formatPhone(household.emergencyContactPhone)}</div>
                 </div>
               )}
             </CardContent>

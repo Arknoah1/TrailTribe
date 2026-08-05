@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, User, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { formatPhone } from "@/lib/utils";
 import { PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
 
 export default function Roster() {
@@ -50,7 +51,7 @@ export default function Roster() {
                         </div>
                         <div>
                           <div className="font-medium">{coach.firstName} {coach.lastName}</div>
-                          {coach.phone && <div className="text-xs text-muted-foreground">{coach.phone}</div>}
+                          {coach.phone && <div className="text-xs text-muted-foreground">{formatPhone(coach.phone)}</div>}
                         </div>
                       </div>
                     ))}

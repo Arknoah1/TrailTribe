@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { formatPhone } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -777,7 +778,7 @@ export default function Admin() {
                                       <div key={p.id} className="text-xs">
                                         <span className="text-foreground">{p.firstName}</span>
                                         {p.email && !p.email.includes("@trailtribe") && <span> · {p.email}</span>}
-                                        {p.phone && <span> · {p.phone}</span>}
+                                        {p.phone && <span> · {formatPhone(p.phone)}</span>}
                                       </div>
                                     ))}
                                   </div>
@@ -824,7 +825,7 @@ export default function Admin() {
                               <td className="px-4 py-2.5 text-muted-foreground hidden md:table-cell">
                                 <div className="text-xs space-y-0.5">
                                   {m.email && !m.email.includes("@trailtribe") && <div className="flex items-center gap-1"><Mail className="h-3 w-3 shrink-0" />{m.email}</div>}
-                                  {m.phone && <div className="flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" />{m.phone}</div>}
+                                  {m.phone && <div className="flex items-center gap-1"><Phone className="h-3 w-3 shrink-0" />{formatPhone(m.phone)}</div>}
                                 </div>
                               </td>
                             </tr>
@@ -887,7 +888,7 @@ export default function Admin() {
                                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{p.email}</span>
                                     )}
                                     {p.phone && (
-                                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{p.phone}</span>
+                                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{formatPhone(p.phone)}</span>
                                     )}
                                     <button
                                       onClick={async () => {

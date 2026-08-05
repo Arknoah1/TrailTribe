@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatPhone } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { Mountain, Bike, Phone, Mail, CheckCircle2, RotateCcw } from "lucide-react";
@@ -155,7 +156,7 @@ export default function Reenroll() {
                     {emergencyPhone && (
                       <div className="flex items-center gap-1.5">
                         <Phone className="h-3 w-3 text-muted-foreground" />
-                        {emergencyPhone}
+                        {formatPhone(emergencyPhone)}
                       </div>
                     )}
                   </div>

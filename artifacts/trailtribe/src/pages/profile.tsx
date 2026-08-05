@@ -8,6 +8,7 @@ import type { User, UserNotificationPreferences } from "@workspace/api-client-re
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { formatPhone, formatPhoneInput } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1040,7 +1041,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                 <FormField control={householdForm.control} name="emergencyContactPhone" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Emergency Contact Phone</FormLabel>
-                    <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} /></FormControl>
+                    <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} onChange={e => field.onChange(formatPhoneInput(e.target.value))} /></FormControl>
                   </FormItem>
                 )} />
               </div>
@@ -1144,7 +1145,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                         </div>
                         <div className="text-xs text-muted-foreground truncate mt-0.5">
                           {m.email && !m.email.endsWith("@trailtribe.internal") ? m.email : ""}
-                          {m.phone && <span className="ml-2">{m.phone}</span>}
+                          {m.phone && <span className="ml-2">{formatPhone(m.phone)}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1412,7 +1413,7 @@ export default function Profile() {
                   <FormField control={form.control} name="phone" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
-                      <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} /></FormControl>
+                      <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} onChange={e => field.onChange(formatPhoneInput(e.target.value))} /></FormControl>
                       <FormDescription className="text-xs">Required to enable SMS notifications.</FormDescription>
                       <FormMessage />
                     </FormItem>

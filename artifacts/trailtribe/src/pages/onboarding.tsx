@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { formatPhoneInput } from "@/lib/utils";
 import {
   Mountain, User, Home, Users, Bike, Check,
   ArrowRight, Plus, X, ChevronRight, Clock,
@@ -138,7 +139,7 @@ function StepName({
             id="ob-phone"
             type="tel"
             value={phone}
-            onChange={e => setPhone(e.target.value)}
+            onChange={e => setPhone(formatPhoneInput(e.target.value))}
             placeholder="(555) 000-0000"
             onKeyDown={e => e.key === "Enter" && valid && handleNext()}
           />
@@ -260,7 +261,7 @@ function StepHousehold({ onNext }: { onNext: (autoApproved: boolean) => void }) 
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="ob-ecPhone">Contact phone</Label>
-                <Input id="ob-ecPhone" type="tel" value={ecPhone} onChange={e => setEcPhone(e.target.value)} placeholder="(555) 000-0000" />
+                <Input id="ob-ecPhone" type="tel" value={ecPhone} onChange={e => setEcPhone(formatPhoneInput(e.target.value))} placeholder="(555) 000-0000" />
               </div>
             </div>
           </div>
