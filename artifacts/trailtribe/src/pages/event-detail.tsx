@@ -1,5 +1,5 @@
 import {
-  useGetEvent, useRsvpEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods,
+  useGetEvent, useUpdateEvent, useGetMe, useListTrailheads, useListPods,
   useListEventTasks, useSignUpForEventTask, useCancelEventTaskSignup,
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
@@ -9,7 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle, MessageSquare, Bike, UserRound } from "lucide-react";
+import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle, MessageSquare, Bike, UserRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } from "@workspace/api-client-react";
@@ -360,20 +360,34 @@ export default function EventDetail() {
     query: { enabled: isCoach && !!eventId, queryKey: getListEventRsvpsQueryKey(eventId) }
   });
 
-  // ─── HOUSEHOLD MEMBER PICKER ───────────────────────────────────────────────
+  // ─── RSVP STATE ────────────────────────────────────────────────────────────
   const isParent = me?.role === "parent";
   const [householdRiders, setHouseholdRiders] = useState<{ id: number; firstName: string }[]>([]);
   const [ridersLoaded, setRidersLoaded] = useState(false);
-  const [pendingStatus, setPendingStatus] = useState<"attending" | "not_attending" | "maybe" | null>(null);
-  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
+  const [memberStatuses, setMemberStatuses] = useState<Record<number, string | null>>({});
+  const [savingFor, setSavingFor] = useState<number | null>(null); // -1 = all members
 
   useEffect(() => {
-    if (!(me as any)?.householdId) return;
+    if (!me) return;
+    if (!(me as any)?.householdId) {
+      // No household — nothing to fetch; mark loaded so the UI is not stuck in skeleton
+      setRidersLoaded(true);
+      return;
+    }
     authedFetch(`${BASE_URL}/api/households/${(me as any).householdId}/riders`)
       .then((r) => r.ok ? r.json() : [])
       .then((data) => { setHouseholdRiders(data ?? []); setRidersLoaded(true); })
       .catch(() => setRidersLoaded(true));
-  }, [(me as any)?.householdId]);
+  }, [(me as any)?.householdId, !!me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync member statuses from server whenever the event data refreshes
+  useEffect(() => {
+    if (!event) return;
+    const serverStatuses = (event as any).householdMemberRsvps as Record<number, string | null> | undefined;
+    if (serverStatuses && Object.keys(serverStatuses).length > 0) {
+      setMemberStatuses(serverStatuses);
+    }
+  }, [event]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Parents: riders only (parent attendance doesn't matter to the team).
   // Coaches/admins: self first, then riders (coach headcount matters).
@@ -388,40 +402,45 @@ export default function EventDetail() {
     return [];
   })();
 
-  const rsvpMutation = useRsvpEvent({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
-      }
-    }
-  });
-
-  const handleRsvp = (status: "attending" | "not_attending" | "maybe") => {
-    rsvpMutation.mutate({ id: eventId, data: { status } });
-  };
-
-  /** Open the picker if there are household members to select, otherwise submit immediately. */
-  const startRsvp = (status: "attending" | "not_attending" | "maybe") => {
-    if (ridersLoaded && allMembers.length > 0) {
-      setPendingStatus(status);
-      // Pre-check all members for every status; user unchecks individuals as needed
-      setSelectedMemberIds(allMembers.map((m) => m.id));
-    } else {
-      handleRsvp(status);
-    }
-  };
-
-  const confirmRsvp = async () => {
-    if (!pendingStatus) return;
+  const handleMemberRsvp = async (memberId: number, status: "attending" | "not_attending" | "maybe") => {
+    const prev = memberStatuses[memberId] ?? null;
+    setMemberStatuses(s => ({ ...s, [memberId]: status }));
+    setSavingFor(memberId);
     try {
-      await authedFetch(`${BASE_URL}/api/events/${eventId}/rsvp`, {
+      const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: pendingStatus, userIds: selectedMemberIds }),
+        body: JSON.stringify({ status, userIds: [memberId] }),
       });
+      if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
       queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
-    } catch { /* no-op */ }
-    setPendingStatus(null);
+    } catch {
+      setMemberStatuses(s => ({ ...s, [memberId]: prev }));
+      toast({ title: "Failed to update RSVP", variant: "destructive" });
+    } finally {
+      setSavingFor(null);
+    }
+  };
+
+  const setAllGoing = async () => {
+    if (allMembers.length === 0) return;
+    const prevStatuses = { ...memberStatuses };
+    setMemberStatuses(s => ({ ...s, ...Object.fromEntries(allMembers.map(m => [m.id, "attending"])) }));
+    setSavingFor(-1);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/rsvp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "attending", userIds: allMembers.map(m => m.id) }),
+      });
+      if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
+      queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
+    } catch {
+      setMemberStatuses(prevStatuses);
+      toast({ title: "Failed to update RSVP", variant: "destructive" });
+    } finally {
+      setSavingFor(null);
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center">Loading event...</div>;
@@ -545,58 +564,14 @@ export default function EventDetail() {
               <CardTitle className="text-lg">Your RSVP</CardTitle>
             </CardHeader>
             <CardContent>
-              {pendingStatus ? (
-                /* ── Member picker ──────────────────────────────────────── */
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-foreground">
-                      Who's {pendingStatus === "attending" ? "going?" : pendingStatus === "maybe" ? "maybe coming?" : "not going?"}
-                    </span>
-                    <button
-                      onClick={() => setPendingStatus(null)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-1 rounded-lg border bg-background p-1">
-                    {allMembers.map((member) => (
-                      <label
-                        key={member.id}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-                      >
-                        <Checkbox
-                          checked={selectedMemberIds.includes(member.id)}
-                          onCheckedChange={(checked) =>
-                            setSelectedMemberIds((prev) =>
-                              checked ? [...prev, member.id] : prev.filter((id) => id !== member.id)
-                            )
-                          }
-                        />
-                        {member.isRider
-                          ? <Bike className="h-4 w-4 text-muted-foreground shrink-0" />
-                          : <UserRound className="h-4 w-4 text-muted-foreground shrink-0" />
-                        }
-                        <span className="text-sm">{member.name}</span>
-                        {!member.isRider && (
-                          <span className="text-xs text-muted-foreground ml-auto">you</span>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={confirmRsvp}
-                    disabled={pendingStatus !== "not_attending" && selectedMemberIds.length === 0}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Confirm RSVP
-                  </Button>
+              {/* ── Per-member RSVP rows ─────────────────────────────────── */}
+              {!ridersLoaded ? (
+                <div className="space-y-2">
+                  {[0, 1].map(i => (
+                    <div key={i} className="h-9 bg-muted/50 animate-pulse rounded-lg" />
+                  ))}
                 </div>
-              ) : isParent && ridersLoaded && allMembers.length === 0 ? (
-                /* ── Parent with no riders yet ──────────────────────────── */
+              ) : isParent && allMembers.length === 0 ? (
                 <div className="py-4 text-center space-y-2">
                   <Bike className="h-8 w-8 mx-auto text-muted-foreground/40" />
                   <p className="text-sm text-muted-foreground">
@@ -606,44 +581,71 @@ export default function EventDetail() {
                     <a href="/profile">Manage Household</a>
                   </Button>
                 </div>
-              ) : (
-                /* ── Status buttons ─────────────────────────────────────── */
-                <div className="space-y-3">
-                  <Button
-                    variant={event.myRsvp === "attending" ? "default" : "outline"}
-                    className="w-full justify-start"
-                    onClick={() => startRsvp("attending")}
-                    disabled={rsvpMutation.isPending}
-                  >
-                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                      {event.myRsvp === "attending" && <div className="w-2 h-2 rounded-full bg-current" />}
-                    </div>
-                    Going
-                  </Button>
-                  <Button
-                    variant={event.myRsvp === "not_attending" ? "destructive" : "outline"}
-                    className="w-full justify-start"
-                    onClick={() => startRsvp("not_attending")}
-                    disabled={rsvpMutation.isPending}
-                  >
-                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                      {event.myRsvp === "not_attending" && <div className="w-2 h-2 rounded-full bg-current" />}
-                    </div>
-                    Not Going
-                  </Button>
-                  <Button
-                    variant={event.myRsvp === "maybe" ? "secondary" : "outline"}
-                    className="w-full justify-start"
-                    onClick={() => startRsvp("maybe")}
-                    disabled={rsvpMutation.isPending}
-                  >
-                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                      {event.myRsvp === "maybe" && <div className="w-2 h-2 rounded-full bg-current" />}
-                    </div>
-                    Maybe
-                  </Button>
+              ) : allMembers.length > 0 ? (
+                <div className="space-y-1">
+                  {/* "Everyone's going" shortcut — only when no statuses set yet */}
+                  {allMembers.every(m => !memberStatuses[m.id]) && (
+                    <Button
+                      variant="default"
+                      className="w-full gap-2 mb-3"
+                      onClick={setAllGoing}
+                      disabled={savingFor === -1}
+                    >
+                      {savingFor === -1
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <CheckCircle2 className="h-4 w-4" />
+                      }
+                      {allMembers.length === 1 ? "I'm going" : "Everyone's going"}
+                    </Button>
+                  )}
+
+                  {allMembers.map(member => {
+                    const status = memberStatuses[member.id] ?? null;
+                    const isSaving = savingFor === member.id;
+                    return (
+                      <div key={member.id} className="flex items-center gap-2 py-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {member.isRider
+                            ? <Bike className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            : <UserRound className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          }
+                          <span className="text-sm truncate">{member.name}</span>
+                          {!member.isRider && (
+                            <span className="text-xs text-muted-foreground shrink-0">(you)</span>
+                          )}
+                        </div>
+                        {/* Inline 3-segment toggle */}
+                        <div className="flex rounded-md border border-border overflow-hidden shrink-0 text-xs font-semibold">
+                          {([
+                            { value: "attending" as const, label: "✓", title: "Going" },
+                            { value: "maybe" as const, label: "?", title: "Maybe" },
+                            { value: "not_attending" as const, label: "✕", title: "Not going" },
+                          ] as const).map(({ value, label, title }) => (
+                            <button
+                              key={value}
+                              title={title}
+                              disabled={isSaving || savingFor === -1}
+                              onClick={() => { if (status !== value) handleMemberRsvp(member.id, value); }}
+                              className={cn(
+                                "px-2.5 py-1.5 transition-colors border-r last:border-r-0 border-border",
+                                status === value
+                                  ? value === "attending"
+                                    ? "bg-primary text-primary-foreground"
+                                    : value === "not_attending"
+                                      ? "bg-destructive/80 text-destructive-foreground"
+                                      : "bg-secondary text-secondary-foreground"
+                                  : "bg-background text-muted-foreground hover:bg-muted/70 cursor-pointer"
+                              )}
+                            >
+                              {isSaving ? "·" : label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              ) : null}
 
               {/* ── Attendance counts ──────────────────────────────────── */}
               <div className="mt-6 pt-4 border-t border-border/50 text-sm text-muted-foreground space-y-1.5">

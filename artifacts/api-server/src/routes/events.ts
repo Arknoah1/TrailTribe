@@ -51,11 +51,26 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
   };
 
   let myRsvp: string | null = null;
+  let householdMemberRsvps: Record<number, string | null> = {};
   if (clerkUserId) {
     const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
     if (me) {
       const myRsvpRow = rsvps.find((r) => r.userId === me.id);
       myRsvp = myRsvpRow?.status ?? null;
+
+      // Build per-household-member RSVP map so the frontend can show each member's status
+      if (me.householdId) {
+        const householdUsers = await db
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.householdId, me.householdId));
+        for (const user of householdUsers) {
+          const rsvpRow = rsvps.find((r) => r.userId === user.id);
+          householdMemberRsvps[user.id] = rsvpRow?.status ?? null;
+        }
+      } else {
+        householdMemberRsvps[me.id] = myRsvp;
+      }
     }
   }
 
@@ -84,6 +99,7 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
     trailhead: trailhead ?? null,
     rsvpCounts,
     myRsvp,
+    householdMemberRsvps,
     volunteerCount,
     carpoolSpotsAvailable,
     attachments,
