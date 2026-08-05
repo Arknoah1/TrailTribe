@@ -43,7 +43,7 @@ function stripBase(path: string): string {
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem("tt-theme") as Theme) ?? "dark";
+    return (localStorage.getItem("tt-theme") as Theme) ?? "light";
   });
 
   useLayoutEffect(() => {
@@ -145,9 +145,7 @@ function Home() {
       <div className="flex flex-1 flex-col items-center justify-center p-8">
         <div className="text-center max-w-sm mx-auto">
           <h1 className="font-display text-6xl tracking-widest text-primary mb-2 leading-none">TrailTribe</h1>
-          <p className="text-muted-foreground mb-8 text-base font-medium">
-            The app mountain bike parents actually want to open.
-          </p>
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href={`${basePath}/sign-up`}
