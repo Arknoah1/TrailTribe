@@ -237,6 +237,8 @@ export default function Admin() {
   // Team Settings state
   const [teamName, setTeamName] = useState("");
   const [teamNameInput, setTeamNameInput] = useState("");
+  const [shortName, setShortName] = useState("");
+  const [shortNameInput, setShortNameInput] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   const fetchPendingInvites = useCallback(async () => {
@@ -510,6 +512,8 @@ export default function Admin() {
         const data = await res.json();
         setTeamName(data.teamName ?? "");
         setTeamNameInput(data.teamName ?? "");
+        setShortName(data.shortName ?? "");
+        setShortNameInput(data.shortName ?? "");
       }
     } catch {}
   }, [authedFetch]);
@@ -520,12 +524,14 @@ export default function Admin() {
       const res = await authedFetch(`${BASE_URL}/api/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamName: teamNameInput.trim() }),
+        body: JSON.stringify({ teamName: teamNameInput.trim(), shortName: shortNameInput.trim() }),
       });
       if (res.ok) {
         const data = await res.json();
         setTeamName(data.teamName ?? "");
         setTeamNameInput(data.teamName ?? "");
+        setShortName(data.shortName ?? "");
+        setShortNameInput(data.shortName ?? "");
         toast({ title: "Settings saved" });
       } else {
         toast({ title: "Failed to save settings", variant: "destructive" });
@@ -2553,24 +2559,37 @@ export default function Admin() {
               <CardTitle className="text-base">Team Settings</CardTitle>
               <CardDescription>Configure how your team appears in emails and notifications sent to families.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="space-y-1.5 max-w-sm">
-                <Label htmlFor="team-name-input">Team Name</Label>
+                <Label htmlFor="team-name-input">Full Team Name</Label>
                 <p className="text-xs text-muted-foreground">
-                  Shown in invite emails — e.g. "Coach has invited you to join <strong>{teamNameInput || "your team"}</strong> on TrailTribe".
+                  Used in invite emails and body text — e.g. "Coach has invited you to join <strong>{teamNameInput || "your team"}</strong> on TrailTribe".
                 </p>
                 <Input
                   id="team-name-input"
                   value={teamNameInput}
                   onChange={(e) => setTeamNameInput(e.target.value)}
-                  placeholder="e.g. Ridgeline Trail Club"
+                  placeholder="e.g. Methow Valley Composite"
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1.5 max-w-sm">
+                <Label htmlFor="short-name-input">Short Name</Label>
+                <p className="text-xs text-muted-foreground">
+                  Used as a prefix on all email subject lines — e.g. "<strong>{shortNameInput || "Methow Cycling"}</strong>: You're set for Saturday's race". Keep it brief.
+                </p>
+                <Input
+                  id="short-name-input"
+                  value={shortNameInput}
+                  onChange={(e) => setShortNameInput(e.target.value)}
+                  placeholder="e.g. Methow Cycling"
                   className="text-sm"
                 />
               </div>
               <Button
                 size="sm"
                 onClick={handleSaveSettings}
-                disabled={savingSettings || teamNameInput.trim() === teamName}
+                disabled={savingSettings || (teamNameInput.trim() === teamName && shortNameInput.trim() === shortName)}
               >
                 {savingSettings ? "Saving…" : "Save Settings"}
               </Button>

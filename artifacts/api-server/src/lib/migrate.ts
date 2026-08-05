@@ -288,6 +288,13 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS last_reminder_sent_at timestamptz;
     `,
   },
+  {
+    name: "add_short_name_to_team_settings",
+    sql: `
+      ALTER TABLE team_settings
+        ADD COLUMN IF NOT EXISTS short_name text NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

@@ -10,6 +10,7 @@ import {
 import { eq, and, or, desc, lt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
+import { getShortNamePrefix } from "./settings";
 import { z } from "zod";
 
 const router = Router();
@@ -399,11 +400,12 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
   }
 
   // One email per household — no shared To header, no duplicate outreach.
+  const orgPrefix = await getShortNamePrefix();
   const results = await Promise.all(
     primaryContacts.map((address) =>
       sendEmail({
         to: address,
-        subject: `Re-enroll for ${active.name} — TrailTribe`,
+        subject: `${orgPrefix}Re-enroll for ${active.name}`,
         text: [
           `Hi,`,
           ``,
@@ -494,9 +496,10 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
     return;
   }
 
+  const orgPrefix = await getShortNamePrefix();
   const result = await sendEmail({
     to: contact.email,
-    subject: `Re-enroll for ${active.name} — TrailTribe`,
+    subject: `${orgPrefix}Re-enroll for ${active.name}`,
     text: [
       `Hi,`,
       ``,

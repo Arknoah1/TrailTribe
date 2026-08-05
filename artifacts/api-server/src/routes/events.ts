@@ -17,6 +17,7 @@ import { randomUUID } from "crypto";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { createEventThread } from "./board";
+import { getShortNamePrefix } from "./settings";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -342,9 +343,10 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
           weekday: "long", month: "long", day: "numeric",
           hour: "numeric", minute: "2-digit", timeZoneName: "short",
         });
+        const orgPrefix = await getShortNamePrefix();
         await sendEmail({
           to: me.email,
-          subject: `You're set for ${event.title}`,
+          subject: `${orgPrefix}You're set for ${event.title}`,
           text: [
             `Hi ${me.firstName},`,
             ``,

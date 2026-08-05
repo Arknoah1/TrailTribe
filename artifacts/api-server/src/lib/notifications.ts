@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { notificationsTable, usersTable } from "@workspace/db";
 import { eq, or, and } from "drizzle-orm";
 import { sendEmail } from "./email";
+import { getShortNamePrefix } from "../routes/settings";
 
 export async function createNotification(
   recipientUserId: number,
@@ -62,9 +63,10 @@ export async function notifyCoachesOfReturningFamily(user: {
       .map((c) => c.email);
 
     if (emailRecipients.length > 0) {
+      const orgPrefix = await getShortNamePrefix();
       await sendEmail({
         to: emailRecipients,
-        subject: "Returning family re-enrolled — TrailTribe",
+        subject: `${orgPrefix}Returning family re-enrolled`,
         text: [
           `Hi,`,
           ``,
@@ -121,9 +123,10 @@ export async function notifyCoachesOfNewFamily(newUser: {
       .map((c) => c.email);
 
     if (emailRecipients.length > 0) {
+      const orgPrefix = await getShortNamePrefix();
       await sendEmail({
         to: emailRecipients,
-        subject: "New family waiting for approval — TrailTribe",
+        subject: `${orgPrefix}New family waiting for approval`,
         text: [
           `Hi,`,
           ``,

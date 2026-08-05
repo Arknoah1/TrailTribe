@@ -3,6 +3,7 @@ import { eventsTable, eventRsvpsTable, usersTable, trailheadsTable } from "@work
 import { eq, and, gte, lte } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { logger } from "./logger";
+import { getShortNamePrefix } from "../routes/settings";
 
 function formatEventTime(start: Date): string {
   return start.toLocaleString("en-US", {
@@ -102,9 +103,10 @@ async function sendEventReminders(): Promise<void> {
           `— TrailTribe`,
         ];
 
+        const orgPrefix = await getShortNamePrefix();
         await sendEmail({
           to: user.email,
-          subject: `Reminder: ${event.title} is tomorrow`,
+          subject: `${orgPrefix}Reminder: ${event.title} is tomorrow`,
           text: lines.join("\n"),
         });
 

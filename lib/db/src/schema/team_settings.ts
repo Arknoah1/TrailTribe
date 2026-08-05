@@ -7,6 +7,7 @@ import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
 export const teamSettingsTable = pgTable("team_settings", {
   id: serial("id").primaryKey(),
   teamName: text("team_name").notNull().default(""),
+  shortName: text("short_name").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

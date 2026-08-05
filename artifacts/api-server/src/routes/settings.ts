@@ -14,21 +14,36 @@ async function getOrCreateSettings() {
   if (existing) return existing;
   const [created] = await db
     .insert(teamSettingsTable)
-    .values({ id: 1, teamName: "" })
+    .values({ id: 1, teamName: "", shortName: "" })
     .onConflictDoNothing()
     .returning();
   // If onConflictDoNothing returned nothing, re-fetch
   return created ?? (await db.query.teamSettingsTable.findFirst({ where: eq(teamSettingsTable.id, 1) }))!;
 }
 
+/**
+ * Returns a subject-line prefix like "Methow Cycling: " when a short name is
+ * configured, or "" when it isn't. Use it as:
+ *   subject: `${await getShortNamePrefix()}Your actual subject here`
+ */
+async function getShortNamePrefix(): Promise<string> {
+  const settings = await getOrCreateSettings();
+  const short = settings.shortName?.trim();
+  return short ? `${short}: ` : "";
+}
+
 // GET /settings — return current team settings (coach/admin)
 router.get("/settings", requireCoachOrAdmin, async (_req, res) => {
   const settings = await getOrCreateSettings();
-  res.json({ teamName: settings.teamName ?? "" });
+  res.json({
+    teamName: settings.teamName ?? "",
+    shortName: settings.shortName ?? "",
+  });
 });
 
 const updateSettingsSchema = z.object({
   teamName: z.string().max(100),
+  shortName: z.string().max(60),
 });
 
 // PUT /settings — update team settings (coach/admin)
@@ -42,15 +57,18 @@ router.put("/settings", requireCoachOrAdmin, async (req, res) => {
   // Upsert row id=1
   const [updated] = await db
     .insert(teamSettingsTable)
-    .values({ id: 1, teamName: parsed.data.teamName })
+    .values({ id: 1, teamName: parsed.data.teamName, shortName: parsed.data.shortName })
     .onConflictDoUpdate({
       target: teamSettingsTable.id,
-      set: { teamName: parsed.data.teamName },
+      set: { teamName: parsed.data.teamName, shortName: parsed.data.shortName },
     })
     .returning();
 
-  res.json({ teamName: updated?.teamName ?? parsed.data.teamName });
+  res.json({
+    teamName: updated?.teamName ?? parsed.data.teamName,
+    shortName: updated?.shortName ?? parsed.data.shortName,
+  });
 });
 
-export { getOrCreateSettings };
+export { getOrCreateSettings, getShortNamePrefix };
 export default router;

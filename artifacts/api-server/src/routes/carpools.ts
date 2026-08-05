@@ -12,6 +12,7 @@ import { requireAuth, requireApproved } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { getShortNamePrefix } from "./settings";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -138,9 +139,10 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
       const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, offer.eventId) });
       const riderName = rider ? `${rider.firstName} ${rider.lastName}` : "Someone";
       const eventName = event?.title ?? "your event";
+      const orgPrefix = await getShortNamePrefix();
       await sendEmail({
         to: driver.email,
-        subject: `${riderName} claimed your carpool spot`,
+        subject: `${orgPrefix}${riderName} claimed your carpool spot`,
         text: [
           `Hi ${driver.firstName},`,
           ``,

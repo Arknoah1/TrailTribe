@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { getShortNamePrefix } from "./settings";
 
 const router = Router();
 
@@ -53,7 +54,8 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   }).returning();
 
   const senderName = me ? `${me.firstName} ${me.lastName}` : "Your Coach";
-  const emailSubject = subject ? subject : `Message from ${senderName}`;
+  const orgPrefix = await getShortNamePrefix();
+  const emailSubject = `${orgPrefix}${subject ? subject : `Message from ${senderName}`}`;
 
   const emailNotConfigured = !process.env.RESEND_API_KEY;
 
@@ -112,7 +114,8 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
   }
 
   const senderName = me ? `${me.firstName} ${me.lastName}` : "A team family";
-  const emailSubject = subject ?? `Message from ${senderName}`;
+  const orgPrefix = await getShortNamePrefix();
+  const emailSubject = `${orgPrefix}${subject ?? `Message from ${senderName}`}`;
 
   (async () => {
     let sent = 0;
