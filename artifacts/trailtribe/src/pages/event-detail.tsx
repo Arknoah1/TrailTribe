@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
-import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle, MessageSquare } from "lucide-react";
+import { MapPin, Calendar as CalendarIcon, Users, Car, FileText, ChevronLeft, Map, Pencil, CheckCircle2, Plus, Trash2, ChevronDown, ChevronUp, X, AlertTriangle, MessageSquare, Bike, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +17,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
+
+const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const EVENT_TYPES = Object.values(UpdateEventBodyEventType) as string[];
 
@@ -345,6 +349,30 @@ export default function EventDetail() {
     });
   };
 
+  const authedFetch = useAuthedFetch();
+
+  // ─── HOUSEHOLD MEMBER PICKER ───────────────────────────────────────────────
+  const isParent = me?.role === "parent";
+  const [householdRiders, setHouseholdRiders] = useState<{ id: number; firstName: string }[]>([]);
+  const [ridersLoaded, setRidersLoaded] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<"attending" | "not_attending" | "maybe" | null>(null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (!isParent || !(me as any)?.householdId) return;
+    authedFetch(`${BASE_URL}/api/households/${(me as any).householdId}/riders`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => { setHouseholdRiders(data ?? []); setRidersLoaded(true); })
+      .catch(() => setRidersLoaded(true));
+  }, [isParent, (me as any)?.householdId]);
+
+  const allMembers: { id: number; name: string; isRider: boolean }[] = isParent && me
+    ? [
+        { id: (me as any).id, name: me.firstName ?? "You", isRider: false },
+        ...householdRiders.map((r) => ({ id: r.id, name: r.firstName, isRider: true })),
+      ]
+    : [];
+
   const rsvpMutation = useRsvpEvent({
     mutation: {
       onSuccess: () => {
@@ -355,6 +383,30 @@ export default function EventDetail() {
 
   const handleRsvp = (status: "attending" | "not_attending" | "maybe") => {
     rsvpMutation.mutate({ id: eventId, data: { status } });
+  };
+
+  /** For parents: open the member picker. For coaches: submit immediately. */
+  const startRsvp = (status: "attending" | "not_attending" | "maybe") => {
+    if (isParent && ridersLoaded && allMembers.length > 1) {
+      setPendingStatus(status);
+      // Pre-check all members for every status; user unchecks individuals as needed
+      setSelectedMemberIds(allMembers.map((m) => m.id));
+    } else {
+      handleRsvp(status);
+    }
+  };
+
+  const confirmRsvp = async () => {
+    if (!pendingStatus) return;
+    try {
+      await authedFetch(`${BASE_URL}/api/events/${eventId}/rsvp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: pendingStatus, userIds: selectedMemberIds }),
+      });
+      queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
+    } catch { /* no-op */ }
+    setPendingStatus(null);
   };
 
   if (isLoading) return <div className="p-8 text-center">Loading event...</div>;
@@ -480,46 +532,131 @@ export default function EventDetail() {
               <CardTitle className="text-lg">Your RSVP</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <Button
-                  variant={event.myRsvp === "attending" ? "default" : "outline"}
-                  className="w-full justify-start"
-                  onClick={() => handleRsvp("attending")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                    {event.myRsvp === "attending" && <div className="w-2 h-2 rounded-full bg-current" />}
+              {pendingStatus ? (
+                /* ── Member picker ──────────────────────────────────────── */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-foreground">
+                      Who's {pendingStatus === "attending" ? "going?" : pendingStatus === "maybe" ? "maybe coming?" : "not going?"}
+                    </span>
+                    <button
+                      onClick={() => setPendingStatus(null)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  Going
-                </Button>
-                <Button
-                  variant={event.myRsvp === "not_attending" ? "destructive" : "outline"}
-                  className="w-full justify-start"
-                  onClick={() => handleRsvp("not_attending")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                    {event.myRsvp === "not_attending" && <div className="w-2 h-2 rounded-full bg-current" />}
-                  </div>
-                  Not Going
-                </Button>
-                <Button
-                  variant={event.myRsvp === "maybe" ? "secondary" : "outline"}
-                  className="w-full justify-start"
-                  onClick={() => handleRsvp("maybe")}
-                  disabled={rsvpMutation.isPending}
-                >
-                  <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
-                    {event.myRsvp === "maybe" && <div className="w-2 h-2 rounded-full bg-current" />}
-                  </div>
-                  Maybe
-                </Button>
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-border/50 text-sm flex justify-between text-muted-foreground">
-                <span>{event.rsvpCounts.attending} Going</span>
-                <span>{event.rsvpCounts.maybe} Maybe</span>
-                <span>{event.rsvpCounts.notAttending} Not</span>
+                  <div className="space-y-1 rounded-lg border bg-background p-1">
+                    {allMembers.map((member) => (
+                      <label
+                        key={member.id}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      >
+                        <Checkbox
+                          checked={selectedMemberIds.includes(member.id)}
+                          onCheckedChange={(checked) =>
+                            setSelectedMemberIds((prev) =>
+                              checked ? [...prev, member.id] : prev.filter((id) => id !== member.id)
+                            )
+                          }
+                        />
+                        {member.isRider
+                          ? <Bike className="h-4 w-4 text-muted-foreground shrink-0" />
+                          : <UserRound className="h-4 w-4 text-muted-foreground shrink-0" />
+                        }
+                        <span className="text-sm">{member.name}</span>
+                        {!member.isRider && (
+                          <span className="text-xs text-muted-foreground ml-auto">you</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={confirmRsvp}
+                    disabled={pendingStatus !== "not_attending" && selectedMemberIds.length === 0}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Confirm RSVP
+                  </Button>
+                </div>
+              ) : (
+                /* ── Status buttons ─────────────────────────────────────── */
+                <div className="space-y-3">
+                  <Button
+                    variant={event.myRsvp === "attending" ? "default" : "outline"}
+                    className="w-full justify-start"
+                    onClick={() => startRsvp("attending")}
+                    disabled={rsvpMutation.isPending}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
+                      {event.myRsvp === "attending" && <div className="w-2 h-2 rounded-full bg-current" />}
+                    </div>
+                    Going
+                  </Button>
+                  <Button
+                    variant={event.myRsvp === "not_attending" ? "destructive" : "outline"}
+                    className="w-full justify-start"
+                    onClick={() => startRsvp("not_attending")}
+                    disabled={rsvpMutation.isPending}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
+                      {event.myRsvp === "not_attending" && <div className="w-2 h-2 rounded-full bg-current" />}
+                    </div>
+                    Not Going
+                  </Button>
+                  <Button
+                    variant={event.myRsvp === "maybe" ? "secondary" : "outline"}
+                    className="w-full justify-start"
+                    onClick={() => startRsvp("maybe")}
+                    disabled={rsvpMutation.isPending}
+                  >
+                    <div className="w-4 h-4 rounded-full border border-current mr-3 flex items-center justify-center">
+                      {event.myRsvp === "maybe" && <div className="w-2 h-2 rounded-full bg-current" />}
+                    </div>
+                    Maybe
+                  </Button>
+                </div>
+              )}
+
+              {/* ── Attendance counts ──────────────────────────────────── */}
+              <div className="mt-6 pt-4 border-t border-border/50 text-sm text-muted-foreground space-y-1.5">
+                {(event.rsvpCounts as any).coachesGoing !== undefined ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-foreground/70">Going</span>
+                      <span>
+                        {(event.rsvpCounts as any).coachesGoing} coach{(event.rsvpCounts as any).coachesGoing !== 1 ? "es" : ""}
+                        {" · "}
+                        {(event.rsvpCounts as any).ridersGoing} rider{(event.rsvpCounts as any).ridersGoing !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {(event.rsvpCounts as any).coachesMaybe + (event.rsvpCounts as any).ridersMaybe > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-foreground/70">Maybe</span>
+                        <span>
+                          {(event.rsvpCounts as any).coachesMaybe} coach{(event.rsvpCounts as any).coachesMaybe !== 1 ? "es" : ""}
+                          {" · "}
+                          {(event.rsvpCounts as any).ridersMaybe} rider{(event.rsvpCounts as any).ridersMaybe !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                    {event.rsvpCounts.notAttending > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-foreground/70">Not going</span>
+                        <span>{event.rsvpCounts.notAttending}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span>{event.rsvpCounts.attending} Going</span>
+                    <span>{event.rsvpCounts.maybe} Maybe</span>
+                    <span>{event.rsvpCounts.notAttending} Not</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

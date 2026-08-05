@@ -27,10 +27,26 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
     : null;
 
   const rsvps = await db.select().from(eventRsvpsTable).where(eq(eventRsvpsTable.eventId, event.id));
+
+  // Batch-fetch user roles so we can break counts down by coach vs. rider
+  const rsvpUserIds = rsvps.map((r) => r.userId);
+  const rsvpUsers = rsvpUserIds.length > 0
+    ? await db.select({ id: usersTable.id, role: usersTable.role }).from(usersTable).where(inArray(usersTable.id, rsvpUserIds))
+    : [];
+  const roleById: Record<number, string> = Object.fromEntries(rsvpUsers.map((u) => [u.id, u.role ?? ""]));
+
+  const attending = rsvps.filter((r) => r.status === "attending");
+  const maybe = rsvps.filter((r) => r.status === "maybe");
+  const notAttending = rsvps.filter((r) => r.status === "not_attending");
+
   const rsvpCounts = {
-    attending: rsvps.filter((r) => r.status === "attending").length,
-    notAttending: rsvps.filter((r) => r.status === "not_attending").length,
-    maybe: rsvps.filter((r) => r.status === "maybe").length,
+    attending: attending.length,
+    notAttending: notAttending.length,
+    maybe: maybe.length,
+    coachesGoing: attending.filter((r) => roleById[r.userId] === "coach" || roleById[r.userId] === "admin").length,
+    ridersGoing: attending.filter((r) => roleById[r.userId] === "student").length,
+    coachesMaybe: maybe.filter((r) => roleById[r.userId] === "coach" || roleById[r.userId] === "admin").length,
+    ridersMaybe: maybe.filter((r) => roleById[r.userId] === "student").length,
   };
 
   let myRsvp: string | null = null;
@@ -254,7 +270,45 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
     return;
   }
   const { status, userIds } = req.body;
-  const targetIds: number[] = userIds?.length ? userIds : [me.id];
+
+  // Validate status value
+  if (!["attending", "not_attending", "maybe"].includes(status)) {
+    res.status(400).json({ error: "Invalid status" });
+    return;
+  }
+
+  let targetIds: number[];
+
+  if (Array.isArray(userIds) && userIds.length > 0) {
+    // Caller supplied an explicit list — verify ownership.
+    // Rules: parent may target self + students in their own household.
+    //        Coach/admin/student may only target themselves.
+    const deduped = [...new Set(userIds.map(Number).filter(Boolean))];
+
+    const allowedIds = new Set<number>([me.id]);
+    if (me.role === "parent" && me.householdId) {
+      const householdStudents = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(and(eq(usersTable.householdId, me.householdId), eq(usersTable.role, "student")));
+      householdStudents.forEach((s) => allowedIds.add(s.id));
+    }
+
+    const unauthorized = deduped.filter((id) => !allowedIds.has(id));
+    if (unauthorized.length > 0) {
+      res.status(403).json({ error: "You can only RSVP for members of your own household" });
+      return;
+    }
+    targetIds = deduped;
+  } else if (Array.isArray(userIds) && userIds.length === 0) {
+    // Explicit empty array — nothing to update
+    res.status(400).json({ error: "At least one member must be selected" });
+    return;
+  } else {
+    // No userIds supplied — default to self
+    targetIds = [me.id];
+  }
+
   const now = new Date();
 
   let lastRsvp: any = null;
