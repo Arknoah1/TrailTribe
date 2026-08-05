@@ -11,6 +11,8 @@ import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middleware
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { promises as dnsPromises } from "dns";
+import * as http from "http";
+import * as https from "https";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -436,18 +438,93 @@ function isPrivateIP(addr: string): boolean {
   return false;
 }
 
-async function isSafeExternalHost(hostname: string): Promise<boolean> {
-  // Block bare hostnames (no dot) — internal service names
-  if (!hostname.includes(".")) return false;
+/**
+ * Resolves the hostname via DNS and returns the list of IPs if ALL of them are
+ * safe (public, non-loopback, non-private). Returns null if the host is unsafe
+ * or unresolvable. The caller MUST use one of the returned IPs for the actual
+ * connection instead of re-resolving — this eliminates the DNS-rebinding window.
+ */
+async function resolveAndValidateHost(hostname: string): Promise<string[] | null> {
+  // Block bare hostnames (no dot) — internal service names like "postgres"
+  if (!hostname.includes(".")) return null;
   try {
     const v4 = await dnsPromises.resolve4(hostname).catch(() => [] as string[]);
     const v6 = await dnsPromises.resolve6(hostname).catch(() => [] as string[]);
     const all = [...v4, ...v6];
-    if (all.length === 0) return false; // DNS failed — block
-    return all.every((ip) => !isPrivateIP(ip));
+    if (all.length === 0) return null; // DNS failed — block
+    if (!all.every((ip) => !isPrivateIP(ip))) return null; // any private IP → block
+    return all;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * Fetches a URL using a pre-resolved IP address to prevent DNS rebinding.
+ * The TCP connection goes directly to `resolvedIp`; the `Host` header is set
+ * to the original hostname so TLS SNI and virtual hosting work correctly.
+ * Redirects are never followed (manual redirect mode).
+ */
+function fetchWithPinnedIP(
+  parsedUrl: URL,
+  resolvedIp: string,
+  timeoutMs: number
+): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const isHttps = parsedUrl.protocol === "https:";
+    const port = parsedUrl.port
+      ? parseInt(parsedUrl.port, 10)
+      : isHttps ? 443 : 80;
+
+    const options: http.RequestOptions = {
+      hostname: resolvedIp,
+      port,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: "GET",
+      headers: {
+        "Host": parsedUrl.hostname,
+        "User-Agent": "TrailTribeBot/1.0 (link preview)",
+      },
+      // For HTTPS, SNI must use the original hostname, not the IP
+      ...(isHttps ? { servername: parsedUrl.hostname } : {}),
+    };
+
+    const timer = setTimeout(() => {
+      req.destroy(new Error("Request timed out"));
+    }, timeoutMs);
+
+    const req = (isHttps ? https : http).request(options, (response) => {
+      clearTimeout(timer);
+      const chunks: Buffer[] = [];
+      const MAX_BYTES = 256 * 1024;
+      let totalBytes = 0;
+
+      response.on("data", (chunk: Buffer) => {
+        totalBytes += chunk.byteLength;
+        chunks.push(chunk);
+        if (totalBytes >= MAX_BYTES) {
+          response.destroy(); // Stop reading — we have enough
+        }
+      });
+
+      response.on("end", () => {
+        resolve({
+          statusCode: response.statusCode ?? 0,
+          headers: response.headers as Record<string, string | string[] | undefined>,
+          body: Buffer.concat(chunks),
+        });
+      });
+
+      response.on("error", reject);
+    });
+
+    req.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    req.end();
+  });
 }
 
 // GET /board/link-preview?url= — fetch og: tags for a URL
@@ -466,47 +543,32 @@ router.get("/board/link-preview", requireAuth, async (req, res) => {
     res.status(400).json({ error: "Invalid URL" }); return;
   }
 
-  // SSRF protection: block private IPs and internal hostnames
-  const safe = await isSafeExternalHost(parsed.hostname);
-  if (!safe) {
+  // SSRF protection: resolve DNS once, validate all IPs, then pin the connection
+  // to a returned IP. This eliminates the DNS-rebinding window that exists when
+  // the safety check and the fetch() call resolve DNS independently.
+  const resolvedIPs = await resolveAndValidateHost(parsed.hostname);
+  if (!resolvedIPs) {
     res.status(400).json({ error: "URL not allowed" }); return;
   }
 
+  // Use the first resolved IP for the pinned connection
+  const pinnedIp = resolvedIPs[0];
+
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "TrailTribeBot/1.0 (link preview)" },
-      signal: AbortSignal.timeout(5000),
-      redirect: "manual", // Never follow redirects — prevents redirect-based SSRF bypass
-    });
+    const response = await fetchWithPinnedIP(parsed, pinnedIp, 5000);
 
     // Block redirect responses; any 3xx is treated as a failed fetch
-    if (response.status >= 300 && response.status < 400) {
+    if (response.statusCode >= 300 && response.statusCode < 400) {
       res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
     }
 
     // Enforce content-type — only parse HTML
-    const ct = response.headers.get("content-type") ?? "";
+    const ct = (response.headers["content-type"] as string | undefined) ?? "";
     if (!ct.includes("text/html") && !ct.includes("text/plain")) {
       res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
     }
 
-    // Enforce response size — read at most 256 KB
-    const MAX_BYTES = 256 * 1024;
-    const reader = response.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        totalBytes += value.byteLength;
-        chunks.push(value);
-        if (totalBytes >= MAX_BYTES) { reader.cancel(); break; }
-      }
-    }
-    const html = new TextDecoder().decode(
-      chunks.reduce((acc, c) => { const merged = new Uint8Array(acc.length + c.length); merged.set(acc); merged.set(c, acc.length); return merged; }, new Uint8Array(0))
-    );
+    const html = response.body.toString("utf8");
 
     const getTag = (property: string): string | null => {
       const match = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"))
