@@ -37,8 +37,5 @@ router.use(volunteerTasksRouter);
 router.use(boardRouter);
 router.use(seasonsRouter);
 
-// TEMPORARY — remove after production seed data is cleared
-import clearSeedDataRouter from "./clearSeedData";
-router.use(clearSeedDataRouter);
 
 export default router;
