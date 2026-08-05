@@ -30,6 +30,7 @@ interface HouseholdRow {
   codeOfConductSigned: boolean;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  createdAt: string;
   members: { id: number; firstName: string; lastName: string; role: string }[];
 }
 
@@ -51,8 +52,13 @@ export default function SeasonsTab() {
   const [closingId, setClosingId] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
 
-  // Re-enrollment reminder
+  // Re-enrollment reminder (bulk)
   const [sendingReminder, setSendingReminder] = useState(false);
+
+  // Returning families list (active season, not yet enrolled)
+  const [returningHouseholds, setReturningHouseholds] = useState<HouseholdRow[]>([]);
+  const [returningLoading, setReturningLoading] = useState(false);
+  const [remindingIds, setRemindingIds] = useState<Set<number>>(new Set());
 
   // Archived roster expand
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -72,6 +78,15 @@ export default function SeasonsTab() {
 
   const activeSeason = seasons.find((s) => s.status === "active") ?? null;
   const archivedSeasons = seasons.filter((s) => s.status === "closed");
+
+  useEffect(() => {
+    if (activeSeason) {
+      fetchReturningHouseholds(activeSeason);
+    } else {
+      setReturningHouseholds([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSeason?.id]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -161,6 +176,42 @@ export default function SeasonsTab() {
     }
   };
 
+  const fetchReturningHouseholds = useCallback(async (season: Season) => {
+    setReturningLoading(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/seasons/${season.id}/roster`);
+      if (res.ok) {
+        const data: HouseholdRow[] = await res.json();
+        const seasonStart = new Date(season.startDate);
+        const returning = data.filter(
+          (h) => !h.seasonEnrolled && new Date(h.createdAt) < seasonStart
+        );
+        setReturningHouseholds(returning);
+      }
+    } catch {}
+    finally { setReturningLoading(false); }
+  }, [authedFetch]);
+
+  const handleRemindHousehold = async (householdId: number, familyName: string) => {
+    setRemindingIds((prev) => new Set(prev).add(householdId));
+    try {
+      const res = await authedFetch(
+        `${BASE_URL}/api/seasons/active/remind-returning/${householdId}`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data.error ?? `Failed to send reminder to ${familyName}`, variant: "destructive" });
+      } else {
+        toast({ title: `Reminder sent to ${familyName}` });
+      }
+    } catch {
+      toast({ title: `Failed to send reminder to ${familyName}`, variant: "destructive" });
+    } finally {
+      setRemindingIds((prev) => { const s = new Set(prev); s.delete(householdId); return s; });
+    }
+  };
+
   const handleExpandRoster = async (seasonId: number) => {
     if (expandedId === seasonId) { setExpandedId(null); return; }
     setExpandedId(seasonId);
@@ -236,7 +287,61 @@ export default function SeasonsTab() {
               </div>
             </CardContent>
           </Card>
-        ) : showNewForm ? (
+        ) : null}
+
+        {/* ── Returning families not yet enrolled ── */}
+        {activeSeason && (returningLoading || returningHouseholds.length > 0) && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Returning Families — Not Yet Enrolled</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    {returningLoading
+                      ? "Loading…"
+                      : `${returningHouseholds.length} ${returningHouseholds.length === 1 ? "household" : "households"} from last season haven't re-enrolled yet`}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {returningLoading ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>
+              ) : (
+                <div className="space-y-1">
+                  {returningHouseholds.map((h) => {
+                    const riders = h.members.filter((m) => m.role === "student");
+                    const isSending = remindingIds.has(h.id);
+                    return (
+                      <div key={h.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/40 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">{h.name}</span>
+                          {riders.length > 0 && (
+                            <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+                              · {riders.map((r) => r.firstName).join(", ")}
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0 ml-2"
+                          disabled={isSending}
+                          onClick={() => handleRemindHousehold(h.id, h.name)}
+                        >
+                          <Mail className="h-3 w-3 mr-1" />
+                          {isSending ? "Sending…" : "Remind"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {!activeSeason && showNewForm && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Start a New Season</CardTitle>
@@ -285,7 +390,9 @@ export default function SeasonsTab() {
               </div>
             </CardContent>
           </Card>
-        ) : (
+        )}
+
+        {!activeSeason && !showNewForm && (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
               <Calendar className="h-10 w-10 mx-auto mb-3 opacity-20" />

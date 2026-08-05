@@ -431,4 +431,77 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
   });
 });
 
+// ── Send re-enrollment reminder to a single returning household ────────────
+router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin, async (req, res) => {
+  const householdId = parseInt(str(req.params.householdId));
+  if (isNaN(householdId)) {
+    res.status(400).json({ error: "Invalid householdId." });
+    return;
+  }
+
+  const active = await db.query.seasonsTable.findFirst({
+    where: eq(seasonsTable.status, "active"),
+  });
+  if (!active) {
+    res.status(404).json({ error: "No active season found." });
+    return;
+  }
+
+  const seasonStart = active.startDate ?? active.createdAt;
+
+  // Validate the household is a returning, unenrolled family
+  const household = await db.query.householdsTable.findFirst({
+    where: eq(householdsTable.id, householdId),
+  });
+
+  if (!household) {
+    res.status(404).json({ error: "Household not found." });
+    return;
+  }
+  if (household.seasonEnrolled) {
+    res.status(409).json({ error: "This household has already enrolled for the current season." });
+    return;
+  }
+  if (household.createdAt >= seasonStart) {
+    res.status(409).json({ error: "This household is new this season, not a returning family." });
+    return;
+  }
+
+  // Find the primary contact (oldest parent/coach account with an email)
+  const allMembers = await db.select().from(usersTable).where(eq(usersTable.householdId, householdId));
+  const contact = allMembers
+    .filter((u) => (u.role === "parent" || u.role === "coach") && u.email)
+    .sort((a, b) => a.id - b.id)[0];
+
+  if (!contact?.email) {
+    res.status(422).json({ error: "No email address found for this household." });
+    return;
+  }
+
+  const result = await sendEmail({
+    to: contact.email,
+    subject: `Re-enroll for ${active.name} — TrailTribe`,
+    text: [
+      `Hi,`,
+      ``,
+      `A new season (${active.name}) has started on TrailTribe!`,
+      ``,
+      `Please log in and complete your enrollment to join the roster for this season.`,
+      `Your family will need to re-sign compliance documents and confirm your spot`,
+      `before a coach can assign you to a pod.`,
+      ``,
+      `Log in at TrailTribe to get started.`,
+      ``,
+      `— The TrailTribe Team`,
+    ].join("\n"),
+  });
+
+  if (result.status === "failed") {
+    res.status(500).json({ error: "Failed to send reminder email." });
+    return;
+  }
+
+  res.json({ sent: 1, email: contact.email });
+});
+
 export default router;
