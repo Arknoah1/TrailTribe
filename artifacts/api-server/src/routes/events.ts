@@ -40,14 +40,19 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
   const maybe = rsvps.filter((r) => r.status === "maybe");
   const notAttending = rsvps.filter((r) => r.status === "not_attending");
 
+  const isCoachOrAdmin = (userId: number) => roleById[userId] === "coach" || roleById[userId] === "admin";
+  const isStudent = (userId: number) => roleById[userId] === "student";
+
   const rsvpCounts = {
     attending: attending.length,
     notAttending: notAttending.length,
     maybe: maybe.length,
-    coachesGoing: attending.filter((r) => roleById[r.userId] === "coach" || roleById[r.userId] === "admin").length,
-    ridersGoing: attending.filter((r) => roleById[r.userId] === "student").length,
-    coachesMaybe: maybe.filter((r) => roleById[r.userId] === "coach" || roleById[r.userId] === "admin").length,
-    ridersMaybe: maybe.filter((r) => roleById[r.userId] === "student").length,
+    coachesGoing: attending.filter((r) => isCoachOrAdmin(r.userId)).length,
+    ridersGoing: attending.filter((r) => isStudent(r.userId)).length,
+    coachesMaybe: maybe.filter((r) => isCoachOrAdmin(r.userId)).length,
+    ridersMaybe: maybe.filter((r) => isStudent(r.userId)).length,
+    coachesNotAttending: notAttending.filter((r) => isCoachOrAdmin(r.userId)).length,
+    ridersNotAttending: notAttending.filter((r) => isStudent(r.userId)).length,
   };
 
   let myRsvp: string | null = null;

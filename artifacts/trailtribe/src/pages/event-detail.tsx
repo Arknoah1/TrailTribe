@@ -651,14 +651,16 @@ export default function EventDetail() {
               <div className="mt-6 pt-4 border-t border-border/50 text-sm text-muted-foreground space-y-1.5">
                 {(event.rsvpCounts as any).coachesGoing !== undefined ? (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground/70">Going</span>
-                      <span>
-                        {(event.rsvpCounts as any).coachesGoing} coach{(event.rsvpCounts as any).coachesGoing !== 1 ? "es" : ""}
-                        {" · "}
-                        {(event.rsvpCounts as any).ridersGoing} rider{(event.rsvpCounts as any).ridersGoing !== 1 ? "s" : ""}
-                      </span>
-                    </div>
+                    {(event.rsvpCounts as any).coachesGoing + (event.rsvpCounts as any).ridersGoing > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-foreground/70">Going</span>
+                        <span>
+                          {(event.rsvpCounts as any).coachesGoing} coach{(event.rsvpCounts as any).coachesGoing !== 1 ? "es" : ""}
+                          {" · "}
+                          {(event.rsvpCounts as any).ridersGoing} rider{(event.rsvpCounts as any).ridersGoing !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
                     {(event.rsvpCounts as any).coachesMaybe + (event.rsvpCounts as any).ridersMaybe > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-foreground/70">Maybe</span>
@@ -669,10 +671,14 @@ export default function EventDetail() {
                         </span>
                       </div>
                     )}
-                    {event.rsvpCounts.notAttending > 0 && (
+                    {(event.rsvpCounts as any).coachesNotAttending + (event.rsvpCounts as any).ridersNotAttending > 0 && (
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-foreground/70">Not going</span>
-                        <span>{event.rsvpCounts.notAttending}</span>
+                        <span>
+                          {(event.rsvpCounts as any).coachesNotAttending} coach{(event.rsvpCounts as any).coachesNotAttending !== 1 ? "es" : ""}
+                          {" · "}
+                          {(event.rsvpCounts as any).ridersNotAttending} rider{(event.rsvpCounts as any).ridersNotAttending !== 1 ? "s" : ""}
+                        </span>
                       </div>
                     )}
                   </>
