@@ -278,6 +278,7 @@ function ClerkProviderWithRoutes() {
           headerTitle: "!font-bold !text-lg",
           socialButtonsBlockButton: "!border-2 !border-[#0a0c10] !bg-[#1c1f26] hover:!bg-[#262b35] !text-[#e8e9eb] !font-medium !transition-all",
           identityPreviewEditButton: "!text-[#00c2a8]",
+          otpCodeFieldInput: "!bg-[#1c1f26] !border-2 !border-[#2e3340] !text-[#e8e9eb] focus:!border-[#00c2a8] !rounded-lg",
         },
       }}
       localization={{
