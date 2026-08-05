@@ -31,6 +31,7 @@ interface TeamDocument {
   objectPath: string | null;
   externalUrl: string | null;
   viewUrl: string | null;
+  originalName: string | null;
 }
 
 const DOC_META: Record<DocType, { label: string; description: string }> = {
@@ -57,7 +58,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
   const fileRef = useRef<HTMLInputElement>(null);
   const meta = DOC_META[docType];
 
-  const save = async (patch: Partial<{ objectPath: string; externalUrl: string; mimeType: string }>) => {
+  const save = async (patch: Partial<{ objectPath: string; externalUrl: string; mimeType: string; originalName: string }>) => {
     setIsSaving(true);
     try {
       const res = await authedFetch(`${BASE_URL}/api/team-documents/${docType}`, {
@@ -98,7 +99,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
       });
       if (!uploadRes.ok) throw new Error("Upload failed");
 
-      await save({ objectPath, externalUrl: "", mimeType: file.type || "application/pdf" });
+      await save({ objectPath, externalUrl: "", mimeType: file.type || "application/pdf", originalName: file.name });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
@@ -135,7 +136,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
           <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/40 text-sm">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="truncate text-muted-foreground flex-1 font-mono text-xs">
-              {doc.externalUrl ? doc.externalUrl : "Uploaded file"}
+              {doc.externalUrl ? doc.externalUrl : (doc.originalName ?? "Uploaded file")}
             </span>
             <a href={doc.viewUrl} target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="icon" className="h-7 w-7">

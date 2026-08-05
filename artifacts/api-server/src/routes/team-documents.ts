@@ -29,7 +29,7 @@ router.get("/team-documents", async (_req, res) => {
 
 router.put("/team-documents/:type", requireAuth, async (req, res) => {
   const type = str(req.params.type);
-  const { label, description, objectPath, externalUrl, mimeType } = req.body;
+  const { label, description, objectPath, externalUrl, mimeType, originalName } = req.body;
 
   const validTypes = ["liability_waiver", "media_release", "code_of_conduct"] as const;
   if (!validTypes.includes(type as any)) {
@@ -50,6 +50,7 @@ router.put("/team-documents/:type", requireAuth, async (req, res) => {
         objectPath: objectPath !== undefined ? objectPath : existing.objectPath,
         externalUrl: externalUrl !== undefined ? externalUrl : existing.externalUrl,
         mimeType: mimeType ?? existing.mimeType,
+        originalName: originalName !== undefined ? originalName : existing.originalName,
       })
       .where(eq(teamDocumentsTable.type, type as any))
       .returning();
@@ -67,6 +68,7 @@ router.put("/team-documents/:type", requireAuth, async (req, res) => {
         objectPath: objectPath ?? null,
         externalUrl: externalUrl ?? null,
         mimeType: mimeType ?? null,
+        originalName: originalName ?? null,
       })
       .returning();
     const viewUrl = created.objectPath

@@ -16,6 +16,7 @@ export const teamDocumentsTable = pgTable("team_documents", {
   objectPath: text("object_path"),
   externalUrl: text("external_url"),
   mimeType: text("mime_type"),
+  originalName: text("original_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

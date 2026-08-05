@@ -277,6 +277,13 @@ const migrations: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "add_original_name_to_team_documents",
+    sql: `
+      ALTER TABLE team_documents
+        ADD COLUMN IF NOT EXISTS original_name text;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
