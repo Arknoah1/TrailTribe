@@ -12,3 +12,4 @@ export * from "./notifications";
 export * from "./board";
 export * from "./seasons";
 export * from "./family_invites";
+export * from "./team_settings";

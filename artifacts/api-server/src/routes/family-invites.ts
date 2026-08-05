@@ -8,6 +8,7 @@ import { logger } from "../lib/logger";
 import { randomBytes } from "crypto";
 import { createClerkClient } from "@clerk/express";
 import { z } from "zod";
+import { getOrCreateSettings } from "./settings";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -89,13 +90,20 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
       ? `${requester.firstName} ${requester.lastName}`.trim()
       : "Your coach";
 
+    const settings = await getOrCreateSettings();
+    const teamName = settings.teamName?.trim() || null;
+    const teamPhrase = teamName ? `join ${teamName} on TrailTribe` : `join TrailTribe`;
+    const subject = teamName
+      ? `You've been invited to join ${teamName} on TrailTribe`
+      : `You've been invited to join TrailTribe`;
+
     const emailResult = await sendEmail({
       to: email,
-      subject: "You've been invited to join TrailTribe",
+      subject,
       text: [
         `Hi there!`,
         ``,
-        `${coachName} has invited you to join TrailTribe — your team's hub for schedules, carpools, and communication.`,
+        `${coachName} has invited you to ${teamPhrase} — your team's hub for schedules, carpools, and communication.`,
         ``,
         `Click the link below to create your account and get started. This link is valid for ${INVITE_TTL_DAYS} days.`,
         ``,

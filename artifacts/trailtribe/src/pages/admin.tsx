@@ -233,6 +233,11 @@ export default function Admin() {
   const [sendingInvites, setSendingInvites] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
 
+  // Team Settings state
+  const [teamName, setTeamName] = useState("");
+  const [teamNameInput, setTeamNameInput] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
   const fetchPendingInvites = useCallback(async () => {
     try {
       const res = await authedFetch(`${BASE_URL}/api/family-invites`);
@@ -497,7 +502,41 @@ export default function Admin() {
     if (res.ok) setRoster(await res.json());
   };
 
-  useEffect(() => { fetchTeamDocs(); fetchRoster(); fetchPendingInvites(); }, [fetchPendingInvites]);
+  const fetchSettings = useCallback(async () => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/settings`);
+      if (res.ok) {
+        const data = await res.json();
+        setTeamName(data.teamName ?? "");
+        setTeamNameInput(data.teamName ?? "");
+      }
+    } catch {}
+  }, [authedFetch]);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamName: teamNameInput.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeamName(data.teamName ?? "");
+        setTeamNameInput(data.teamName ?? "");
+        toast({ title: "Settings saved" });
+      } else {
+        toast({ title: "Failed to save settings", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  useEffect(() => { fetchTeamDocs(); fetchRoster(); fetchPendingInvites(); fetchSettings(); }, [fetchPendingInvites, fetchSettings]);
 
   const trailheadPhotoUrl = (objectPath: string) =>
     `${BASE_URL}/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
@@ -614,6 +653,7 @@ export default function Admin() {
           <TabsTrigger value="seasons" className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5" /> Seasons
           </TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="roster" className="mt-6 space-y-4">
@@ -2494,6 +2534,37 @@ export default function Admin() {
 
         <TabsContent value="seasons" className="mt-6">
           <SeasonsTab />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-6 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Team Settings</CardTitle>
+              <CardDescription>Configure how your team appears in emails and notifications sent to families.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5 max-w-sm">
+                <Label htmlFor="team-name-input">Team Name</Label>
+                <p className="text-xs text-muted-foreground">
+                  Shown in invite emails — e.g. "Coach has invited you to join <strong>{teamNameInput || "your team"}</strong> on TrailTribe".
+                </p>
+                <Input
+                  id="team-name-input"
+                  value={teamNameInput}
+                  onChange={(e) => setTeamNameInput(e.target.value)}
+                  placeholder="e.g. Ridgeline Trail Club"
+                  className="text-sm"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={handleSaveSettings}
+                disabled={savingSettings || teamNameInput.trim() === teamName}
+              >
+                {savingSettings ? "Saving…" : "Save Settings"}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

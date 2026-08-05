@@ -299,6 +299,21 @@ const migrations: { name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    name: "create_team_settings_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS team_settings (
+        id serial PRIMARY KEY,
+        team_name text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      -- Ensure the singleton row (id=1) exists so reads never return null
+      INSERT INTO team_settings (id, team_name)
+      VALUES (1, '')
+      ON CONFLICT (id) DO NOTHING;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
