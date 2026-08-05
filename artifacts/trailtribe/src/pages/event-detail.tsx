@@ -149,6 +149,8 @@ export default function EventDetail() {
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [selectedTplIds, setSelectedTplIds] = useState<Set<number>>(new Set());
+  const [showEditTasks, setShowEditTasks] = useState(false);
+  const [editTasksChecked, setEditTasksChecked] = useState<Set<number>>(new Set());
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -861,6 +863,14 @@ export default function EventDetail() {
             <div className="flex items-center gap-3 flex-wrap">
               {isCoach && volunteerTasksEnabled && (
                 <>
+                  {(tasks ?? []).length > 0 && (
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                      setEditTasksChecked(new Set((tasks ?? []).map(t => t.id)));
+                      setShowEditTasks(true);
+                    }}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit Tasks
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowTemplateSelector(true)}>
                     <Plus className="h-3.5 w-3.5" /> Add from Templates
                   </Button>
@@ -1063,25 +1073,14 @@ export default function EventDetail() {
                                     </Button>
                                   )}
                                   {isCoach && (
-                                    <>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                                        onClick={() => handleEditTaskOpen(task)}
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                        onClick={() => handleDeleteTask(task.id)}
-                                        disabled={deleteTaskMut.isPending}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                      onClick={() => handleEditTaskOpen(task)}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
                                   )}
                                 </div>
                               </div>
@@ -1258,6 +1257,76 @@ export default function EventDetail() {
               {createTaskMut.isPending ? "Adding..." : "Add Task"}
             </Button>
             <Button variant="outline" onClick={() => setShowAddTask(false)}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── EDIT TASKS DIALOG ──────────────────────────────────────────────────── */}
+      <Dialog open={showEditTasks} onOpenChange={setShowEditTasks}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Task List</DialogTitle>
+            <p className="text-sm text-muted-foreground pt-1">Uncheck tasks to remove them from this event.</p>
+          </DialogHeader>
+          <div className="space-y-1 pt-1">
+            {(tasks ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground italic py-4 text-center">No tasks yet.</p>
+            ) : (
+              (() => {
+                const tasksByEditCat = (tasks ?? []).reduce<Record<string, typeof tasks>>((acc, t) => {
+                  const cat = t.category ?? "Uncategorized";
+                  if (!acc[cat]) acc[cat] = [];
+                  acc[cat]!.push(t);
+                  return acc;
+                }, {});
+                return Object.entries(tasksByEditCat).map(([cat, catTasks]) => (
+                  <div key={cat} className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2 pb-1">{cat}</p>
+                    {(catTasks ?? []).map(task => (
+                      <label key={task.id} className="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 rounded accent-primary shrink-0"
+                          checked={editTasksChecked.has(task.id)}
+                          onChange={e => {
+                            setEditTasksChecked(prev => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(task.id); else next.delete(task.id);
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium">{task.title}</div>
+                          {task.description && <div className="text-xs text-muted-foreground">{task.description}</div>}
+                          <div className="text-xs text-muted-foreground">{task.slotsNeeded} slot{task.slotsNeeded !== 1 ? "s" : ""} · {task.signups?.length ?? 0} signed up</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ));
+              })()
+            )}
+          </div>
+          <div className="flex gap-2 pt-3 border-t mt-2">
+            <Button
+              className="flex-1"
+              disabled={deleteTaskMut.isPending}
+              onClick={async () => {
+                const toDelete = (tasks ?? []).filter(t => !editTasksChecked.has(t.id));
+                for (const t of toDelete) {
+                  await new Promise<void>((resolve, reject) =>
+                    deleteTaskMut.mutate({ id: eventId, taskId: t.id }, { onSuccess: () => resolve(), onError: () => reject() })
+                  );
+                }
+                invalidateTasks();
+                setShowEditTasks(false);
+                if (toDelete.length > 0) toast({ title: `${toDelete.length} task${toDelete.length !== 1 ? "s" : ""} removed` });
+              }}
+            >
+              {deleteTaskMut.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowEditTasks(false)}>Cancel</Button>
           </div>
         </DialogContent>
       </Dialog>
