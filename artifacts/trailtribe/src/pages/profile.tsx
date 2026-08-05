@@ -890,6 +890,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
   const [inviteOpen, setInviteOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
   const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
+  const [openingDoc, setOpeningDoc] = useState<string | null>(null);
 
   useEffect(() => {
     authedFetch(`${BASE_URL}/api/team-documents`)
@@ -897,6 +898,36 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
       .then(setTeamDocs)
       .catch(() => {});
   }, [authedFetch]);
+
+  // Open a team document. External URLs open directly; storage URLs (auth-gated)
+  // are fetched with the Clerk token so the auth header is included, then opened
+  // as a blob URL — plain <a href> navigation doesn't send auth headers.
+  const openDocument = async (viewUrl: string) => {
+    if (viewUrl.startsWith("http://") || viewUrl.startsWith("https://")) {
+      window.open(viewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setOpeningDoc(viewUrl);
+    try {
+      const res = await authedFetch(viewUrl);
+      if (!res.ok) {
+        toast({ title: "Could not open document", description: "You may not have permission to view this file.", variant: "destructive" });
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const tab = window.open(blobUrl, "_blank", "noopener,noreferrer");
+      // Revoke after a short delay so the new tab has time to load it
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      if (!tab) {
+        toast({ title: "Popup blocked", description: "Allow popups for this site to view documents.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Could not open document", description: "Something went wrong. Please try again.", variant: "destructive" });
+    } finally {
+      setOpeningDoc(null);
+    }
+  };
 
   const fetchRiders = async () => {
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders`);
@@ -1211,10 +1242,13 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                   />
                 </div>
                 {viewUrl && (
-                  <a href={viewUrl} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
-                    <Link2 className="h-3 w-3" /> View document before signing
-                  </a>
+                  <button
+                    onClick={() => openDocument(viewUrl)}
+                    disabled={openingDoc === viewUrl}
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Link2 className="h-3 w-3" />
+                    {openingDoc === viewUrl ? "Opening…" : "View document before signing"}
+                  </button>
                 )}
               </div>
             );
