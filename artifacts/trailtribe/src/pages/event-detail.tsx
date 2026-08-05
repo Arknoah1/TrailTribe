@@ -4,7 +4,8 @@ import {
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
-  useListBoardThreads, useListBoardPosts, getListBoardPostsQueryKey
+  useListBoardThreads, useListBoardPosts, getListBoardPostsQueryKey,
+  useListEventRsvps, getListEventRsvpsQueryKey
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { format, formatDistanceToNow } from "date-fns";
@@ -153,6 +154,7 @@ export default function EventDetail() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [editTaskForm, setEditTaskForm] = useState({ category: "", title: "", description: "", slotsNeeded: 1 });
+  const [attendeesOpen, setAttendeesOpen] = useState(false);
   const attendStorageKey = `trailtribe:attending:${eventId}`;
   const [isAttending, setIsAttendingState] = useState(() => {
     try { return sessionStorage.getItem(`trailtribe:attending:${eventId}`) === "true"; } catch { return false; }
@@ -350,6 +352,11 @@ export default function EventDetail() {
   };
 
   const authedFetch = useAuthedFetch();
+
+  // ─── ATTENDEE LIST (coaches only) ──────────────────────────────────────────
+  const { data: eventRsvps } = useListEventRsvps(eventId, {
+    query: { enabled: isCoach && !!eventId, queryKey: getListEventRsvpsQueryKey(eventId) }
+  });
 
   // ─── HOUSEHOLD MEMBER PICKER ───────────────────────────────────────────────
   const isParent = me?.role === "parent";
@@ -704,6 +711,119 @@ export default function EventDetail() {
           )}
         </div>
       </div>
+
+      {/* ─── ATTENDEES SECTION (coaches/admins only) ──────────────────────────── */}
+      {isCoach && (
+        <div className="pt-2">
+          <button
+            className="w-full flex items-center justify-between px-5 py-3 rounded-xl border-2 border-[#0a0c10] bg-card shadow-cel-sm hover:bg-muted/50 transition-colors"
+            onClick={() => setAttendeesOpen((o) => !o)}
+          >
+            <span className="flex items-center gap-2 font-bold text-base">
+              <Users className="h-5 w-5 text-primary" />
+              Attendees
+              {eventRsvps && (
+                <Badge variant="secondary" className="text-xs font-bold">
+                  {eventRsvps.filter((r) => r.status === "attending").length} going
+                  {eventRsvps.filter((r) => r.status === "maybe").length > 0
+                    ? ` · ${eventRsvps.filter((r) => r.status === "maybe").length} maybe`
+                    : ""}
+                </Badge>
+              )}
+            </span>
+            {attendeesOpen
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            }
+          </button>
+
+          {attendeesOpen && (
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Going group */}
+              <Card className="border-2 border-[#0a0c10] shadow-cel-sm">
+                <CardHeader className="pb-2 border-b border-[#0a0c10]/10">
+                  <CardTitle className="text-sm font-bold text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Going
+                    <span className="ml-auto text-muted-foreground font-normal">
+                      {(eventRsvps ?? []).filter((r) => r.status === "attending").length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {(eventRsvps ?? []).filter((r) => r.status === "attending").length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">No one yet</p>
+                  ) : (
+                    <ul className="divide-y divide-[#0a0c10]/10">
+                      {(eventRsvps ?? [])
+                        .filter((r) => r.status === "attending")
+                        .map((r) => (
+                          <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="h-7 w-7 rounded-full bg-secondary border border-[#0a0c10] flex items-center justify-center text-xs font-bold shrink-0">
+                              {r.user ? r.user.firstName[0] + r.user.lastName[0] : "?"}
+                            </div>
+                            <span className="text-sm font-medium flex-1">
+                              {r.user ? `${r.user.firstName} ${r.user.lastName}` : "Unknown"}
+                            </span>
+                            {r.user && (
+                              <Badge
+                                variant={r.user.role === "coach" || r.user.role === "admin" ? "default" : "outline"}
+                                className="text-xs capitalize shrink-0"
+                              >
+                                {r.user.role}
+                              </Badge>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Maybe group */}
+              <Card className="border-2 border-[#0a0c10] shadow-cel-sm">
+                <CardHeader className="pb-2 border-b border-[#0a0c10]/10">
+                  <CardTitle className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4" />
+                    Maybe
+                    <span className="ml-auto text-muted-foreground font-normal">
+                      {(eventRsvps ?? []).filter((r) => r.status === "maybe").length}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {(eventRsvps ?? []).filter((r) => r.status === "maybe").length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">No one yet</p>
+                  ) : (
+                    <ul className="divide-y divide-[#0a0c10]/10">
+                      {(eventRsvps ?? [])
+                        .filter((r) => r.status === "maybe")
+                        .map((r) => (
+                          <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="h-7 w-7 rounded-full bg-secondary border border-[#0a0c10] flex items-center justify-center text-xs font-bold shrink-0">
+                              {r.user ? r.user.firstName[0] + r.user.lastName[0] : "?"}
+                            </div>
+                            <span className="text-sm font-medium flex-1">
+                              {r.user ? `${r.user.firstName} ${r.user.lastName}` : "Unknown"}
+                            </span>
+                            {r.user && (
+                              <Badge
+                                variant={r.user.role === "coach" || r.user.role === "admin" ? "default" : "outline"}
+                                className="text-xs capitalize shrink-0"
+                              >
+                                {r.user.role}
+                              </Badge>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─── VOLUNTEER TASKS SECTION ──────────────────────────────────────────── */}
       {showVolunteerSection && (
