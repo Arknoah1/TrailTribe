@@ -13,6 +13,7 @@ import Profile from "./pages/profile";
 import Admin from "./pages/admin";
 import SeasonBuilder from "./pages/season-builder";
 import Join from "./pages/join";
+import FamilyInvite from "./pages/family-invite";
 import Onboarding from "./pages/onboarding";
 import Reenroll from "./pages/reenroll";
 
@@ -323,6 +324,7 @@ function ClerkProviderWithRoutes() {
             </>
           )} />
           <Route path="/join/:code" component={Join} />
+          <Route path="/family-invite/:token" component={FamilyInvite} />
           <Route component={NotFound} />
         </Switch>
       </QueryClientProvider>

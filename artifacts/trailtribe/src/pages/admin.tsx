@@ -227,6 +227,63 @@ export default function Admin() {
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
 
+  // Invite Family state
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmails, setInviteEmails] = useState("");
+  const [sendingInvites, setSendingInvites] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+
+  const fetchPendingInvites = useCallback(async () => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites`);
+      if (res.ok) setPendingInvites(await res.json());
+    } catch {}
+  }, [authedFetch]);
+
+  const handleSendInvites = async () => {
+    const emails = inviteEmails
+      .split(/[\n,;]+/)
+      .map((e) => e.trim())
+      .filter((e) => e.includes("@"));
+    if (emails.length === 0) {
+      toast({ title: "Enter at least one email address", variant: "destructive" });
+      return;
+    }
+    setSendingInvites(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const sent = (data.results as any[]).filter((r) => r.status === "sent").length;
+      const skipped = (data.results as any[]).filter((r) => r.status !== "sent").length;
+      let msg = sent > 0 ? `Invite${sent !== 1 ? "s" : ""} sent to ${sent} ${sent === 1 ? "address" : "addresses"}` : "Invites queued";
+      if (skipped > 0) msg += ` (${skipped} skipped — email not configured)`;
+      toast({ title: msg });
+      setInviteEmails("");
+      setShowInviteForm(false);
+      fetchPendingInvites();
+    } catch {
+      toast({ title: "Failed to send invites", variant: "destructive" });
+    } finally {
+      setSendingInvites(false);
+    }
+  };
+
+  const handleRevokeInvite = async (id: number) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast({ title: "Invite cancelled" });
+      fetchPendingInvites();
+    } catch {
+      toast({ title: "Failed to cancel invite", variant: "destructive" });
+    }
+  };
+
   // Pod management state
   const [newPodName, setNewPodName] = useState("");
   const [creatingPod, setCreatingPod] = useState(false);
@@ -440,7 +497,7 @@ export default function Admin() {
     if (res.ok) setRoster(await res.json());
   };
 
-  useEffect(() => { fetchTeamDocs(); fetchRoster(); }, []);
+  useEffect(() => { fetchTeamDocs(); fetchRoster(); fetchPendingInvites(); }, [fetchPendingInvites]);
 
   const trailheadPhotoUrl = (objectPath: string) =>
     `${BASE_URL}/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
@@ -860,7 +917,112 @@ export default function Admin() {
           )}
         </TabsContent>
 
-        <TabsContent value="approvals" className="mt-6">
+        <TabsContent value="approvals" className="mt-6 space-y-4">
+          {/* Invite Family card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Invite a Family</CardTitle>
+                  <CardDescription className="mt-0.5 text-xs">Email families a magic link that takes them directly into onboarding — no approval queue.</CardDescription>
+                </div>
+                {!showInviteForm && (
+                  <Button size="sm" onClick={() => setShowInviteForm(true)} className="shrink-0">
+                    <Mail className="h-3.5 w-3.5 mr-1.5" /> Invite Family
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            {showInviteForm && (
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Email addresses <span className="text-muted-foreground font-normal">(one per line, or comma-separated)</span></Label>
+                  <Textarea
+                    value={inviteEmails}
+                    onChange={(e) => setInviteEmails(e.target.value)}
+                    placeholder="parent@example.com&#10;another@example.com"
+                    rows={3}
+                    className="font-mono text-sm resize-none"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" variant="ghost" onClick={() => { setShowInviteForm(false); setInviteEmails(""); }}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSendInvites} disabled={sendingInvites || !inviteEmails.trim()}>
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                    {sendingInvites ? "Sending…" : "Send Invites"}
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Pending invites list */}
+          {(() => {
+            const now = new Date();
+            const active = pendingInvites.filter((inv: any) =>
+              !inv.acceptedAt && !inv.revokedAt && new Date(inv.expiresAt) > now
+            );
+            const recent = pendingInvites.filter((inv: any) =>
+              inv.acceptedAt || inv.revokedAt || new Date(inv.expiresAt) <= now
+            ).slice(-5);
+            if (active.length === 0 && recent.length === 0) return null;
+            return (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Sent Invites</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {active.length > 0 && (
+                    <div className="divide-y">
+                      {active.map((inv: any) => (
+                        <div key={inv.id} className="px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm font-medium truncate">{inv.email}</span>
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300/50 shrink-0">Pending</Badge>
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                            <span>Expires {new Date(inv.expiresAt).toLocaleDateString()}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleRevokeInvite(inv.id)}
+                            >
+                              <X className="h-3 w-3 mr-1" /> Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {recent.length > 0 && (
+                    <div className={`divide-y ${active.length > 0 ? "border-t" : ""}`}>
+                      {recent.map((inv: any) => {
+                        const isAccepted = !!inv.acceptedAt;
+                        const isRevoked = !!inv.revokedAt;
+                        const isExpired = !isAccepted && !isRevoked && new Date(inv.expiresAt) <= now;
+                        return (
+                          <div key={inv.id} className="px-6 py-3 flex items-center gap-2 opacity-60">
+                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm truncate flex-1">{inv.email}</span>
+                            {isAccepted && <Badge variant="outline" className="text-xs text-green-600 border-green-300/50 shrink-0">Accepted</Badge>}
+                            {isRevoked && <Badge variant="outline" className="text-xs shrink-0">Cancelled</Badge>}
+                            {isExpired && <Badge variant="outline" className="text-xs shrink-0">Expired</Badge>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Approvals queue */}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">

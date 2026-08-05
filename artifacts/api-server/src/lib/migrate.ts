@@ -284,6 +284,21 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS original_name text;
     `,
   },
+  {
+    name: "create_family_invites_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS family_invites (
+        id serial PRIMARY KEY,
+        email text NOT NULL,
+        token text NOT NULL UNIQUE,
+        invited_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        expires_at timestamptz NOT NULL,
+        accepted_at timestamptz,
+        revoked_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
