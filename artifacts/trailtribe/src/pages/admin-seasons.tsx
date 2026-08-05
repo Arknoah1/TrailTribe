@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { Archive, Download, Plus, CheckCircle2, XCircle, ChevronDown, ChevronUp, Calendar, Users } from "lucide-react";
+import { Archive, Download, Plus, CheckCircle2, XCircle, ChevronDown, ChevronUp, Calendar, Users, Mail } from "lucide-react";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -50,6 +50,9 @@ export default function SeasonsTab() {
   // Close season confirm
   const [closingId, setClosingId] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
+
+  // Re-enrollment reminder
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   // Archived roster expand
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -136,6 +139,28 @@ export default function SeasonsTab() {
     }
   };
 
+  const handleSendReminder = async () => {
+    setSendingReminder(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/seasons/active/remind-returning`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data.error ?? "Failed to send reminders", variant: "destructive" });
+        return;
+      }
+      if (!data.householdsTargeted) {
+        toast({ title: data.message ?? "No reminders needed — all returning families have enrolled" });
+      } else {
+        const n = data.householdsTargeted;
+        toast({ title: `Reminder sent to ${n} returning ${n === 1 ? "family" : "families"}` });
+      }
+    } catch {
+      toast({ title: "Failed to send reminders", variant: "destructive" });
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const handleExpandRoster = async (seasonId: number) => {
     if (expandedId === seasonId) { setExpandedId(null); return; }
     setExpandedId(seasonId);
@@ -186,9 +211,18 @@ export default function SeasonsTab() {
                     <Calendar className="h-3.5 w-3.5" /> Started {fmtDate(activeSeason.startDate)}
                   </p>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <Button size="sm" variant="outline" onClick={() => handleDownloadCsv(activeSeason)}>
                     <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleSendReminder}
+                    disabled={sendingReminder}
+                  >
+                    <Mail className="h-3.5 w-3.5 mr-1.5" />
+                    {sendingReminder ? "Sending…" : "Send Re-enrollment Reminder"}
                   </Button>
                   <Button
                     size="sm"

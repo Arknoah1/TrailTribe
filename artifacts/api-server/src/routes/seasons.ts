@@ -7,8 +7,9 @@ import {
   usersTable,
   podsTable,
 } from "@workspace/db";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, lt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { sendEmail } from "../lib/email";
 import { z } from "zod";
 
 const router = Router();
@@ -339,6 +340,95 @@ router.get("/seasons/:id/export.csv", requireCoachOrAdmin, async (req, res) => {
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   res.send(csv);
+});
+
+// ── Send re-enrollment reminder to returning families ──────────────────────
+// Emails all parent users whose household has not yet enrolled this season
+// AND whose household existed before the active season started (i.e. they are
+// a returning family, not a brand-new registration).
+router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req, res) => {
+  const active = await db.query.seasonsTable.findFirst({
+    where: eq(seasonsTable.status, "active"),
+  });
+  if (!active) {
+    res.status(404).json({ error: "No active season found." });
+    return;
+  }
+
+  const seasonStart = active.startDate ?? active.createdAt;
+
+  // Find households that: (1) have not enrolled this season, and
+  // (2) were created before the season started (returning families).
+  const returningHouseholds = await db
+    .select()
+    .from(householdsTable)
+    .where(
+      and(
+        eq(householdsTable.seasonEnrolled, false),
+        lt(householdsTable.createdAt, seasonStart)
+      )
+    );
+
+  if (returningHouseholds.length === 0) {
+    res.json({ sent: 0, message: "All returning families have already enrolled." });
+    return;
+  }
+
+  const householdIds = returningHouseholds.map((h) => h.id);
+
+  // Pick one primary contact per household — the parent/coach with the lowest
+  // user id (oldest account) who has a real email address.
+  const allMembers = await db.select().from(usersTable);
+
+  const primaryContacts: string[] = [];
+  for (const household of returningHouseholds) {
+    const contact = allMembers
+      .filter(
+        (u) =>
+          u.householdId === household.id &&
+          (u.role === "parent" || u.role === "coach") &&
+          u.email
+      )
+      .sort((a, b) => a.id - b.id)[0];
+    if (contact?.email) primaryContacts.push(contact.email);
+  }
+
+  if (primaryContacts.length === 0) {
+    res.json({ emailsSent: 0, householdsTargeted: 0, message: "No email addresses found for returning families." });
+    return;
+  }
+
+  // One email per household — no shared To header, no duplicate outreach.
+  const results = await Promise.all(
+    primaryContacts.map((address) =>
+      sendEmail({
+        to: address,
+        subject: `Re-enroll for ${active.name} — TrailTribe`,
+        text: [
+          `Hi,`,
+          ``,
+          `A new season (${active.name}) has started on TrailTribe!`,
+          ``,
+          `Please log in and complete your enrollment to join the roster for this season.`,
+          `Your family will need to re-sign compliance documents and confirm your spot`,
+          `before a coach can assign you to a pod.`,
+          ``,
+          `Log in at TrailTribe to get started.`,
+          ``,
+          `— The TrailTribe Team`,
+        ].join("\n"),
+      })
+    )
+  );
+
+  const emailsSent = results.filter((r) => r.status === "sent").length;
+  const emailsFailed = results.filter((r) => r.status === "failed").length;
+
+  res.json({
+    emailsSent,
+    emailsFailed,
+    householdsTargeted: returningHouseholds.length,
+  });
 });
 
 export default router;
