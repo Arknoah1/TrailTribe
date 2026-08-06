@@ -590,8 +590,8 @@ export default function Calendar() {
       </Dialog>
 
       <Dialog open={subscribeOpen} onOpenChange={setSubscribeOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-lg flex flex-col max-h-[90vh] gap-0">
+          <DialogHeader className="shrink-0 pb-2">
             <DialogTitle className="flex items-center gap-2">
               <Rss className="h-5 w-5 text-primary" />
               Subscribe to Team Calendar
@@ -604,79 +604,85 @@ export default function Calendar() {
           {subscribeLoading ? (
             <div className="py-6 text-center text-muted-foreground text-sm">Generating your personal link...</div>
           ) : subscribeData ? (
-            <div className="space-y-5 mt-2">
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">One-click subscribe</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 truncate font-mono">
-                    {subscribeData.subscribeUrl}
-                  </code>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => copyToClipboard(subscribeData.subscribeUrl, "webcal")}
-                    title="Copy link"
-                  >
-                    {copiedWhich === "webcal" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    asChild
-                    title="Open in calendar app"
-                  >
-                    <a href={subscribeData.subscribeUrl}>
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">Click the open button to subscribe directly in your default calendar app.</p>
-                <a
-                  href={subscribeData.httpsUrl}
-                  download="trailtribe-team.ics"
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Download .ics file instead
-                </a>
-              </div>
-
-              <div className="space-y-3 text-sm">
-                <p className="font-semibold text-muted-foreground uppercase tracking-wide text-xs">Platform instructions</p>
-
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="font-medium">Google Calendar</p>
-                  <p className="text-xs text-muted-foreground">Open Google Calendar → click <span className="font-medium">+</span> next to "Other calendars" → <span className="font-medium">From URL</span> → paste the link above.</p>
-                </div>
-
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="font-medium">Apple Calendar (Mac / iPhone)</p>
-                  <p className="text-xs text-muted-foreground">In Calendar, go to <span className="font-medium">File → New Calendar Subscription</span> and paste the webcal:// link above. Or just click the open button — Safari will prompt you automatically.</p>
-                </div>
-
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="font-medium">Outlook</p>
-                  <p className="text-xs text-muted-foreground">
-                    Copy the HTTPS link below → Outlook → <span className="font-medium">Add calendar</span> → <span className="font-medium">Subscribe from web</span> → paste it in.
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <code className="flex-1 text-xs bg-muted rounded px-2 py-1 truncate font-mono">
-                      {subscribeData.httpsUrl}
+            <>
+              {/* Scrollable middle */}
+              <div className="flex-1 overflow-y-auto min-h-0 space-y-5 py-2 pr-1">
+                {/* One-click subscribe */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">One-click subscribe</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2 truncate font-mono">
+                      {subscribeData.subscribeUrl}
                     </code>
                     <Button
                       size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => copyToClipboard(subscribeData.httpsUrl, "https")}
-                      title="Copy HTTPS link"
+                      variant="outline"
+                      onClick={() => copyToClipboard(subscribeData.subscribeUrl, "webcal")}
+                      title="Copy webcal link"
                     >
-                      {copiedWhich === "https" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                      {copiedWhich === "webcal" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => { window.location.href = subscribeData.subscribeUrl; }}
+                      title="Open in calendar app"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click <span className="font-medium">Open</span> to subscribe directly in your default calendar app.
+                  </p>
+                  <a
+                    href={subscribeData.httpsUrl}
+                    download="trailtribe-team.ics"
+                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Download .ics file instead
+                  </a>
+                </div>
+
+                {/* Platform instructions */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Platform instructions</p>
+
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="text-sm font-medium">Google Calendar</p>
+                    <p className="text-xs text-muted-foreground">Open Google Calendar → click <span className="font-medium">+</span> next to "Other calendars" → <span className="font-medium">From URL</span> → paste the link above.</p>
+                  </div>
+
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="text-sm font-medium">Apple Calendar (Mac / iPhone)</p>
+                    <p className="text-xs text-muted-foreground">Click <span className="font-medium">Open</span> above — Safari and Mac Calendar will prompt you automatically. Or go to <span className="font-medium">File → New Calendar Subscription</span> and paste the link.</p>
+                  </div>
+
+                  <div className="rounded-lg border p-3 space-y-1.5">
+                    <p className="text-sm font-medium">Outlook</p>
+                    <p className="text-xs text-muted-foreground">
+                      Outlook requires the <span className="font-medium">https://</span> link. Copy it below, then in Outlook go to <span className="font-medium">Add calendar → Subscribe from web</span>.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-muted rounded px-2 py-1.5 truncate font-mono">
+                        {subscribeData.httpsUrl}
+                      </code>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => copyToClipboard(subscribeData.httpsUrl, "https")}
+                        title="Copy HTTPS link"
+                      >
+                        {copiedWhich === "https" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="border-t pt-3 flex items-center justify-between gap-3">
+              {/* Footer — always visible */}
+              <div className="shrink-0 border-t pt-3 mt-2 flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">This link is personal — do not share it. Anyone with this link can read the team schedule.</p>
                 <Button
                   variant="outline"
@@ -689,7 +695,7 @@ export default function Calendar() {
                   Regenerate link
                 </Button>
               </div>
-            </div>
+            </>
           ) : (
             <div className="py-6 text-center text-sm text-destructive">Failed to load subscribe link. Try again.</div>
           )}
