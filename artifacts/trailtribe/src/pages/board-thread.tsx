@@ -146,9 +146,9 @@ export default function BoardThread() {
   return (
     <div className="flex flex-col min-h-[100dvh] bg-background max-w-3xl mx-auto">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm p-4 sm:px-6">
+      <div className="sticky top-0 z-10 bg-card border-b-2 border-x-2 border-[#0a0c10] p-4 sm:px-6">
         <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-2 rounded-full hover:bg-muted">
+          <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-2 rounded-full hover:bg-muted border-0">
             <Link href="/messages"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -158,7 +158,7 @@ export default function BoardThread() {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
+              <Button variant="ghost" size="icon" className="shrink-0 border-0">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -199,7 +199,7 @@ export default function BoardThread() {
               </span>
               {thread.authorUserId === me?.id && <Badge variant="secondary" className="text-[10px] px-1.5 h-4">OP</Badge>}
             </div>
-            <div className="text-foreground bg-card border-2 border-[#0a0c10] rounded-2xl rounded-tl-none p-4 shadow-cel-sm">
+            <div className="text-foreground bg-card border-2 border-[#0a0c10] rounded-2xl p-4 shadow-cel-sm border-l-4 border-l-primary">
               <ParsedContent text={thread.body} />
             </div>
           </div>
@@ -242,7 +242,7 @@ export default function BoardThread() {
                       </button>
                     )}
                   </div>
-                  <div className="text-foreground bg-secondary/50 border-2 border-transparent hover:border-[#0a0c10]/10 rounded-2xl rounded-tl-none p-3 transition-colors inline-block min-w-[50%]">
+                  <div className="text-foreground bg-muted border border-[#0a0c10]/20 rounded-2xl p-3 transition-colors inline-block min-w-[50%]">
                     <ParsedContent text={post.body} isDeleted={post.isDeleted} />
                   </div>
                 </div>
