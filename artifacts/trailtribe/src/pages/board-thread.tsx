@@ -144,7 +144,7 @@ export default function BoardThread() {
   if (!thread) return <div className="p-8 text-center font-bold text-xl text-destructive uppercase tracking-widest">Thread not found</div>;
 
   return (
-    <div className="flex flex-col min-h-[100dvh] md:min-h-0 bg-background max-w-3xl mx-auto">
+    <div className="flex flex-col min-h-[100dvh] bg-background max-w-3xl mx-auto">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm p-4 sm:px-6">
         <div className="flex items-center gap-3 mb-4">
@@ -180,7 +180,7 @@ export default function BoardThread() {
         {/* OP Content inside header area so it scrolls, wait no, let's keep OP as the first message in the scrollable area */}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 pb-[160px] md:pb-32">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 pb-[160px] md:pb-6">
         {/* Original Post */}
         <div className="flex gap-4">
           <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-[#0a0c10] shrink-0">
@@ -254,7 +254,7 @@ export default function BoardThread() {
       </div>
 
       {/* Compose Box */}
-      <div className="fixed md:sticky bottom-[78px] md:bottom-auto left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t-2 border-[#0a0c10] z-20">
+      <div className="fixed md:sticky bottom-[78px] md:bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t-2 border-[#0a0c10] z-20">
         <div className="max-w-3xl mx-auto">
           {thread.isLocked && !isCoachOrAdmin ? (
             <div className="bg-muted border-2 border-[#0a0c10] rounded-xl p-4 flex items-center justify-center gap-2 text-muted-foreground font-bold tracking-wide">
