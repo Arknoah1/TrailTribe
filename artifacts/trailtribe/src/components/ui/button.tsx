@@ -17,7 +17,7 @@ const buttonVariants = cva(
           "border-dashed bg-transparent text-foreground hover:bg-secondary",
         secondary:
           "bg-secondary text-secondary-foreground shadow-cel-sm hover:shadow-cel-sm",
-        ghost: "border-2 border-dashed border-[#0a0c10] bg-transparent text-foreground",
+        ghost: "border-2 border-transparent bg-transparent text-foreground",
         link: "border-none text-primary underline-offset-4 hover:underline font-normal normal-case",
       },
       size: {

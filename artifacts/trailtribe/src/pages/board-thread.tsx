@@ -148,7 +148,7 @@ export default function BoardThread() {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b-2 border-x-2 border-[#0a0c10] p-4 sm:px-6">
         <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-2 rounded-full hover:bg-muted border-0">
+          <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-2 rounded-full hover:bg-muted">
             <Link href="/messages"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -158,7 +158,7 @@ export default function BoardThread() {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0 border-0">
+              <Button variant="ghost" size="icon" className="shrink-0">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
