@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState, useEffect, useRef, useCallback, Fragment } from "react";
@@ -269,11 +269,33 @@ export default function Admin() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const sent = (data.results as any[]).filter((r) => r.status === "sent").length;
-      const skipped = (data.results as any[]).filter((r) => r.status !== "sent").length;
-      let msg = sent > 0 ? `Invite${sent !== 1 ? "s" : ""} sent to ${sent} ${sent === 1 ? "address" : "addresses"}` : "Invites queued";
-      if (skipped > 0) msg += ` (${skipped} skipped — email not configured)`;
-      toast({ title: msg });
+      const results = data.results as any[];
+      const sent = results.filter((r: any) => r.status === "sent").length;
+      const noKey = results.filter((r: any) => r.reason === "no_api_key");
+      const failed = results.filter((r: any) => r.status === "failed");
+      const noRecipients = results.filter((r: any) => r.reason === "no_valid_recipients");
+
+      // Pick the first provider error message to surface, if any
+      const firstError: string | undefined = failed[0]?.errorMessage;
+
+      let title: string;
+      let description: string | undefined;
+      if (sent > 0 && failed.length === 0 && noKey.length === 0) {
+        title = `Invite${sent !== 1 ? "s" : ""} sent to ${sent} ${sent === 1 ? "address" : "addresses"}`;
+      } else if (sent > 0) {
+        title = `${sent} sent · ${failed.length + noKey.length} failed — use Copy Link to share`;
+        if (firstError) description = firstError;
+      } else if (noKey.length > 0) {
+        title = `Invite${results.length !== 1 ? "s" : ""} saved — email not configured`;
+        description = "Use the Copy Link button to share manually.";
+      } else if (noRecipients.length > 0) {
+        title = `Invite${results.length !== 1 ? "s" : ""} saved — no valid recipients`;
+        description = "Use the Copy Link button to share manually.";
+      } else {
+        title = `Invite${results.length !== 1 ? "s" : ""} saved — email delivery failed`;
+        description = firstError ?? "Use the Copy Link button to share manually.";
+      }
+      toast({ title, description });
       setInviteEmails("");
       setShowInviteForm(false);
       fetchPendingInvites();
@@ -281,6 +303,31 @@ export default function Admin() {
       toast({ title: "Failed to send invites", variant: "destructive" });
     } finally {
       setSendingInvites(false);
+    }
+  };
+
+  const handleReInvite = async (email: string) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: [email] }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const results = data.results as any[];
+      const sent = results.filter((r: any) => r.status === "sent").length;
+      const firstError: string | undefined = results.find((r: any) => r.status === "failed")?.errorMessage;
+      if (sent > 0) {
+        toast({ title: "Invite re-sent" });
+      } else if (firstError) {
+        toast({ title: "Invite link refreshed — email delivery failed", description: firstError });
+      } else {
+        toast({ title: "Invite link refreshed — use Copy Link to share" });
+      }
+      fetchPendingInvites();
+    } catch {
+      toast({ title: "Failed to re-send invite", variant: "destructive" });
     }
   };
 
@@ -1149,16 +1196,23 @@ export default function Admin() {
             )}
           </Card>
 
-          {/* Pending invites list */}
+          {/* Pending invites list — deduplicated by email, one row per address */}
           {(() => {
             const now = new Date();
-            const active = pendingInvites.filter((inv: any) =>
-              !inv.acceptedAt && !inv.revokedAt && new Date(inv.expiresAt) > now
+            // Keep only the most recent invite per email address
+            const byEmail = new Map<string, any>();
+            for (const inv of pendingInvites) {
+              const existing = byEmail.get(inv.email);
+              if (!existing || new Date(inv.createdAt) > new Date(existing.createdAt)) {
+                byEmail.set(inv.email, inv);
+              }
+            }
+            const deduped = Array.from(byEmail.values()).sort(
+              (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
-            const recent = pendingInvites.filter((inv: any) =>
-              inv.acceptedAt || inv.revokedAt || new Date(inv.expiresAt) <= now
-            ).slice(-5);
-            if (active.length === 0 && recent.length === 0) return null;
+            const active = deduped.filter((inv) => !inv.acceptedAt && !inv.revokedAt && new Date(inv.expiresAt) > now);
+            const resolved = deduped.filter((inv) => inv.acceptedAt || inv.revokedAt || new Date(inv.expiresAt) <= now);
+            if (active.length === 0 && resolved.length === 0) return null;
             return (
               <Card>
                 <CardHeader className="pb-2">
@@ -1174,8 +1228,18 @@ export default function Admin() {
                             <span className="text-sm font-medium truncate">{inv.email}</span>
                             <Badge variant="outline" className="text-xs text-amber-600 border-amber-300/50 shrink-0">Pending</Badge>
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                             <span>Expires {new Date(inv.expiresAt).toLocaleDateString()}</span>
+                            {inv.inviteUrl && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs gap-1"
+                                onClick={() => { navigator.clipboard.writeText(inv.inviteUrl); toast({ title: "Invite link copied" }); }}
+                              >
+                                <Copy className="h-3 w-3" /> Copy Link
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1189,19 +1253,31 @@ export default function Admin() {
                       ))}
                     </div>
                   )}
-                  {recent.length > 0 && (
+                  {resolved.length > 0 && (
                     <div className={`divide-y ${active.length > 0 ? "border-t" : ""}`}>
-                      {recent.map((inv: any) => {
+                      {resolved.map((inv: any) => {
                         const isAccepted = !!inv.acceptedAt;
                         const isRevoked = !!inv.revokedAt;
                         const isExpired = !isAccepted && !isRevoked && new Date(inv.expiresAt) <= now;
                         return (
-                          <div key={inv.id} className="px-6 py-3 flex items-center gap-2 opacity-60">
-                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm truncate flex-1">{inv.email}</span>
-                            {isAccepted && <Badge variant="outline" className="text-xs text-green-600 border-green-300/50 shrink-0">Accepted</Badge>}
-                            {isRevoked && <Badge variant="outline" className="text-xs shrink-0">Cancelled</Badge>}
-                            {isExpired && <Badge variant="outline" className="text-xs shrink-0">Expired</Badge>}
+                          <div key={inv.id} className="px-6 py-3 flex items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1 opacity-60">
+                              <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="text-sm truncate">{inv.email}</span>
+                              {isAccepted && <Badge variant="outline" className="text-xs text-green-600 border-green-300/50 shrink-0">Joined</Badge>}
+                              {isRevoked && <Badge variant="outline" className="text-xs shrink-0">Cancelled</Badge>}
+                              {isExpired && <Badge variant="outline" className="text-xs shrink-0">Expired</Badge>}
+                            </div>
+                            {isExpired && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs gap-1 shrink-0"
+                                onClick={() => handleReInvite(inv.email)}
+                              >
+                                <Mail className="h-3 w-3" /> Re-invite
+                              </Button>
+                            )}
                           </div>
                         );
                       })}

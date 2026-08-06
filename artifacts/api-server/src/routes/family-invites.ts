@@ -42,8 +42,13 @@ const sendInviteSchema = z.object({
 
 // GET /family-invites — list all invites (coach/admin)
 router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
+  const appBase = process.env.APP_BASE_URL
+    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
   const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
-  res.json(invites);
+  res.json(invites.map((inv) => ({
+    ...inv,
+    inviteUrl: `${appBase}/family-invite/${inv.token}`,
+  })));
 });
 
 // POST /family-invites — send one or more email invites
@@ -58,7 +63,7 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
   const invitedByUserId = requester?.id ?? null;
   const appBase = process.env.APP_BASE_URL
     ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
-  const results: { email: string; status: string }[] = [];
+  const results: { email: string; status: string; reason?: string; errorMessage?: string; inviteUrl: string }[] = [];
 
   for (const rawEmail of parsed.data.emails) {
     const email = rawEmail.toLowerCase();
@@ -116,7 +121,13 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
       ].join("\n"),
     });
 
-    results.push({ email, status: emailResult.status });
+    const reason = emailResult.status === "skipped" ? emailResult.reason
+      : emailResult.status === "failed" ? "failed"
+      : undefined;
+    const errorMessage = emailResult.status === "failed" && emailResult.error
+      ? String((emailResult.error as any)?.message ?? emailResult.error)
+      : undefined;
+    results.push({ email, status: emailResult.status, reason, errorMessage, inviteUrl });
   }
 
   res.status(201).json({ results });
