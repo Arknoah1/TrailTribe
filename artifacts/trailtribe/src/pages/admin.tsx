@@ -1263,7 +1263,14 @@ export default function Admin() {
                           <div key={inv.id} className="px-6 py-3 flex items-center gap-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1 opacity-60">
                               <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                              <span className="text-sm truncate">{inv.email}</span>
+                              <div className="min-w-0">
+                                <span className="text-sm truncate block">{inv.email}</span>
+                                {isAccepted && inv.actualEmail && inv.actualEmail.toLowerCase() !== inv.email.toLowerCase() && (
+                                  <span className="text-xs text-muted-foreground truncate block">
+                                    Joined as <span className="font-medium">{inv.actualEmail}</span>
+                                  </span>
+                                )}
+                              </div>
                               {isAccepted && <Badge variant="outline" className="text-xs text-green-600 border-green-300/50 shrink-0">Joined</Badge>}
                               {isRevoked && <Badge variant="outline" className="text-xs shrink-0">Cancelled</Badge>}
                               {isExpired && <Badge variant="outline" className="text-xs shrink-0">Expired</Badge>}

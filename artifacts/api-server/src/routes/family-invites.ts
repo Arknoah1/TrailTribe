@@ -45,10 +45,31 @@ router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
   const appBase = process.env.APP_BASE_URL
     ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
   const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
-  res.json(invites.map((inv) => ({
-    ...inv,
-    inviteUrl: `${appBase}/family-invite/${inv.token}`,
-  })));
+
+  // For accepted invites, look up the actual email used (may differ from invited email)
+  const acceptedClerkIds = invites
+    .map((inv) => inv.acceptedByClerkUserId)
+    .filter((id): id is string => !!id);
+
+  const acceptedUsers = acceptedClerkIds.length > 0
+    ? await db.query.usersTable.findMany({
+        where: (u, { inArray }) => inArray(u.clerkUserId, acceptedClerkIds),
+        columns: { clerkUserId: true, email: true },
+      })
+    : [];
+
+  const userByClerkId = new Map(acceptedUsers.map((u) => [u.clerkUserId, u.email]));
+
+  res.json(invites.map((inv) => {
+    const actualEmail = inv.acceptedByClerkUserId
+      ? (userByClerkId.get(inv.acceptedByClerkUserId) ?? null)
+      : null;
+    return {
+      ...inv,
+      inviteUrl: `${appBase}/family-invite/${inv.token}`,
+      actualEmail,
+    };
+  }));
 });
 
 // POST /family-invites — send one or more email invites
@@ -210,20 +231,19 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
     return;
   }
 
-  // Verify that at least one of the Clerk user's email addresses matches the invited email
-  const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
-  if (!clerkEmails.includes(invite.email.toLowerCase())) {
-    res.status(403).json({
-      error: "This invite was sent to a different email address. Please sign in with the email that received the invite.",
-      invitedEmail: invite.email,
-    });
-    return;
-  }
-
   // Get the primary email to use for the user record
   const primaryEmail = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailtribe.app`;
   const firstName = clerkUser.firstName ?? "New";
   const lastName = clerkUser.lastName ?? "User";
+
+  // Log when the actual email differs from the invited email so coaches can see it
+  const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
+  if (!clerkEmails.includes(invite.email.toLowerCase())) {
+    logger.info(
+      { inviteEmail: invite.email, actualEmail: primaryEmail, clerkUserId },
+      "[family-invites] invite accepted with a different email address than invited",
+    );
+  }
 
   // Get or create the user record and mark them approved
   let user = await db.query.usersTable.findFirst({
@@ -270,7 +290,7 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
 
   // Mark invite accepted — only reached after successful user creation/approval
   await db.update(familyInvitesTable)
-    .set({ acceptedAt: now })
+    .set({ acceptedAt: now, acceptedByClerkUserId: clerkUserId })
     .where(eq(familyInvitesTable.id, invite.id));
 
   res.json({ ok: true, autoApproved: true });

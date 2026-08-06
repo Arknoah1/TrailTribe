@@ -302,6 +302,13 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS archived_at timestamptz;
     `,
   },
+  {
+    name: "add_accepted_by_clerk_user_id_to_family_invites",
+    sql: `
+      ALTER TABLE family_invites
+        ADD COLUMN IF NOT EXISTS accepted_by_clerk_user_id text;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
