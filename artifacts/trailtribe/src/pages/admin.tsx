@@ -225,6 +225,8 @@ export default function Admin() {
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
   const [roster, setRoster] = useState<any[]>([]);
+  const [archivedFamilies, setArchivedFamilies] = useState<any[]>([]);
+  const [archivedSectionOpen, setArchivedSectionOpen] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
   const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
@@ -502,8 +504,22 @@ export default function Admin() {
   };
 
   const fetchRoster = async () => {
-    const res = await authedFetch(`${BASE_URL}/api/households`);
-    if (res.ok) setRoster(await res.json());
+    const res = await authedFetch(`${BASE_URL}/api/households?includeArchived=true`);
+    if (res.ok) {
+      const all = await res.json();
+      setRoster(all.filter((h: any) => !h.archivedAt));
+      setArchivedFamilies(all.filter((h: any) => !!h.archivedAt));
+    }
+  };
+
+  const handleUnarchiveFamily = async (householdId: number) => {
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/unarchive`, { method: "POST" });
+    if (res.ok) {
+      toast({ title: "Family restored to the active roster" });
+      fetchRoster();
+    } else {
+      toast({ title: "Failed to restore family", variant: "destructive" });
+    }
   };
 
   const handleArchiveFamily = async (householdId: number) => {
@@ -983,6 +999,89 @@ export default function Admin() {
                     </Card>
                   );
                 })}
+            </div>
+          )}
+
+          {/* ── Archived families ────────────────────────────────────────── */}
+          {archivedFamilies.length > 0 && (
+            <div className="mt-6">
+              <button
+                onClick={() => setArchivedSectionOpen(o => !o)}
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left py-1"
+              >
+                {archivedSectionOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                <Archive className="h-4 w-4" />
+                Archived families ({archivedFamilies.length})
+              </button>
+
+              {archivedSectionOpen && (
+                <div className="space-y-3 mt-3">
+                  {archivedFamilies.map((household: any) => {
+                    const parents = (household.members || []).filter((m: any) => m.role === "parent" || m.role === "coach");
+                    const riders = (household.members || []).filter((m: any) => m.role === "student");
+                    const archivedDate = household.archivedAt
+                      ? new Date(household.archivedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+                      : null;
+                    return (
+                      <Card key={household.id} className="opacity-70">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-base">{household.name}</h3>
+                                <Badge variant="outline" className="text-xs text-muted-foreground">Archived</Badge>
+                                {archivedDate && (
+                                  <span className="text-xs text-muted-foreground">{archivedDate}</span>
+                                )}
+                              </div>
+
+                              {parents.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {parents.map((p: any) => (
+                                    <div key={p.id} className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                                      <span className="font-medium text-foreground">{p.firstName} {p.lastName}</span>
+                                      {p.email && !p.email.includes("@trailtribe") && (
+                                        <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{p.email}</span>
+                                      )}
+                                      {p.phone && (
+                                        <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{formatPhone(p.phone)}</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {riders.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {riders.map((r: any) => (
+                                    <div key={r.id} className="flex items-center gap-1.5 text-sm bg-muted rounded-full px-3 py-1">
+                                      <Bike className="h-3 w-3 text-muted-foreground" />
+                                      <span>{r.firstName} {r.lastName}</span>
+                                      {r.grade && <span className="text-muted-foreground text-xs">· Gr {r.grade}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs gap-1.5"
+                                onClick={() => handleUnarchiveFamily(household.id)}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Restore
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
