@@ -295,6 +295,13 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS short_name text NOT NULL DEFAULT '';
     `,
   },
+  {
+    name: "add_archived_at_to_households",
+    sql: `
+      ALTER TABLE households
+        ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

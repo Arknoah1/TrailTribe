@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useState, useEffect, useRef, useCallback, Fragment } from "react";
@@ -227,6 +227,7 @@ export default function Admin() {
   const [roster, setRoster] = useState<any[]>([]);
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
+  const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
 
   // Invite Family state
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -503,6 +504,17 @@ export default function Admin() {
   const fetchRoster = async () => {
     const res = await authedFetch(`${BASE_URL}/api/households`);
     if (res.ok) setRoster(await res.json());
+  };
+
+  const handleArchiveFamily = async (householdId: number) => {
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/archive`, { method: "POST" });
+    if (res.ok) {
+      toast({ title: "Family archived and removed from the roster" });
+      fetchRoster();
+    } else {
+      toast({ title: "Failed to archive family", variant: "destructive" });
+    }
+    setArchiveConfirmId(null);
   };
 
   const fetchSettings = useCallback(async () => {
@@ -940,20 +952,31 @@ export default function Admin() {
                             )}
                           </div>
 
-                          <div className="shrink-0 grid grid-cols-3 gap-1 text-center min-w-[140px]">
-                            {[
-                              { label: "Waiver", done: household.liabilityWaiverSigned },
-                              { label: "Media", done: household.mediaReleaseSigned },
-                              { label: "Conduct", done: household.codeOfConductSigned },
-                            ].map(({ label, done }) => (
-                              <div key={label} className="flex flex-col items-center gap-0.5">
-                                {done
-                                  ? <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                  : <XCircle className="h-4 w-4 text-muted-foreground/40" />
-                                }
-                                <span className="text-[10px] text-muted-foreground">{label}</span>
-                              </div>
-                            ))}
+                          <div className="flex flex-col items-end gap-3 shrink-0">
+                            <div className="grid grid-cols-3 gap-1 text-center min-w-[140px]">
+                              {[
+                                { label: "Waiver", done: household.liabilityWaiverSigned },
+                                { label: "Media", done: household.mediaReleaseSigned },
+                                { label: "Conduct", done: household.codeOfConductSigned },
+                              ].map(({ label, done }) => (
+                                <div key={label} className="flex flex-col items-center gap-0.5">
+                                  {done
+                                    ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                    : <XCircle className="h-4 w-4 text-muted-foreground/40" />
+                                  }
+                                  <span className="text-[10px] text-muted-foreground">{label}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 px-2 gap-1"
+                              onClick={() => setArchiveConfirmId(household.id)}
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                              Archive
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
@@ -962,6 +985,27 @@ export default function Admin() {
                 })}
             </div>
           )}
+
+          {/* ── Archive family confirmation ──────────────────────────────── */}
+          <AlertDialog open={archiveConfirmId !== null} onOpenChange={(open) => { if (!open) setArchiveConfirmId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive this family?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  They'll be removed from the team roster immediately. Their account and data are preserved — you can restore them later if needed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => archiveConfirmId !== null && handleArchiveFamily(archiveConfirmId)}
+                >
+                  Archive Family
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
 
         <TabsContent value="approvals" className="mt-6 space-y-4">

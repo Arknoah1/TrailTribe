@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { householdsTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-import { requireAuth, requireApproved } from "../middlewares/requireAuth";
+import { eq, and, isNull } from "drizzle-orm";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -60,8 +60,14 @@ function canSeeMedical(requester: Requester, householdId: number | null): boolea
 router.get("/households", requireApproved, async (req, res) => {
   const requester = await getRequester(req);
   const enrolledOnly = req.query.enrolledOnly === "true";
-  const baseQuery = enrolledOnly
-    ? db.select().from(householdsTable).where(eq(householdsTable.seasonEnrolled, true))
+  const includeArchived = req.query.includeArchived === "true";
+
+  let conditions: any[] = [];
+  if (enrolledOnly) conditions.push(eq(householdsTable.seasonEnrolled, true));
+  if (!includeArchived) conditions.push(isNull(householdsTable.archivedAt));
+
+  const baseQuery = conditions.length > 0
+    ? db.select().from(householdsTable).where(and(...conditions))
     : db.select().from(householdsTable);
   const households = await baseQuery;
   const result = await Promise.all(
@@ -171,6 +177,28 @@ router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
     if (codeOfConductSigned) updates.codeOfConductSignedAt = now;
   }
   const [updated] = await db.update(householdsTable).set(updates).where(eq(householdsTable.id, id)).returning();
+  res.json(updated);
+});
+
+router.post("/households/:id/archive", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
+  if (!household) { res.status(404).json({ error: "Household not found" }); return; }
+  const [updated] = await db.update(householdsTable)
+    .set({ archivedAt: new Date() })
+    .where(eq(householdsTable.id, id))
+    .returning();
+  res.json(updated);
+});
+
+router.post("/households/:id/unarchive", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
+  if (!household) { res.status(404).json({ error: "Household not found" }); return; }
+  const [updated] = await db.update(householdsTable)
+    .set({ archivedAt: null })
+    .where(eq(householdsTable.id, id))
+    .returning();
   res.json(updated);
 });
 
