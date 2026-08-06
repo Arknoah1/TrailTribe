@@ -10,7 +10,9 @@ import {
   usePinBoardThread,
   useDeleteBoardThread,
   getListBoardThreadsQueryKey,
+  getListBroadcastsQueryKey,
 } from "@workspace/api-client-react";
+import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import type { BoardThreadWithDetails, Broadcast } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
@@ -27,7 +29,11 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Archive,
+  ArchiveRestore,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -107,16 +113,154 @@ function ThreadCard({ thread, podNameMap }: { thread: BoardThreadWithDetails; po
   );
 }
 
-function BroadcastsList({ podNameMap }: { podNameMap: Map<string, string> }) {
-  const { data: broadcasts, isLoading } = useListBroadcasts();
-  const [search, setSearch] = useState("");
+function BroadcastCard({
+  msg,
+  podNameMap,
+  isCoachOrAdmin,
+  onArchive,
+  onUnarchive,
+}: {
+  msg: any;
+  podNameMap: Map<string, string>;
+  isCoachOrAdmin: boolean;
+  onArchive?: (id: number) => void;
+  onUnarchive?: (id: number) => void;
+}) {
+  const isArchived = !!msg.archivedAt;
+  return (
+    <Card className={`overflow-hidden ${isArchived ? "opacity-60" : ""}`}>
+      <CardHeader className="bg-muted/50 pb-3">
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg">{msg.subject || "No Subject"}</CardTitle>
+            <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-foreground">{msg.sender?.firstName} {msg.sender?.lastName}</span>
+              <span>•</span>
+              <span>{msg.sentAt ? format(new Date(msg.sentAt), "MMM d, yyyy 'at' h:mm a") : "Draft"}</span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {msg.isAllTeam ? (
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Users className="h-3 w-3" /> All team
+                </Badge>
+              ) : msg.targetPodIds && msg.targetPodIds.length > 0 ? (
+                msg.targetPodIds.map((podId: string) => (
+                  <Badge key={podId} variant="secondary" className="text-xs">
+                    {podNameMap.get(podId) ?? `Pod ${podId}`}
+                  </Badge>
+                ))
+              ) : null}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {msg.channel === "email" && <Mail className="h-4 w-4 text-muted-foreground" />}
+            {msg.channel === "sms" && <Smartphone className="h-4 w-4 text-muted-foreground" />}
+            {msg.channel === "push" && <Bell className="h-4 w-4 text-muted-foreground" />}
+            {isCoachOrAdmin && !isArchived && onArchive && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="Archive this broadcast"
+                onClick={() => onArchive(msg.id)}
+              >
+                <Archive className="h-4 w-4" />
+              </Button>
+            )}
+            {isCoachOrAdmin && isArchived && onUnarchive && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                title="Restore this broadcast"
+                onClick={() => onUnarchive(msg.id)}
+              >
+                <ArchiveRestore className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4 space-y-3">
+        <div className="text-sm whitespace-pre-wrap prose dark:prose-invert max-w-none">{msg.body}</div>
+        {msg.channel === "email" && (
+          <div className="pt-2 border-t border-border/50">
+            {!msg.emailConfigured ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                Email delivery not configured
+              </span>
+            ) : msg.deliveredCount != null ? (
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5 text-emerald-500">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Delivered to {msg.deliveredCount} of {msg.recipientCount} recipients
+                </span>
+                {msg.failedCount != null && msg.failedCount > 0 && (
+                  <span className="flex items-center gap-1.5 text-destructive">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    {msg.failedCount} failed
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                Delivery status unavailable
+              </span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-  const filtered = (broadcasts ?? []).filter(msg => {
-    const matchesSearch = search.trim() === "" ||
-      (msg.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (msg.body ?? "").toLowerCase().includes(search.toLowerCase());
-    return matchesSearch;
-  });
+function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string, string>; isCoachOrAdmin: boolean }) {
+  const { data: broadcasts, isLoading } = useListBroadcasts();
+  const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+
+  const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+
+  const allBroadcasts = (broadcasts ?? []) as any[];
+  const active = allBroadcasts.filter(m => !m.archivedAt && (
+    search.trim() === "" ||
+    (m.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (m.body ?? "").toLowerCase().includes(search.toLowerCase())
+  ));
+  const archived = allBroadcasts.filter(m => !!m.archivedAt && (
+    search.trim() === "" ||
+    (m.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
+    (m.body ?? "").toLowerCase().includes(search.toLowerCase())
+  ));
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListBroadcastsQueryKey() });
+
+  const handleArchive = async (id: number) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/messages/${id}/archive`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast({ title: "Broadcast archived" });
+      invalidate();
+    } catch {
+      toast({ title: "Failed to archive broadcast", variant: "destructive" });
+    }
+  };
+
+  const handleUnarchive = async (id: number) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/messages/${id}/unarchive`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast({ title: "Broadcast restored" });
+      invalidate();
+    } catch {
+      toast({ title: "Failed to restore broadcast", variant: "destructive" });
+    }
+  };
 
   if (isLoading) return <div className="p-8 text-center"><Skeleton className="h-32 w-full mb-4" /><Skeleton className="h-32 w-full" /></div>;
 
@@ -125,81 +269,52 @@ function BroadcastsList({ podNameMap }: { podNameMap: Map<string, string> }) {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search announcements..."
+          placeholder="Search broadcasts..."
           className="pl-10 bg-card"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
       </div>
-      
-      {filtered.length > 0 ? (
-        filtered.map(msg => (
-          <Card key={msg.id} className="overflow-hidden">
-            <CardHeader className="bg-muted/50 pb-3">
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{msg.subject || "No Subject"}</CardTitle>
-                  <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-foreground">{msg.sender?.firstName} {msg.sender?.lastName}</span>
-                    <span>•</span>
-                    <span>{msg.sentAt ? format(new Date(msg.sentAt), "MMM d, yyyy 'at' h:mm a") : 'Draft'}</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {msg.isAllTeam ? (
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <Users className="h-3 w-3" /> All team
-                      </Badge>
-                    ) : msg.targetPodIds && msg.targetPodIds.length > 0 ? (
-                      msg.targetPodIds.map(podId => (
-                        <Badge key={podId} variant="secondary" className="text-xs">
-                          {podNameMap.get(podId) ?? `Pod ${podId}`}
-                        </Badge>
-                      ))
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                  {msg.channel === 'email' && <Mail className="h-4 w-4 text-muted-foreground" aria-label="Email" />}
-                  {msg.channel === 'sms' && <Smartphone className="h-4 w-4 text-muted-foreground" aria-label="SMS" />}
-                  {msg.channel === 'push' && <Bell className="h-4 w-4 text-muted-foreground" aria-label="Push" />}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-3">
-              <div className="text-sm whitespace-pre-wrap prose dark:prose-invert max-w-none">{msg.body}</div>
-              {msg.channel === "email" && (
-                <div className="pt-2 border-t border-border/50">
-                  {!msg.emailConfigured ? (
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      Email delivery not configured
-                    </span>
-                  ) : msg.deliveredCount != null ? (
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="flex items-center gap-1.5 text-emerald-500">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                        Delivered to {msg.deliveredCount} of {msg.recipientCount} recipients
-                      </span>
-                      {msg.failedCount != null && msg.failedCount > 0 && (
-                        <span className="flex items-center gap-1.5 text-destructive">
-                          <XCircle className="h-3.5 w-3.5 shrink-0" />
-                          {msg.failedCount} failed
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                      Delivery status unavailable
-                    </span>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+      {active.length > 0 ? (
+        active.map(msg => (
+          <BroadcastCard
+            key={msg.id}
+            msg={msg}
+            podNameMap={podNameMap}
+            isCoachOrAdmin={isCoachOrAdmin}
+            onArchive={handleArchive}
+          />
         ))
       ) : (
-        <EmptyTrailState message={search ? "No announcements match your search." : "No announcements yet."} />
+        <EmptyTrailState message={search ? "No broadcasts match your search." : "No broadcasts yet."} />
+      )}
+
+      {/* Archived section — coaches/admins only */}
+      {isCoachOrAdmin && archived.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors font-medium"
+          >
+            {showArchived ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <Archive className="h-4 w-4" />
+            {archived.length} archived broadcast{archived.length !== 1 ? "s" : ""}
+          </button>
+          {showArchived && (
+            <div className="space-y-3 mt-3">
+              {archived.map(msg => (
+                <BroadcastCard
+                  key={msg.id}
+                  msg={msg}
+                  podNameMap={podNameMap}
+                  isCoachOrAdmin={isCoachOrAdmin}
+                  onUnarchive={handleUnarchive}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -375,7 +490,7 @@ export default function Messages() {
             <ThreadsList scope="event" podNameMap={podNameMap} />
           </TabsContent>
           <TabsContent value="announcements" className="mt-0">
-            <BroadcastsList podNameMap={podNameMap} />
+            <BroadcastsList podNameMap={podNameMap} isCoachOrAdmin={isCoachOrAdmin} />
           </TabsContent>
         </div>
       </Tabs>

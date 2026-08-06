@@ -316,6 +316,13 @@ const migrations: { name: string; sql: string }[] = [
         ALTER COLUMN email DROP NOT NULL;
     `,
   },
+  {
+    name: "add_archived_at_to_broadcasts",
+    sql: `
+      ALTER TABLE broadcasts
+        ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

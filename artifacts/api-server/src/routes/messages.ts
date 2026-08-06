@@ -91,6 +91,30 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json({ ...broadcast, emailConfigured: !emailNotConfigured });
 });
 
+// POST /messages/:id/archive
+router.post("/messages/:id/archive", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [updated] = await db
+    .update(broadcastsTable)
+    .set({ archivedAt: new Date() })
+    .where(eq(broadcastsTable.id, id))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Broadcast not found" }); return; }
+  res.json(updated);
+});
+
+// POST /messages/:id/unarchive
+router.post("/messages/:id/unarchive", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(req.params.id);
+  const [updated] = await db
+    .update(broadcastsTable)
+    .set({ archivedAt: null })
+    .where(eq(broadcastsTable.id, id))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Broadcast not found" }); return; }
+  res.json(updated);
+});
+
 router.post("/messages/contact-coach", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
