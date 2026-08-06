@@ -13,6 +13,14 @@ import { getOrCreateSettings } from "./settings";
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
+function getAppBase(): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
+  const basePath = process.env.FRONTEND_BASE_PATH ?? "/trailtribe";
+  return process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`
+    : "";
+}
+
 const INVITE_TTL_DAYS = 7;
 
 const DEFAULT_NOTIFICATION_PREFS = {
@@ -42,8 +50,7 @@ const sendInviteSchema = z.object({
 
 // GET /family-invites — list all invites (coach/admin)
 router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
-  const appBase = process.env.APP_BASE_URL
-    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/trailtribe` : "");
+  const appBase = getAppBase();
   const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
 
   // For accepted invites, look up the actual email used (may differ from invited email)
@@ -82,8 +89,7 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
 
   const requester = await getRequester(req);
   const invitedByUserId = requester?.id ?? null;
-  const appBase = process.env.APP_BASE_URL
-    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/trailtribe` : "");
+  const appBase = getAppBase();
   const results: { email: string; status: string; reason?: string; errorMessage?: string; inviteUrl: string }[] = [];
 
   for (const rawEmail of parsed.data.emails) {
@@ -158,8 +164,7 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
 router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, res) => {
   const requester = await getRequester(req);
   const invitedByUserId = requester?.id ?? null;
-  const appBase = process.env.APP_BASE_URL
-    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/trailtribe` : "");
+  const appBase = getAppBase();
 
   const token = randomBytes(24).toString("hex");
   await db.insert(familyInvitesTable).values({
