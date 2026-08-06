@@ -154,6 +154,26 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json({ results });
 });
 
+// POST /family-invites/generate-link — create a shareable link-only invite (no email required)
+router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, res) => {
+  const requester = await getRequester(req);
+  const invitedByUserId = requester?.id ?? null;
+  const appBase = process.env.APP_BASE_URL
+    ?? (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+
+  const token = randomBytes(24).toString("hex");
+  await db.insert(familyInvitesTable).values({
+    email: null,
+    token,
+    invitedByUserId,
+    expiresAt: expiresAt(),
+  });
+
+  const inviteUrl = `${appBase}/family-invite/${token}`;
+  logger.info({ inviteUrl }, "[family-invites] generated link-only invite");
+  res.status(201).json({ inviteUrl, token });
+});
+
 // DELETE /family-invites/:id — revoke/cancel an invite
 router.delete("/family-invites/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
@@ -191,7 +211,8 @@ router.get("/family-invites/validate/:token", async (req, res) => {
     res.status(404).json({ error: "Invite link is invalid, expired, or already used" });
     return;
   }
-  res.json({ email: invite.email });
+  // email may be null for link-only invites
+  res.json({ email: invite.email ?? null });
 });
 
 // POST /family-invites/accept — authenticated; accept invite and auto-approve user
@@ -237,12 +258,15 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
   const lastName = clerkUser.lastName ?? "User";
 
   // Log when the actual email differs from the invited email so coaches can see it
-  const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
-  if (!clerkEmails.includes(invite.email.toLowerCase())) {
-    logger.info(
-      { inviteEmail: invite.email, actualEmail: primaryEmail, clerkUserId },
-      "[family-invites] invite accepted with a different email address than invited",
-    );
+  // (skip this check for link-only invites that have no email constraint)
+  if (invite.email) {
+    const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
+    if (!clerkEmails.includes(invite.email.toLowerCase())) {
+      logger.info(
+        { inviteEmail: invite.email, actualEmail: primaryEmail, clerkUserId },
+        "[family-invites] invite accepted with a different email address than invited",
+      );
+    }
   }
 
   // Get or create the user record and mark them approved

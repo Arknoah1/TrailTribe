@@ -11,6 +11,7 @@ import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspa
 import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -236,6 +237,8 @@ export default function Admin() {
   const [inviteEmails, setInviteEmails] = useState("");
   const [sendingInvites, setSendingInvites] = useState(false);
   const [pendingInvites, setPendingInvites] = useState<any[]>([]);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
 
   // Team Settings state
   const [teamName, setTeamName] = useState("");
@@ -328,6 +331,21 @@ export default function Admin() {
       fetchPendingInvites();
     } catch {
       toast({ title: "Failed to re-send invite", variant: "destructive" });
+    }
+  };
+
+  const handleGenerateLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites/generate-link`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setGeneratedLink(data.inviteUrl);
+      fetchPendingInvites();
+    } catch {
+      toast({ title: "Failed to generate link", variant: "destructive" });
+    } finally {
+      setGeneratingLink(false);
     }
   };
 
@@ -1161,12 +1179,18 @@ export default function Admin() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">Invite a Family</CardTitle>
-                  <CardDescription className="mt-0.5 text-xs">Email families a magic link that takes them directly into onboarding — no approval queue.</CardDescription>
+                  <CardDescription className="mt-0.5 text-xs">Send a magic link that takes families directly into onboarding — no approval queue.</CardDescription>
                 </div>
                 {!showInviteForm && (
-                  <Button size="sm" onClick={() => setShowInviteForm(true)} className="shrink-0">
-                    <Mail className="h-3.5 w-3.5 mr-1.5" /> Invite Family
-                  </Button>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" onClick={handleGenerateLink} disabled={generatingLink}>
+                      <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                      {generatingLink ? "Generating…" : "Generate Link"}
+                    </Button>
+                    <Button size="sm" onClick={() => setShowInviteForm(true)}>
+                      <Mail className="h-3.5 w-3.5 mr-1.5" /> Send by Email
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -1196,18 +1220,56 @@ export default function Admin() {
             )}
           </Card>
 
-          {/* Pending invites list — deduplicated by email, one row per address */}
+          {/* Generated link dialog */}
+          <Dialog open={!!generatedLink} onOpenChange={(open) => { if (!open) setGeneratedLink(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5 text-primary" /> Invite Link Ready
+                </DialogTitle>
+                <DialogDescription>
+                  Copy this link and send it via text, email, or any other way. Anyone with this link can create a TrailTribe account and skip the approval queue.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 mt-1">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-muted rounded-md px-3 py-2.5 break-all font-mono leading-relaxed">
+                    {generatedLink}
+                  </code>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      if (generatedLink) {
+                        navigator.clipboard.writeText(generatedLink);
+                        toast({ title: "Link copied to clipboard" });
+                      }
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" /> Copy Link
+                  </Button>
+                  <Button variant="outline" onClick={() => setGeneratedLink(null)}>Done</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">This link expires in 7 days. You can revoke it from the Sent Invites list below.</p>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Pending invites list — deduplicated by email; link-only invites each get their own row */}
           {(() => {
             const now = new Date();
-            // Keep only the most recent invite per email address
-            const byEmail = new Map<string, any>();
+            // Email invites: deduplicate by address (keep most recent per address).
+            // Link-only invites (null email): each is unique — use token as key.
+            const byKey = new Map<string, any>();
             for (const inv of pendingInvites) {
-              const existing = byEmail.get(inv.email);
+              const key = inv.email ?? `link:${inv.token}`;
+              const existing = byKey.get(key);
               if (!existing || new Date(inv.createdAt) > new Date(existing.createdAt)) {
-                byEmail.set(inv.email, inv);
+                byKey.set(key, inv);
               }
             }
-            const deduped = Array.from(byEmail.values()).sort(
+            const deduped = Array.from(byKey.values()).sort(
               (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
             const active = deduped.filter((inv) => !inv.acceptedAt && !inv.revokedAt && new Date(inv.expiresAt) > now);
@@ -1221,36 +1283,43 @@ export default function Admin() {
                 <CardContent className="p-0">
                   {active.length > 0 && (
                     <div className="divide-y">
-                      {active.map((inv: any) => (
-                        <div key={inv.id} className="px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm font-medium truncate">{inv.email}</span>
-                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300/50 shrink-0">Pending</Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                            <span>Expires {new Date(inv.expiresAt).toLocaleDateString()}</span>
-                            {inv.inviteUrl && (
+                      {active.map((inv: any) => {
+                        const isLinkOnly = !inv.email;
+                        return (
+                          <div key={inv.id} className="px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isLinkOnly
+                                ? <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                : <Mail className="h-4 w-4 text-muted-foreground shrink-0" />}
+                              <span className="text-sm font-medium truncate">
+                                {isLinkOnly ? "Link-only invite" : inv.email}
+                              </span>
+                              <Badge variant="outline" className="text-xs text-amber-600 border-amber-300/50 shrink-0">Pending</Badge>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                              <span>Expires {new Date(inv.expiresAt).toLocaleDateString()}</span>
+                              {inv.inviteUrl && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs gap-1"
+                                  onClick={() => { navigator.clipboard.writeText(inv.inviteUrl); toast({ title: "Invite link copied" }); }}
+                                >
+                                  <Copy className="h-3 w-3" /> Copy Link
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 px-2 text-xs gap-1"
-                                onClick={() => { navigator.clipboard.writeText(inv.inviteUrl); toast({ title: "Invite link copied" }); }}
+                                className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => handleRevokeInvite(inv.id)}
                               >
-                                <Copy className="h-3 w-3" /> Copy Link
+                                <X className="h-3 w-3 mr-1" /> Cancel
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => handleRevokeInvite(inv.id)}
-                            >
-                              <X className="h-3 w-3 mr-1" /> Cancel
-                            </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   {resolved.length > 0 && (
@@ -1259,13 +1328,23 @@ export default function Admin() {
                         const isAccepted = !!inv.acceptedAt;
                         const isRevoked = !!inv.revokedAt;
                         const isExpired = !isAccepted && !isRevoked && new Date(inv.expiresAt) <= now;
+                        const isLinkOnly = !inv.email;
                         return (
                           <div key={inv.id} className="px-6 py-3 flex items-center gap-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1 opacity-60">
-                              <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                              {isLinkOnly
+                                ? <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                : <Mail className="h-4 w-4 text-muted-foreground shrink-0" />}
                               <div className="min-w-0">
-                                <span className="text-sm truncate block">{inv.email}</span>
-                                {isAccepted && inv.actualEmail && inv.actualEmail.toLowerCase() !== inv.email.toLowerCase() && (
+                                <span className="text-sm truncate block">
+                                  {isLinkOnly ? "Link-only invite" : inv.email}
+                                </span>
+                                {isAccepted && inv.actualEmail && !isLinkOnly && inv.actualEmail.toLowerCase() !== inv.email.toLowerCase() && (
+                                  <span className="text-xs text-muted-foreground truncate block">
+                                    Joined as <span className="font-medium">{inv.actualEmail}</span>
+                                  </span>
+                                )}
+                                {isAccepted && inv.actualEmail && isLinkOnly && (
                                   <span className="text-xs text-muted-foreground truncate block">
                                     Joined as <span className="font-medium">{inv.actualEmail}</span>
                                   </span>
@@ -1275,7 +1354,7 @@ export default function Admin() {
                               {isRevoked && <Badge variant="outline" className="text-xs shrink-0">Cancelled</Badge>}
                               {isExpired && <Badge variant="outline" className="text-xs shrink-0">Expired</Badge>}
                             </div>
-                            {isExpired && (
+                            {isExpired && !isLinkOnly && (
                               <Button
                                 size="sm"
                                 variant="ghost"

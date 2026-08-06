@@ -309,6 +309,13 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS accepted_by_clerk_user_id text;
     `,
   },
+  {
+    name: "make_family_invites_email_nullable",
+    sql: `
+      ALTER TABLE family_invites
+        ALTER COLUMN email DROP NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

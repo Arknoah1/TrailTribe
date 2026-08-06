@@ -3,7 +3,7 @@ import { usersTable } from "./users";
 
 export const familyInvitesTable = pgTable("family_invites", {
   id: serial("id").primaryKey(),
-  email: text("email").notNull(),
+  email: text("email"),
   token: text("token").notNull().unique(),
   invitedByUserId: integer("invited_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
