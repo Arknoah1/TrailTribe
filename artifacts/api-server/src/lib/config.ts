@@ -7,9 +7,9 @@
  *   3. Empty string — caller should warn when this happens
  */
 export function getAppBase(): string {
-  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/$/, "");
   const basePath = process.env.FRONTEND_BASE_PATH ?? "/";
   return process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`.replace(/\/$/, "")
     : "";
 }
