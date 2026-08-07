@@ -93,7 +93,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
 
 // POST /messages/:id/archive
 router.post("/messages/:id/archive", requireCoachOrAdmin, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const [updated] = await db
     .update(broadcastsTable)
     .set({ archivedAt: new Date() })
@@ -105,7 +105,7 @@ router.post("/messages/:id/archive", requireCoachOrAdmin, async (req, res) => {
 
 // POST /messages/:id/unarchive
 router.post("/messages/:id/unarchive", requireCoachOrAdmin, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   const [updated] = await db
     .update(broadcastsTable)
     .set({ archivedAt: null })
