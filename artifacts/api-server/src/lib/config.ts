@@ -8,7 +8,7 @@
  */
 export function getAppBase(): string {
   if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
-  const basePath = process.env.FRONTEND_BASE_PATH ?? "/trailtribe";
+  const basePath = process.env.FRONTEND_BASE_PATH ?? "/";
   return process.env.REPLIT_DEV_DOMAIN
     ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`
     : "";
