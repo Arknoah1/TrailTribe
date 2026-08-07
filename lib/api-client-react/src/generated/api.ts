@@ -5443,6 +5443,174 @@ export const useSendBroadcast = <
 };
 
 /**
+ * @summary Archive a broadcast (coach/admin only)
+ */
+export const getArchiveBroadcastUrl = (id: number) => {
+  return `/api/messages/${id}/archive`;
+};
+
+export const archiveBroadcast = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Broadcast> => {
+  return customFetch<Broadcast>(getArchiveBroadcastUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getArchiveBroadcastMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveBroadcast>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof archiveBroadcast>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["archiveBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof archiveBroadcast>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return archiveBroadcast(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ArchiveBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof archiveBroadcast>>
+>;
+
+export type ArchiveBroadcastMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Archive a broadcast (coach/admin only)
+ */
+export const useArchiveBroadcast = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof archiveBroadcast>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof archiveBroadcast>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getArchiveBroadcastMutationOptions(options));
+};
+
+/**
+ * @summary Restore an archived broadcast (coach/admin only)
+ */
+export const getUnarchiveBroadcastUrl = (id: number) => {
+  return `/api/messages/${id}/unarchive`;
+};
+
+export const unarchiveBroadcast = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Broadcast> => {
+  return customFetch<Broadcast>(getUnarchiveBroadcastUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getUnarchiveBroadcastMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unarchiveBroadcast>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unarchiveBroadcast>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["unarchiveBroadcast"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unarchiveBroadcast>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return unarchiveBroadcast(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnarchiveBroadcastMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unarchiveBroadcast>>
+>;
+
+export type UnarchiveBroadcastMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Restore an archived broadcast (coach/admin only)
+ */
+export const useUnarchiveBroadcast = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unarchiveBroadcast>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unarchiveBroadcast>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getUnarchiveBroadcastMutationOptions(options));
+};
+
+/**
  * @summary Parent sends a message to a specific coach or all pod coaches
  */
 export const getContactCoachUrl = () => {

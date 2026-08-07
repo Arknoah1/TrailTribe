@@ -706,6 +706,8 @@ export interface Broadcast {
   /** Whether email delivery is configured for this install */
   emailConfigured: boolean;
   sentAt?: string | null;
+  /** Set when the broadcast is archived; null when active */
+  archivedAt?: string | null;
   createdAt: string;
 }
 

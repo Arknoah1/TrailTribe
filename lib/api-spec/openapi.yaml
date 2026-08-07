@@ -1401,6 +1401,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/Broadcast"
 
+  /messages/{id}/archive:
+    post:
+      operationId: archiveBroadcast
+      tags: [messages]
+      summary: Archive a broadcast (coach/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Broadcast archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Broadcast"
+        "404":
+          description: Broadcast not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /messages/{id}/unarchive:
+    post:
+      operationId: unarchiveBroadcast
+      tags: [messages]
+      summary: Restore an archived broadcast (coach/admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Broadcast restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Broadcast"
+        "404":
+          description: Broadcast not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /messages/contact-coach:
     post:
       operationId: contactCoach
@@ -3167,6 +3217,11 @@ components:
           type: string
           format: date-time
           nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when the broadcast is archived; null when active
         createdAt:
           type: string
           format: date-time

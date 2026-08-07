@@ -2181,6 +2181,10 @@ export const ListBroadcastsResponseItem = zod
       .boolean()
       .describe("Whether email delivery is configured for this install"),
     sentAt: zod.coerce.date().nullish(),
+    archivedAt: zod.coerce
+      .date()
+      .nullish()
+      .describe("Set when the broadcast is archived; null when active"),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -2232,6 +2236,84 @@ export const SendBroadcastBody = zod.object({
   channel: zod.enum(["email", "sms", "push"]),
   targetPodIds: zod.array(zod.string()).optional(),
   isAllTeam: zod.boolean().optional(),
+});
+
+/**
+ * @summary Archive a broadcast (coach/admin only)
+ */
+export const ArchiveBroadcastParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ArchiveBroadcastResponse = zod.object({
+  id: zod.number(),
+  senderUserId: zod.number().nullish(),
+  subject: zod.string().nullish(),
+  body: zod.string(),
+  channel: zod.enum(["email", "sms", "push"]),
+  targetPodIds: zod.array(zod.string()).nullish(),
+  isAllTeam: zod.boolean(),
+  recipientCount: zod.number(),
+  deliveredCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of emails successfully delivered (null if email not configured)",
+    ),
+  failedCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of emails that failed to deliver (null if email not configured)",
+    ),
+  emailConfigured: zod
+    .boolean()
+    .describe("Whether email delivery is configured for this install"),
+  sentAt: zod.coerce.date().nullish(),
+  archivedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Set when the broadcast is archived; null when active"),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Restore an archived broadcast (coach/admin only)
+ */
+export const UnarchiveBroadcastParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UnarchiveBroadcastResponse = zod.object({
+  id: zod.number(),
+  senderUserId: zod.number().nullish(),
+  subject: zod.string().nullish(),
+  body: zod.string(),
+  channel: zod.enum(["email", "sms", "push"]),
+  targetPodIds: zod.array(zod.string()).nullish(),
+  isAllTeam: zod.boolean(),
+  recipientCount: zod.number(),
+  deliveredCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of emails successfully delivered (null if email not configured)",
+    ),
+  failedCount: zod
+    .number()
+    .nullish()
+    .describe(
+      "Number of emails that failed to deliver (null if email not configured)",
+    ),
+  emailConfigured: zod
+    .boolean()
+    .describe("Whether email delivery is configured for this install"),
+  sentAt: zod.coerce.date().nullish(),
+  archivedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe("Set when the broadcast is archived; null when active"),
+  createdAt: zod.coerce.date(),
 });
 
 /**

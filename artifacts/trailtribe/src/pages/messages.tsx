@@ -9,11 +9,12 @@ import {
   useCreateBoardThread,
   usePinBoardThread,
   useDeleteBoardThread,
+  useArchiveBroadcast,
+  useUnarchiveBroadcast,
   getListBoardThreadsQueryKey,
   getListBroadcastsQueryKey,
 } from "@workspace/api-client-react";
-import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import type { BoardThreadWithDetails, Broadcast } from "@workspace/api-client-react";
+import type { BoardThreadWithDetails, BroadcastWithSender } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   MessageSquare,
@@ -120,7 +121,7 @@ function BroadcastCard({
   onArchive,
   onUnarchive,
 }: {
-  msg: any;
+  msg: BroadcastWithSender;
   podNameMap: Map<string, string>;
   isCoachOrAdmin: boolean;
   onArchive?: (id: number) => void;
@@ -219,14 +220,11 @@ function BroadcastCard({
 function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string, string>; isCoachOrAdmin: boolean }) {
   const { data: broadcasts, isLoading } = useListBroadcasts();
   const queryClient = useQueryClient();
-  const authedFetch = useAuthedFetch();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
-  const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-
-  const allBroadcasts = (broadcasts ?? []) as any[];
+  const allBroadcasts = broadcasts ?? [];
   const active = allBroadcasts.filter(m => !m.archivedAt && (
     search.trim() === "" ||
     (m.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -240,27 +238,22 @@ function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListBroadcastsQueryKey() });
 
-  const handleArchive = async (id: number) => {
-    try {
-      const res = await authedFetch(`${BASE_URL}/api/messages/${id}/archive`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast({ title: "Broadcast archived" });
-      invalidate();
-    } catch {
-      toast({ title: "Failed to archive broadcast", variant: "destructive" });
-    }
-  };
+  const archiveMutation = useArchiveBroadcast({
+    mutation: {
+      onSuccess: () => { toast({ title: "Broadcast archived" }); invalidate(); },
+      onError: () => toast({ title: "Failed to archive broadcast", variant: "destructive" }),
+    },
+  });
 
-  const handleUnarchive = async (id: number) => {
-    try {
-      const res = await authedFetch(`${BASE_URL}/api/messages/${id}/unarchive`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast({ title: "Broadcast restored" });
-      invalidate();
-    } catch {
-      toast({ title: "Failed to restore broadcast", variant: "destructive" });
-    }
-  };
+  const unarchiveMutation = useUnarchiveBroadcast({
+    mutation: {
+      onSuccess: () => { toast({ title: "Broadcast restored" }); invalidate(); },
+      onError: () => toast({ title: "Failed to restore broadcast", variant: "destructive" }),
+    },
+  });
+
+  const handleArchive = (id: number) => archiveMutation.mutate({ id });
+  const handleUnarchive = (id: number) => unarchiveMutation.mutate({ id });
 
   if (isLoading) return <div className="p-8 text-center"><Skeleton className="h-32 w-full mb-4" /><Skeleton className="h-32 w-full" /></div>;
 

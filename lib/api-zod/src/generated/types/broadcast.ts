@@ -23,5 +23,7 @@ export interface Broadcast {
   /** Whether email delivery is configured for this install */
   emailConfigured: boolean;
   sentAt?: Date | null;
+  /** Set when the broadcast is archived; null when active */
+  archivedAt?: Date | null;
   createdAt: Date;
 }
