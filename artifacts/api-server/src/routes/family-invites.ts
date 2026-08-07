@@ -9,17 +9,10 @@ import { randomBytes } from "crypto";
 import { createClerkClient } from "@clerk/express";
 import { z } from "zod";
 import { getOrCreateSettings } from "./settings";
+import { getAppBase } from "../lib/config";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
-
-function getAppBase(): string {
-  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
-  const basePath = process.env.FRONTEND_BASE_PATH ?? "/trailtribe";
-  return process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`
-    : "";
-}
 
 const INVITE_TTL_DAYS = 7;
 

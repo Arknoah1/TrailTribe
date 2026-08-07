@@ -3,15 +3,7 @@ import { logger } from "./lib/logger";
 import { startEmailReminderJob } from "./lib/emailReminders";
 import { startVolunteerReminderJob } from "./lib/volunteerReminders";
 import { runMigrations } from "./lib/migrate";
-
-/** Mirrors the getAppBase() helper in family-invites.ts — must stay in sync. */
-function resolveInviteBaseUrl(): string {
-  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
-  const basePath = process.env.FRONTEND_BASE_PATH ?? "/trailtribe";
-  return process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}${basePath}`
-    : "";
-}
+import { getAppBase } from "./lib/config";
 
 const rawPort = process.env["PORT"];
 
@@ -37,7 +29,7 @@ runMigrations()
 
       logger.info({ port }, "Server listening");
 
-      const inviteBaseUrl = resolveInviteBaseUrl();
+      const inviteBaseUrl = getAppBase();
       if (inviteBaseUrl) {
         logger.info({ inviteBaseUrl }, "[config] Invite link base URL resolved");
       } else {
