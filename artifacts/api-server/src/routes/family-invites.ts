@@ -165,13 +165,16 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
 
 // POST /family-invites/generate-link — create a shareable link-only invite (no email required)
 router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, res) => {
-  const requester = await getRequester(req);
-  const invitedByUserId = requester?.id ?? null;
   const appBase = getAppBase();
 
   if (!appBase) {
-    logger.warn("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; the generated invite link will be relative and unclickable");
+    logger.error("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; cannot generate a usable invite link");
+    res.status(500).json({ error: "Server is not configured to generate invite links — contact your admin" });
+    return;
   }
+
+  const requester = await getRequester(req);
+  const invitedByUserId = requester?.id ?? null;
 
   const token = randomBytes(24).toString("hex");
   await db.insert(familyInvitesTable).values({

@@ -338,7 +338,15 @@ export default function Admin() {
     setGeneratingLink(true);
     try {
       const res = await authedFetch(`${BASE_URL}/api/family-invites/generate-link`, { method: "POST" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        let message = "Failed to generate link";
+        try {
+          const body = await res.json();
+          if (body?.error) message = body.error;
+        } catch {}
+        toast({ title: message, variant: "destructive" });
+        return;
+      }
       const data = await res.json();
       setGeneratedLink(data.inviteUrl);
       fetchPendingInvites();
