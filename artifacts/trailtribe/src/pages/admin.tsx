@@ -1264,14 +1264,14 @@ export default function Admin() {
             </DialogContent>
           </Dialog>
 
-          {/* Pending invites list — deduplicated by email; link-only invites each get their own row */}
+          {/* Pending invites list — email invites only, deduplicated by address */}
           {(() => {
             const now = new Date();
-            // Email invites: deduplicate by address (keep most recent per address).
-            // Link-only invites (null email): each is unique — use token as key.
+            // Only show email invites; link-only invites are single-use and don't need tracking.
             const byKey = new Map<string, any>();
             for (const inv of pendingInvites) {
-              const key = inv.email ?? `link:${inv.token}`;
+              if (!inv.email) continue; // skip link-only invites
+              const key = inv.email;
               const existing = byKey.get(key);
               if (!existing || new Date(inv.createdAt) > new Date(existing.createdAt)) {
                 byKey.set(key, inv);
