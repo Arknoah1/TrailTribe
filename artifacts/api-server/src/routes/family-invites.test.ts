@@ -213,37 +213,32 @@ describe("POST /family-invites — email invite", () => {
 /* ─── POST /family-invites/generate-link ────────────────────────────── */
 
 describe("POST /family-invites/generate-link — link-only invite", () => {
-  it("returns a clickable inviteUrl when APP_BASE_URL is configured", async () => {
-    process.env.APP_BASE_URL = "https://trailtribe.example.com";
-
+  it("returns a non-empty token (URL is assembled client-side from window.location.origin)", async () => {
+    // No APP_BASE_URL or REPLIT_DEV_DOMAIN needed — the endpoint no longer
+    // builds the URL server-side. The client constructs it from window.location.origin.
     const resp = await fetch(`${baseUrl}/family-invites/generate-link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
 
     expect(resp.status).toBe(201);
-    const body = (await resp.json()) as { inviteUrl: string; token: string };
-    expect(body.inviteUrl).toBeTruthy();
-
-    assertAbsoluteUrl(body.inviteUrl, "inviteUrl in generate-link response");
-    expect(body.inviteUrl).toMatch(/^https:\/\/trailtribe\.example\.com/);
-    expect(body.inviteUrl).toContain("/family-invite/");
+    const body = (await resp.json()) as { token: string };
+    expect(body.token, "token must be present in the response").toBeTruthy();
+    expect(typeof body.token).toBe("string");
+    expect(body.token.length).toBeGreaterThan(0);
+    // inviteUrl is intentionally absent — URL is built by the browser
+    expect((body as any).inviteUrl).toBeUndefined();
   });
 
-  it("returns a clickable inviteUrl when REPLIT_DEV_DOMAIN is configured", async () => {
-    process.env.REPLIT_DEV_DOMAIN = "myrepl.replit.dev";
-
+  it("succeeds even when no base-URL env vars are set (no server-side URL needed)", async () => {
+    // Previously this returned 500 when env vars were missing; now it always succeeds.
     const resp = await fetch(`${baseUrl}/family-invites/generate-link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
 
     expect(resp.status).toBe(201);
-    const body = (await resp.json()) as { inviteUrl: string; token: string };
-    expect(body.inviteUrl).toBeTruthy();
-
-    assertAbsoluteUrl(body.inviteUrl, "inviteUrl in generate-link response");
-    expect(body.inviteUrl).toContain("myrepl.replit.dev");
-    expect(body.inviteUrl).toContain("/family-invite/");
+    const body = (await resp.json()) as { token: string };
+    expect(body.token).toBeTruthy();
   });
 });

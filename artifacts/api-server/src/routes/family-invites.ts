@@ -43,10 +43,6 @@ const sendInviteSchema = z.object({
 
 // GET /family-invites — list all invites (coach/admin)
 router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
-  const appBase = getAppBase();
-  if (!appBase) {
-    logger.warn("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; invite URLs in the list will be relative and unclickable");
-  }
   const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
 
   // For accepted invites, look up the actual email used (may differ from invited email)
@@ -63,13 +59,14 @@ router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
 
   const userByClerkId = new Map(acceptedUsers.map((u) => [u.clerkUserId, u.email]));
 
+  // Note: inviteUrl is intentionally omitted — the client builds it from window.location.origin
+  // so it always reflects the domain the coach is actually browsing.
   res.json(invites.map((inv) => {
     const actualEmail = inv.acceptedByClerkUserId
       ? (userByClerkId.get(inv.acceptedByClerkUserId) ?? null)
       : null;
     return {
       ...inv,
-      inviteUrl: `${appBase}/family-invite/${inv.token}`,
       actualEmail,
     };
   }));
@@ -164,15 +161,8 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
 });
 
 // POST /family-invites/generate-link — create a shareable link-only invite (no email required)
+// Returns only the token; the client assembles the full URL from window.location.origin.
 router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, res) => {
-  const appBase = getAppBase();
-
-  if (!appBase) {
-    logger.error("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; cannot generate a usable invite link");
-    res.status(500).json({ error: "Server is not configured to generate invite links — contact your admin" });
-    return;
-  }
-
   const requester = await getRequester(req);
   const invitedByUserId = requester?.id ?? null;
 
@@ -184,9 +174,8 @@ router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, re
     expiresAt: expiresAt(),
   });
 
-  const inviteUrl = `${appBase}/family-invite/${token}`;
-  logger.info({ inviteUrl }, "[family-invites] generated link-only invite");
-  res.status(201).json({ inviteUrl, token });
+  logger.info({ token }, "[family-invites] generated link-only invite token");
+  res.status(201).json({ token });
 });
 
 // DELETE /family-invites/:id — revoke/cancel an invite

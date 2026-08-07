@@ -348,7 +348,7 @@ export default function Admin() {
         return;
       }
       const data = await res.json();
-      setGeneratedLink(data.inviteUrl);
+      setGeneratedLink(`${window.location.origin}${BASE_URL}/family-invite/${data.token}`);
       fetchPendingInvites();
     } catch {
       toast({ title: "Failed to generate link", variant: "destructive" });
@@ -1306,16 +1306,14 @@ export default function Admin() {
                             </div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                               <span>Expires {new Date(inv.expiresAt).toLocaleDateString()}</span>
-                              {inv.inviteUrl && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2 text-xs gap-1"
-                                  onClick={() => { navigator.clipboard.writeText(inv.inviteUrl); toast({ title: "Invite link copied" }); }}
-                                >
-                                  <Copy className="h-3 w-3" /> Copy Link
-                                </Button>
-                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-xs gap-1"
+                                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${BASE_URL}/family-invite/${inv.token}`); toast({ title: "Invite link copied" }); }}
+                              >
+                                <Copy className="h-3 w-3" /> Copy Link
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"

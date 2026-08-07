@@ -37,9 +37,11 @@ describe("getAppBase()", () => {
     expect(getAppBase()).toBe("https://trailtribe.example.com");
   });
 
-  it("branch 2: uses REPLIT_DEV_DOMAIN with the default /trailtribe base path", () => {
+  it("branch 2: uses REPLIT_DEV_DOMAIN with the default base path (root)", () => {
     process.env.REPLIT_DEV_DOMAIN = "abc.replit.dev";
-    expect(getAppBase()).toBe("https://abc.replit.dev/trailtribe");
+    // FRONTEND_BASE_PATH defaults to "/" which is stripped as a trailing slash,
+    // so the result is just the bare origin.
+    expect(getAppBase()).toBe("https://abc.replit.dev");
   });
 
   it("branch 2: honours FRONTEND_BASE_PATH when REPLIT_DEV_DOMAIN is set", () => {
