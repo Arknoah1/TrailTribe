@@ -44,6 +44,9 @@ const sendInviteSchema = z.object({
 // GET /family-invites — list all invites (coach/admin)
 router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
   const appBase = getAppBase();
+  if (!appBase) {
+    logger.warn("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; invite URLs in the list will be relative and unclickable");
+  }
   const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
 
   // For accepted invites, look up the actual email used (may differ from invited email)
@@ -83,6 +86,13 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
   const requester = await getRequester(req);
   const invitedByUserId = requester?.id ?? null;
   const appBase = getAppBase();
+
+  if (!appBase) {
+    logger.error("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; invite emails will contain a relative URL that cannot be clicked");
+    res.status(500).json({ error: "Server misconfiguration: invite base URL is not set. Contact an administrator." });
+    return;
+  }
+
   const results: { email: string; status: string; reason?: string; errorMessage?: string; inviteUrl: string }[] = [];
 
   for (const rawEmail of parsed.data.emails) {
@@ -158,6 +168,10 @@ router.post("/family-invites/generate-link", requireCoachOrAdmin, async (req, re
   const requester = await getRequester(req);
   const invitedByUserId = requester?.id ?? null;
   const appBase = getAppBase();
+
+  if (!appBase) {
+    logger.warn("[family-invites] APP_BASE_URL and REPLIT_DEV_DOMAIN are both unset; the generated invite link will be relative and unclickable");
+  }
 
   const token = randomBytes(24).toString("hex");
   await db.insert(familyInvitesTable).values({
