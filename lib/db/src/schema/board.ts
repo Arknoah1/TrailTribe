@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -17,7 +17,10 @@ export const boardThreadsTable = pgTable("board_threads", {
   lastReplyAt: timestamp("last_reply_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("board_threads_event_id_idx").on(t.eventId),
+  index("board_threads_pod_id_idx").on(t.podId),
+]);
 
 export const insertBoardThreadSchema = createInsertSchema(boardThreadsTable).omit({
   id: true,
@@ -35,7 +38,9 @@ export const boardPostsTable = pgTable("board_posts", {
   body: text("body").notNull(),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("board_posts_thread_id_idx").on(t.threadId),
+]);
 
 export const insertBoardPostSchema = createInsertSchema(boardPostsTable).omit({
   id: true,

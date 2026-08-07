@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -19,7 +19,10 @@ export const carpoolOffersTable = pgTable("carpool_offers", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("carpool_offers_event_id_idx").on(t.eventId),
+  index("carpool_offers_driver_user_id_idx").on(t.driverUserId),
+]);
 
 export const insertCarpoolOfferSchema = createInsertSchema(carpoolOffersTable).omit({
   id: true,
@@ -46,7 +49,10 @@ export const carpoolClaimsTable = pgTable("carpool_claims", {
   matchedByDriver: boolean("matched_by_driver").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("carpool_claims_offer_id_idx").on(t.carpoolOfferId),
+  index("carpool_claims_rider_user_id_idx").on(t.riderUserId),
+]);
 
 export const insertCarpoolClaimSchema = createInsertSchema(carpoolClaimsTable).omit({
   id: true,
@@ -72,6 +78,8 @@ export const carpoolRequestsTable = pgTable("carpool_requests", {
   uniqueIndex("carpool_requests_active_unique_idx")
     .on(table.eventId, table.riderUserId)
     .where(sql`${table.status} IN ('open', 'matched')`),
+  index("carpool_requests_requested_by_user_id_idx").on(table.requestedByUserId),
+  index("carpool_requests_matched_offer_id_idx").on(table.matchedOfferId),
 ]);
 
 export const insertCarpoolRequestSchema = createInsertSchema(carpoolRequestsTable).omit({

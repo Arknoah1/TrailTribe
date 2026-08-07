@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
@@ -47,7 +47,10 @@ export const eventRsvpsTable = pgTable("event_rsvps", {
   respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("event_rsvps_event_id_idx").on(t.eventId),
+  index("event_rsvps_user_id_idx").on(t.userId),
+]);
 
 export const insertEventRsvpSchema = createInsertSchema(eventRsvpsTable).omit({
   id: true,
@@ -57,25 +60,6 @@ export const insertEventRsvpSchema = createInsertSchema(eventRsvpsTable).omit({
 
 export type InsertEventRsvp = z.infer<typeof insertEventRsvpSchema>;
 export type EventRsvp = typeof eventRsvpsTable.$inferSelect;
-
-export const volunteerSignupsTable = pgTable("volunteer_signups", {
-  id: serial("id").primaryKey(),
-  eventId: integer("event_id").notNull().references(() => eventsTable.id, { onDelete: "cascade" }),
-  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  role: text("role"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
-
-export const insertVolunteerSignupSchema = createInsertSchema(volunteerSignupsTable).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertVolunteerSignup = z.infer<typeof insertVolunteerSignupSchema>;
-export type VolunteerSignup = typeof volunteerSignupsTable.$inferSelect;
 
 // ─── VOLUNTEER TASK SYSTEM ──────────────────────────────────────────────────
 
@@ -108,7 +92,9 @@ export const eventTasksTable = pgTable("event_tasks", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("event_tasks_event_id_idx").on(t.eventId),
+]);
 
 export const insertEventTaskSchema = createInsertSchema(eventTasksTable).omit({
   id: true,
@@ -128,6 +114,8 @@ export const eventTaskSignupsTable = pgTable("event_task_signups", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("event_task_signups_task_user_unique").on(t.eventTaskId, t.userId),
+  index("event_task_signups_event_id_idx").on(t.eventId),
+  index("event_task_signups_user_id_idx").on(t.userId),
 ]);
 
 export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTable).omit({

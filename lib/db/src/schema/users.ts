@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -58,7 +58,11 @@ export const usersTable = pgTable("users", {
   calendarToken: text("calendar_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("users_household_id_idx").on(t.householdId),
+  index("users_pod_id_idx").on(t.podId),
+  index("users_role_idx").on(t.role),
+]);
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({
   id: true,

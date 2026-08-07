@@ -1,0 +1,52 @@
+--- a/lib/db/src/schema/events.ts
++++ b/lib/db/src/schema/events.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+ import { trailheadsTable } from "./trailheads";
+@@ -47,7 +47,10 @@
+   respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("event_rsvps_event_id_idx").on(t.eventId),
++  index("event_rsvps_user_id_idx").on(t.userId),
++]);
+ 
+ export const insertEventRsvpSchema = createInsertSchema(eventRsvpsTable).omit({
+   id: true,
+@@ -66,7 +69,10 @@
+   notes: text("notes"),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("volunteer_signups_event_id_idx").on(t.eventId),
++  index("volunteer_signups_user_id_idx").on(t.userId),
++]);
+ 
+ export const insertVolunteerSignupSchema = createInsertSchema(volunteerSignupsTable).omit({
+   id: true,
+@@ -108,7 +114,9 @@
+   sortOrder: integer("sort_order").notNull().default(0),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("event_tasks_event_id_idx").on(t.eventId),
++]);
+ 
+ export const insertEventTaskSchema = createInsertSchema(eventTasksTable).omit({
+   id: true,
+@@ -128,6 +136,8 @@
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ }, (t) => [
+   uniqueIndex("event_task_signups_task_user_unique").on(t.eventTaskId, t.userId),
++  index("event_task_signups_event_id_idx").on(t.eventId),
++  index("event_task_signups_user_id_idx").on(t.userId),
+ ]);
+ 
+ export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTable).omit({

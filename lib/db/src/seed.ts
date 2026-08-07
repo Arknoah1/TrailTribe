@@ -14,7 +14,6 @@ import {
   trailheadsTable,
   eventsTable,
   eventRsvpsTable,
-  volunteerSignupsTable,
   carpoolOffersTable,
   carpoolClaimsTable,
   carpoolRequestsTable,

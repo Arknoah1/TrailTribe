@@ -1,0 +1,188 @@
+--- a/lib/db/src/schema/users.ts
++++ b/lib/db/src/schema/users.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, boolean, integer, jsonb } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
+ import { sql } from "drizzle-orm";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+@@ -58,7 +58,11 @@
+   calendarToken: text("calendar_token").unique(),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("users_household_id_idx").on(t.householdId),
++  index("users_pod_id_idx").on(t.podId),
++  index("users_role_idx").on(t.role),
++]);
+ 
+ export const insertUserSchema = createInsertSchema(usersTable).omit({
+   id: true,
+
+--- a/lib/db/src/schema/events.ts
++++ b/lib/db/src/schema/events.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+ import { trailheadsTable } from "./trailheads";
+@@ -47,7 +47,10 @@
+   respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("event_rsvps_event_id_idx").on(t.eventId),
++  index("event_rsvps_user_id_idx").on(t.userId),
++]);
+ 
+ export const insertEventRsvpSchema = createInsertSchema(eventRsvpsTable).omit({
+   id: true,
+@@ -66,7 +69,10 @@
+   notes: text("notes"),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("volunteer_signups_event_id_idx").on(t.eventId),
++  index("volunteer_signups_user_id_idx").on(t.userId),
++]);
+ 
+ export const insertVolunteerSignupSchema = createInsertSchema(volunteerSignupsTable).omit({
+   id: true,
+@@ -108,7 +114,9 @@
+   sortOrder: integer("sort_order").notNull().default(0),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("event_tasks_event_id_idx").on(t.eventId),
++]);
+ 
+ export const insertEventTaskSchema = createInsertSchema(eventTasksTable).omit({
+   id: true,
+@@ -128,6 +136,8 @@
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ }, (t) => [
+   uniqueIndex("event_task_signups_task_user_unique").on(t.eventTaskId, t.userId),
++  index("event_task_signups_event_id_idx").on(t.eventId),
++  index("event_task_signups_user_id_idx").on(t.userId),
+ ]);
+ 
+ export const insertEventTaskSignupSchema = createInsertSchema(eventTaskSignupsTable).omit({
+
+--- a/lib/db/src/schema/event_attachments.ts
++++ b/lib/db/src/schema/event_attachments.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, index } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+ import { eventsTable } from "./events";
+@@ -11,7 +11,9 @@
+   mimeType: text("mime_type"),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("event_attachments_event_id_idx").on(t.eventId),
++]);
+ 
+ export const insertEventAttachmentSchema = createInsertSchema(eventAttachmentsTable).omit({
+   id: true,
+
+--- a/lib/db/src/schema/carpools.ts
++++ b/lib/db/src/schema/carpools.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+ import { sql } from "drizzle-orm";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+@@ -19,7 +19,10 @@
+   notes: text("notes"),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("carpool_offers_event_id_idx").on(t.eventId),
++  index("carpool_offers_driver_user_id_idx").on(t.driverUserId),
++]);
+ 
+ export const insertCarpoolOfferSchema = createInsertSchema(carpoolOffersTable).omit({
+   id: true,
+@@ -46,7 +49,10 @@
+   matchedByDriver: boolean("matched_by_driver").notNull().default(false),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("carpool_claims_offer_id_idx").on(t.carpoolOfferId),
++  index("carpool_claims_rider_user_id_idx").on(t.riderUserId),
++]);
+ 
+ export const insertCarpoolClaimSchema = createInsertSchema(carpoolClaimsTable).omit({
+   id: true,
+@@ -72,6 +78,8 @@
+   uniqueIndex("carpool_requests_active_unique_idx")
+     .on(table.eventId, table.riderUserId)
+     .where(sql`${table.status} IN ('open', 'matched')`),
++  index("carpool_requests_requested_by_user_id_idx").on(table.requestedByUserId),
++  index("carpool_requests_matched_offer_id_idx").on(table.matchedOfferId),
+ ]);
+ 
+ export const insertCarpoolRequestSchema = createInsertSchema(carpoolRequestsTable).omit({
+
+--- a/lib/db/src/schema/notifications.ts
++++ b/lib/db/src/schema/notifications.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+ import { usersTable } from "./users";
+@@ -12,7 +12,9 @@
+   link: text("link"),
+   isRead: boolean("is_read").notNull().default(false),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+-});
++}, (t) => [
++  index("notifications_recipient_user_id_idx").on(t.recipientUserId),
++]);
+ 
+ export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({
+   id: true,
+
+--- a/lib/db/src/schema/board.ts
++++ b/lib/db/src/schema/board.ts
+@@ -1,4 +1,4 @@
+-import { pgTable, text, serial, timestamp, integer, boolean } from "drizzle-orm/pg-core";
++import { pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
+ import { createInsertSchema } from "drizzle-zod";
+ import { z } from "zod/v4";
+ import { usersTable } from "./users";
+@@ -17,7 +17,10 @@
+   lastReplyAt: timestamp("last_reply_at", { withTimezone: true }),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+-});
++}, (t) => [
++  index("board_threads_event_id_idx").on(t.eventId),
++  index("board_threads_pod_id_idx").on(t.podId),
++]);
+ 
+ export const insertBoardThreadSchema = createInsertSchema(boardThreadsTable).omit({
+   id: true,
+@@ -35,7 +38,9 @@
+   body: text("body").notNull(),
+   isDeleted: boolean("is_deleted").notNull().default(false),
+   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+-});
++}, (t) => [
++  index("board_posts_thread_id_idx").on(t.threadId),
++]);
+ 
+ export const insertBoardPostSchema = createInsertSchema(boardPostsTable).omit({
+   id: true,

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { eventsTable } from "./events";
@@ -11,7 +11,9 @@ export const eventAttachmentsTable = pgTable("event_attachments", {
   mimeType: text("mime_type"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("event_attachments_event_id_idx").on(t.eventId),
+]);
 
 export const insertEventAttachmentSchema = createInsertSchema(eventAttachmentsTable).omit({
   id: true,
