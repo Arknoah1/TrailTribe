@@ -12,7 +12,7 @@ import {
   eventAttachmentsTable,
   trailheadsTable,
 } from "@workspace/db";
-import { eq, gte, lte, and } from "drizzle-orm";
+import { eq, gte, lte, and, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
@@ -22,11 +22,14 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
   const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const allUsers = await db.select().from(usersTable);
-  const students = allUsers.filter((u) => u.role === "student");
   const coaches = allUsers.filter((u) => u.role === "coach" || u.role === "admin");
-  const households = await db.select().from(householdsTable);
+  // Only count active (non-archived) households and their members.
+  const households = await db.select().from(householdsTable).where(isNull(householdsTable.archivedAt));
+  const activeHouseholdIds = new Set(households.map((h) => h.id));
+  const students = allUsers.filter((u) => u.role === "student" && u.householdId != null && activeHouseholdIds.has(u.householdId));
   const pods = await db.select().from(podsTable).where(eq(podsTable.isActive, true));
-  const pendingApprovals = allUsers.filter((u) => !u.podId);
+  // Pending approvals: only users from active households (coaches/admins have no householdId so always include them).
+  const pendingApprovals = allUsers.filter((u) => !u.podId && (u.householdId == null || activeHouseholdIds.has(u.householdId)));
 
   const liabilityCount = households.filter((h) => h.liabilityWaiverSigned).length;
   const mediaCount = households.filter((h) => h.mediaReleaseSigned).length;
