@@ -176,4 +176,80 @@ router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// GET /dashboard/carpool-events — upcoming events within 60 days for the carpool hub.
+// Uses a wider window than /upcoming-events (14 days) so carpools planned in advance appear.
+router.get("/dashboard/carpool-events", requireAuth, async (req, res) => {
+  const now = new Date();
+  const sixtyDaysOut = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const clerkUserId = (req as any).clerkUserId;
+
+  const events = await db.select().from(eventsTable)
+    .where(and(gte(eventsTable.startTime, now), lte(eventsTable.startTime, sixtyDaysOut), eq(eventsTable.isArchived, false)))
+    .orderBy(eventsTable.startTime);
+
+  let me: typeof usersTable.$inferSelect | undefined;
+  let householdMembers: typeof usersTable.$inferSelect[] = [];
+  if (clerkUserId) {
+    me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+    if (me?.role === "parent" && me.householdId) {
+      householdMembers = await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId));
+    }
+  }
+
+  const result = await Promise.all(
+    events.map(async (event) => {
+      const trailhead = event.trailheadId
+        ? await db.query.trailheadsTable.findFirst({ where: eq(trailheadsTable.id, event.trailheadId) })
+        : null;
+      const rsvps = await db.select().from(eventRsvpsTable).where(eq(eventRsvpsTable.eventId, event.id));
+      const rsvpCounts = {
+        attending: rsvps.filter((r) => r.status === "attending").length,
+        notAttending: rsvps.filter((r) => r.status === "not_attending").length,
+        maybe: rsvps.filter((r) => r.status === "maybe").length,
+      };
+
+      let myRsvp: string | null = null;
+      let householdRsvps: Array<{ userId: number; firstName: string; isMe: boolean; status: string | null }> | null = null;
+
+      if (me) {
+        const myRsvpRow = rsvps.find((r) => r.userId === me!.id);
+        myRsvp = myRsvpRow?.status ?? null;
+
+        if (me.role === "parent" && householdMembers.length > 0) {
+          householdRsvps = householdMembers.map((member) => {
+            const rsvpRow = rsvps.find((r) => r.userId === member.id);
+            return {
+              userId: member.id,
+              firstName: member.firstName,
+              isMe: member.id === me!.id,
+              status: rsvpRow?.status ?? null,
+            };
+          });
+        }
+      }
+
+      const volunteerSignups = await db.select().from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.eventId, event.id));
+      const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
+      const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
+      let carpoolSpotsAvailable = 0;
+      for (const offer of offers) {
+        const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
+        carpoolSpotsAvailable += Math.max(0, offer.availableSeats - claims.filter((c) => c.needsSeat).length);
+      }
+      return {
+        ...event,
+        trailhead: trailhead ?? null,
+        rsvpCounts,
+        myRsvp,
+        householdRsvps,
+        volunteerCount: volunteerSignups.length,
+        carpoolSpotsAvailable,
+        attachments,
+      };
+    })
+  );
+
+  res.json(result);
+});
+
 export default router;

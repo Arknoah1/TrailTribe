@@ -1,4 +1,4 @@
-import { useGetUpcomingEvents } from "@workspace/api-client-react";
+import { useGetCarpoolEvents } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 type EventTypeFilter = "all" | "practice" | "race";
 
 export default function CarpoolHub() {
-  const { data: events, isLoading } = useGetUpcomingEvents();
+  const { data: events, isLoading } = useGetCarpoolEvents();
   const [filter, setFilter] = useState<EventTypeFilter>("all");
 
   const carpoolEvents = events?.filter(e =>

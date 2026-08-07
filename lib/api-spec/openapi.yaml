@@ -81,6 +81,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/EventWithDetails"
 
+  /dashboard/carpool-events:
+    get:
+      operationId: getCarpoolEvents
+      tags: [dashboard]
+      summary: Get upcoming events within 60 days for the carpool hub
+      responses:
+        "200":
+          description: List of upcoming events (wider 60-day window for carpool planning)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EventWithDetails"
+
   # ─── USERS ───────────────────────────────────────────────────────────────────
 
   /users/me:

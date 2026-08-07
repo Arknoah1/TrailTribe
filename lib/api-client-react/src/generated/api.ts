@@ -336,6 +336,81 @@ export function useGetUpcomingEvents<
 }
 
 /**
+ * @summary Get upcoming events within 60 days for the carpool hub
+ */
+export const getGetCarpoolEventsUrl = () => {
+  return `/api/dashboard/carpool-events`;
+};
+
+export const getCarpoolEvents = async (
+  options?: RequestInit,
+): Promise<EventWithDetails[]> => {
+  return customFetch<EventWithDetails[]>(getGetCarpoolEventsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCarpoolEventsQueryKey = () => {
+  return [`/api/dashboard/carpool-events`] as const;
+};
+
+export const getGetCarpoolEventsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCarpoolEvents>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCarpoolEvents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCarpoolEventsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCarpoolEvents>>
+  > = ({ signal }) => getCarpoolEvents({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCarpoolEvents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCarpoolEventsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCarpoolEvents>>
+>;
+export type GetCarpoolEventsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get upcoming events within 60 days for the carpool hub
+ */
+
+export function useGetCarpoolEvents<
+  TData = Awaited<ReturnType<typeof getCarpoolEvents>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCarpoolEvents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCarpoolEventsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Get current authenticated user profile
  */
 export const getGetMeUrl = () => {

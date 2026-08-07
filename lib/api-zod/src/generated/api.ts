@@ -181,6 +181,76 @@ export const GetUpcomingEventsResponse = zod.array(
 );
 
 /**
+ * @summary Get upcoming events within 60 days for the carpool hub
+ */
+export const GetCarpoolEventsResponseItem = zod
+  .object({
+    id: zod.number(),
+    title: zod.string(),
+    description: zod.string().nullish(),
+    eventType: zod.enum(["practice", "race", "social", "volunteer", "other"]),
+    startTime: zod.coerce.date(),
+    endTime: zod.coerce.date().nullish(),
+    trailheadId: zod.number().nullish(),
+    locationOverride: zod.string().nullish(),
+    googleMapsUrlOverride: zod.string().nullish(),
+    podIds: zod.array(zod.string()).nullish(),
+    isAllTeam: zod.boolean(),
+    rsvpDeadline: zod.coerce.date().nullish(),
+    volunteerSlotsNeeded: zod.number(),
+    iCalUid: zod.string(),
+    isArchived: zod.boolean(),
+    seriesId: zod.string().nullish(),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      trailhead: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          address: zod.string().nullish(),
+          googleMapsUrl: zod.string().nullish(),
+          latitude: zod.number().nullish(),
+          longitude: zod.number().nullish(),
+          notes: zod.string().nullish(),
+          photoObjectPath: zod.string().nullish(),
+          createdAt: zod.coerce.date(),
+        })
+        .nullish(),
+      myRsvp: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+      householdRsvps: zod
+        .array(
+          zod.object({
+            userId: zod.number(),
+            firstName: zod.string(),
+            isMe: zod.boolean(),
+            status: zod.enum(["attending", "not_attending", "maybe"]).nullish(),
+          }),
+        )
+        .nullish(),
+      rsvpCounts: zod.object({
+        attending: zod.number(),
+        notAttending: zod.number(),
+        maybe: zod.number(),
+      }),
+      volunteerCount: zod.number(),
+      carpoolSpotsAvailable: zod.number(),
+      attachments: zod.array(
+        zod.object({
+          id: zod.number(),
+          eventId: zod.number(),
+          label: zod.string(),
+          objectPath: zod.string(),
+          mimeType: zod.string().nullish(),
+          createdAt: zod.coerce.date(),
+        }),
+      ),
+    }),
+  );
+export const GetCarpoolEventsResponse = zod.array(GetCarpoolEventsResponseItem);
+
+/**
  * @summary Get current authenticated user profile
  */
 export const GetMeResponse = zod.object({
