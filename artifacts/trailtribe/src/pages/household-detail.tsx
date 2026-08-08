@@ -1,19 +1,38 @@
 import { useGetHousehold } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ChevronLeft, Check, X, Phone, User, Home as HomeIcon } from "lucide-react";
+import { ChevronLeft, Check, X, Phone, User, Home as HomeIcon, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
 
 export default function HouseholdDetail() {
   const params = useParams();
   const householdId = parseInt(params.householdId || "0");
 
-  const { data: household, isLoading } = useGetHousehold(householdId, {
+  const { data: household, isLoading, isError, refetch } = useGetHousehold(householdId, {
     query: { queryKey: ['getHousehold', householdId], enabled: !!householdId }
   });
 
   if (isLoading) return <div className="p-8 text-center">Loading family details...</div>;
+
+  if (isError) {
+    return (
+      <div className="max-w-4xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load family details</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!household) return <div className="p-8 text-center text-destructive">Household not found</div>;
 
   const isCompliant = household.liabilityWaiverSigned && household.mediaReleaseSigned && household.codeOfConductSigned;

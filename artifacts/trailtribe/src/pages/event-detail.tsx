@@ -99,7 +99,7 @@ export default function EventDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: event, isLoading } = useGetEvent(eventId, {
+  const { data: event, isLoading, isError, refetch } = useGetEvent(eventId, {
     query: { enabled: !!eventId, queryKey: getGetEventQueryKey(eventId) }
   });
   const { data: me } = useGetMe();
@@ -444,6 +444,24 @@ export default function EventDetail() {
   };
 
   if (isLoading) return <div className="p-8 text-center">Loading event...</div>;
+
+  if (isError) {
+    return (
+      <div className="max-w-4xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load this event</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!event) return <div className="p-8 text-center text-destructive">Event not found</div>;
 
   const mapUrl = event.googleMapsUrlOverride || event.trailhead?.googleMapsUrl;

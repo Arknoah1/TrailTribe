@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown, Users } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown, Users, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
 import { randomUUID, toLocalDateISO } from "@/lib/uuid";
@@ -89,8 +89,8 @@ function generateRows(
 
 export default function SeasonBuilder() {
   const { data: me } = useGetMe();
-  const { data: trailheads } = useListTrailheads();
-  const { data: existingEvents } = useListEvents({ archived: true });
+  const { data: trailheads, isError: isErrorTrailheads, refetch: refetchTrailheads } = useListTrailheads();
+  const { data: existingEvents, isError: isErrorEvents, refetch: refetchEvents } = useListEvents({ archived: true });
   const { toast } = useToast();
   const authedFetch = useAuthedFetch();
   const [, setLocation] = useLocation();
@@ -256,6 +256,24 @@ export default function SeasonBuilder() {
       setPublishing(false);
     }
   };
+
+  if (isErrorTrailheads || isErrorEvents) {
+    const refetch = () => { void refetchTrailheads(); void refetchEvents(); };
+    return (
+      <div className="max-w-5xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load season builder data</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={refetch} className="shrink-0">Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-6">

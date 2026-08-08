@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useAdminView } from "@/hooks/use-admin-view";
 import {
   AlertDialog,
@@ -1263,7 +1263,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
 
 
 export default function Profile() {
-  const { data: user, isLoading } = useGetMe();
+  const { data: user, isLoading, isError, refetch } = useGetMe();
   const updateMutation = useUpdateMe();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1361,6 +1361,23 @@ export default function Profile() {
   const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
 
   if (isLoading) return <div className="p-8 text-center">Loading profile...</div>;
+
+  if (isError) {
+    return (
+      <div className="max-w-3xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load your profile</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-3xl mx-auto space-y-6">

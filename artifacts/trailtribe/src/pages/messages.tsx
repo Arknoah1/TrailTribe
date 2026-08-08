@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Archive,
   ArchiveRestore,
   ChevronDown,
@@ -218,7 +219,7 @@ function BroadcastCard({
 }
 
 function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string, string>; isCoachOrAdmin: boolean }) {
-  const { data: broadcasts, isLoading } = useListBroadcasts();
+  const { data: broadcasts, isLoading, isError, refetch } = useListBroadcasts();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -256,6 +257,21 @@ function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string
   const handleUnarchive = (id: number) => unarchiveMutation.mutate({ id });
 
   if (isLoading) return <div className="p-8 text-center"><Skeleton className="h-32 w-full mb-4" /><Skeleton className="h-32 w-full" /></div>;
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-sm text-foreground">Couldn't load broadcasts</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -322,7 +338,7 @@ function ThreadsList({
   podId?: string;
   podNameMap: Map<string, string>;
 }) {
-  const { data: threads, isLoading } = useListBoardThreads({ scope, podId });
+  const { data: threads, isLoading, isError, refetch } = useListBoardThreads({ scope, podId });
 
   // Event threads sorted by event.startTime desc, then by activity
   const sortedThreads = [...(threads ?? [])].sort((a, b) => {
@@ -336,6 +352,21 @@ function ThreadsList({
   });
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>;
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-sm text-foreground">Couldn't load threads</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
+      </div>
+    );
+  }
 
   if (!sortedThreads.length) {
     return <EmptyTrailState message="No threads here yet. Be the first to start a conversation!" />;
