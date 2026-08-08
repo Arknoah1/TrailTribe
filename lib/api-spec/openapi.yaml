@@ -3349,6 +3349,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EventWithDetails"
+        emailConfigured:
+          type: boolean
+          description: Whether the SMTP connection is healthy. False if credentials are missing or the last verify() call failed.
       required:
         - totalStudents
         - totalFamilies
@@ -3358,6 +3361,7 @@ components:
         - complianceStats
         - upcomingEventCount
         - thisWeekEvents
+        - emailConfigured
 
     ComplianceStats:
       type: object

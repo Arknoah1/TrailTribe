@@ -773,6 +773,8 @@ export interface DashboardSummary {
   complianceStats: ComplianceStats;
   upcomingEventCount: number;
   thisWeekEvents: EventWithDetails[];
+  /** Whether the SMTP connection is healthy. False if credentials are missing or the last verify() call failed. */
+  emailConfigured: boolean;
 }
 
 export interface RequestUploadUrlBody {

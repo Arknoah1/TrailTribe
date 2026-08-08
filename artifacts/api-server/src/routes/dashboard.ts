@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { eq, gte, lte, and, isNull } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import { emailHealthy } from "../lib/email";
 
 const router = Router();
 
@@ -101,6 +102,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
     },
     upcomingEventCount: upcomingAll.length,
     thisWeekEvents: eventsWithDetails,
+    emailConfigured: emailHealthy,
   });
 });
 

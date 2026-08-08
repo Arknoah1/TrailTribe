@@ -1,7 +1,7 @@
-import { useGetMe, useGetUpcomingEvents } from "@workspace/api-client-react";
+import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight, AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,14 @@ import { Button } from "@/components/ui/button";
 export default function Dashboard() {
   const { data: me } = useGetMe();
   const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
+  const { data: summary } = useGetDashboardSummary();
 
   // approved is returned by the API even though it's not in the generated schema yet
   const approved = (me as any)?.approved as boolean | undefined;
   const isPending = me?.householdId && approved === false;
+
+  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const emailWarning = isCoachOrAdmin && summary != null && !summary.emailConfigured;
 
   if (isLoadingEvents) {
     return <div className="p-8 space-y-4 animate-pulse">
@@ -40,6 +44,22 @@ export default function Dashboard() {
           <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Dashboard</h1>
           <p className="text-muted-foreground mt-1 text-sm">What's happening this week.</p>
         </div>
+
+        {/* Email health warning banner — coaches/admins only */}
+        {emailWarning && (
+          <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-foreground">Email delivery is not working</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The app could not connect to the email server. Families will not receive notifications until this is resolved.
+                Check that the SMTP credentials (SMTP_USER / SMTP_PASS) are correctly set in the server environment.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Pending approval banner */}
         {isPending && (

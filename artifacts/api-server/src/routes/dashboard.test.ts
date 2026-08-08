@@ -94,6 +94,15 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
+// Mutable email health state — updated per describe block.
+const emailState = vi.hoisted(() => ({ healthy: false }));
+
+vi.mock("../lib/email", () => ({
+  get emailHealthy() { return emailState.healthy; },
+  FROM_ADDRESS: "TrailTribe <noreply@trailtribe.app>",
+  sendEmail: vi.fn(),
+}));
+
 /* ─── server setup ───────────────────────────────────────────────────── */
 
 let server: Server;
@@ -134,5 +143,28 @@ describe("GET /dashboard/summary — archived family exclusion", () => {
   it("uses only active families in the compliance denominator", () => {
     expect(body.complianceStats.totalHouseholds).toBe(1);
     expect(body.complianceStats.fullyCompliantCount).toBe(1);
+  });
+
+  it("includes emailConfigured: false when SMTP credentials are not configured", () => {
+    // emailHealthy is mocked to false (simulating missing SMTP_USER / SMTP_PASS or failed verify)
+    expect(body.emailConfigured).toBe(false);
+  });
+});
+
+describe("GET /dashboard/summary — emailConfigured reflects live health state", () => {
+  it("returns emailConfigured: false when SMTP verify failed", async () => {
+    emailState.healthy = false;
+    const res = await fetch(`${baseUrl}/dashboard/summary`);
+    const data = await res.json();
+    expect(data.emailConfigured).toBe(false);
+  });
+
+  it("returns emailConfigured: true when SMTP connection is verified", async () => {
+    emailState.healthy = true;
+    const res = await fetch(`${baseUrl}/dashboard/summary`);
+    const data = await res.json();
+    expect(data.emailConfigured).toBe(true);
+    // Reset so subsequent tests start from the unhealthy state.
+    emailState.healthy = false;
   });
 });

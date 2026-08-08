@@ -106,6 +106,11 @@ export const GetDashboardSummaryResponse = zod.object({
         }),
       ),
   ),
+  emailConfigured: zod
+    .boolean()
+    .describe(
+      "Whether the SMTP connection is healthy. False if credentials are missing or the last verify() call failed.",
+    ),
 });
 
 /**

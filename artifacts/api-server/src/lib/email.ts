@@ -18,6 +18,26 @@ const transporter =
       })
     : null;
 
+/**
+ * Reflects the last known SMTP health state.
+ * - Starts `false` and is only set to `true` after `transporter.verify()` succeeds.
+ * - Returns to `false` if verify fails or a send call encounters an authentication /
+ *   connection error, so runtime credential revocation is surfaced without a restart.
+ */
+export let emailHealthy: boolean = false;
+
+if (transporter) {
+  transporter.verify()
+    .then(() => {
+      logger.info("[email] SMTP connection verified successfully");
+      emailHealthy = true;
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, "[email] SMTP verify failed — emails will not be delivered");
+      emailHealthy = false;
+    });
+}
+
 export const FROM_ADDRESS =
   process.env.EMAIL_FROM ?? "TrailTribe <noreply@trailtribe.app>";
 
@@ -60,7 +80,21 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
     logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
     return { status: "sent" };
   } catch (err) {
-    logger.error({ err, subject: opts.subject }, "[email] unexpected error");
+    // If the error indicates an authentication or connection failure, mark email
+    // as unhealthy so the dashboard warning appears immediately.
+    const code = (err as any)?.code as string | undefined;
+    const responseCode = (err as any)?.responseCode as number | undefined;
+    const isAuthOrConnError =
+      code === "EAUTH" ||
+      code === "ECONNECTION" ||
+      code === "ETIMEDOUT" ||
+      (responseCode !== undefined && responseCode >= 500 && responseCode < 600);
+    if (isAuthOrConnError) {
+      emailHealthy = false;
+      logger.error({ err, subject: opts.subject }, "[email] SMTP auth/connection error — marking email unhealthy");
+    } else {
+      logger.error({ err, subject: opts.subject }, "[email] unexpected error");
+    }
     return { status: "failed", error: err };
   }
 }
