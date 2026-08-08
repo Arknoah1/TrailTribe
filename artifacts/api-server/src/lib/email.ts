@@ -1,16 +1,25 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { logger } from "./logger";
 
-const apiKey = process.env.RESEND_API_KEY;
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
 
-if (!apiKey) {
-  logger.warn("[email] RESEND_API_KEY is not set — all email sending is disabled");
+if (!smtpUser || !smtpPass) {
+  logger.warn("[email] SMTP_USER or SMTP_PASS is not set — all email sending is disabled");
 }
 
-const resend = apiKey ? new Resend(apiKey) : null;
+const transporter =
+  smtpUser && smtpPass
+    ? nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true, // SSL
+        auth: { user: smtpUser, pass: smtpPass },
+      })
+    : null;
 
 export const FROM_ADDRESS =
-  process.env.EMAIL_FROM ?? "TrailTribe <onboarding@resend.dev>";
+  process.env.EMAIL_FROM ?? "TrailTribe <noreply@trailtribe.app>";
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -25,31 +34,31 @@ export type EmailResult =
   | { status: "failed"; error: unknown };
 
 export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
-  if (!resend) {
-    logger.warn({ to: opts.to, subject: opts.subject }, "[email] skipping send — no API key");
+  if (!transporter) {
+    logger.warn({ to: opts.to, subject: opts.subject }, "[email] skipping send — no SMTP credentials");
     return { status: "skipped", reason: "no_api_key" };
   }
   try {
     const toArray = Array.isArray(opts.to) ? opts.to : [opts.to];
-    const filtered = toArray.filter((e) => e && !e.endsWith("@trailtribe.internal") && !e.endsWith("@pending.trailtribe.app"));
+    const filtered = toArray.filter(
+      (e) =>
+        e &&
+        !e.endsWith("@trailtribe.internal") &&
+        !e.endsWith("@pending.trailtribe.app"),
+    );
     if (filtered.length === 0) {
       logger.info({ subject: opts.subject }, "[email] no valid recipients — skipping");
       return { status: "skipped", reason: "no_valid_recipients" };
     }
-    const { error } = await resend.emails.send({
+    await transporter.sendMail({
       from: FROM_ADDRESS,
       to: filtered,
       subject: opts.subject,
       text: opts.text,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
     });
-    if (error) {
-      logger.error({ error, subject: opts.subject }, "[email] Resend error");
-      return { status: "failed", error };
-    } else {
-      logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
-      return { status: "sent" };
-    }
+    logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
+    return { status: "sent" };
   } catch (err) {
     logger.error({ err, subject: opts.subject }, "[email] unexpected error");
     return { status: "failed", error: err };

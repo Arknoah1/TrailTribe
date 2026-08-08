@@ -49,3 +49,9 @@ externalPort = 4200
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>"
+SMTP_USER = "coaches@methowcyclingteam.com"
