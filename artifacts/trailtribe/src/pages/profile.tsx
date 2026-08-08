@@ -189,10 +189,10 @@ function NotificationsTab({ user }: { user: User }) {
           <ToggleRow
             toggleKey="smsNotifications"
             label="SMS text messages"
-            description={hasPhone ? "Get urgent updates as a text." : "Add a phone number in My Account to enable SMS."}
-            value={localUser.smsNotifications ?? false}
-            disabled={!masterOn || !hasPhone}
-            onChange={(v) => save({ smsNotifications: v }, "smsNotifications")}
+            description="SMS notifications are not yet available."
+            value={false}
+            disabled={true}
+            onChange={() => {}}
           />
           <ToggleRow
             toggleKey="pushNotifications"
