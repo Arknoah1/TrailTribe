@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
   const { data: me } = useGetMe();
-  const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
+  const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
   const { data: summary } = useGetDashboardSummary();
 
   // approved is returned by the API even though it's not in the generated schema yet
@@ -26,6 +26,25 @@ export default function Dashboard() {
         <div className="h-40 bg-muted rounded"></div>
       </div>
     </div>;
+  }
+
+  if (isEventsError) {
+    return (
+      <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load your dashboard</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetchEvents()} className="shrink-0">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const eventTypeStripe = (type: string) => {

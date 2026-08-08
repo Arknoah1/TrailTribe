@@ -192,7 +192,7 @@ export default function Calendar() {
     };
   }, [currentMonth]);
 
-  const { data: events, isLoading } = useListEvents(
+  const { data: events, isLoading, isError, refetch } = useListEvents(
     view === "month" ? monthParams : undefined
   );
 
@@ -221,6 +221,22 @@ export default function Calendar() {
 
   if (isLoading) {
     return <div className="p-8 text-center">Loading calendar...</div>;
+  }
+
+  if (isError) {
+    return (
+      <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
+        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load the calendar</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   const eventTypeColor = (type: string) => {

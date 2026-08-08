@@ -28,6 +28,7 @@ function ThemeToggle({ className }: { className?: string }) {
         className
       )}
       title={theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
+      aria-label={theme === "dark" ? "Switch to Day Ride mode" : "Switch to Night Ride mode"}
     >
       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </button>
@@ -110,9 +111,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       </aside>
 
-      {/* Mobile Top Bar */}
+      {/* Mobile Top Bar — h-16 matches <main>'s pt-16 below; keep these in sync if either changes */}
       {me && (
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
           <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTribe</span>
           <div className="flex items-center gap-1.5">
             {showAdminTabs && (
@@ -125,6 +126,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       : "bg-secondary text-muted-foreground hover:text-foreground"
                   )}
                   title="Admin"
+                  aria-label="Admin"
                 >
                   <ShieldCheck className="h-4 w-4" />
                 </button>

@@ -1,0 +1,148 @@
+Apply the following diffs to the TrailTribe frontend. These are accessibility and error-handling fixes verified against the current codebase — each file was syntax-checked with esbuild before this diff was generated, so it should apply cleanly with no conflicts.
+
+Context/notes for the agent:
+- No schema or backend changes — this is pure frontend (artifacts/trailtribe).
+- Full `tsc` typecheck could not be run end-to-end due to a pre-existing, unrelated bug in lib/api-zod (ambiguous re-exports from generated API types) — please typecheck after applying and let me know if that surfaces, but don't attribute it to this diff.
+- The three isError/refetch blocks added to dashboard.tsx, carpool-hub.tsx, and calendar.tsx are a reusable pattern — 10 other pages (roster, profile, messages, event-detail, admin, etc.) still only handle isLoading, not isError. Same pattern can be copy-pasted into those once this is confirmed working.
+- Not included here: the calendar mobile-view restructure (month-calendar.tsx renders the same 7-column grid regardless of viewport, causing cramped/truncated labels on mobile) — that needs design input before implementing, intentionally left out of this pass.
+
+--- a/artifacts/trailtribe/src/components/layout.tsx
++++ b/artifacts/trailtribe/src/components/layout.tsx
+@@ -28,6 +28,7 @@
+         className
+       )}
+       title={theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
++      aria-label={theme === "dark" ? "Switch to Day Ride mode" : "Switch to Night Ride mode"}
+     >
+       {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+     </button>
+@@ -110,9 +111,9 @@
+ 
+       </aside>
+ 
+-      {/* Mobile Top Bar */}
++      {/* Mobile Top Bar — h-16 matches <main>'s pt-16 below; keep these in sync if either changes */}
+       {me && (
+-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-2 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
++        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
+           <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTribe</span>
+           <div className="flex items-center gap-1.5">
+             {showAdminTabs && (
+@@ -125,6 +126,7 @@
+                       : "bg-secondary text-muted-foreground hover:text-foreground"
+                   )}
+                   title="Admin"
++                  aria-label="Admin"
+                 >
+                   <ShieldCheck className="h-4 w-4" />
+                 </button>
+
+--- a/artifacts/trailtribe/src/pages/dashboard.tsx
++++ b/artifacts/trailtribe/src/pages/dashboard.tsx
+@@ -8,7 +8,7 @@
+ 
+ export default function Dashboard() {
+   const { data: me } = useGetMe();
+-  const { data: events, isLoading: isLoadingEvents } = useGetUpcomingEvents();
++  const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
+   const { data: summary } = useGetDashboardSummary();
+ 
+   // approved is returned by the API even though it's not in the generated schema yet
+@@ -28,6 +28,25 @@
+     </div>;
+   }
+ 
++  if (isEventsError) {
++    return (
++      <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
++        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
++          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
++            <AlertTriangle className="h-5 w-5 text-destructive" />
++          </div>
++          <div className="flex-1">
++            <p className="font-semibold text-sm text-foreground">Couldn't load your dashboard</p>
++            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
++          </div>
++          <Button variant="outline" size="sm" onClick={() => refetchEvents()} className="shrink-0">
++            Retry
++          </Button>
++        </div>
++      </div>
++    );
++  }
++
+   const eventTypeStripe = (type: string) => {
+     switch (type) {
+       case "race": return "bg-accent";
+
+--- a/artifacts/trailtribe/src/pages/carpool-hub.tsx
++++ b/artifacts/trailtribe/src/pages/carpool-hub.tsx
+@@ -12,7 +12,7 @@
+ type EventTypeFilter = "all" | "practice" | "race";
+ 
+ export default function CarpoolHub() {
+-  const { data: events, isLoading } = useGetCarpoolEvents();
++  const { data: events, isLoading, isError, refetch } = useGetCarpoolEvents();
+   const [filter, setFilter] = useState<EventTypeFilter>("all");
+ 
+   const carpoolEvents = events?.filter(e =>
+@@ -33,6 +33,22 @@
+       </div>
+     );
+   }
++
++  if (isError) {
++    return (
++      <div className="max-w-4xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
++        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
++          <div className="flex-1">
++            <p className="font-semibold text-sm text-foreground">Couldn't load carpools</p>
++            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
++          </div>
++          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">
++            Retry
++          </Button>
++        </div>
++      </div>
++    );
++  }
+ 
+   return (
+     <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8">
+
+--- a/artifacts/trailtribe/src/pages/calendar.tsx
++++ b/artifacts/trailtribe/src/pages/calendar.tsx
+@@ -192,7 +192,7 @@
+     };
+   }, [currentMonth]);
+ 
+-  const { data: events, isLoading } = useListEvents(
++  const { data: events, isLoading, isError, refetch } = useListEvents(
+     view === "month" ? monthParams : undefined
+   );
+ 
+@@ -223,6 +223,22 @@
+     return <div className="p-8 text-center">Loading calendar...</div>;
+   }
+ 
++  if (isError) {
++    return (
++      <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
++        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
++          <div className="flex-1">
++            <p className="font-semibold text-sm text-foreground">Couldn't load the calendar</p>
++            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
++          </div>
++          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">
++            Retry
++          </Button>
++        </div>
++      </div>
++    );
++  }
++
+   const eventTypeColor = (type: string) => {
+     switch (type) {
+       case "race": return "bg-accent";
+
+After applying: run typecheck/build to confirm, then spot-check that the ThemeToggle and mobile Admin button still render correctly (this only added an aria-label attribute, no visual change) and that the three error states render sensibly by temporarily forcing a query to fail (e.g. throttle/block the API call in devtools) if you want to visually confirm the retry button works.
