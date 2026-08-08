@@ -1,0 +1,64 @@
+--- a/artifacts/api-server/src/routes/events.ts
++++ b/artifacts/api-server/src/routes/events.ts
+@@ -83,10 +83,19 @@
+ 
+   const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
+   let carpoolSpotsAvailable = 0;
+-  for (const offer of offers) {
+-    const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
+-    const seatsClaimed = claims.filter((c) => c.needsSeat).length;
+-    carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
++  if (offers.length > 0) {
++    const offerIds = offers.map((o) => o.id);
++    const allClaims = await db.select().from(carpoolClaimsTable).where(inArray(carpoolClaimsTable.carpoolOfferId, offerIds));
++    const seatsClaimedByOffer: Record<number, number> = {};
++    for (const claim of allClaims) {
++      if (claim.needsSeat) {
++        seatsClaimedByOffer[claim.carpoolOfferId] = (seatsClaimedByOffer[claim.carpoolOfferId] ?? 0) + 1;
++      }
++    }
++    for (const offer of offers) {
++      const seatsClaimed = seatsClaimedByOffer[offer.id] ?? 0;
++      carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
++    }
+   }
+ 
+   // Count unique volunteers signed up for tasks (new system)
+@@ -335,21 +344,23 @@
+   const now = new Date();
+ 
+   let lastRsvp: any = null;
+-  for (const userId of targetIds) {
+-    const existing = await db.query.eventRsvpsTable.findFirst({
+-      where: and(eq(eventRsvpsTable.eventId, eventId), eq(eventRsvpsTable.userId, userId)),
+-    });
+-    if (existing) {
+-      const [updated] = await db.update(eventRsvpsTable)
+-        .set({ status, respondedAt: now })
+-        .where(eq(eventRsvpsTable.id, existing.id))
+-        .returning();
+-      lastRsvp = updated;
+-    } else {
+-      const [created] = await db.insert(eventRsvpsTable).values({ eventId, userId, status, respondedAt: now }).returning();
+-      lastRsvp = created;
++  await db.transaction(async (tx) => {
++    for (const userId of targetIds) {
++      const existing = await tx.query.eventRsvpsTable.findFirst({
++        where: and(eq(eventRsvpsTable.eventId, eventId), eq(eventRsvpsTable.userId, userId)),
++      });
++      if (existing) {
++        const [updated] = await tx.update(eventRsvpsTable)
++          .set({ status, respondedAt: now })
++          .where(eq(eventRsvpsTable.id, existing.id))
++          .returning();
++        lastRsvp = updated;
++      } else {
++        const [created] = await tx.insert(eventRsvpsTable).values({ eventId, userId, status, respondedAt: now }).returning();
++        lastRsvp = created;
++      }
+     }
+-  }
++  });
+ 
+   if (status === "attending" && me.emailNotifications) {
+     (async () => {
