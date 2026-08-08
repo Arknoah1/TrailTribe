@@ -368,6 +368,17 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteInvite = async (id: number) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/family-invites/${id}/purge`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast({ title: "Invite removed" });
+      fetchPendingInvites();
+    } catch {
+      toast({ title: "Failed to remove invite", variant: "destructive" });
+    }
+  };
+
   // Pod management state
   const [newPodName, setNewPodName] = useState("");
   const [creatingPod, setCreatingPod] = useState(false);
@@ -1387,6 +1398,15 @@ export default function Admin() {
                                 <Mail className="h-3 w-3" /> Re-invite
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                              onClick={() => handleDeleteInvite(inv.id)}
+                              title="Remove from history"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
                           </div>
                         );
                       })}

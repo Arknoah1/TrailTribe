@@ -199,6 +199,26 @@ router.delete("/family-invites/:id", requireCoachOrAdmin, async (req, res) => {
   res.json(updated);
 });
 
+// DELETE /family-invites/:id/purge — hard-delete a resolved (cancelled/expired/accepted) invite record
+router.delete("/family-invites/:id/purge", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const invite = await db.query.familyInvitesTable.findFirst({
+    where: eq(familyInvitesTable.id, id),
+  });
+  if (!invite) {
+    res.status(404).json({ error: "Invite not found" });
+    return;
+  }
+  const now = new Date();
+  const isResolved = !!invite.acceptedAt || !!invite.revokedAt || invite.expiresAt <= now;
+  if (!isResolved) {
+    res.status(400).json({ error: "Cannot delete a pending invite — cancel it first" });
+    return;
+  }
+  await db.delete(familyInvitesTable).where(eq(familyInvitesTable.id, id));
+  res.status(204).send();
+});
+
 // GET /family-invites/validate/:token — public; check token validity
 router.get("/family-invites/validate/:token", async (req, res) => {
   const token = str(req.params.token);
