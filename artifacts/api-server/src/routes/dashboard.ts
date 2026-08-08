@@ -12,7 +12,7 @@ import {
   eventAttachmentsTable,
   trailheadsTable,
 } from "@workspace/db";
-import { eq, gte, lte, and, isNull } from "drizzle-orm";
+import { eq, gte, lte, and, isNull, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { emailHealthy } from "../lib/email";
 
@@ -161,9 +161,13 @@ router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
       let carpoolSpotsAvailable = 0;
-      for (const offer of offers) {
-        const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
-        carpoolSpotsAvailable += Math.max(0, offer.availableSeats - claims.filter((c) => c.needsSeat).length);
+      if (offers.length > 0) {
+        const offerIds = offers.map((o) => o.id);
+        const allClaims = await db.select().from(carpoolClaimsTable).where(inArray(carpoolClaimsTable.carpoolOfferId, offerIds));
+        for (const offer of offers) {
+          const seatsClaimed = allClaims.filter((c) => c.carpoolOfferId === offer.id && c.needsSeat).length;
+          carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
+        }
       }
       return {
         ...event,
@@ -237,9 +241,13 @@ router.get("/dashboard/carpool-events", requireAuth, async (req, res) => {
       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
       let carpoolSpotsAvailable = 0;
-      for (const offer of offers) {
-        const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
-        carpoolSpotsAvailable += Math.max(0, offer.availableSeats - claims.filter((c) => c.needsSeat).length);
+      if (offers.length > 0) {
+        const offerIds = offers.map((o) => o.id);
+        const allClaims = await db.select().from(carpoolClaimsTable).where(inArray(carpoolClaimsTable.carpoolOfferId, offerIds));
+        for (const offer of offers) {
+          const seatsClaimed = allClaims.filter((c) => c.carpoolOfferId === offer.id && c.needsSeat).length;
+          carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
+        }
       }
       return {
         ...event,
