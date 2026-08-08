@@ -1,23 +1,23 @@
-import Dashboard from "./pages/dashboard";
-import Calendar from "./pages/calendar";
-import EventDetail from "./pages/event-detail";
-import CarpoolBoard from "./pages/carpools";
-import CarpoolHub from "./pages/carpool-hub";
-import Messages from "./pages/messages";
-import BoardThread from "./pages/board-thread";
-import NewBroadcast from "./pages/new-broadcast";
-import ContactCoach from "./pages/contact-coach";
-import Roster from "./pages/roster";
-import HouseholdDetail from "./pages/household-detail";
-import Profile from "./pages/profile";
-import Admin from "./pages/admin";
-import SeasonBuilder from "./pages/season-builder";
-import Join from "./pages/join";
-import FamilyInvite from "./pages/family-invite";
-import Onboarding from "./pages/onboarding";
-import Reenroll from "./pages/reenroll";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, lazy, Suspense } from "react";
 
-import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
+const Dashboard = lazy(() => import("./pages/dashboard"));
+const Calendar = lazy(() => import("./pages/calendar"));
+const EventDetail = lazy(() => import("./pages/event-detail"));
+const CarpoolBoard = lazy(() => import("./pages/carpools"));
+const CarpoolHub = lazy(() => import("./pages/carpool-hub"));
+const Messages = lazy(() => import("./pages/messages"));
+const BoardThread = lazy(() => import("./pages/board-thread"));
+const NewBroadcast = lazy(() => import("./pages/new-broadcast"));
+const ContactCoach = lazy(() => import("./pages/contact-coach"));
+const Roster = lazy(() => import("./pages/roster"));
+const HouseholdDetail = lazy(() => import("./pages/household-detail"));
+const Profile = lazy(() => import("./pages/profile"));
+const Admin = lazy(() => import("./pages/admin"));
+const SeasonBuilder = lazy(() => import("./pages/season-builder"));
+const Join = lazy(() => import("./pages/join"));
+const FamilyInvite = lazy(() => import("./pages/family-invite"));
+const Onboarding = lazy(() => import("./pages/onboarding"));
+const Reenroll = lazy(() => import("./pages/reenroll"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { useGetMe } from "@workspace/api-client-react";
@@ -34,7 +34,17 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Most team data (season calendar, roster, trailheads) doesn't change
+      // moment-to-moment. A 60s staleTime avoids refetching on every route
+      // change/window refocus while still keeping things reasonably fresh.
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+    },
+  },
+});
 
 function stripBase(path: string): string {
   return basePath && path.startsWith(basePath)
@@ -298,35 +308,41 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkAuthSyncer />
         <ClerkQueryClientCacheInvalidator />
-        <Switch>
-          <Route path="/" component={HomeRedirect} />
-          <Route path="/sign-in/*?" component={SignInPage} />
-          <Route path="/sign-up/*?" component={SignUpPage} />
-          <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
-          <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
-          <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
-          <Route path="/carpools" component={() => <ProtectedRoute component={CarpoolHub} />} />
-          <Route path="/carpools/:eventId" component={() => <ProtectedRoute component={CarpoolBoard} />} />
-          <Route path="/messages" component={() => <ProtectedRoute component={Messages} />} />
-          <Route path="/messages/thread/:id" component={() => <ProtectedRoute component={BoardThread} />} />
-          <Route path="/messages/new" component={() => <ProtectedRoute component={NewBroadcast} />} />
-          <Route path="/messages/contact" component={() => <ProtectedRoute component={ContactCoach} />} />
-          <Route path="/roster" component={() => <ProtectedRoute component={Roster} />} />
-          <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
-          <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
-          <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
-          <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
-          <Route path="/onboarding" component={OnboardingRoute} />
-          <Route path="/reenroll" component={() => (
-            <>
-              <Show when="signed-in"><Reenroll /></Show>
-              <Show when="signed-out"><Redirect to="/sign-in" /></Show>
-            </>
-          )} />
-          <Route path="/join/:code" component={Join} />
-          <Route path="/family-invite/:token" component={FamilyInvite} />
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <Switch>
+            <Route path="/" component={HomeRedirect} />
+            <Route path="/sign-in/*?" component={SignInPage} />
+            <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
+            <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
+            <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
+            <Route path="/carpools" component={() => <ProtectedRoute component={CarpoolHub} />} />
+            <Route path="/carpools/:eventId" component={() => <ProtectedRoute component={CarpoolBoard} />} />
+            <Route path="/messages" component={() => <ProtectedRoute component={Messages} />} />
+            <Route path="/messages/thread/:id" component={() => <ProtectedRoute component={BoardThread} />} />
+            <Route path="/messages/new" component={() => <ProtectedRoute component={NewBroadcast} />} />
+            <Route path="/messages/contact" component={() => <ProtectedRoute component={ContactCoach} />} />
+            <Route path="/roster" component={() => <ProtectedRoute component={Roster} />} />
+            <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
+            <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
+            <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
+            <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
+            <Route path="/onboarding" component={OnboardingRoute} />
+            <Route path="/reenroll" component={() => (
+              <>
+                <Show when="signed-in"><Reenroll /></Show>
+                <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+              </>
+            )} />
+            <Route path="/join/:code" component={Join} />
+            <Route path="/family-invite/:token" component={FamilyInvite} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </QueryClientProvider>
     </ClerkProvider>
   );
