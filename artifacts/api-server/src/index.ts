@@ -4,6 +4,7 @@ import { startEmailReminderJob } from "./lib/emailReminders";
 import { startVolunteerReminderJob } from "./lib/volunteerReminders";
 import { runMigrations } from "./lib/migrate";
 import { getAppBase } from "./lib/config";
+import { stopEmailHealthCheck } from "./lib/email";
 
 const rawPort = process.env["PORT"];
 
@@ -46,3 +47,12 @@ runMigrations()
     logger.error({ err }, "[migrate] startup migration failed — aborting");
     process.exit(1);
   });
+
+function gracefulShutdown(signal: string) {
+  logger.info({ signal }, "Received shutdown signal — cleaning up");
+  stopEmailHealthCheck();
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

@@ -26,16 +26,50 @@ const transporter =
  */
 export let emailHealthy: boolean = false;
 
-if (transporter) {
+/** Interval handle for the periodic health-check, kept so we can clear it on shutdown. */
+let _healthCheckInterval: ReturnType<typeof setInterval> | null = null;
+
+function runVerify(): void {
+  if (!transporter) return;
   transporter.verify()
     .then(() => {
-      logger.info("[email] SMTP connection verified successfully");
+      if (!emailHealthy) {
+        logger.info("[email] SMTP connection verified successfully — marking healthy");
+      }
       emailHealthy = true;
     })
     .catch((err: unknown) => {
-      logger.error({ err }, "[email] SMTP verify failed — emails will not be delivered");
+      if (emailHealthy) {
+        logger.error({ err }, "[email] SMTP verify failed — marking unhealthy");
+      } else {
+        logger.warn({ err }, "[email] SMTP verify still failing");
+      }
       emailHealthy = false;
     });
+}
+
+if (transporter) {
+  // Initial check at startup
+  runVerify();
+
+  // Re-verify every 20 minutes so credential rotations are detected without a restart
+  const VERIFY_INTERVAL_MS = 20 * 60 * 1000;
+  _healthCheckInterval = setInterval(runVerify, VERIFY_INTERVAL_MS);
+  // Don't let the interval keep the process alive on its own
+  _healthCheckInterval.unref();
+}
+
+/**
+ * Stop the background SMTP health-check interval.
+ * Call this during graceful shutdown (SIGTERM / SIGINT) so the interval
+ * doesn't prevent the process from exiting.
+ */
+export function stopEmailHealthCheck(): void {
+  if (_healthCheckInterval !== null) {
+    clearInterval(_healthCheckInterval);
+    _healthCheckInterval = null;
+    logger.info("[email] SMTP health-check interval stopped");
+  }
 }
 
 export const FROM_ADDRESS =
