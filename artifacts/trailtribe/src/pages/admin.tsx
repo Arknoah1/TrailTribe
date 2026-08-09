@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy, AlertTriangle } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy, AlertTriangle, LogIn, UserX } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -302,6 +302,9 @@ export default function Admin() {
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
   const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
+  // Rider invite state (from roster)
+  const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
 
   // Invite Family state
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -640,6 +643,35 @@ export default function Admin() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: current }),
     });
+  };
+
+  const sendRiderInvite = async (householdId: number, rider: any) => {
+    setSendingInviteForRider(rider.id);
+    try {
+      const res = await authedFetch(
+        `${BASE_URL}/api/households/${householdId}/riders/${rider.id}/invite`,
+        { method: "POST" }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data.error ?? "Failed to send invite", variant: "destructive" });
+      } else if (data.status === "sent") {
+        toast({ title: `Invite sent to ${rider.email}` });
+      } else {
+        // Email delivery was skipped or failed (SMTP unavailable, etc.)
+        // Surface the invite URL so the coach can share it manually.
+        const urlNote = data.inviteUrl ? ` Share this link manually: ${data.inviteUrl}` : "";
+        toast({
+          title: "Invite created but email wasn't delivered",
+          description: `The invite link was generated but the email could not be sent.${urlNote}`,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({ title: "Network error — please try again", variant: "destructive" });
+    } finally {
+      setSendingInviteForRider(null);
+    }
   };
 
   const assignRiderPod = async (riderId: number, podId: string) => {
@@ -1015,6 +1047,7 @@ export default function Admin() {
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Pod</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Family</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Parent Contact</th>
+                            <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden lg:table-cell">Login</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -1041,6 +1074,28 @@ export default function Admin() {
                                       </div>
                                     ))}
                                   </div>
+                                </td>
+                                <td className="px-4 py-2.5 hidden lg:table-cell">
+                                  {m.clerkUserId ? (
+                                    <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                                      <LogIn className="h-3 w-3" /> Has login
+                                    </span>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                        <UserX className="h-3 w-3" /> No login
+                                      </span>
+                                      {m.email && !m.email.includes("@trailtribe.internal") && (
+                                        <button
+                                          onClick={() => sendRiderInvite(m.household.id, m)}
+                                          disabled={sendingInviteForRider === m.id}
+                                          className="text-xs text-primary underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                                        >
+                                          {sendingInviteForRider === m.id ? "Sending…" : "Invite"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -1183,6 +1238,26 @@ export default function Admin() {
                                     <Bike className="h-3 w-3 text-muted-foreground" />
                                     <span>{r.firstName} {r.lastName}</span>
                                     {r.grade && <span className="text-muted-foreground text-xs">· Gr {r.grade}</span>}
+                                    {r.clerkUserId ? (
+                                      <span className="text-green-600 dark:text-green-400" title="Has login">
+                                        <LogIn className="h-3 w-3" />
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="text-muted-foreground" title="No login">
+                                          <UserX className="h-3 w-3" />
+                                        </span>
+                                        {r.email && !r.email.includes("@trailtribe.internal") && (
+                                          <button
+                                            onClick={() => sendRiderInvite(household.id, r)}
+                                            disabled={sendingInviteForRider === r.id}
+                                            className="text-xs text-primary underline underline-offset-2 hover:no-underline disabled:opacity-50"
+                                          >
+                                            {sendingInviteForRider === r.id ? "Sending…" : "Invite"}
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
                                   </div>
                                 ))}
                               </div>
