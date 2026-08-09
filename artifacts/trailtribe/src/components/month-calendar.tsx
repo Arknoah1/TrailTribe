@@ -43,9 +43,11 @@ interface MonthCalendarProps {
   events: Event[];
   month: Date;
   onMonthChange: (date: Date) => void;
+  /** Coach/admin only: fires when the user clicks empty space or the day number in a cell */
+  onDayClick?: (date: Date) => void;
 }
 
-export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarProps) {
+export function MonthCalendar({ events, month, onMonthChange, onDayClick }: MonthCalendarProps) {
   const [, navigate] = useLocation();
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
@@ -150,12 +152,15 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
                 className={cn(
                   "min-h-[5rem] p-1",
                   !inMonth && "bg-secondary/40",
-                  today && "bg-primary/5"
+                  today && "bg-primary/5",
+                  onDayClick && "cursor-pointer hover:bg-primary/10 transition-colors"
                 )}
                 style={{
                   borderBottom: !isLastRow ? `1px solid ${INK}` : undefined,
                   borderRight: idx % 7 !== 6 ? `1px solid ${INK}` : undefined,
                 }}
+                onClick={() => onDayClick?.(day)}
+                title={onDayClick ? `Add event on ${format(day, "MMM d")}` : undefined}
               >
                 {/* Day number + amber has-events dot */}
                 <div className="flex flex-col items-center mb-1">
@@ -184,7 +189,7 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
                     return (
                       <button
                         key={event.id}
-                        onClick={() => navigate(`/events/${event.id}`)}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/events/${event.id}`); }}
                         className={cn(
                           "w-full text-left text-[10px] leading-tight px-1.5 py-0.5 rounded-sm truncate font-bold transition-all cel-interactive",
                           colors.bg,
@@ -199,7 +204,7 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
                   })}
                   {overflow > 0 && (
                     <button
-                      onClick={() => setExpandedDay(key)}
+                      onClick={(e) => { e.stopPropagation(); setExpandedDay(key); }}
                       className="w-full text-left text-[10px] px-1.5 py-0.5 rounded-sm text-primary font-bold hover:bg-primary/10 transition-colors uppercase tracking-wide"
                     >
                       +{overflow} more

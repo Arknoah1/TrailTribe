@@ -352,6 +352,10 @@ export default function Calendar() {
           events={events ?? []}
           month={currentMonth}
           onMonthChange={handleMonthChange}
+          onDayClick={isCoach ? (date) => {
+            setNewEvent({ ...emptyNewEvent, startDate: format(date, "yyyy-MM-dd") });
+            setShowAddEvent(true);
+          } : undefined}
         />
       ) : (
         <div className="space-y-4">
