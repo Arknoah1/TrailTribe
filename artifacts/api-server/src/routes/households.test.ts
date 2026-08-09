@@ -5,7 +5,12 @@
  *   ✓ DELETE on a non-archived household returns 400
  *   ✓ DELETE on an archived household returns 204
  *   ✓ The transaction hard-deletes every required table in the correct order:
- *       documentConsentsTable → seasonRosterSnapshotsTable → usersTable → householdsTable
+ *       carpoolClaimsTable → carpoolRequestsTable → carpoolOffersTable →
+ *       notificationsTable → documentConsentsTable →
+ *       seasonRosterSnapshotsTable → usersTable → householdsTable
+ *   ✓ Carpool claims/offers/requests and notification rows for household members
+ *     are explicitly removed before the user rows are deleted (belt-and-suspenders
+ *     on top of the DB-level onDelete: cascade on those FKs)
  *   ✓ Re-enrolling with the same Clerk account after deletion is handled
  *     gracefully:
  *       - POST /households succeeds (201) — a new household can be created
@@ -75,6 +80,10 @@ const MOCK_DOCUMENT_CONSENTS_TABLE   = { __table: "documentConsentsTable" };
 const MOCK_ROSTER_SNAPSHOTS_TABLE    = { __table: "seasonRosterSnapshotsTable" };
 const MOCK_TEAM_DOCUMENTS_TABLE      = { __table: "teamDocumentsTable" };
 const MOCK_SEASONS_TABLE             = { __table: "seasonsTable" };
+const MOCK_CARPOOL_CLAIMS_TABLE      = { __table: "carpoolClaimsTable" };
+const MOCK_CARPOOL_OFFERS_TABLE      = { __table: "carpoolOffersTable" };
+const MOCK_CARPOOL_REQUESTS_TABLE    = { __table: "carpoolRequestsTable" };
+const MOCK_NOTIFICATIONS_TABLE       = { __table: "notificationsTable" };
 
 vi.mock("@workspace/db", () => {
   const makeWhereChain = () => ({ where: vi.fn().mockResolvedValue(undefined) });
@@ -93,6 +102,15 @@ vi.mock("@workspace/db", () => {
     c.where = vi.fn().mockResolvedValue([]);
     c.orderBy = vi.fn(() => c);
     c.limit = vi.fn().mockResolvedValue([]);
+    return c;
+  };
+
+  // tx.select simulates finding PARENT_ID as the sole household member.
+  // This ensures memberIds is non-empty so the carpool/notification sweep runs.
+  const makeTxSelectChain = () => {
+    const c: any = {};
+    c.from = vi.fn(() => c);
+    c.where = vi.fn().mockResolvedValue([{ id: PARENT_ID }]);
     return c;
   };
 
@@ -116,6 +134,7 @@ vi.mock("@workspace/db", () => {
       },
       transaction: vi.fn().mockImplementation(async (fn: any) => {
         const tx = {
+          select: vi.fn(() => makeTxSelectChain()),
           delete: vi.fn().mockImplementation((table: any) => {
             txDeleteCalls.push(table);
             return makeWhereChain();
@@ -139,6 +158,10 @@ vi.mock("@workspace/db", () => {
     seasonRosterSnapshotsTable:  MOCK_ROSTER_SNAPSHOTS_TABLE,
     teamDocumentsTable:          MOCK_TEAM_DOCUMENTS_TABLE,
     seasonsTable:                MOCK_SEASONS_TABLE,
+    carpoolClaimsTable:          MOCK_CARPOOL_CLAIMS_TABLE,
+    carpoolOffersTable:          MOCK_CARPOOL_OFFERS_TABLE,
+    carpoolRequestsTable:        MOCK_CARPOOL_REQUESTS_TABLE,
+    notificationsTable:          MOCK_NOTIFICATIONS_TABLE,
     eq:    vi.fn(() => ({})),
     and:   vi.fn((...args: any[]) => args),
     isNull:vi.fn(() => ({})),
@@ -300,10 +323,90 @@ describe("DELETE /households/:id — archived household", () => {
     expect(usersIdx).toBeLessThan(householdIdx);
   });
 
-  it("deletes exactly 4 tables: consents, snapshots, users, household", async () => {
+  it("deletes exactly 8 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, consents, snapshots, users, household", async () => {
+    // tx.select is mocked to return [{ id: PARENT_ID }] so the member-based
+    // sweep runs (memberIds.length > 0).
     setUser(ADMIN_ID);
     await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
-    expect(txDeleteCalls).toHaveLength(4);
+    expect(txDeleteCalls).toHaveLength(8);
+  });
+});
+
+/* ─── DELETE /households/:id — carpool & notification cleanup ───────────── */
+
+describe("DELETE /households/:id — carpool and notification cleanup", () => {
+  /**
+   * When a household is permanently deleted the transaction must explicitly
+   * remove every carpool and notification row that references a household
+   * member — regardless of whether the DB-level onDelete: cascade would also
+   * catch it.  These tests confirm each table is included in the sweep.
+   */
+
+  beforeEach(() => {
+    householdFindFirstResult = mockArchivedHousehold;
+  });
+
+  it("deletes carpool claims inside the transaction", async () => {
+    const { carpoolClaimsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(carpoolClaimsTable);
+  });
+
+  it("deletes carpool requests inside the transaction", async () => {
+    const { carpoolRequestsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(carpoolRequestsTable);
+  });
+
+  it("deletes carpool offers inside the transaction", async () => {
+    const { carpoolOffersTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(carpoolOffersTable);
+  });
+
+  it("deletes notification rows inside the transaction", async () => {
+    const { notificationsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(notificationsTable);
+  });
+
+  it("deletes carpool claims and requests before carpool offers (offers cascade to non-household rider claims)", async () => {
+    const { carpoolClaimsTable, carpoolOffersTable, carpoolRequestsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+
+    const claimsIdx   = txDeleteCalls.indexOf(carpoolClaimsTable);
+    const requestsIdx = txDeleteCalls.indexOf(carpoolRequestsTable);
+    const offersIdx   = txDeleteCalls.indexOf(carpoolOffersTable);
+
+    expect(claimsIdx).toBeGreaterThanOrEqual(0);
+    expect(requestsIdx).toBeGreaterThanOrEqual(0);
+    expect(offersIdx).toBeGreaterThanOrEqual(0);
+
+    // Claims and requests must be removed before the offer rows so that
+    // non-household rider claims on those offers are caught by the offer
+    // cascade rather than by a dangling FK.
+    expect(claimsIdx).toBeLessThan(offersIdx);
+    expect(requestsIdx).toBeLessThan(offersIdx);
+  });
+
+  it("deletes carpool and notification rows before the user rows", async () => {
+    const { carpoolClaimsTable, carpoolOffersTable, notificationsTable, usersTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+
+    const usersIdx         = txDeleteCalls.indexOf(usersTable);
+    const claimsIdx        = txDeleteCalls.indexOf(carpoolClaimsTable);
+    const offersIdx        = txDeleteCalls.indexOf(carpoolOffersTable);
+    const notificationsIdx = txDeleteCalls.indexOf(notificationsTable);
+
+    expect(claimsIdx).toBeLessThan(usersIdx);
+    expect(offersIdx).toBeLessThan(usersIdx);
+    expect(notificationsIdx).toBeLessThan(usersIdx);
   });
 });
 

@@ -1,7 +1,18 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { householdsTable, usersTable, documentConsentsTable, teamDocumentsTable, seasonsTable, seasonRosterSnapshotsTable } from "@workspace/db";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import {
+  householdsTable,
+  usersTable,
+  documentConsentsTable,
+  teamDocumentsTable,
+  seasonsTable,
+  seasonRosterSnapshotsTable,
+  carpoolClaimsTable,
+  carpoolOffersTable,
+  carpoolRequestsTable,
+  notificationsTable,
+} from "@workspace/db";
+import { eq, and, isNull, desc, inArray, or } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
@@ -360,13 +371,42 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
     return;
   }
   await db.transaction(async (tx) => {
-    // 1. Consent audit records
+    // Collect member user IDs — needed for tables that reference users but not
+    // the household directly (carpool offers/claims/requests, notifications).
+    // The DB-level onDelete: cascade on those FKs acts as a safety net; this
+    // explicit sweep makes the intent clear and guards against any future
+    // migration that changes cascade behaviour.
+    const memberRows = await tx
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.householdId, id));
+    const memberIds = memberRows.map((r) => r.id);
+
+    if (memberIds.length > 0) {
+      // 1a. Carpool claims where a household member is the rider
+      await tx.delete(carpoolClaimsTable).where(inArray(carpoolClaimsTable.riderUserId, memberIds));
+      // 1b. Carpool requests where a household member is the rider or the requester
+      await tx.delete(carpoolRequestsTable).where(
+        or(
+          inArray(carpoolRequestsTable.riderUserId, memberIds),
+          inArray(carpoolRequestsTable.requestedByUserId, memberIds),
+        )!,
+      );
+      // 1c. Carpool offers where a household member is the driver
+      //     (the cascade from offer → carpoolClaimsTable handles any residual
+      //     claims from non-household riders on those offers)
+      await tx.delete(carpoolOffersTable).where(inArray(carpoolOffersTable.driverUserId, memberIds));
+      // 1d. In-app notification inbox rows
+      await tx.delete(notificationsTable).where(inArray(notificationsTable.recipientUserId, memberIds));
+    }
+
+    // 2. Consent audit records (householdId FK)
     await tx.delete(documentConsentsTable).where(eq(documentConsentsTable.householdId, id));
-    // 2. Historical season roster snapshots
+    // 3. Historical season roster snapshots (householdId FK)
     await tx.delete(seasonRosterSnapshotsTable).where(eq(seasonRosterSnapshotsTable.householdId, id));
-    // 3. Member user rows (household FK is set-null on cascade, but we want hard deletes)
+    // 4. Member user rows — any residual carpool/notification rows cascade at DB level
     await tx.delete(usersTable).where(eq(usersTable.householdId, id));
-    // 4. The household itself
+    // 5. The household itself
     await tx.delete(householdsTable).where(eq(householdsTable.id, id));
   });
   res.status(204).send();
