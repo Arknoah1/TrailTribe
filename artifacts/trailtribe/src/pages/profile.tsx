@@ -1,5 +1,5 @@
 import {
-  useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold, useUpdateHouseholdCompliance,
+  useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
   useGetMyVolunteerSignups, useListEvents, useListEventTasks, useBulkSignupForEventTasks,
   getListEventTasksQueryKey,
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { DocumentConsentModal } from "@/components/document-consent-modal";
 
 const profileSchema = z.object({
   firstName: z.string().min(2),
@@ -556,7 +557,6 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
 
 
-interface TeamDoc { type: string; viewUrl: string | null; }
 
 function EventTaskLoader({
   eventId,
@@ -882,7 +882,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
     query: { queryKey: getGetHouseholdQueryKey(householdId) },
   });
   const updateHousehold = useUpdateHousehold();
-  const updateCompliance = useUpdateHouseholdCompliance();
+  // updateCompliance retained for compatibility; signing now goes through DocumentConsentModal
 
   const [riders, setRiders] = useState<any[]>([]);
   const [riderDialogOpen, setRiderDialogOpen] = useState(false);
@@ -890,45 +890,32 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
   const [copied, setCopied] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
-  const [teamDocs, setTeamDocs] = useState<TeamDoc[]>([]);
-  const [openingDoc, setOpeningDoc] = useState<string | null>(null);
+  const [consentModal, setConsentModal] = useState<{
+    docType: "liability_waiver" | "media_release" | "code_of_conduct";
+    label: string;
+    viewUrl: string | null;
+    readOnly: boolean;
+  } | null>(null);
 
-  useEffect(() => {
-    authedFetch(`${BASE_URL}/api/team-documents`)
+  interface ComplianceStatusItem {
+    documentType: "liability_waiver" | "media_release" | "code_of_conduct";
+    label: string;
+    viewUrl: string | null;
+    versionNumber: number | null;
+    isSigned: boolean;
+    signedAt: string | null;
+  }
+  const [complianceStatus, setComplianceStatus] = useState<ComplianceStatusItem[]>([]);
+
+  const fetchComplianceStatus = () => {
+    authedFetch(`${BASE_URL}/api/households/${householdId}/compliance/status`)
       .then(r => r.ok ? r.json() : [])
-      .then(setTeamDocs)
+      .then(setComplianceStatus)
       .catch(() => {});
-  }, [authedFetch]);
-
-  // Open a team document. External URLs open directly; storage URLs (auth-gated)
-  // are fetched with the Clerk token so the auth header is included, then opened
-  // as a blob URL — plain <a href> navigation doesn't send auth headers.
-  const openDocument = async (viewUrl: string) => {
-    if (viewUrl.startsWith("http://") || viewUrl.startsWith("https://")) {
-      window.open(viewUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    setOpeningDoc(viewUrl);
-    try {
-      const res = await authedFetch(viewUrl);
-      if (!res.ok) {
-        toast({ title: "Could not open document", description: "You may not have permission to view this file.", variant: "destructive" });
-        return;
-      }
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const tab = window.open(blobUrl, "_blank", "noopener,noreferrer");
-      // Revoke after a short delay so the new tab has time to load it
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-      if (!tab) {
-        toast({ title: "Popup blocked", description: "Allow popups for this site to view documents.", variant: "destructive" });
-      }
-    } catch {
-      toast({ title: "Could not open document", description: "Something went wrong. Please try again.", variant: "destructive" });
-    } finally {
-      setOpeningDoc(null);
-    }
   };
+
+  useEffect(() => { fetchComplianceStatus(); }, [householdId, authedFetch]);
+
 
   const fetchRiders = async () => {
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders`);
@@ -962,12 +949,6 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
     });
   };
 
-  const toggleCompliance = (field: "liabilityWaiverSigned" | "mediaReleaseSigned" | "codeOfConductSigned", val: boolean) => {
-    updateCompliance.mutate({ id: householdId, data: { [field]: val } }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetHouseholdQueryKey(householdId) }),
-      onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-    });
-  };
 
   const deleteRider = async (riderId: number) => {
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders/${riderId}`, { method: "DELETE" });
@@ -1002,13 +983,6 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
   if (isLoading) return <div className="p-4 text-center text-muted-foreground">Loading family info...</div>;
   if (!household) return <div className="p-4 text-center text-destructive">Could not load household.</div>;
 
-  const docUrlByType = Object.fromEntries(teamDocs.map(d => [d.type, d.viewUrl]));
-
-  const complianceDocs = [
-    { key: "liabilityWaiverSigned" as const, label: "Liability Waiver", date: household.liabilityWaiverSignedAt, docType: "liability_waiver" },
-    { key: "mediaReleaseSigned" as const, label: "Media Release", date: household.mediaReleaseSignedAt, docType: "media_release" },
-    { key: "codeOfConductSigned" as const, label: "Code of Conduct", date: household.codeOfConductSignedAt, docType: "code_of_conduct" },
-  ];
 
   return (
     <div className="space-y-6">
@@ -1213,49 +1187,72 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
         );
       })()}
 
-      {/* Compliance */}
+      {/* Compliance — driven by server-side consent records matched to current version + active season */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Season Documents</CardTitle>
-          <CardDescription>Required forms for participation. Check each once signed.</CardDescription>
+          <CardDescription>Required forms for participation. Open each document to review and sign.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {complianceDocs.map(({ key, label, date, docType }) => {
-            const viewUrl = docUrlByType[docType];
-            return (
-              <div key={key} className="rounded-lg border p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <div className="font-medium flex items-center gap-2">
-                      {household[key] && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                      {label}
-                    </div>
-                    {date && (
-                      <p className="text-xs text-muted-foreground">
-                        Signed {format(new Date(date), "MMM d, yyyy")}
-                      </p>
-                    )}
+          {complianceStatus.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Loading documents…</p>
+          ) : complianceStatus.map((item) => (
+            <div key={item.documentType} className="rounded-lg border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="font-medium flex items-center gap-2">
+                    {item.isSigned && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
+                    {item.label}
                   </div>
-                  <Switch
-                    checked={household[key]}
-                    onCheckedChange={(val) => toggleCompliance(key, val)}
-                    disabled={updateCompliance.isPending}
-                  />
+                  {item.isSigned && item.signedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Signed {format(new Date(item.signedAt), "MMM d, yyyy")}
+                    </p>
+                  )}
+                  {!item.isSigned && !item.viewUrl && (
+                    <p className="text-xs text-muted-foreground">Not yet uploaded by your coach.</p>
+                  )}
                 </div>
-                {viewUrl && (
-                  <button
-                    onClick={() => openDocument(viewUrl)}
-                    disabled={openingDoc === viewUrl}
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
-                    <Link2 className="h-3 w-3" />
-                    {openingDoc === viewUrl ? "Opening…" : "View document before signing"}
-                  </button>
+                {item.isSigned ? (
+                  item.viewUrl ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setConsentModal({ docType: item.documentType, label: item.label, viewUrl: item.viewUrl, readOnly: true })}
+                    >
+                      View Document
+                    </Button>
+                  ) : null
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={!item.viewUrl}
+                    onClick={() => setConsentModal({ docType: item.documentType, label: item.label, viewUrl: item.viewUrl, readOnly: false })}
+                  >
+                    {item.viewUrl ? "Open & Sign" : "Not Available"}
+                  </Button>
                 )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </CardContent>
       </Card>
+
+      {consentModal && (
+        <DocumentConsentModal
+          open={!!consentModal}
+          onOpenChange={(o) => { if (!o) setConsentModal(null); }}
+          label={consentModal.label}
+          viewUrl={consentModal.viewUrl}
+          documentType={consentModal.docType}
+          householdId={householdId}
+          readOnly={consentModal.readOnly}
+          onAccepted={() => {
+            fetchComplianceStatus();
+            setConsentModal(null);
+          }}
+        />
+      )}
     </div>
   );
 }

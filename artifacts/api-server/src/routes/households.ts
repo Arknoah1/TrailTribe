@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { householdsTable, usersTable } from "@workspace/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { householdsTable, usersTable, documentConsentsTable, teamDocumentsTable, seasonsTable } from "@workspace/db";
+import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
@@ -150,16 +150,165 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-router.patch("/households/:id/compliance", requireAuth, async (req, res) => {
-  const id = parseInt(str(req.params.id));
+/** Verbatim text shown to the user and stored in the audit log */
+const CANONICAL_ACCEPTANCE_TEXT =
+  'Please read this document carefully. By checking the "I accept terms & submit" button, I acknowledge that I accept the terms of this document.';
 
-  // IDOR guard: requester must belong to this household or be coach/admin
-  const complianceRequester = await getRequester(req);
-  if (!complianceRequester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (complianceRequester.role !== "coach" && complianceRequester.role !== "admin" && complianceRequester.householdId !== id) {
-    res.status(403).json({ error: "Forbidden: you are not a member of this household" });
-    return;
+// ── Clickwrap consent: record a signed document + mark household field ──────
+router.post("/households/:id/compliance/consent", requireAuth, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Only household members may record clickwrap consent — coaches/admins who need to
+  // record a paper-form attestation should use PATCH /households/:id/compliance instead.
+  if (requester.householdId !== id) {
+    res.status(403).json({ error: "Forbidden: electronic consent may only be recorded by a member of this household" }); return;
   }
+
+  const bodySchema = z.object({
+    documentType: z.enum(["liability_waiver", "media_release", "code_of_conduct"]),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const { documentType } = parsed.data;
+
+  // Fetch the canonical team document — version and acceptance text are derived server-side
+  const [teamDoc] = await db
+    .select()
+    .from(teamDocumentsTable)
+    .where(eq(teamDocumentsTable.type, documentType));
+
+  if (!teamDoc) {
+    res.status(400).json({ error: "This document type is not configured" }); return;
+  }
+  if (!(teamDoc.objectPath || teamDoc.externalUrl)) {
+    res.status(400).json({ error: "This document has no file configured yet. Contact your coach." }); return;
+  }
+  // Version string embeds the server-controlled revision counter so that
+  // in-place content replacements at the same URL/path invalidate prior consents.
+  const documentVersion = `${teamDoc.type}@v${teamDoc.versionNumber}`;
+
+  const clerkUserId = (req as any).clerkUserId as string;
+
+  // Resolve the current active season — stored in the audit record to scope
+  // each consent to the enrollment cycle in which it was signed.
+  const [activeSeason] = await db
+    .select()
+    .from(seasonsTable)
+    .where(eq(seasonsTable.status, "active"))
+    .orderBy(desc(seasonsTable.id))
+    .limit(1);
+  const seasonId = activeSeason?.id ?? null;
+
+  // Use req.ip — Express resolves this via the configured trust-proxy setting,
+  // preventing callers from forging the address via X-Forwarded-For.
+  const ipAddress = req.ip ?? null;
+  const userAgent = typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null;
+  const now = new Date();
+
+  const fieldMap = {
+    liability_waiver: { signed: "liabilityWaiverSigned" as const, signedAt: "liabilityWaiverSignedAt" as const },
+    media_release:   { signed: "mediaReleaseSigned" as const,   signedAt: "mediaReleaseSignedAt" as const },
+    code_of_conduct: { signed: "codeOfConductSigned" as const,  signedAt: "codeOfConductSignedAt" as const },
+  };
+  const { signed, signedAt } = fieldMap[documentType];
+
+  // Atomically insert the consent record and mark the household boolean
+  const consent = await db.transaction(async (tx) => {
+    const [c] = await tx.insert(documentConsentsTable).values({
+      householdId: id,
+      clerkUserId,
+      documentType,
+      documentVersion,
+      acceptanceText: CANONICAL_ACCEPTANCE_TEXT,
+      seasonId,
+      ipAddress,
+      userAgent,
+      acceptedAt: now,
+    }).returning();
+    await tx.update(householdsTable)
+      .set({ [signed]: true, [signedAt]: now })
+      .where(eq(householdsTable.id, id));
+    return c;
+  });
+
+  res.status(201).json(consent);
+});
+
+// ── Per-doc compliance status driven by current-version, active-season consents ──
+router.get("/households/:id/compliance/status", requireAuth, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+
+  const [activeSeason] = await db
+    .select()
+    .from(seasonsTable)
+    .where(eq(seasonsTable.status, "active"))
+    .orderBy(desc(seasonsTable.id))
+    .limit(1);
+  const activeSeasonId = activeSeason?.id ?? null;
+
+  const teamDocs = await db.select().from(teamDocumentsTable);
+  const consents = await db
+    .select()
+    .from(documentConsentsTable)
+    .where(eq(documentConsentsTable.householdId, id))
+    .orderBy(desc(documentConsentsTable.acceptedAt));
+
+  const BASE_URL_ENV = process.env.BASE_URL || "";
+
+  const status = (["liability_waiver", "media_release", "code_of_conduct"] as const).map((type) => {
+    const doc = teamDocs.find((d) => d.type === type);
+    const viewUrl = doc?.objectPath
+      ? `${BASE_URL_ENV}/api/storage${doc.objectPath}`
+      : doc?.externalUrl ?? null;
+    const currentVersion = doc ? `${type}@v${doc.versionNumber}` : null;
+
+    const matchingConsent = consents.find(
+      (c) =>
+        c.documentType === type &&
+        c.documentVersion === currentVersion &&
+        c.seasonId === activeSeasonId,
+    );
+
+    return {
+      documentType: type as string,
+      label: doc?.label ?? type.replace(/_/g, " "),
+      viewUrl,
+      versionNumber: doc?.versionNumber ?? null,
+      isSigned: !!matchingConsent,
+      signedAt: matchingConsent?.acceptedAt ?? null,
+    };
+  });
+
+  res.json(status);
+});
+
+// ── Consent history for a household ────────────────────────────────────────
+router.get("/households/:id/compliance/consents", requireAuth, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
+  const consents = await db
+    .select()
+    .from(documentConsentsTable)
+    .where(eq(documentConsentsTable.householdId, id))
+    .orderBy(desc(documentConsentsTable.acceptedAt));
+  res.json(consents);
+});
+
+// Coach/admin-only: manually override compliance flags (e.g. paper-form signed off-system).
+// Family members must use the clickwrap consent endpoint instead.
+router.patch("/households/:id/compliance", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
 
   const { liabilityWaiverSigned, mediaReleaseSigned, codeOfConductSigned } = req.body;
   const now = new Date();

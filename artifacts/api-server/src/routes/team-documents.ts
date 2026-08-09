@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { teamDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
   ObjectAccessGroupType,
@@ -27,7 +27,7 @@ router.get("/team-documents", async (_req, res) => {
   res.json(docsWithUrls);
 });
 
-router.put("/team-documents/:type", requireAuth, async (req, res) => {
+router.put("/team-documents/:type", requireCoachOrAdmin, async (req, res) => {
   const type = str(req.params.type);
   const { label, description, objectPath, externalUrl, mimeType, originalName } = req.body;
 
@@ -42,15 +42,24 @@ router.put("/team-documents/:type", requireAuth, async (req, res) => {
   });
 
   if (existing) {
+    // Increment the version counter whenever the actual document content changes
+    // (new storage path or new external URL), so consent records remain tied to
+    // the exact content that was accepted even if content is replaced at the same path.
+    const newObjectPath = objectPath !== undefined ? objectPath : existing.objectPath;
+    const newExternalUrl = externalUrl !== undefined ? externalUrl : existing.externalUrl;
+    const contentChanging =
+      newObjectPath !== existing.objectPath || newExternalUrl !== existing.externalUrl;
+
     const [updated] = await db
       .update(teamDocumentsTable)
       .set({
         label: label ?? existing.label,
         description: description ?? existing.description,
-        objectPath: objectPath !== undefined ? objectPath : existing.objectPath,
-        externalUrl: externalUrl !== undefined ? externalUrl : existing.externalUrl,
+        objectPath: newObjectPath,
+        externalUrl: newExternalUrl,
         mimeType: mimeType ?? existing.mimeType,
         originalName: originalName !== undefined ? originalName : existing.originalName,
+        versionNumber: contentChanging ? existing.versionNumber + 1 : existing.versionNumber,
       })
       .where(eq(teamDocumentsTable.type, type as any))
       .returning();
@@ -78,9 +87,29 @@ router.put("/team-documents/:type", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/team-documents/:type", requireAuth, async (req, res) => {
+// Soft-delete: clear the file reference and increment the version counter so that
+// any existing consent records for the old URL cannot satisfy future re-enrollment.
+// The row itself is retained to preserve the version history.
+router.delete("/team-documents/:type", requireCoachOrAdmin, async (req, res) => {
   const type = str(req.params.type);
-  await db.delete(teamDocumentsTable).where(eq(teamDocumentsTable.type, type as any));
+
+  const existing = await db.query.teamDocumentsTable.findFirst({
+    where: eq(teamDocumentsTable.type, type as any),
+  });
+  if (!existing) { res.status(404).json({ error: "Document type not found" }); return; }
+
+  await db
+    .update(teamDocumentsTable)
+    .set({
+      objectPath: null,
+      externalUrl: null,
+      mimeType: null,
+      originalName: null,
+      // Bump the version so any prior URL-based consents are invalidated
+      versionNumber: existing.versionNumber + 1,
+    })
+    .where(eq(teamDocumentsTable.type, type as any));
+
   res.status(204).send();
 });
 
@@ -93,7 +122,7 @@ router.delete("/team-documents/:type", requireAuth, async (req, res) => {
  * to the DB before the URL is returned — if that write fails the request fails
  * so the upload URL is never handed out without a recorded policy.
  */
-router.post("/team-documents/upload-url", requireAuth, async (req, res) => {
+router.post("/team-documents/upload-url", requireCoachOrAdmin, async (req, res) => {
   try {
     const clerkUserId = (req as any).clerkUserId as string;
 

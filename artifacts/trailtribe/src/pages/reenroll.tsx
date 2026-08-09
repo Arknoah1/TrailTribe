@@ -3,16 +3,22 @@ import { useLocation } from "wouter";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatPhone } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { Mountain, Bike, Phone, Mail, CheckCircle2, RotateCcw } from "lucide-react";
+import { Mountain, Bike, Phone, Mail, CheckCircle2, RotateCcw, Check } from "lucide-react";
+import { DocumentConsentModal } from "@/components/document-consent-modal";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+
+const COMPLIANCE_DOCS = [
+  { type: "liability_waiver" as const, label: "Liability Waiver" },
+  { type: "media_release" as const,   label: "Media Release" },
+  { type: "code_of_conduct" as const, label: "Code of Conduct" },
+] as const;
 
 export default function Reenroll() {
   const { data: me, isLoading: meLoading } = useGetMe();
@@ -25,9 +31,14 @@ export default function Reenroll() {
   const [riders, setRiders] = useState<any[]>([]);
   const [loadingHousehold, setLoadingHousehold] = useState(true);
 
-  const [waiverSigned, setWaiverSigned] = useState(false);
-  const [mediaSigned, setMediaSigned] = useState(false);
-  const [conductSigned, setConductSigned] = useState(false);
+  const [teamDocs, setTeamDocs] = useState<Array<{ type: string; viewUrl: string | null }>>([]);
+  const [signedDocs, setSignedDocs] = useState<Set<string>>(new Set());
+  const [consentModal, setConsentModal] = useState<{
+    docType: "liability_waiver" | "media_release" | "code_of_conduct";
+    label: string;
+    viewUrl: string;
+  } | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch household + riders
@@ -43,7 +54,19 @@ export default function Reenroll() {
     }).catch(() => {}).finally(() => setLoadingHousehold(false));
   }, [me?.householdId, authedFetch]);
 
-  const canSubmit = waiverSigned && mediaSigned && conductSigned;
+  // Fetch team documents for consent modals
+  useEffect(() => {
+    authedFetch(`${BASE_URL}/api/team-documents`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setTeamDocs)
+      .catch(() => {});
+  }, [authedFetch]);
+
+  const docUrlByType = Object.fromEntries(teamDocs.map((d) => [d.type, d.viewUrl]));
+
+  // Docs that require signing: those with an uploaded URL
+  const requiredDocs = COMPLIANCE_DOCS.filter((d) => !!docUrlByType[d.type]);
+  const canSubmit = requiredDocs.every((d) => signedDocs.has(d.type));
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -51,12 +74,6 @@ export default function Reenroll() {
     try {
       const res = await authedFetch(`${BASE_URL}/api/users/me/reenroll`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          liabilityWaiverSigned: true,
-          mediaReleaseSigned: true,
-          codeOfConductSigned: true,
-        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -103,7 +120,7 @@ export default function Reenroll() {
               Re-enroll for the new season
             </h1>
             <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-              Your family info is pre-filled. Just re-sign the compliance docs and you're back on the roster.
+              Your family info is pre-filled. Open and sign each compliance document to re-enroll.
             </p>
           </div>
 
@@ -170,56 +187,41 @@ export default function Reenroll() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Re-sign Documents</CardTitle>
               <CardDescription className="text-xs">
-                These must be re-signed each season. Check each box to confirm you agree.
+                These must be re-signed each season. Open each document to read and accept it.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="waiver"
-                    checked={waiverSigned}
-                    onCheckedChange={(v) => setWaiverSigned(Boolean(v))}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="waiver" className="leading-snug cursor-pointer">
-                    <span className="font-medium">Liability Waiver</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      I release the team from liability for injuries during participation.
-                    </span>
-                  </Label>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="media"
-                    checked={mediaSigned}
-                    onCheckedChange={(v) => setMediaSigned(Boolean(v))}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="media" className="leading-snug cursor-pointer">
-                    <span className="font-medium">Media Release</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      I permit photos/videos of my rider(s) to be used in team media.
-                    </span>
-                  </Label>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <Checkbox
-                    id="conduct"
-                    checked={conductSigned}
-                    onCheckedChange={(v) => setConductSigned(Boolean(v))}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="conduct" className="leading-snug cursor-pointer">
-                    <span className="font-medium">Code of Conduct</span>
-                    <span className="block text-xs text-muted-foreground mt-0.5">
-                      My rider(s) and I agree to follow the team's rules and expectations.
-                    </span>
-                  </Label>
-                </div>
-              </div>
+            <CardContent className="space-y-3">
+              {COMPLIANCE_DOCS.map(({ type, label }) => {
+                const viewUrl = docUrlByType[type] ?? null;
+                const isSigned = signedDocs.has(type);
+                return (
+                  <div key={type} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm flex items-center gap-2">
+                        {isSigned && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+                        {label}
+                      </div>
+                      {!viewUrl && (
+                        <p className="text-xs text-muted-foreground mt-0.5">Not yet uploaded by your coach.</p>
+                      )}
+                      {isSigned && (
+                        <p className="text-xs text-primary/70 mt-0.5 font-medium">Signed ✓</p>
+                      )}
+                    </div>
+                    {!isSigned && viewUrl && (
+                      <Button
+                        size="sm"
+                        onClick={() => setConsentModal({ docType: type, label, viewUrl })}
+                      >
+                        Open &amp; Sign
+                      </Button>
+                    )}
+                    {!isSigned && !viewUrl && (
+                      <Button size="sm" disabled variant="outline">Not Available</Button>
+                    )}
+                  </div>
+                );
+              })}
 
               <div className="pt-2 border-t">
                 <Button
@@ -234,9 +236,9 @@ export default function Reenroll() {
                   )}
                   {submitting ? "Re-enrolling…" : "Complete Re-enrollment"}
                 </Button>
-                {!canSubmit && (
+                {!canSubmit && requiredDocs.length > 0 && (
                   <p className="text-xs text-muted-foreground text-center mt-2">
-                    All three documents must be signed before continuing.
+                    All documents must be read and signed before continuing.
                   </p>
                 )}
               </div>
@@ -249,6 +251,21 @@ export default function Reenroll() {
           </p>
         </div>
       </div>
+
+      {consentModal && me?.householdId && (
+        <DocumentConsentModal
+          open={!!consentModal}
+          onOpenChange={(o) => { if (!o) setConsentModal(null); }}
+          label={consentModal.label}
+          viewUrl={consentModal.viewUrl}
+          documentType={consentModal.docType}
+          householdId={me.householdId}
+          onAccepted={() => {
+            setSignedDocs((prev) => new Set([...prev, consentModal!.docType]));
+            setConsentModal(null);
+          }}
+        />
+      )}
     </div>
   );
 }

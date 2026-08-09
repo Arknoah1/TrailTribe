@@ -245,6 +245,36 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    // Idempotent bootstrap: the document_type enum was originally created by
+    // drizzle-kit push and is required by team_documents (and later document_consents).
+    name: "create_document_type_enum",
+    sql: `
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'document_type') THEN
+          CREATE TYPE document_type AS ENUM ('liability_waiver', 'media_release', 'code_of_conduct');
+        END IF;
+      END $$;
+    `,
+  },
+  {
+    // Idempotent bootstrap: team_documents was originally created by drizzle-kit push.
+    // Creating it here ensures a fresh database can run all subsequent migrations.
+    name: "create_team_documents_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS team_documents (
+        id serial PRIMARY KEY,
+        type document_type NOT NULL UNIQUE,
+        label text NOT NULL,
+        description text,
+        object_path text,
+        external_url text,
+        mime_type text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
     name: "add_original_name_to_team_documents",
     sql: `
       ALTER TABLE team_documents
@@ -321,6 +351,40 @@ const migrations: { name: string; sql: string }[] = [
     sql: `
       ALTER TABLE broadcasts
         ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+    `,
+  },
+  {
+    name: "create_document_consents_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS document_consents (
+        id serial PRIMARY KEY,
+        household_id integer NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        clerk_user_id text NOT NULL,
+        document_type document_type NOT NULL,
+        document_version text NOT NULL,
+        acceptance_text text NOT NULL,
+        season_id integer REFERENCES seasons(id),
+        ip_address text,
+        user_agent text,
+        accepted_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "add_season_id_to_document_consents",
+    sql: `
+      ALTER TABLE document_consents
+        ADD COLUMN IF NOT EXISTS season_id integer REFERENCES seasons(id);
+    `,
+  },
+  {
+    // Immutable revision counter: incremented on every document content replacement
+    // so consents remain tied to the exact content that was accepted, even if the
+    // storage object path / external URL is later reused.
+    name: "add_version_number_to_team_documents",
+    sql: `
+      ALTER TABLE team_documents
+        ADD COLUMN IF NOT EXISTS version_number integer NOT NULL DEFAULT 1;
     `,
   },
 ];

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,8 +10,9 @@ import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { formatPhoneInput } from "@/lib/utils";
 import {
   Mountain, User, Home, Users, Bike, Check,
-  ArrowRight, Plus, X, ChevronRight, Clock,
+  ArrowRight, Plus, X, ChevronRight, Clock, ClipboardCheck,
 } from "lucide-react";
+import { DocumentConsentModal } from "@/components/document-consent-modal";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -21,6 +22,7 @@ const STEPS = [
   { label: "Your name", Icon: User },
   { label: "Your family", Icon: Home },
   { label: "Your riders", Icon: Bike },
+  { label: "Documents", Icon: ClipboardCheck },
 ];
 
 function ProgressBar({ step }: { step: number }) {
@@ -520,6 +522,126 @@ function StepDone({ approved, onGo }: { approved: boolean; onGo: () => void }) {
   );
 }
 
+// ─── Step 4: Compliance documents ────────────────────────────────────────────
+
+const COMPLIANCE_DOCS = [
+  { type: "liability_waiver" as const, label: "Liability Waiver" },
+  { type: "media_release" as const,   label: "Media Release" },
+  { type: "code_of_conduct" as const, label: "Code of Conduct" },
+];
+
+function StepCompliance({ householdId, onNext }: { householdId: number; onNext: () => void }) {
+  const authedFetch = useAuthedFetch();
+  const { toast } = useToast();
+  const [teamDocs, setTeamDocs] = useState<Array<{ type: string; viewUrl: string | null }>>([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
+  const [signedDocs, setSignedDocs] = useState<Set<string>>(new Set());
+  const [consentModal, setConsentModal] = useState<{
+    docType: "liability_waiver" | "media_release" | "code_of_conduct";
+    label: string;
+    viewUrl: string;
+  } | null>(null);
+
+  useEffect(() => {
+    authedFetch(`${BASE_URL}/api/team-documents`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setTeamDocs)
+      .catch(() => toast({ title: "Could not load documents", variant: "destructive" }))
+      .finally(() => setLoadingDocs(false));
+  }, [authedFetch]);
+
+  const docUrlByType = Object.fromEntries(teamDocs.map((d) => [d.type, d.viewUrl]));
+  const requiredDocs = COMPLIANCE_DOCS.filter((d) => !!docUrlByType[d.type]);
+  const allSigned = requiredDocs.every((d) => signedDocs.has(d.type));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-3xl tracking-widest text-foreground leading-none">Season documents</h2>
+        <p className="text-muted-foreground text-sm mt-2">
+          Open each document, read it, and click "I Accept Terms &amp; Submit" to sign.
+        </p>
+      </div>
+
+      {loadingDocs ? (
+        <div className="flex justify-center py-8">
+          <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {COMPLIANCE_DOCS.map(({ type, label }) => {
+            const viewUrl = docUrlByType[type] ?? null;
+            const isSigned = signedDocs.has(type);
+            return (
+              <div
+                key={type}
+                className="rounded-xl border-2 border-[#0a0c10] bg-card p-4 flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    {isSigned && <Check className="h-4 w-4 text-primary shrink-0" />}
+                    {label}
+                  </div>
+                  {!viewUrl && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Not yet uploaded by your coach.
+                    </p>
+                  )}
+                  {isSigned && (
+                    <p className="text-xs text-primary/70 mt-0.5 font-medium">Signed ✓</p>
+                  )}
+                </div>
+                {!isSigned && viewUrl && (
+                  <button
+                    onClick={() => setConsentModal({ docType: type, label, viewUrl })}
+                    className="shrink-0 inline-flex items-center min-h-[36px] rounded-lg border-2 border-[#0a0c10] bg-primary text-primary-foreground font-bold uppercase tracking-wide text-xs px-4 shadow-cel-sm cel-interactive transition-all"
+                  >
+                    Open &amp; Sign
+                  </button>
+                )}
+                {!isSigned && !viewUrl && (
+                  <span className="shrink-0 text-xs text-muted-foreground px-3 py-1.5 border rounded-lg opacity-50">
+                    N/A
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Button
+        className="w-full"
+        size="lg"
+        onClick={onNext}
+        disabled={!allSigned && requiredDocs.length > 0}
+      >
+        Continue <ArrowRight className="h-4 w-4 ml-1.5" />
+      </Button>
+      {!allSigned && requiredDocs.length > 0 && (
+        <p className="text-center text-xs text-muted-foreground">
+          All documents must be read and signed before continuing.
+        </p>
+      )}
+
+      {consentModal && (
+        <DocumentConsentModal
+          open={!!consentModal}
+          onOpenChange={(o) => { if (!o) setConsentModal(null); }}
+          label={consentModal.label}
+          viewUrl={consentModal.viewUrl}
+          documentType={consentModal.docType}
+          householdId={householdId}
+          onAccepted={() => {
+            setSignedDocs((prev) => new Set([...prev, consentModal!.docType]));
+            setConsentModal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Loading household ID after creation ──────────────────────────────────────
 // After creating or joining, poll /me until householdId is populated.
 
@@ -572,7 +694,7 @@ export default function Onboarding() {
       {/* Wizard body */}
       <div className="flex-1 flex items-start justify-center p-6 pt-10">
         <div className="w-full max-w-lg">
-          {step < 3 && <ProgressBar step={step} />}
+          {step < 4 && <ProgressBar step={step} />}
 
           <div className="rounded-2xl border-2 border-[#0a0c10] bg-card p-6 shadow-cel">
             {step === 0 && (
@@ -601,7 +723,11 @@ export default function Onboarding() {
               <StepRiders householdId={householdId} onNext={() => setStep(3)} />
             )}
 
-            {step === 3 && (
+            {step === 3 && householdId !== null && (
+              <StepCompliance householdId={householdId} onNext={() => setStep(4)} />
+            )}
+
+            {step === 4 && (
               <StepDone
                 approved={autoApproved}
                 onGo={() => setLocation("/dashboard")}
@@ -609,9 +735,9 @@ export default function Onboarding() {
             )}
           </div>
 
-          {step < 3 && (
+          {step < 4 && (
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Step {step + 1} of 3 — you can finish this later from your Profile
+              Step {step + 1} of 4 — you can finish this later from your Profile
             </p>
           )}
         </div>

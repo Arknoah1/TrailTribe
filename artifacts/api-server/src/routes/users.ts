@@ -5,8 +5,10 @@ import {
   householdsTable,
   inviteLinksTable,
   seasonsTable,
+  teamDocumentsTable,
+  documentConsentsTable,
 } from "@workspace/db";
-import { eq, and, ilike, or, isNull } from "drizzle-orm";
+import { eq, and, ilike, or, isNull, desc } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { notifyCoachesOfNewFamily, notifyCoachesOfReturningFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
@@ -359,22 +361,52 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
   if (user.role !== "parent") { res.status(403).json({ error: "Only parents can re-enroll" }); return; }
   if (!user.householdId) { res.status(400).json({ error: "No household associated with this account" }); return; }
 
-  const reenrollSchema = z.object({
-    liabilityWaiverSigned: z.literal(true, { errorMap: () => ({ message: "Liability waiver must be signed" }) }),
-    mediaReleaseSigned: z.literal(true, { errorMap: () => ({ message: "Media release must be signed" }) }),
-    codeOfConductSigned: z.literal(true, { errorMap: () => ({ message: "Code of conduct must be signed" }) }),
-  });
-
-  const parsed = reenrollSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "All three compliance documents must be signed", details: parsed.error.issues });
-    return;
-  }
-
   const returning = await getIsReturningFamily(user.householdId);
   if (!returning) {
     res.status(409).json({ error: "This account is not in a returning-family state" });
     return;
+  }
+
+  // Validate consent records against the *current* document version AND the
+  // active enrollment season — old-version or prior-season consents are rejected.
+  const [activeSeason] = await db
+    .select()
+    .from(seasonsTable)
+    .where(eq(seasonsTable.status, "active"))
+    .orderBy(desc(seasonsTable.id))
+    .limit(1);
+  const activeSeasonId = activeSeason?.id ?? null;
+
+  const allTeamDocs = await db.select().from(teamDocumentsTable);
+  const activeDocs = allTeamDocs.filter((d) => d.objectPath || d.externalUrl);
+  if (activeDocs.length > 0) {
+    const consentRows = await db
+      .select({
+        documentType: documentConsentsTable.documentType,
+        documentVersion: documentConsentsTable.documentVersion,
+        seasonId: documentConsentsTable.seasonId,
+      })
+      .from(documentConsentsTable)
+      .where(eq(documentConsentsTable.householdId, user.householdId));
+
+    const unsigned = activeDocs.filter((d) => {
+      // The canonical version string uses the server-controlled revision counter
+      // so in-place content replacements at the same URL invalidate prior consents.
+      const currentVersion = `${d.type}@v${d.versionNumber}`;
+      // A valid consent must match: (1) document type, (2) current version (including revision),
+      // and (3) the currently active season (null == null when no season is configured)
+      return !consentRows.some(
+        (c) =>
+          c.documentType === d.type &&
+          c.documentVersion === currentVersion &&
+          c.seasonId === activeSeasonId,
+      );
+    });
+    if (unsigned.length > 0) {
+      const labels = unsigned.map((d) => d.label).join(", ");
+      res.status(400).json({ error: `These documents must be signed before re-enrolling: ${labels}` });
+      return;
+    }
   }
 
   const now = new Date();

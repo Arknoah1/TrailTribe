@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,6 +17,8 @@ export const teamDocumentsTable = pgTable("team_documents", {
   externalUrl: text("external_url"),
   mimeType: text("mime_type"),
   originalName: text("original_name"),
+  /** Incremented by the server on every objectPath/externalUrl replacement — provides an immutable version identifier that survives in-place content changes */
+  versionNumber: integer("version_number").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
