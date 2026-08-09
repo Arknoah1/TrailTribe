@@ -246,6 +246,7 @@ export default function Admin() {
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
   const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   // Invite Family state
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -630,6 +631,18 @@ export default function Admin() {
       toast({ title: "Failed to archive family", variant: "destructive" });
     }
     setArchiveConfirmId(null);
+  };
+
+  const handleDeleteFamily = async (householdId: number) => {
+    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}`, { method: "DELETE" });
+    if (res.ok || res.status === 204) {
+      setArchivedFamilies((prev) => prev.filter((h) => h.id !== householdId));
+      toast({ title: "Family permanently deleted" });
+    } else {
+      const body = await res.json().catch(() => ({}));
+      toast({ title: body.error ?? "Failed to delete family", variant: "destructive" });
+    }
+    setDeleteConfirmId(null);
   };
 
   const fetchSettings = useCallback(async () => {
@@ -1180,7 +1193,7 @@ export default function Admin() {
                               )}
                             </div>
 
-                            <div className="shrink-0">
+                            <div className="shrink-0 flex flex-col gap-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1189,6 +1202,15 @@ export default function Admin() {
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                 Restore
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                onClick={() => setDeleteConfirmId(household.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
                               </Button>
                             </div>
                           </div>
@@ -1200,6 +1222,31 @@ export default function Admin() {
               )}
             </div>
           )}
+
+          {/* ── Delete family confirmation ───────────────────────────────── */}
+          <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Permanently delete this family?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete{" "}
+                  <strong>
+                    {archivedFamilies.find((h) => h.id === deleteConfirmId)?.name ?? "this family"}
+                  </strong>{" "}
+                  and all their data. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteConfirmId !== null && handleDeleteFamily(deleteConfirmId)}
+                >
+                  Delete Permanently
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* ── Archive family confirmation ──────────────────────────────── */}
           <AlertDialog open={archiveConfirmId !== null} onOpenChange={(open) => { if (!open) setArchiveConfirmId(null); }}>

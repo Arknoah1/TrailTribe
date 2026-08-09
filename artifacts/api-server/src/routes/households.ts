@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { householdsTable, usersTable, documentConsentsTable, teamDocumentsTable, seasonsTable } from "@workspace/db";
+import { householdsTable, usersTable, documentConsentsTable, teamDocumentsTable, seasonsTable, seasonRosterSnapshotsTable } from "@workspace/db";
 import { eq, and, isNull, desc } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
@@ -349,6 +349,27 @@ router.post("/households/:id/unarchive", requireCoachOrAdmin, async (req, res) =
     .where(eq(householdsTable.id, id))
     .returning();
   res.json(updated);
+});
+
+router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
+  if (!household) { res.status(404).json({ error: "Household not found" }); return; }
+  if (!household.archivedAt) {
+    res.status(400).json({ error: "Only archived households can be permanently deleted. Archive the family first." });
+    return;
+  }
+  await db.transaction(async (tx) => {
+    // 1. Consent audit records
+    await tx.delete(documentConsentsTable).where(eq(documentConsentsTable.householdId, id));
+    // 2. Historical season roster snapshots
+    await tx.delete(seasonRosterSnapshotsTable).where(eq(seasonRosterSnapshotsTable.householdId, id));
+    // 3. Member user rows (household FK is set-null on cascade, but we want hard deletes)
+    await tx.delete(usersTable).where(eq(usersTable.householdId, id));
+    // 4. The household itself
+    await tx.delete(householdsTable).where(eq(householdsTable.id, id));
+  });
+  res.status(204).send();
 });
 
 router.get("/households/:id/riders", requireAuth, async (req, res) => {
