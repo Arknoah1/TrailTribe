@@ -318,6 +318,11 @@ export default function Admin() {
   const [shortNameInput, setShortNameInput] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
+  // Account Cleanup state
+  const [cleanupEmail, setCleanupEmail] = useState("");
+  const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
+  const [cleanupRunning, setCleanupRunning] = useState(false);
+
   const fetchPendingInvites = useCallback(async () => {
     try {
       const res = await authedFetch(`${BASE_URL}/api/family-invites`);
@@ -746,6 +751,31 @@ export default function Admin() {
       toast({ title: "Failed to save settings", variant: "destructive" });
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleCleanupEmail = async () => {
+    const email = cleanupEmail.trim();
+    if (!email) return;
+    setCleanupRunning(true);
+    setCleanupConfirmOpen(false);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/admin/cleanup/clerk-by-email`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast({ title: data.message ?? `Sign-in account for ${email} removed` });
+        setCleanupEmail("");
+      } else {
+        toast({ title: data.error ?? "Failed to remove account", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error — please try again", variant: "destructive" });
+    } finally {
+      setCleanupRunning(false);
     }
   };
 
@@ -3071,8 +3101,64 @@ export default function Admin() {
               </Button>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Account Cleanup
+              </CardTitle>
+              <CardDescription>
+                Use this only when an email address still shows as "taken" after a family was permanently deleted.
+                This removes the sign-in account from the authentication system so the person can re-register.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1.5 max-w-sm">
+                <Label htmlFor="cleanup-email-input">Email address to free up</Label>
+                <Input
+                  id="cleanup-email-input"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={cleanupEmail}
+                  onChange={(e) => setCleanupEmail(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                disabled={!cleanupEmail.trim() || cleanupRunning}
+                onClick={() => setCleanupConfirmOpen(true)}
+              >
+                {cleanupRunning ? "Removing…" : "Remove account"}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={cleanupConfirmOpen} onOpenChange={setCleanupConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove sign-in account for {cleanupEmail}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete their sign-in credentials from the authentication system.
+              Only do this for email addresses belonging to families that have already been deleted from TrailTribe.
+              The person will be able to create a new account with this email afterwards.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleCleanupEmail}
+            >
+              Remove account
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!podToDelete} onOpenChange={(open) => { if (!open) setPodToDelete(null); }}>
         <AlertDialogContent>
