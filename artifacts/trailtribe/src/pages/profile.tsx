@@ -24,7 +24,7 @@ import { useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck, AlertTriangle } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck, AlertTriangle, UserPlus, Lock } from "lucide-react";
 import { useAdminView } from "@/hooks/use-admin-view";
 import {
   AlertDialog,
@@ -63,6 +63,7 @@ const riderSchema = z.object({
   notifPracticeReminders: z.boolean().optional(),
   notifCoachMessages: z.boolean().optional(),
   notifEventReminders: z.boolean().optional(),
+  notificationPreferencesLocked: z.boolean().optional(),
 });
 
 type RiderFormValues = z.infer<typeof riderSchema>;
@@ -95,6 +96,7 @@ function NotificationsTab({ user }: { user: User }) {
   const masterOn: boolean = localUser.notificationsEnabled ?? true;
   const hasPhone = !!localUser.phone;
   const isCoachOrAdmin = localUser.role === "coach" || localUser.role === "admin";
+  const prefsLocked = localUser.role === "student" && !!(localUser as any).notificationPreferencesLocked;
 
   const save = async (patch: Record<string, any>, key: string) => {
     // Optimistically apply the patch to local state immediately
@@ -158,6 +160,14 @@ function NotificationsTab({ user }: { user: User }) {
 
   return (
     <div className="space-y-6">
+      {prefsLocked && (
+        <div className="flex items-start gap-3 rounded-lg border border-muted bg-muted/40 px-4 py-3">
+          <Lock className="h-4 w-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Your parent manages these notification settings. Contact them if you'd like to make changes.
+          </p>
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
@@ -169,6 +179,7 @@ function NotificationsTab({ user }: { user: User }) {
             label="Receive notifications"
             description="Master switch — turn off to silence all notifications."
             value={masterOn}
+            disabled={prefsLocked}
             onChange={(v) => save({ notificationsEnabled: v }, "notificationsEnabled")}
           />
         </CardContent>
@@ -185,7 +196,7 @@ function NotificationsTab({ user }: { user: User }) {
             label="Email"
             description="Get event updates and messages in your inbox."
             value={localUser.emailNotifications ?? true}
-            disabled={!masterOn}
+            disabled={!masterOn || prefsLocked}
             onChange={(v) => save({ emailNotifications: v }, "emailNotifications")}
           />
           <ToggleRow
@@ -201,7 +212,7 @@ function NotificationsTab({ user }: { user: User }) {
             label="In-app notifications"
             description="See a badge when something needs your attention."
             value={localUser.pushNotifications ?? true}
-            disabled={!masterOn}
+            disabled={!masterOn || prefsLocked}
             onChange={(v) => save({ pushNotifications: v }, "pushNotifications")}
           />
         </CardContent>
@@ -220,7 +231,7 @@ function NotificationsTab({ user }: { user: User }) {
               label={label}
               description={desc}
               value={prefs[key as keyof UserNotificationPreferences] ?? true}
-              disabled={!masterOn}
+              disabled={!masterOn || prefsLocked}
               onChange={(v) => save({ notificationPreferences: { ...prefs, [key]: v } }, key)}
             />
           ))}
@@ -243,6 +254,8 @@ function RiderDialog({
     id: number; firstName: string; lastName: string;
     grade?: number | null; allergies?: string | null; medicalNotes?: string | null;
     email?: string | null; emailNotifications?: boolean | null;
+    notificationPreferencesLocked?: boolean | null;
+    clerkUserId?: string | null;
     notificationPreferences?: {
       practiceReminders?: boolean; coachMessages?: boolean; eventReminders?: boolean;
     } | null;
@@ -268,13 +281,14 @@ function RiderDialog({
       notifPracticeReminders: riderPrefs.practiceReminders ?? true,
       notifCoachMessages: riderPrefs.coachMessages ?? true,
       notifEventReminders: riderPrefs.eventReminders ?? true,
+      notificationPreferencesLocked: rider?.notificationPreferencesLocked ?? false,
     },
   });
 
   const emailOn = form.watch("emailNotifications");
 
   const onSubmit = async (values: RiderFormValues) => {
-    const { notifPracticeReminders, notifCoachMessages, notifEventReminders, ...rest } = values;
+    const { notifPracticeReminders, notifCoachMessages, notifEventReminders, notificationPreferencesLocked, ...rest } = values;
     const body = {
       ...rest,
       notificationPreferences: {
@@ -282,6 +296,7 @@ function RiderDialog({
         coachMessages: notifCoachMessages ?? true,
         eventReminders: notifEventReminders ?? true,
       },
+      notificationPreferencesLocked: notificationPreferencesLocked ?? false,
     };
     const url = rider
       ? `${BASE_URL}/api/households/${householdId}/riders/${rider.id}`
@@ -380,6 +395,23 @@ function RiderDialog({
               )} />
             ))}
           </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <FormField control={form.control} name="notificationPreferencesLocked" render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <FormLabel className="text-sm font-medium flex items-center gap-1.5">
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                  Parent controls notification settings
+                </FormLabel>
+                <FormDescription className="text-xs">When on, the rider cannot change their own notification preferences.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value ?? false} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )} />
         </div>
 
         <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
@@ -891,6 +923,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
   const [copied, setCopied] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
+  const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
   const [consentModal, setConsentModal] = useState<{
     docType: "liability_waiver" | "media_release" | "code_of_conduct";
     label: string;
@@ -955,6 +988,26 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders/${riderId}`, { method: "DELETE" });
     if (res.ok) { toast({ title: "Rider removed" }); fetchRiders(); }
     else toast({ title: "Failed to remove rider", variant: "destructive" });
+  };
+
+  const sendRiderInvite = async (rider: any) => {
+    setSendingInviteForRider(rider.id);
+    try {
+      const res = await authedFetch(
+        `${BASE_URL}/api/households/${householdId}/riders/${rider.id}/invite`,
+        { method: "POST" }
+      );
+      if (res.ok) {
+        toast({ title: `Invite sent to ${rider.email}` });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error ?? "Failed to send invite", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error — please try again", variant: "destructive" });
+    } finally {
+      setSendingInviteForRider(null);
+    }
   };
 
   const removeMember = async () => {
@@ -1060,7 +1113,12 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
               {riders.map(rider => (
                 <div key={rider.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
                   <div>
-                    <div className="font-medium">{rider.firstName} {rider.lastName}</div>
+                    <div className="font-medium flex items-center gap-2">
+                      {rider.firstName} {rider.lastName}
+                      {rider.clerkUserId && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Has login</Badge>
+                      )}
+                    </div>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-0.5">
                       {rider.grade && <span>Grade {rider.grade}</span>}
                       {rider.allergies && <span className="text-amber-600 dark:text-amber-500">⚠ {rider.allergies}</span>}
@@ -1069,7 +1127,19 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
+                    {!rider.clerkUserId && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        disabled={sendingInviteForRider === rider.id}
+                        onClick={() => sendRiderInvite(rider)}
+                      >
+                        <UserPlus className="h-3.5 w-3.5 mr-1" />
+                        {sendingInviteForRider === rider.id ? "Sending…" : "Invite to app"}
+                      </Button>
+                    )}
                     <Dialog open={riderDialogOpen && editingRider?.id === rider.id} onOpenChange={(o) => { setRiderDialogOpen(o); if (!o) setEditingRider(null); }}>
                       <DialogTrigger asChild>
                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingRider(rider)}>

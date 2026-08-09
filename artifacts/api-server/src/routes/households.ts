@@ -538,7 +538,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
     return;
   }
 
-  const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications, notificationPreferences } = req.body;
+  const { firstName, lastName, grade, allergies, medications, medicalNotes, email, emailNotifications, notificationPreferences, notificationPreferencesLocked } = req.body;
 
   const updates: Record<string, any> = {
     firstName, lastName,
@@ -549,6 +549,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   };
   if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
   if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
+  if (notificationPreferencesLocked !== undefined) updates.notificationPreferencesLocked = !!notificationPreferencesLocked;
   // Students cannot receive SMS or push notifications
   updates.smsNotifications = false;
   updates.pushNotifications = false;

@@ -396,6 +396,28 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS last_notified_at timestamptz;
     `,
   },
+  {
+    name: "create_rider_invites_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_invites (
+        id serial PRIMARY KEY,
+        rider_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token text NOT NULL UNIQUE,
+        invited_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        expires_at timestamptz NOT NULL,
+        accepted_at timestamptz,
+        revoked_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `,
+  },
+  {
+    name: "add_notification_preferences_locked_to_users",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS notification_preferences_locked boolean NOT NULL DEFAULT false;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

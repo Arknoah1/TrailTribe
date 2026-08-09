@@ -16,6 +16,7 @@ const Admin = lazy(() => import("./pages/admin"));
 const SeasonBuilder = lazy(() => import("./pages/season-builder"));
 const Join = lazy(() => import("./pages/join"));
 const FamilyInvite = lazy(() => import("./pages/family-invite"));
+const RiderInvite = lazy(() => import("./pages/rider-invite"));
 const Onboarding = lazy(() => import("./pages/onboarding"));
 const Reenroll = lazy(() => import("./pages/reenroll"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
@@ -341,6 +342,7 @@ function ClerkProviderWithRoutes() {
             )} />
             <Route path="/join/:code" component={Join} />
             <Route path="/family-invite/:token" component={FamilyInvite} />
+            <Route path="/rider-invite/:token" component={RiderInvite} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>

@@ -299,6 +299,15 @@ router.patch("/users/me", requireAuth, async (req, res) => {
     notificationPreferences, defaultCarpoolSeats, defaultCarpoolTrays,
   } = req.body;
 
+  // Riders whose parents have locked notification preferences cannot update them
+  if (user.role === "student" && user.notificationPreferencesLocked) {
+    const notifFields = ["notificationsEnabled", "emailNotifications", "smsNotifications", "pushNotifications", "notificationPreferences"];
+    const hasNotifChange = notifFields.some((f) => req.body[f] !== undefined);
+    if (hasNotifChange) {
+      res.status(403).json({ error: "Your notification preferences are managed by your parent." }); return;
+    }
+  }
+
   const patch: Record<string, any> = {};
   if (firstName !== undefined) patch.firstName = firstName;
   if (lastName !== undefined) patch.lastName = lastName;

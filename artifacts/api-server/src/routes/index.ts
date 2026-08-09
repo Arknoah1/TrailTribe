@@ -17,6 +17,7 @@ import volunteerTasksRouter from "./volunteerTasks";
 import boardRouter from "./board";
 import seasonsRouter from "./seasons";
 import familyInvitesRouter from "./family-invites";
+import riderInvitesRouter from "./rider-invites";
 import settingsRouter from "./settings";
 
 const router: IRouter = Router();
@@ -39,6 +40,7 @@ router.use(volunteerTasksRouter);
 router.use(boardRouter);
 router.use(seasonsRouter);
 router.use(familyInvitesRouter);
+router.use(riderInvitesRouter);
 router.use(settingsRouter);
 
 export default router;
