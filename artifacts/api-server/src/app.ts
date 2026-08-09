@@ -9,6 +9,11 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust one hop of reverse-proxy forwarding so req.ip resolves to the real
+// client address. Replit's infrastructure terminates TLS and adds one
+// X-Forwarded-For hop before requests reach this server.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
