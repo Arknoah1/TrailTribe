@@ -93,6 +93,7 @@ const MOCK_CARPOOL_CLAIMS_TABLE      = { __table: "carpoolClaimsTable" };
 const MOCK_CARPOOL_OFFERS_TABLE      = { __table: "carpoolOffersTable" };
 const MOCK_CARPOOL_REQUESTS_TABLE    = { __table: "carpoolRequestsTable" };
 const MOCK_NOTIFICATIONS_TABLE       = { __table: "notificationsTable" };
+const MOCK_EVENT_TASK_SIGNUPS_TABLE  = { __table: "eventTaskSignupsTable" };
 
 vi.mock("@clerk/express", () => {
   return {
@@ -187,6 +188,7 @@ vi.mock("@workspace/db", () => {
     carpoolOffersTable:          MOCK_CARPOOL_OFFERS_TABLE,
     carpoolRequestsTable:        MOCK_CARPOOL_REQUESTS_TABLE,
     notificationsTable:          MOCK_NOTIFICATIONS_TABLE,
+    eventTaskSignupsTable:       MOCK_EVENT_TASK_SIGNUPS_TABLE,
     eq:    vi.fn(() => ({})),
     and:   vi.fn((...args: any[]) => args),
     isNull:vi.fn(() => ({})),
@@ -352,12 +354,12 @@ describe("DELETE /households/:id — archived household", () => {
     expect(usersIdx).toBeLessThan(householdIdx);
   });
 
-  it("deletes exactly 8 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, consents, snapshots, users, household", async () => {
+  it("deletes exactly 9 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, event task signups, consents, snapshots, users, household", async () => {
     // tx.select is mocked to return [{ id: PARENT_ID, clerkUserId: "clerk_parent" }]
     // so the member-based sweep runs (memberIds.length > 0).
     setUser(ADMIN_ID);
     await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
-    expect(txDeleteCalls).toHaveLength(8);
+    expect(txDeleteCalls).toHaveLength(9);
   });
 });
 
@@ -472,6 +474,43 @@ describe("DELETE /households/:id — carpool and notification cleanup", () => {
     expect(claimsIdx).toBeLessThan(usersIdx);
     expect(offersIdx).toBeLessThan(usersIdx);
     expect(notificationsIdx).toBeLessThan(usersIdx);
+  });
+});
+
+/* ─── DELETE /households/:id — volunteer task sign-up cleanup ───────────── */
+
+describe("DELETE /households/:id — volunteer task sign-up cleanup", () => {
+  /**
+   * Volunteer task sign-up rows (eventTaskSignupsTable) reference user rows via
+   * a FK with onDelete: cascade.  The transaction also removes them explicitly
+   * (belt-and-suspenders) so the intent is clear and survives any future
+   * migration that might change cascade behaviour.
+   */
+
+  beforeEach(() => {
+    householdFindFirstResult = mockArchivedHousehold;
+  });
+
+  it("deletes volunteer task sign-up rows inside the transaction", async () => {
+    const { eventTaskSignupsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(eventTaskSignupsTable);
+  });
+
+  it("deletes volunteer task sign-up rows before the user rows", async () => {
+    const { eventTaskSignupsTable, usersTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+
+    const signupsIdx = txDeleteCalls.indexOf(eventTaskSignupsTable);
+    const usersIdx   = txDeleteCalls.indexOf(usersTable);
+
+    expect(signupsIdx).toBeGreaterThanOrEqual(0);
+    expect(usersIdx).toBeGreaterThanOrEqual(0);
+    // Sign-ups must be removed before user rows so the FK constraint is satisfied
+    // in databases that don't auto-cascade within a transaction.
+    expect(signupsIdx).toBeLessThan(usersIdx);
   });
 });
 

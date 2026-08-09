@@ -12,6 +12,7 @@ import {
   carpoolOffersTable,
   carpoolRequestsTable,
   notificationsTable,
+  eventTaskSignupsTable,
 } from "@workspace/db";
 import { eq, and, isNull, desc, inArray, or } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -407,6 +408,11 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
       await tx.delete(carpoolOffersTable).where(inArray(carpoolOffersTable.driverUserId, memberIds));
       // 1d. In-app notification inbox rows
       await tx.delete(notificationsTable).where(inArray(notificationsTable.recipientUserId, memberIds));
+      // 1e. Volunteer task sign-up rows
+      //     (the DB-level onDelete: cascade on eventTaskSignupsTable.userId acts as
+      //     a safety net; this explicit sweep makes the intent clear and guards against
+      //     any future migration that changes cascade behaviour)
+      await tx.delete(eventTaskSignupsTable).where(inArray(eventTaskSignupsTable.userId, memberIds));
     }
 
     // 2. Consent audit records (householdId FK)
