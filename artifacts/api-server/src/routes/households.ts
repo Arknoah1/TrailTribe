@@ -13,6 +13,8 @@ import {
   carpoolRequestsTable,
   notificationsTable,
   eventTaskSignupsTable,
+  boardThreadsTable,
+  boardPostsTable,
 } from "@workspace/db";
 import { eq, and, isNull, desc, inArray, or } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -413,6 +415,17 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
       //     a safety net; this explicit sweep makes the intent clear and guards against
       //     any future migration that changes cascade behaviour)
       await tx.delete(eventTaskSignupsTable).where(inArray(eventTaskSignupsTable.userId, memberIds));
+      // 1f. Board reply posts authored by household members.
+      //     The schema uses onDelete: set null on boardPostsTable.authorUserId which
+      //     would leave posts with a null author rather than removing them.  Explicit
+      //     deletion ensures content created by this household is fully purged.
+      await tx.delete(boardPostsTable).where(inArray(boardPostsTable.authorUserId, memberIds));
+      // 1g. Board threads started by household members.
+      //     onDelete: set null on boardThreadsTable.authorUserId would again leave
+      //     ghost threads.  Deleting threads here cascades to any remaining posts
+      //     inside them (boardPostsTable.threadId has onDelete: cascade) — covering
+      //     replies from other users that were in a thread owned by this household.
+      await tx.delete(boardThreadsTable).where(inArray(boardThreadsTable.authorUserId, memberIds));
     }
 
     // 2. Consent audit records (householdId FK)

@@ -94,6 +94,8 @@ const MOCK_CARPOOL_OFFERS_TABLE      = { __table: "carpoolOffersTable" };
 const MOCK_CARPOOL_REQUESTS_TABLE    = { __table: "carpoolRequestsTable" };
 const MOCK_NOTIFICATIONS_TABLE       = { __table: "notificationsTable" };
 const MOCK_EVENT_TASK_SIGNUPS_TABLE  = { __table: "eventTaskSignupsTable" };
+const MOCK_BOARD_POSTS_TABLE         = { __table: "boardPostsTable" };
+const MOCK_BOARD_THREADS_TABLE       = { __table: "boardThreadsTable" };
 
 vi.mock("@clerk/express", () => {
   return {
@@ -189,6 +191,8 @@ vi.mock("@workspace/db", () => {
     carpoolRequestsTable:        MOCK_CARPOOL_REQUESTS_TABLE,
     notificationsTable:          MOCK_NOTIFICATIONS_TABLE,
     eventTaskSignupsTable:       MOCK_EVENT_TASK_SIGNUPS_TABLE,
+    boardPostsTable:             MOCK_BOARD_POSTS_TABLE,
+    boardThreadsTable:           MOCK_BOARD_THREADS_TABLE,
     eq:    vi.fn(() => ({})),
     and:   vi.fn((...args: any[]) => args),
     isNull:vi.fn(() => ({})),
@@ -354,12 +358,12 @@ describe("DELETE /households/:id — archived household", () => {
     expect(usersIdx).toBeLessThan(householdIdx);
   });
 
-  it("deletes exactly 9 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, event task signups, consents, snapshots, users, household", async () => {
+  it("deletes exactly 11 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, event task signups, board posts, board threads, consents, snapshots, users, household", async () => {
     // tx.select is mocked to return [{ id: PARENT_ID, clerkUserId: "clerk_parent" }]
     // so the member-based sweep runs (memberIds.length > 0).
     setUser(ADMIN_ID);
     await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
-    expect(txDeleteCalls).toHaveLength(9);
+    expect(txDeleteCalls).toHaveLength(11);
   });
 });
 
@@ -511,6 +515,65 @@ describe("DELETE /households/:id — volunteer task sign-up cleanup", () => {
     // Sign-ups must be removed before user rows so the FK constraint is satisfied
     // in databases that don't auto-cascade within a transaction.
     expect(signupsIdx).toBeLessThan(usersIdx);
+  });
+});
+
+/* ─── DELETE /households/:id — board content cleanup ───────────────────── */
+
+describe("DELETE /households/:id — board content cleanup", () => {
+  /**
+   * boardThreadsTable.authorUserId and boardPostsTable.authorUserId both use
+   * onDelete: "set null".  That keeps the DB constraint satisfied but leaves
+   * ghost posts with a null author.  The transaction must explicitly remove
+   * board posts and threads authored by deleted members so no content is
+   * silently anonymised instead of purged.
+   */
+
+  beforeEach(() => {
+    householdFindFirstResult = mockArchivedHousehold;
+  });
+
+  it("deletes board posts authored by household members inside the transaction", async () => {
+    const { boardPostsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(boardPostsTable);
+  });
+
+  it("deletes board threads authored by household members inside the transaction", async () => {
+    const { boardThreadsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(txDeleteCalls).toContain(boardThreadsTable);
+  });
+
+  it("deletes board posts before board threads (posts reference threads via threadId cascade)", async () => {
+    const { boardPostsTable, boardThreadsTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+
+    const postsIdx   = txDeleteCalls.indexOf(boardPostsTable);
+    const threadsIdx = txDeleteCalls.indexOf(boardThreadsTable);
+
+    expect(postsIdx).toBeGreaterThanOrEqual(0);
+    expect(threadsIdx).toBeGreaterThanOrEqual(0);
+    // Posts must be removed before threads so that replies authored by this
+    // household in other members' threads are explicitly purged first; thread
+    // deletion then cascades any remaining posts inside those threads.
+    expect(postsIdx).toBeLessThan(threadsIdx);
+  });
+
+  it("deletes board content before the user rows", async () => {
+    const { boardPostsTable, boardThreadsTable, usersTable } = await import("@workspace/db");
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+
+    const postsIdx   = txDeleteCalls.indexOf(boardPostsTable);
+    const threadsIdx = txDeleteCalls.indexOf(boardThreadsTable);
+    const usersIdx   = txDeleteCalls.indexOf(usersTable);
+
+    expect(postsIdx).toBeLessThan(usersIdx);
+    expect(threadsIdx).toBeLessThan(usersIdx);
   });
 });
 
