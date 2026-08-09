@@ -24,6 +24,7 @@ import { useGetMe } from "@workspace/api-client-react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeContext, type Theme } from "@/lib/theme-context";
+import { AdminViewProvider } from "@/lib/admin-view-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
@@ -351,12 +352,14 @@ function ClerkProviderWithRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <WouterRouter base={basePath}>
-        <TooltipProvider>
-          <ClerkProviderWithRoutes />
-          <Toaster />
-        </TooltipProvider>
-      </WouterRouter>
+      <AdminViewProvider>
+        <WouterRouter base={basePath}>
+          <TooltipProvider>
+            <ClerkProviderWithRoutes />
+            <Toaster />
+          </TooltipProvider>
+        </WouterRouter>
+      </AdminViewProvider>
     </ThemeProvider>
   );
 }
