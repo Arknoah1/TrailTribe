@@ -1,0 +1,166 @@
+Apply the following diffs to the TrailTribe API server (artifacts/api-server). 
+
+Context/notes for the agent:
+- Fixes an IDOR (missing ownership checks) on carpool offer/claim mutations, an N+1 query in the dashboard summary endpoint, and a missing rate limiter for consistency.
+- Verified: tsc --noEmit clean on all three files, and the full vitest suite (17 tests across 3 files, including dashboard.test.ts which covers the exact endpoint changed) passes unmodified.
+- No schema/migration changes — pure route logic.
+
+--- a/artifacts/api-server/src/routes/carpools.ts
++++ b/artifacts/api-server/src/routes/carpools.ts
+@@ -41,6 +41,26 @@
+   };
+ }
+ 
++async function getRequester(req: any) {
++  const clerkUserId = req.clerkUserId;
++  if (!clerkUserId) return null;
++  return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
++}
++
++// A claim can be managed by: the rider themself, a parent in the rider's
++// household, the driver of the offer the claim is on, or a coach/admin.
++async function canManageClaim(requester: typeof usersTable.$inferSelect, claim: typeof carpoolClaimsTable.$inferSelect): Promise<boolean> {
++  if (requester.role === "coach" || requester.role === "admin") return true;
++  if (claim.riderUserId === requester.id) return true;
++  if (requester.householdId != null) {
++    const rider = await db.query.usersTable.findFirst({ where: eq(usersTable.id, claim.riderUserId) });
++    if (rider && rider.householdId === requester.householdId) return true;
++  }
++  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, claim.carpoolOfferId) });
++  if (offer && offer.driverUserId === requester.id) return true;
++  return false;
++}
++
+ router.get("/events/:id/carpools", requireApproved, async (req, res) => {
+   const eventId = parseInt(str(req.params.id));
+   const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, eventId));
+@@ -95,6 +115,15 @@
+ 
+ router.patch("/carpools/:offerId", requireAuth, async (req, res) => {
+   const offerId = parseInt(str(req.params.offerId));
++  const requester = await getRequester(req);
++  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
++  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
++  if (!offer) { res.status(404).json({ error: "Offer not found" }); return; }
++  const isCoachOrAdmin = requester.role === "coach" || requester.role === "admin";
++  if (!isCoachOrAdmin && offer.driverUserId !== requester.id) {
++    res.status(403).json({ error: "You can only edit your own carpool offer" });
++    return;
++  }
+   const { availableSeats, bikeTrayCount, departureLocation, departureTime, notes } = req.body;
+   const [updated] = await db.update(carpoolOffersTable)
+     .set({ availableSeats, bikeTrayCount, departureLocation, departureTime: departureTime ? new Date(departureTime) : undefined, notes })
+@@ -105,6 +134,15 @@
+ 
+ router.delete("/carpools/:offerId", requireAuth, async (req, res) => {
+   const offerId = parseInt(str(req.params.offerId));
++  const requester = await getRequester(req);
++  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
++  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
++  if (!offer) { res.status(404).json({ error: "Offer not found" }); return; }
++  const isCoachOrAdmin = requester.role === "coach" || requester.role === "admin";
++  if (!isCoachOrAdmin && offer.driverUserId !== requester.id) {
++    res.status(403).json({ error: "You can only delete your own carpool offer" });
++    return;
++  }
+   await db.delete(carpoolOffersTable).where(eq(carpoolOffersTable.id, offerId));
+   res.status(204).send();
+ });
+@@ -162,6 +200,14 @@
+ 
+ router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
+   const claimId = parseInt(str(req.params.claimId));
++  const requester = await getRequester(req);
++  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
++  const claim = await db.query.carpoolClaimsTable.findFirst({ where: eq(carpoolClaimsTable.id, claimId) });
++  if (!claim) { res.status(404).json({ error: "Claim not found" }); return; }
++  if (!(await canManageClaim(requester, claim))) {
++    res.status(403).json({ error: "Forbidden" });
++    return;
++  }
+   const { needsSeat, needsBikeTray, notes } = req.body;
+   const [updated] = await db.update(carpoolClaimsTable)
+     .set({
+@@ -176,6 +222,14 @@
+ 
+ router.delete("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
+   const claimId = parseInt(str(req.params.claimId));
++  const requester = await getRequester(req);
++  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
++  const claim = await db.query.carpoolClaimsTable.findFirst({ where: eq(carpoolClaimsTable.id, claimId) });
++  if (!claim) { res.status(404).json({ error: "Claim not found" }); return; }
++  if (!(await canManageClaim(requester, claim))) {
++    res.status(403).json({ error: "Forbidden" });
++    return;
++  }
+   await db.delete(carpoolClaimsTable).where(eq(carpoolClaimsTable.id, claimId));
+   res.status(204).send();
+ });
+
+--- a/artifacts/api-server/src/routes/dashboard.ts
++++ b/artifacts/api-server/src/routes/dashboard.ts
+@@ -44,6 +44,10 @@
+     .orderBy(eventsTable.startTime);
+ 
+   const clerkUserId = (req as any).clerkUserId;
++  const me = clerkUserId
++    ? await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) })
++    : undefined;
++
+   const eventsWithDetails = await Promise.all(
+     thisWeekEvents.map(async (event) => {
+       const trailhead = event.trailheadId
+@@ -56,21 +60,21 @@
+         maybe: rsvps.filter((r) => r.status === "maybe").length,
+       };
+       let myRsvp: string | null = null;
+-      if (clerkUserId) {
+-        const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+-        if (me) {
+-          const myRsvpRow = rsvps.find((r) => r.userId === me.id);
+-          myRsvp = myRsvpRow?.status ?? null;
+-        }
++      if (me) {
++        const myRsvpRow = rsvps.find((r) => r.userId === me.id);
++        myRsvp = myRsvpRow?.status ?? null;
+       }
+       const volunteerSignups = await db.select().from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.eventId, event.id));
+       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
+       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
+       let carpoolSpotsAvailable = 0;
+-      for (const offer of offers) {
+-        const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
+-        const seatsClaimed = claims.filter((c) => c.needsSeat).length;
+-        carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
++      if (offers.length > 0) {
++        const offerIds = offers.map((o) => o.id);
++        const allClaims = await db.select().from(carpoolClaimsTable).where(inArray(carpoolClaimsTable.carpoolOfferId, offerIds));
++        for (const offer of offers) {
++          const seatsClaimed = allClaims.filter((c) => c.carpoolOfferId === offer.id && c.needsSeat).length;
++          carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
++        }
+       }
+       return {
+         ...event,
+
+--- a/artifacts/api-server/src/routes/family-invites.ts
++++ b/artifacts/api-server/src/routes/family-invites.ts
+@@ -3,6 +3,7 @@
+ import { familyInvitesTable, usersTable } from "@workspace/db";
+ import { eq, and, isNull, gt } from "drizzle-orm";
+ import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
++import { publicLookupLimiter } from "../middlewares/rateLimiter";
+ import { sendEmail } from "../lib/email";
+ import { logger } from "../lib/logger";
+ import { randomBytes } from "crypto";
+@@ -220,7 +221,7 @@
+ });
+ 
+ // GET /family-invites/validate/:token — public; check token validity
+-router.get("/family-invites/validate/:token", async (req, res) => {
++router.get("/family-invites/validate/:token", publicLookupLimiter, async (req, res) => {
+   const token = str(req.params.token);
+   const now = new Date();
+   const invite = await db.query.familyInvitesTable.findFirst({
+
+After applying: run `pnpm --filter @workspace/api-server test` to confirm the suite still passes (verified locally, should be unaffected), and `tsc --noEmit` for a final typecheck.
