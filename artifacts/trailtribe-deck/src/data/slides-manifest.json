@@ -32,8 +32,56 @@
     "speakerNotes": ""
   },
   {
-    "id": "886313e1-3b8a-5372-9b90-0c9aee199e5d",
+    "id": "a1b2c3d4-e5f6-4890-abcd-ef1234567890",
     "position": 5,
+    "filepath": "src/pages/slides/Slide6HowItWorks.tsx",
+    "title": "How It Works",
+    "description": "Tutorial section-break slide — numbered legend of five walkthroughs",
+    "speakerNotes": ""
+  },
+  {
+    "id": "b2c3d4e5-f6a7-4901-bcde-f12345678901",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide7Dashboard.tsx",
+    "title": "Your team, at a glance",
+    "description": "Tutorial: dashboard mockup with upcoming event cards and RSVP status",
+    "speakerNotes": ""
+  },
+  {
+    "id": "c3d4e5f6-a7b8-4012-cdef-123456789012",
+    "position": 7,
+    "filepath": "src/pages/slides/Slide8Calendar.tsx",
+    "title": "Never miss a practice",
+    "description": "Tutorial: calendar mockup with monthly grid and event detail RSVP panel",
+    "speakerNotes": ""
+  },
+  {
+    "id": "d4e5f6a7-b8c9-4123-def0-234567890123",
+    "position": 8,
+    "filepath": "src/pages/slides/Slide9Carpools.tsx",
+    "title": "Rides, sorted",
+    "description": "Tutorial: carpool hub mockup with offered rides and claim button",
+    "speakerNotes": ""
+  },
+  {
+    "id": "e5f6a7b8-c9d0-4234-ef01-345678901234",
+    "position": 9,
+    "filepath": "src/pages/slides/Slide10Inviting.tsx",
+    "title": "Onboard families in seconds",
+    "description": "Tutorial: admin invite panel mockup with email input and sent invite rows",
+    "speakerNotes": ""
+  },
+  {
+    "id": "f6a7b8c9-d0e1-4345-f012-456789012345",
+    "position": 10,
+    "filepath": "src/pages/slides/Slide11Roster.tsx",
+    "title": "Keep everyone in the loop",
+    "description": "Tutorial: admin roster table with pod badges and broadcast compose area",
+    "speakerNotes": ""
+  },
+  {
+    "id": "886313e1-3b8a-5372-9b90-0c9aee199e5d",
+    "position": 11,
     "filepath": "src/pages/slides/Slide5CTA.tsx",
     "title": "Ready to ride?",
     "description": "Closing slide — golden hour image with call to action",
