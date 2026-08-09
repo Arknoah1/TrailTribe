@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createClerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   householdsTable,
@@ -370,6 +371,11 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
     res.status(400).json({ error: "Only archived households can be permanently deleted. Archive the family first." });
     return;
   }
+
+  // Clerk IDs are captured inside the transaction so the set of IDs to clean up
+  // in Clerk exactly matches the set deleted from the DB — no race window.
+  let memberClerkIds: string[] = [];
+
   await db.transaction(async (tx) => {
     // Collect member user IDs — needed for tables that reference users but not
     // the household directly (carpool offers/claims/requests, notifications).
@@ -377,10 +383,13 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
     // explicit sweep makes the intent clear and guards against any future
     // migration that changes cascade behaviour.
     const memberRows = await tx
-      .select({ id: usersTable.id })
+      .select({ id: usersTable.id, clerkUserId: usersTable.clerkUserId })
       .from(usersTable)
       .where(eq(usersTable.householdId, id));
     const memberIds = memberRows.map((r) => r.id);
+    memberClerkIds = memberRows
+      .map((r) => r.clerkUserId)
+      .filter((cid): cid is string => cid !== null && cid !== undefined);
 
     if (memberIds.length > 0) {
       // 1a. Carpool claims where a household member is the rider
@@ -409,7 +418,27 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
     // 5. The household itself
     await tx.delete(householdsTable).where(eq(householdsTable.id, id));
   });
-  res.status(204).send();
+
+  // Delete Clerk accounts after the DB transaction commits.
+  // Individual failures are logged and surfaced in the response body but do
+  // not roll back the DB deletion — the household is gone regardless.
+  const clerkWarnings: string[] = [];
+  if (memberClerkIds.length > 0) {
+    const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+    await Promise.all(
+      memberClerkIds.map(async (clerkUserId) => {
+        try {
+          await clerk.users.deleteUser(clerkUserId);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`Failed to delete Clerk user ${clerkUserId} after household ${id} deletion:`, err);
+          clerkWarnings.push(`Failed to delete Clerk account ${clerkUserId}: ${msg}`);
+        }
+      }),
+    );
+  }
+
+  res.status(200).json({ warnings: clerkWarnings });
 });
 
 router.get("/households/:id/riders", requireAuth, async (req, res) => {

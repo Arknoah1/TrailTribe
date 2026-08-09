@@ -635,9 +635,20 @@ export default function Admin() {
 
   const handleDeleteFamily = async (householdId: number) => {
     const res = await authedFetch(`${BASE_URL}/api/households/${householdId}`, { method: "DELETE" });
-    if (res.ok || res.status === 204) {
+    if (res.ok) {
       setArchivedFamilies((prev) => prev.filter((h) => h.id !== householdId));
-      toast({ title: "Family permanently deleted" });
+      const body = await res.json().catch(() => ({}));
+      const warnings: string[] = Array.isArray(body.warnings) ? body.warnings : [];
+      if (warnings.length > 0) {
+        toast({
+          title: "Family deleted — sign-in accounts may still be active",
+          description:
+            "The family's records were removed, but their sign-in accounts could not be fully deleted from the authentication system. They may still be able to log in with their old email. Please contact support if this is a problem.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Family permanently deleted" });
+      }
     } else {
       const body = await res.json().catch(() => ({}));
       toast({ title: body.error ?? "Failed to delete family", variant: "destructive" });

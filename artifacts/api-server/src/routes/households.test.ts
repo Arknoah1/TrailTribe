@@ -3,7 +3,7 @@
  *
  * Covers:
  *   ✓ DELETE on a non-archived household returns 400
- *   ✓ DELETE on an archived household returns 204
+ *   ✓ DELETE on an archived household returns 200 with { warnings: [] }
  *   ✓ The transaction hard-deletes every required table in the correct order:
  *       carpoolClaimsTable → carpoolRequestsTable → carpoolOffersTable →
  *       notificationsTable → documentConsentsTable →
@@ -11,6 +11,10 @@
  *   ✓ Carpool claims/offers/requests and notification rows for household members
  *     are explicitly removed before the user rows are deleted (belt-and-suspenders
  *     on top of the DB-level onDelete: cascade on those FKs)
+ *   ✓ Clerk accounts for household members are deleted after the DB transaction
+ *   ✓ Clerk deletion failures surface in the response warnings array (do not
+ *     prevent the 200 OK response or roll back the DB deletion)
+ *   ✓ Clerk IDs are captured inside the transaction (no race window)
  *   ✓ Re-enrolling with the same Clerk account after deletion is handled
  *     gracefully:
  *       - POST /households succeeds (201) — a new household can be created
@@ -71,6 +75,11 @@ let householdFindFirstResult: Record<string, unknown> | null = mockHousehold;
 // in the order they were called.  Asserted in cascade tests.
 const txDeleteCalls: any[] = [];
 
+// Controls whether the mock Clerk deleteUser call succeeds or throws.
+let clerkDeleteUserShouldFail = false;
+// Tracks which Clerk user IDs were passed to deleteUser.
+const clerkDeleteCalls: string[] = [];
+
 /* ─── module mocks ──────────────────────────────────────────────────────── */
 
 // Named sentinel objects so we can do identity checks in assertions
@@ -84,6 +93,21 @@ const MOCK_CARPOOL_CLAIMS_TABLE      = { __table: "carpoolClaimsTable" };
 const MOCK_CARPOOL_OFFERS_TABLE      = { __table: "carpoolOffersTable" };
 const MOCK_CARPOOL_REQUESTS_TABLE    = { __table: "carpoolRequestsTable" };
 const MOCK_NOTIFICATIONS_TABLE       = { __table: "notificationsTable" };
+
+vi.mock("@clerk/express", () => {
+  return {
+    createClerkClient: vi.fn(() => ({
+      users: {
+        deleteUser: vi.fn().mockImplementation(async (userId: string) => {
+          clerkDeleteCalls.push(userId);
+          if (clerkDeleteUserShouldFail) {
+            throw new Error("Clerk API error");
+          }
+        }),
+      },
+    })),
+  };
+});
 
 vi.mock("@workspace/db", () => {
   const makeWhereChain = () => ({ where: vi.fn().mockResolvedValue(undefined) });
@@ -105,12 +129,13 @@ vi.mock("@workspace/db", () => {
     return c;
   };
 
-  // tx.select simulates finding PARENT_ID as the sole household member.
+  // tx.select simulates finding PARENT_ID as the sole household member,
+  // including a clerkUserId so the Clerk cleanup path is exercised.
   // This ensures memberIds is non-empty so the carpool/notification sweep runs.
   const makeTxSelectChain = () => {
     const c: any = {};
     c.from = vi.fn(() => c);
-    c.where = vi.fn().mockResolvedValue([{ id: PARENT_ID }]);
+    c.where = vi.fn().mockResolvedValue([{ id: PARENT_ID, clerkUserId: "clerk_parent" }]);
     return c;
   };
 
@@ -208,6 +233,8 @@ afterAll(() => server.close());
 
 beforeEach(() => {
   txDeleteCalls.length = 0;
+  clerkDeleteCalls.length = 0;
+  clerkDeleteUserShouldFail = false;
   householdFindFirstResult = mockHousehold;
   currentClerkUserId = (users[ADMIN_ID] as any).clerkUserId;
 });
@@ -256,16 +283,18 @@ describe("DELETE /households/:id — archived household", () => {
     householdFindFirstResult = mockArchivedHousehold;
   });
 
-  it("returns 204", async () => {
+  it("returns 200 with an empty warnings array on success", async () => {
     setUser(ADMIN_ID);
     const res = await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ warnings: [] });
   });
 
   it("coaches can also permanently delete an archived household", async () => {
     setUser(COACH_ID);
     const res = await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
   });
 
   it("wraps all deletes in a single transaction", async () => {
@@ -324,11 +353,47 @@ describe("DELETE /households/:id — archived household", () => {
   });
 
   it("deletes exactly 8 tables when members exist: carpool claims, carpool requests, carpool offers, notifications, consents, snapshots, users, household", async () => {
-    // tx.select is mocked to return [{ id: PARENT_ID }] so the member-based
-    // sweep runs (memberIds.length > 0).
+    // tx.select is mocked to return [{ id: PARENT_ID, clerkUserId: "clerk_parent" }]
+    // so the member-based sweep runs (memberIds.length > 0).
     setUser(ADMIN_ID);
     await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
     expect(txDeleteCalls).toHaveLength(8);
+  });
+});
+
+/* ─── DELETE /households/:id — Clerk account cleanup ───────────────────── */
+
+describe("DELETE /households/:id — Clerk account cleanup", () => {
+  beforeEach(() => {
+    householdFindFirstResult = mockArchivedHousehold;
+  });
+
+  it("calls Clerk deleteUser for each member's clerkUserId after the DB transaction", async () => {
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    // tx mock returns clerk_parent; deletion should have been called for it
+    expect(clerkDeleteCalls).toContain("clerk_parent");
+  });
+
+  it("when Clerk deletion fails, returns 200 with a non-empty warnings array", async () => {
+    clerkDeleteUserShouldFail = true;
+    setUser(ADMIN_ID);
+    const res = await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.warnings)).toBe(true);
+    expect(body.warnings.length).toBeGreaterThan(0);
+    expect(body.warnings[0]).toMatch(/clerk_parent/i);
+  });
+
+  it("Clerk deletion failure does not prevent the DB transaction from completing", async () => {
+    clerkDeleteUserShouldFail = true;
+    const { db } = await import("@workspace/db");
+    (db as any).transaction.mockClear();
+    setUser(ADMIN_ID);
+    await deleteHousehold(ARCHIVED_HOUSEHOLD_ID);
+    // Transaction was still called and committed despite Clerk failure
+    expect((db as any).transaction).toHaveBeenCalledTimes(1);
   });
 });
 
