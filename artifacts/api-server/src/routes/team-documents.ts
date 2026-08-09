@@ -7,7 +7,7 @@ import {
   usersTable,
   seasonsTable,
 } from "@workspace/db";
-import { eq, and, isNull, desc, inArray } from "drizzle-orm";
+import { eq, and, isNull, desc, inArray, or, lt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { ObjectStorageService } from "../lib/objectStorage";
 import {
@@ -182,6 +182,89 @@ router.delete("/team-documents/:type", requireCoachOrAdmin, async (req, res) => 
     .where(eq(teamDocumentsTable.type, type as any));
 
   res.status(204).send();
+});
+
+const NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * POST /team-documents/:type/notify-unsigned
+ *
+ * Manually trigger a reminder email to all households that haven't yet signed
+ * the current version of a document.  A 24-hour cooldown prevents accidental
+ * spam — the endpoint returns 429 with a cooldownUntil timestamp if the last
+ * blast was within the window.
+ *
+ * The cooldown is acquired atomically: the UPDATE only succeeds when
+ * last_notified_at is NULL or older than 24 hours, so concurrent requests
+ * cannot both slip past the check.
+ */
+router.post("/team-documents/:type/notify-unsigned", requireCoachOrAdmin, async (req, res) => {
+  const type = str(req.params.type);
+  const validTypes = ["liability_waiver", "media_release", "code_of_conduct"] as const;
+  if (!validTypes.includes(type as any)) {
+    res.status(400).json({ error: "Invalid document type" });
+    return;
+  }
+
+  const doc = await db.query.teamDocumentsTable.findFirst({
+    where: eq(teamDocumentsTable.type, type as any),
+  });
+
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
+  const viewUrl = doc.objectPath
+    ? `${BASE_URL}/api/storage${doc.objectPath}`
+    : doc.externalUrl ?? null;
+
+  if (!viewUrl) {
+    res.status(400).json({ error: "Document has no file or URL set" });
+    return;
+  }
+
+  // Atomic cooldown acquisition: only update (and thus proceed) if the cooldown
+  // window has elapsed.  Two concurrent requests both seeing an expired timestamp
+  // will race on this UPDATE — only one will match and get a row back; the other
+  // gets an empty RETURNING and returns 429.
+  const cooldownCutoff = new Date(Date.now() - NOTIFY_COOLDOWN_MS);
+  const acquired = await db
+    .update(teamDocumentsTable)
+    .set({ lastNotifiedAt: new Date() })
+    .where(
+      and(
+        eq(teamDocumentsTable.type, type as any),
+        or(
+          isNull(teamDocumentsTable.lastNotifiedAt),
+          lt(teamDocumentsTable.lastNotifiedAt, cooldownCutoff),
+        ),
+      ),
+    )
+    .returning();
+
+  if (acquired.length === 0) {
+    // Cooldown still active — fetch the current timestamp so we can compute
+    // how long is left (the doc was re-read above so we already have it).
+    const lastNotifiedAt = doc.lastNotifiedAt ? new Date(doc.lastNotifiedAt) : null;
+    const cooldownUntil = lastNotifiedAt
+      ? new Date(lastNotifiedAt.getTime() + NOTIFY_COOLDOWN_MS)
+      : null;
+    const remainingMs = cooldownUntil ? cooldownUntil.getTime() - Date.now() : 0;
+    const remainingHours = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+    res.status(429).json({
+      error: `A reminder was already sent within the last 24 hours. Please wait ${remainingHours} more ${remainingHours === 1 ? "hour" : "hours"} before sending another.`,
+      cooldownUntil: cooldownUntil?.toISOString() ?? null,
+    });
+    return;
+  }
+
+  res.json({ queued: true });
+
+  // Fire-and-forget notification (after response is sent)
+  notifyUnsignedFamilies(doc.type, doc.label, doc.versionNumber).catch(
+    (err) => logger.error({ err }, "[team-documents] manual notify-unsigned failed"),
+  );
 });
 
 /**

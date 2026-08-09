@@ -387,6 +387,15 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS version_number integer NOT NULL DEFAULT 1;
     `,
   },
+  {
+    // Records when a coach last manually triggered a "remind unsigned" blast so the
+    // server can enforce the 24-hour cooldown between manual notification sends.
+    name: "add_last_notified_at_to_team_documents",
+    sql: `
+      ALTER TABLE team_documents
+        ADD COLUMN IF NOT EXISTS last_notified_at timestamptz;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

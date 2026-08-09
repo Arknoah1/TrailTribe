@@ -36,6 +36,8 @@ interface TeamDocument {
   originalName: string | null;
   /** Number of non-archived households that have not yet signed this document version */
   unsignedCount: number | null;
+  /** ISO timestamp of the last manual remind-unsigned blast (for cooldown display) */
+  lastNotifiedAt: string | null;
 }
 
 const DOC_META: Record<DocType, { label: string; description: string }> = {
@@ -53,15 +55,48 @@ const DOC_META: Record<DocType, { label: string; description: string }> = {
   },
 };
 
+const NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: TeamDocument | undefined; onRefresh: () => void }) {
   const { toast } = useToast();
   const authedFetch = useAuthedFetch();
   const [urlInput, setUrlInput] = useState(doc?.externalUrl ?? "");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isReminding, setIsReminding] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const meta = DOC_META[docType];
   const unsignedCount = doc?.unsignedCount ?? null;
+
+  // Cooldown: disable the button if last notify was within 24 hours
+  const isCoolingDown = doc?.lastNotifiedAt
+    ? Date.now() - new Date(doc.lastNotifiedAt).getTime() < NOTIFY_COOLDOWN_MS
+    : false;
+  const cooldownHoursLeft = doc?.lastNotifiedAt && isCoolingDown
+    ? Math.ceil((NOTIFY_COOLDOWN_MS - (Date.now() - new Date(doc.lastNotifiedAt).getTime())) / (60 * 60 * 1000))
+    : 0;
+
+  const handleRemindUnsigned = async () => {
+    setIsReminding(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/team-documents/${docType}/notify-unsigned`, {
+        method: "POST",
+      });
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error ?? "Reminder already sent recently", variant: "destructive" });
+        onRefresh();
+        return;
+      }
+      if (!res.ok) throw new Error("Failed to send reminder");
+      toast({ title: `Reminder sent to ${unsignedCount} unsigned ${unsignedCount === 1 ? "family" : "families"}` });
+      onRefresh();
+    } catch {
+      toast({ title: "Failed to send reminder", variant: "destructive" });
+    } finally {
+      setIsReminding(false);
+    }
+  };
 
   const save = async (patch: Partial<{ objectPath: string; externalUrl: string; mimeType: string; originalName: string }>) => {
     setIsSaving(true);
@@ -166,6 +201,26 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
           </div>
         ) : (
           <p className="text-sm text-muted-foreground italic">No document linked yet.</p>
+        )}
+
+        {doc?.viewUrl && unsignedCount !== null && unsignedCount > 0 && (
+          <div className="pt-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+              onClick={handleRemindUnsigned}
+              disabled={isReminding || isCoolingDown}
+              title={isCoolingDown ? `Cooldown: ${cooldownHoursLeft}h remaining` : undefined}
+            >
+              <AlertTriangle className="h-3.5 w-3.5 mr-2" />
+              {isReminding
+                ? "Sending reminders…"
+                : isCoolingDown
+                ? `Remind unsigned (cooldown: ${cooldownHoursLeft}h)`
+                : `Remind ${unsignedCount} unsigned ${unsignedCount === 1 ? "family" : "families"}`}
+            </Button>
+          </div>
         )}
 
         <div className="space-y-2 pt-2 border-t">

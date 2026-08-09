@@ -19,6 +19,8 @@ export const teamDocumentsTable = pgTable("team_documents", {
   originalName: text("original_name"),
   /** Incremented by the server on every objectPath/externalUrl replacement — provides an immutable version identifier that survives in-place content changes */
   versionNumber: integer("version_number").notNull().default(1),
+  /** Timestamp of the last manual "remind unsigned" notification so we can enforce a 24-hour cooldown between blasts */
+  lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
