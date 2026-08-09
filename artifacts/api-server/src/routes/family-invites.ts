@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { familyInvitesTable, usersTable } from "@workspace/db";
 import { eq, and, isNull, gt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { randomBytes } from "crypto";
@@ -220,7 +221,7 @@ router.delete("/family-invites/:id/purge", requireCoachOrAdmin, async (req, res)
 });
 
 // GET /family-invites/validate/:token — public; check token validity
-router.get("/family-invites/validate/:token", async (req, res) => {
+router.get("/family-invites/validate/:token", publicLookupLimiter, async (req, res) => {
   const token = str(req.params.token);
   const now = new Date();
   const invite = await db.query.familyInvitesTable.findFirst({

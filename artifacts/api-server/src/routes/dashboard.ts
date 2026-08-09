@@ -44,6 +44,10 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
     .orderBy(eventsTable.startTime);
 
   const clerkUserId = (req as any).clerkUserId;
+  const me = clerkUserId
+    ? await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) })
+    : undefined;
+
   const eventsWithDetails = await Promise.all(
     thisWeekEvents.map(async (event) => {
       const trailhead = event.trailheadId
@@ -56,21 +60,21 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
         maybe: rsvps.filter((r) => r.status === "maybe").length,
       };
       let myRsvp: string | null = null;
-      if (clerkUserId) {
-        const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-        if (me) {
-          const myRsvpRow = rsvps.find((r) => r.userId === me.id);
-          myRsvp = myRsvpRow?.status ?? null;
-        }
+      if (me) {
+        const myRsvpRow = rsvps.find((r) => r.userId === me.id);
+        myRsvp = myRsvpRow?.status ?? null;
       }
       const volunteerSignups = await db.select().from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.eventId, event.id));
       const attachments = await db.select().from(eventAttachmentsTable).where(eq(eventAttachmentsTable.eventId, event.id));
       const offers = await db.select().from(carpoolOffersTable).where(eq(carpoolOffersTable.eventId, event.id));
       let carpoolSpotsAvailable = 0;
-      for (const offer of offers) {
-        const claims = await db.select().from(carpoolClaimsTable).where(eq(carpoolClaimsTable.carpoolOfferId, offer.id));
-        const seatsClaimed = claims.filter((c) => c.needsSeat).length;
-        carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
+      if (offers.length > 0) {
+        const offerIds = offers.map((o) => o.id);
+        const allClaims = await db.select().from(carpoolClaimsTable).where(inArray(carpoolClaimsTable.carpoolOfferId, offerIds));
+        for (const offer of offers) {
+          const seatsClaimed = allClaims.filter((c) => c.carpoolOfferId === offer.id && c.needsSeat).length;
+          carpoolSpotsAvailable += Math.max(0, offer.availableSeats - seatsClaimed);
+        }
       }
       return {
         ...event,
