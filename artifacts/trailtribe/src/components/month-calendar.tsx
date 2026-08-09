@@ -171,8 +171,8 @@ export function MonthCalendar({ events, month, onMonthChange }: MonthCalendarPro
                   >
                     {format(day, "d")}
                   </div>
-                  {/* Amber dot — always shown when day has any events */}
-                  {dayEvents.length > 0 && (
+                  {/* Amber dot — only shown when events overflow the visible limit */}
+                  {overflow > 0 && (
                     <span className="w-1.5 h-1.5 rounded-full bg-accent mt-0.5 shrink-0" style={{ border: `1px solid ${INK}` }} />
                   )}
                 </div>
