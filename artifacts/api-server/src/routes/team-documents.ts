@@ -274,17 +274,24 @@ async function notifyUnsignedFamilies(
     return;
   }
 
-  // Fetch all users belonging to unsigned households in one query
+  // Fetch all users belonging to unsigned households in one query.
+  // Include role and emailNotifications so we can filter recipients correctly.
   const householdUsers = await db
     .select({
       email: usersTable.email,
       householdId: usersTable.householdId,
+      role: usersTable.role,
+      emailNotifications: usersTable.emailNotifications,
     })
     .from(usersTable)
     .where(inArray(usersTable.householdId, unsignedHouseholdIds));
 
   const emailTargets = householdUsers.filter(
     (u) =>
+      // Adults only — riders/students should not receive compliance emails
+      u.role !== "student" &&
+      // Respect the user's email notification opt-out
+      u.emailNotifications !== false &&
       u.email &&
       !u.email.endsWith("@trailtribe.internal") &&
       !u.email.endsWith("@pending.trailtribe.app"),
