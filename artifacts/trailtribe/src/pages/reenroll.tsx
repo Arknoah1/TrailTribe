@@ -40,6 +40,7 @@ export default function Reenroll() {
   } | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
 
   // Fetch household + riders
   useEffect(() => {
@@ -72,12 +73,14 @@ export default function Reenroll() {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
+      setEnrollError(null);
       const res = await authedFetch(`${BASE_URL}/api/users/me/reenroll`, {
         method: "POST",
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        toast({ title: err.error ?? "Re-enrollment failed", variant: "destructive" });
+        const msg = err.error ?? "Re-enrollment failed";
+        setEnrollError(msg);
         return;
       }
       await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
@@ -223,7 +226,12 @@ export default function Reenroll() {
                 );
               })}
 
-              <div className="pt-2 border-t">
+              <div className="pt-2 border-t space-y-3">
+                {enrollError && (
+                  <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {enrollError}
+                  </div>
+                )}
                 <Button
                   className="w-full"
                   disabled={!canSubmit || submitting}
@@ -237,7 +245,7 @@ export default function Reenroll() {
                   {submitting ? "Re-enrolling…" : "Complete Re-enrollment"}
                 </Button>
                 {!canSubmit && requiredDocs.length > 0 && (
-                  <p className="text-xs text-muted-foreground text-center mt-2">
+                  <p className="text-xs text-muted-foreground text-center">
                     All documents must be read and signed before continuing.
                   </p>
                 )}

@@ -551,8 +551,11 @@ function StepCompliance({ householdId, onNext }: { householdId: number; onNext: 
   }, [authedFetch]);
 
   const docUrlByType = Object.fromEntries(teamDocs.map((d) => [d.type, d.viewUrl]));
-  const requiredDocs = COMPLIANCE_DOCS.filter((d) => !!docUrlByType[d.type]);
-  const allSigned = requiredDocs.every((d) => signedDocs.has(d.type));
+  // All three required docs must be uploaded by the coach AND signed before continuing.
+  // Docs without a URL are shown with a "waiting for coach" indicator — not skipped.
+  const allSigned = COMPLIANCE_DOCS.every(
+    (d) => !!docUrlByType[d.type] && signedDocs.has(d.type),
+  );
 
   return (
     <div className="space-y-6">
@@ -600,8 +603,8 @@ function StepCompliance({ householdId, onNext }: { householdId: number; onNext: 
                   </button>
                 )}
                 {!isSigned && !viewUrl && (
-                  <span className="shrink-0 text-xs text-muted-foreground px-3 py-1.5 border rounded-lg opacity-50">
-                    N/A
+                  <span className="shrink-0 text-xs text-muted-foreground px-3 py-1.5 border rounded-lg italic">
+                    Waiting for coach
                   </span>
                 )}
               </div>
@@ -614,13 +617,15 @@ function StepCompliance({ householdId, onNext }: { householdId: number; onNext: 
         className="w-full"
         size="lg"
         onClick={onNext}
-        disabled={!allSigned && requiredDocs.length > 0}
+        disabled={!allSigned}
       >
         Continue <ArrowRight className="h-4 w-4 ml-1.5" />
       </Button>
-      {!allSigned && requiredDocs.length > 0 && (
+      {!allSigned && !loadingDocs && (
         <p className="text-center text-xs text-muted-foreground">
-          All documents must be read and signed before continuing.
+          {COMPLIANCE_DOCS.some((d) => !docUrlByType[d.type])
+            ? "Waiting for your coach to upload all required documents."
+            : "All documents must be read and signed before continuing."}
         </p>
       )}
 

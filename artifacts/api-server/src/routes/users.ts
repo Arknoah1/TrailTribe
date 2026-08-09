@@ -377,7 +377,22 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
     .limit(1);
   const activeSeasonId = activeSeason?.id ?? null;
 
+  // All three required document types must be configured with a file URL before
+  // any family can re-enroll — prevents bypassing the clickwrap requirement when
+  // a coach has never uploaded (or has soft-deleted) one of the required forms.
+  const REQUIRED_DOC_TYPES = ["liability_waiver", "media_release", "code_of_conduct"] as const;
   const allTeamDocs = await db.select().from(teamDocumentsTable);
+  const unconfigured = REQUIRED_DOC_TYPES.filter((type) => {
+    const doc = allTeamDocs.find((d) => d.type === type);
+    return !doc || !(doc.objectPath || doc.externalUrl);
+  });
+  if (unconfigured.length > 0) {
+    res.status(400).json({
+      error: "Your coach hasn't finished uploading all required documents yet. Contact them before re-enrolling.",
+    });
+    return;
+  }
+
   const activeDocs = allTeamDocs.filter((d) => d.objectPath || d.externalUrl);
   if (activeDocs.length > 0) {
     const consentRows = await db
