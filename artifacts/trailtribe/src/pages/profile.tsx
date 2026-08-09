@@ -20,6 +20,7 @@ import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
@@ -1260,6 +1261,9 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
 
 
 export default function Profile() {
+  const search = useSearch();
+  const initialTab = new URLSearchParams(search).get("tab") ?? "account";
+
   const { data: user, isLoading, isError, refetch } = useGetMe();
   const updateMutation = useUpdateMe();
   const { toast } = useToast();
@@ -1383,7 +1387,7 @@ export default function Profile() {
         <p className="text-muted-foreground mt-1">Manage your account and your family.</p>
       </div>
 
-      <Tabs defaultValue="account">
+      <Tabs defaultValue={initialTab}>
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="account" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account

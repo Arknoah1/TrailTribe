@@ -34,6 +34,8 @@ interface TeamDocument {
   externalUrl: string | null;
   viewUrl: string | null;
   originalName: string | null;
+  /** Number of non-archived households that have not yet signed this document version */
+  unsignedCount: number | null;
 }
 
 const DOC_META: Record<DocType, { label: string; description: string }> = {
@@ -59,6 +61,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
   const [isSaving, setIsSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const meta = DOC_META[docType];
+  const unsignedCount = doc?.unsignedCount ?? null;
 
   const save = async (patch: Partial<{ objectPath: string; externalUrl: string; mimeType: string; originalName: string }>) => {
     setIsSaving(true);
@@ -126,11 +129,23 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
             </CardTitle>
             <CardDescription className="mt-1 text-xs">{meta.description}</CardDescription>
           </div>
-          {doc?.viewUrl && (
-            <Badge variant="secondary" className="text-green-600 dark:text-green-400 shrink-0">
-              ✓ Active
-            </Badge>
-          )}
+          <div className="flex flex-col items-end gap-1">
+            {doc?.viewUrl && (
+              <Badge variant="secondary" className="text-green-600 dark:text-green-400 shrink-0">
+                ✓ Active
+              </Badge>
+            )}
+            {doc?.viewUrl && unsignedCount !== null && unsignedCount > 0 && (
+              <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 shrink-0 text-xs">
+                {unsignedCount} unsigned
+              </Badge>
+            )}
+            {doc?.viewUrl && unsignedCount === 0 && (
+              <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 shrink-0 text-xs">
+                All signed
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
