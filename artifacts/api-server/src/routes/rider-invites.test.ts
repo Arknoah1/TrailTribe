@@ -67,10 +67,17 @@ vi.mock("../middlewares/requireAuth", () => ({
 }));
 
 // Clerk client — getUser always succeeds without a real API call.
+// The returned object must model the email-address contract the route reads:
+//   clerkUser.emailAddresses (array of { id, emailAddress })
+//   clerkUser.primaryEmailAddressId (id of the primary address)
 vi.mock("@clerk/express", () => ({
   createClerkClient: vi.fn(() => ({
     users: {
-      getUser: vi.fn().mockResolvedValue({ id: "clerk_test_rider" }),
+      getUser: vi.fn().mockResolvedValue({
+        id: "clerk_test_rider",
+        primaryEmailAddressId: "ea_1",
+        emailAddresses: [{ id: "ea_1", emailAddress: "alex@example.com" }],
+      }),
     },
   })),
 }));
@@ -248,6 +255,47 @@ describe("POST /rider-invites/accept — edge cases", () => {
     });
 
     expect(resp.status).toBe(409);
+  });
+
+  it("returns 409 with code EMAIL_MISMATCH when signed-in email differs from rider email", async () => {
+    // The Clerk mock returns alex@example.com; change the rider record to a different address.
+    mockRider = { ...mockRider!, email: "different@example.com" };
+
+    const resp = await fetch(`${baseUrl}/rider-invites/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "valid-token-abc" }),
+    });
+
+    expect(resp.status).toBe(409);
+    const body = await resp.json() as { error: string; code: string };
+    expect(body.code).toBe("EMAIL_MISMATCH");
+    expect(body.error).toMatch(/different@example\.com/i);
+    expect(body.error).toMatch(/alex@example\.com/i);
+
+    // Neither the rider row nor the invite should have been mutated.
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("accepts the invite when emails match case-insensitively", async () => {
+    // Rider email stored in uppercase — Clerk returns lowercase. Should still succeed.
+    mockRider = { ...mockRider!, email: "ALEX@EXAMPLE.COM" };
+
+    const resp = await fetch(`${baseUrl}/rider-invites/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: "valid-token-abc" }),
+    });
+
+    expect(resp.status).toBe(200);
+    const body = await resp.json() as { ok: boolean };
+    expect(body.ok).toBe(true);
+
+    // Rider row must still be linked.
+    const riderUpdate = updateSetCalls.find(
+      (call) => call.clerkUserId === "clerk_test_rider" && call.approved === true,
+    );
+    expect(riderUpdate).toBeTruthy();
   });
 });
 

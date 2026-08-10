@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser, useClerk } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mountain, Bike, ShieldAlert, CheckCircle2, Loader2 } from "lucide-react";
@@ -10,13 +10,14 @@ import { getGetMeQueryKey } from "@workspace/api-client-react";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
-type Status = "loading" | "invalid" | "ready" | "accepting" | "done" | "already-used" | "error";
+type Status = "loading" | "invalid" | "ready" | "accepting" | "done" | "already-used" | "error" | "wrong-email";
 
 export default function RiderInvite() {
   const params = useParams<{ token: string }>();
   const token = params.token || "";
   const [, setLocation] = useLocation();
   const { isLoaded, isSignedIn } = useUser();
+  const { signOut } = useClerk();
   const authedFetch = useAuthedFetch();
   const queryClient = useQueryClient();
 
@@ -55,6 +56,11 @@ export default function RiderInvite() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 404) { setStatus("already-used"); return; }
+        if (res.status === 409 && data.code === "EMAIL_MISMATCH") {
+          setErrorMsg(data.error ?? "You're signed in with the wrong email address.");
+          setStatus("wrong-email");
+          return;
+        }
         setErrorMsg(data.error ?? "Something went wrong");
         setStatus("error");
         return;
@@ -129,6 +135,28 @@ export default function RiderInvite() {
             <p className="text-muted-foreground">This invite has already been accepted. Try signing in directly.</p>
             <Button asChild className="w-full">
               <a href={`${BASE_URL}/dashboard`}>Go to Dashboard</a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === "wrong-email") {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-8 text-center space-y-4">
+            <ShieldAlert className="h-12 w-12 mx-auto text-destructive" />
+            <h2 className="text-xl font-bold">Wrong account</h2>
+            <p className="text-muted-foreground">{errorMsg}</p>
+            <Button
+              className="w-full"
+              onClick={() =>
+                signOut({ redirectUrl: window.location.href })
+              }
+            >
+              Sign Out &amp; Switch Account
             </Button>
           </CardContent>
         </Card>

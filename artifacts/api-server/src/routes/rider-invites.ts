@@ -156,10 +156,11 @@ router.post("/rider-invites/accept", requireAuth, async (req, res) => {
     res.status(404).json({ error: "Invite link is invalid, expired, or already used" }); return;
   }
 
-  // Verify the Clerk user exists
+  // Verify the Clerk user exists and get their primary email
   const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+  let clerkUser: Awaited<ReturnType<typeof clerkClient.users.getUser>>;
   try {
-    await clerkClient.users.getUser(clerkUserId);
+    clerkUser = await clerkClient.users.getUser(clerkUserId);
   } catch (err) {
     logger.error({ err, clerkUserId }, "[rider-invites] Clerk user lookup failed");
     res.status(500).json({ error: "Could not verify your identity. Please try again." }); return;
@@ -172,6 +173,29 @@ router.post("/rider-invites/accept", requireAuth, async (req, res) => {
   }
   if (rider.clerkUserId && rider.clerkUserId !== clerkUserId) {
     res.status(409).json({ error: "This rider already has a different account linked." }); return;
+  }
+
+  // Ensure the signed-in account's primary email matches the rider email on record.
+  // If they differ the invite flow would create a second user row instead of linking
+  // to the existing student — catch it here before that can happen.
+  const clerkPrimaryEmail =
+    clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)
+      ?.emailAddress ?? null;
+
+  if (
+    rider.email &&
+    clerkPrimaryEmail &&
+    rider.email.toLowerCase() !== clerkPrimaryEmail.toLowerCase()
+  ) {
+    logger.warn(
+      { riderId: rider.id, riderEmail: rider.email, clerkEmail: clerkPrimaryEmail },
+      "[rider-invites] email mismatch on accept",
+    );
+    res.status(409).json({
+      error: `This invite was sent to ${rider.email}. You're signed in as ${clerkPrimaryEmail}. Please sign out and sign back in using ${rider.email}.`,
+      code: "EMAIL_MISMATCH",
+    });
+    return;
   }
 
   // Link the Clerk account to the rider row and approve them
