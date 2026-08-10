@@ -1,0 +1,24 @@
+Here's a prompt for the Replit agent to check this directly:
+
+````
+Before today's beta launch, I need you to check and confirm our deployment build configuration — this is time-sensitive.
+
+Context: our root package.json defines:
+  "build": "pnpm run typecheck && pnpm -r --if-present run build"
+
+The "typecheck" step runs `tsc --build` across all lib/* workspace packages. Right now, lib/api-zod fails to typecheck — its generated client (lib/api-zod/src/generated/api.ts and lib/api-zod/src/generated/types/) exports about 30 identically-named types (CreateEventBody, UpdateUserBody, MatchCarpoolRequestBody, etc.), and lib/api-zod/src/index.ts re-exports both with `export *`, causing TS2308 ambiguous-export errors. You can reproduce this yourself with:
+
+  cd lib/api-zod && npx tsc -p tsconfig.json
+
+If our deployment's configured build command is the root `pnpm run build` (or anything that runs `pnpm run typecheck` first), today's deploy will fail outright because of this — even though the actual app code is fine and artifacts/api-server's own build (via esbuild, which doesn't fail on type errors) would work independently.
+
+Please do the following and report back before we launch:
+
+1. Check the actual build command configured in our Replit Deployment settings (not just .replit — the Deployments UI build/run command fields specifically, since I don't see an explicit [deployment.build] or [deployment.run] section in .replit itself).
+2. Tell me exactly what command it runs, and whether it includes the root-level `pnpm run build` or `pnpm run typecheck`.
+3. If it does: switch it to build only what's actually needed to run the app (e.g. artifacts/api-server's own `pnpm --filter @workspace/api-server run build` plus the frontend's Vite build), bypassing the broken root typecheck gate for today, OR confirm an alternative that avoids the collision.
+4. If it does NOT touch the root typecheck/build: confirm that explicitly so we know we're clear to launch as-is.
+5. Either way, flag this back to whoever owns the API client codegen (lib/api-zod) — the real fix is regenerating the client with a config that doesn't emit the same type names from two sources, not a manual patch to generated files, but that's a post-launch follow-up, not a today blocker.
+
+Please prioritize this and report back with the deployment build command and your recommendation.
+````
