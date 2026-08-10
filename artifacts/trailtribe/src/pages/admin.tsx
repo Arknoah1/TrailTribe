@@ -745,6 +745,7 @@ export default function Admin() {
             <ToastAction
               altText="Go to Account Cleanup"
               onClick={() => {
+                setCleanupEmail(warnings[0]);
                 setActiveTab("settings");
                 setTimeout(() => {
                   document.getElementById("account-cleanup")?.scrollIntoView({ behavior: "smooth", block: "start" });
