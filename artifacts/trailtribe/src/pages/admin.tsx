@@ -327,6 +327,7 @@ export default function Admin() {
 
   // Account Cleanup state
   const [cleanupEmail, setCleanupEmail] = useState("");
+  const [cleanupQueue, setCleanupQueue] = useState<string[]>([]);
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
   const [cleanupRunning, setCleanupRunning] = useState(false);
 
@@ -745,6 +746,7 @@ export default function Admin() {
             <ToastAction
               altText="Go to Account Cleanup"
               onClick={() => {
+                setCleanupQueue(warnings);
                 setCleanupEmail(warnings[0]);
                 setActiveTab("settings");
                 setTimeout(() => {
@@ -818,7 +820,11 @@ export default function Admin() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         toast({ title: data.message ?? `Sign-in account for ${email} removed` });
-        setCleanupEmail("");
+        setCleanupQueue((prev) => {
+          const remaining = prev.filter((e) => e !== email);
+          setCleanupEmail(remaining[0] ?? "");
+          return remaining;
+        });
       } else {
         toast({ title: data.error ?? "Failed to remove account", variant: "destructive" });
       }
@@ -3206,6 +3212,28 @@ export default function Admin() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {cleanupQueue.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Stuck accounts — click to select</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {cleanupQueue.map((email) => (
+                      <button
+                        key={email}
+                        type="button"
+                        onClick={() => setCleanupEmail(email)}
+                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                          cleanupEmail === email
+                            ? "border-destructive bg-destructive/10 text-destructive"
+                            : "border-muted-foreground/30 bg-muted text-muted-foreground hover:border-destructive/50 hover:text-destructive"
+                        }`}
+                      >
+                        <UserX className="h-3 w-3" />
+                        {email}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-1.5 max-w-sm">
                 <Label htmlFor="cleanup-email-input">Email address to free up</Label>
                 <Input
