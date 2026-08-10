@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
@@ -24,6 +24,17 @@ export default function Dashboard() {
       return false;
     }
   });
+
+  // Clear the welcome-seen flag when the user is demoted back to a non-coach role
+  // so the banner will re-appear if they are ever promoted again.
+  useEffect(() => {
+    if (me?.role === "parent" || me?.role === "student") {
+      try {
+        localStorage.removeItem(COACH_WELCOMED_KEY);
+      } catch {}
+      setCoachWelcomeSeen(false);
+    }
+  }, [me?.role]);
 
   function dismissCoachWelcome() {
     try {
