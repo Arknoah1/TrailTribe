@@ -362,6 +362,7 @@ export default function EventDetail() {
 
   // ─── RSVP STATE ────────────────────────────────────────────────────────────
   const isParent = me?.role === "parent";
+  const isStudent = me?.role === "student";
   const [householdRiders, setHouseholdRiders] = useState<{ id: number; firstName: string }[]>([]);
   const [ridersLoaded, setRidersLoaded] = useState(false);
   const [memberStatuses, setMemberStatuses] = useState<Record<number, string | null>>({});
@@ -399,6 +400,7 @@ export default function EventDetail() {
       { id: (me as any).id, name: me.firstName ?? "You", isRider: false },
       ...riders,
     ];
+    if (isStudent) return [{ id: (me as any).id, name: me.firstName ?? "You", isRider: true }];
     return [];
   })();
 
