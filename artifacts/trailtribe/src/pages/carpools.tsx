@@ -18,6 +18,7 @@ import { EmptyTrailState } from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -379,9 +380,14 @@ export default function CarpoolBoard() {
             <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Back to Event
           </Link>
           <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Carpool Board</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Offer a ride or grab a seat.</p>
+          <p className="text-muted-foreground mt-1 text-sm">Need a ride? Post a request, or offer one if you're driving.</p>
         </div>
-        <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => {
+            setRequestRiderIds(new Set(riders.map(r => r.id)));
+            setIsRequestOpen(true);
+          }}><Plus className="h-4 w-4 mr-2" /> Request a Ride</Button>
+          <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Offer a Ride</Button>
           </DialogTrigger>
@@ -424,6 +430,7 @@ export default function CarpoolBoard() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Multi-rider picker dialog */}
@@ -732,6 +739,103 @@ export default function CarpoolBoard() {
         </DialogContent>
       </Dialog>
 
+      {/* ── RIDES NEEDED ─────────────────────────────────────── */}
+      <div className="space-y-4">
+        <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2 border-b-2 border-[#0a0c10] pb-2">
+          <Users className="h-5 w-5 text-primary" /> Rides Needed
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {requests && requests.length > 0 ? (
+            requests.map((request: any) => {
+              const isOpen = request.status === "open";
+              const isMatched = request.status === "matched";
+              const mine = isMyRequest(request);
+              const canMatch = isOpen && !mine;
+
+              return (
+                <Card key={request.id} className={cn("overflow-hidden", isMatched ? "border-primary/60 bg-primary/5" : "")}>
+                  <CardHeader className="pb-3 border-b-2 border-[#0a0c10]">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
+                          <Users className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">
+                            {request.rider?.firstName} {request.rider?.lastName}
+                          </CardTitle>
+                          <CardDescription className="text-xs uppercase tracking-wide font-bold">
+                            Requested by {request.requestedBy?.firstName} {request.requestedBy?.lastName}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        {isOpen && <Badge variant="secondary">Open</Badge>}
+                        {isMatched && <Badge className="bg-green-600 text-white hover:bg-green-700">Matched</Badge>}
+                        {request.needsBikeTray ? (
+                          <Badge variant="outline" className="text-[10px] flex items-center gap-1">
+                            <Bike className="h-3 w-3" /> + Bike
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">Rider only</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-4 space-y-3">
+                    {request.notes && (
+                      <p className="text-sm text-muted-foreground italic">"{request.notes}"</p>
+                    )}
+
+                    {isMatched && request.matchedOffer?.driver && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-100/60 dark:bg-green-900/20 rounded-md px-3 py-2">
+                        <Car className="h-4 w-4 shrink-0" />
+                        <span>Driver: <span className="font-medium">{request.matchedOffer.driver.firstName} {request.matchedOffer.driver.lastName}</span></span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      {canMatch && (
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleMatchClick(request)}
+                        >
+                          I'll take them
+                        </Button>
+                      )}
+                      {mine && isOpen && (
+                        <>
+                          <button
+                            onClick={() => openEditRequest(request)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Edit request"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteRequest.mutate({ id: request.id })}
+                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                            title="Delete request"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="col-span-full">
+              <EmptyTrailState message="No ride requests yet — need a seat? Use the button above." />
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── RIDES AVAILABLE ─────────────────────────────────── */}
       <div className="space-y-4">
         <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2 border-b-2 border-[#0a0c10] pb-2">
@@ -860,107 +964,7 @@ export default function CarpoolBoard() {
             ))
           ) : (
             <div className="col-span-full">
-              <EmptyTrailState message="No rides offered yet. Be the first!" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── RIDES NEEDED ─────────────────────────────────────── */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" /> Rides Needed
-          </h2>
-          <Button variant="outline" size="sm" onClick={() => {
-            setRequestRiderIds(new Set(riders.map(r => r.id)));
-            setIsRequestOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" /> Request a Ride
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {requests && requests.length > 0 ? (
-            requests.map((request: any) => {
-              const isOpen = request.status === "open";
-              const isMatched = request.status === "matched";
-              const mine = isMyRequest(request);
-              const canMatch = isOpen && !mine;
-
-              return (
-                <Card key={request.id} className={isMatched ? "border-primary/60 bg-primary/5" : ""}>
-                  <CardContent className="pt-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-base">
-                          {request.rider?.firstName} {request.rider?.lastName}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Requested by {request.requestedBy?.firstName} {request.requestedBy?.lastName}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        {isOpen && <Badge variant="secondary">Open</Badge>}
-                        {isMatched && <Badge className="bg-green-600 text-white hover:bg-green-700">Matched</Badge>}
-                        {request.needsBikeTray && (
-                          <Badge variant="outline" className="text-[10px] flex items-center gap-1">
-                            <Bike className="h-3 w-3" /> + Bike
-                          </Badge>
-                        )}
-                        {!request.needsBikeTray && (
-                          <Badge variant="outline" className="text-[10px]">Rider only</Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {request.notes && (
-                      <p className="text-sm text-muted-foreground italic">"{request.notes}"</p>
-                    )}
-
-                    {isMatched && request.matchedOffer?.driver && (
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-100/60 dark:bg-green-900/20 rounded-md px-3 py-2">
-                        <Car className="h-4 w-4 shrink-0" />
-                        <span>Driver: <span className="font-medium">{request.matchedOffer.driver.firstName} {request.matchedOffer.driver.lastName}</span></span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 pt-1">
-                      {canMatch && (
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleMatchClick(request)}
-                        >
-                          I'll take them
-                        </Button>
-                      )}
-                      {mine && isOpen && (
-                        <>
-                          <button
-                            onClick={() => openEditRequest(request)}
-                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                            title="Edit request"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteRequest.mutate({ id: request.id })}
-                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                            title="Delete request"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          ) : (
-            <div className="col-span-full">
-              <EmptyTrailState message="No ride requests yet. Need a ride? Post one above." />
+              <EmptyTrailState message="No drivers have signed up yet — check back soon." />
             </div>
           )}
         </div>
