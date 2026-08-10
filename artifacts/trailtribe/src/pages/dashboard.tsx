@@ -1,7 +1,7 @@
 import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight, AlertTriangle, Car } from "lucide-react";
 import { Link } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,15 @@ export default function Dashboard() {
                       </div>
                       <Link href={`/events/${event.id}`} className="text-primary font-bold text-xs uppercase tracking-wide hover:underline">Details →</Link>
                     </div>
+                    {!isCoachOrAdmin && (event as any).carpoolSpotsAvailable > 0 && (
+                      <Link
+                        href={`/carpools/${event.id}`}
+                        className="flex items-center gap-1.5 mt-3 text-xs font-bold uppercase tracking-wide text-primary hover:underline"
+                      >
+                        <Car className="h-3.5 w-3.5 shrink-0" />
+                        {(event as any).carpoolSpotsAvailable} seat{(event as any).carpoolSpotsAvailable === 1 ? "" : "s"} available — grab one
+                      </Link>
+                    )}
                   </CardContent>
                 </Card>
               ))}
