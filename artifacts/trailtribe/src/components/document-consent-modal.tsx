@@ -162,8 +162,8 @@ export function DocumentConsentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-full h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b shrink-0">
+      <DialogContent className="w-[95vw] sm:w-full sm:max-w-3xl h-[85dvh] sm:h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <FileText className="h-5 w-5 shrink-0" />
             {label}
@@ -196,19 +196,27 @@ export function DocumentConsentModal({
 
         {/* Footer */}
         {readOnly ? (
-          <div className="border-t px-6 py-4 shrink-0">
+          <div className="border-t px-4 py-3 sm:px-6 sm:py-4 shrink-0">
             <Button variant="outline" className="w-full" onClick={() => onOpenChange(false)}>
               Close
             </Button>
           </div>
         ) : (
-          <div className="border-t px-6 py-4 shrink-0 space-y-3 bg-muted/30">
-            <p className="text-sm text-muted-foreground leading-relaxed">
+          <div className="border-t px-4 py-3 sm:px-6 sm:py-4 shrink-0 space-y-2 sm:space-y-3 bg-muted/30">
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
               {ACCEPTANCE_TEXT}
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
               <Button
-                className="flex-1"
+                variant="outline"
+                className="sm:w-auto"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="w-full sm:flex-1"
                 onClick={handleAccept}
                 disabled={!canAccept || submitting || !iframeSrc}
               >
@@ -220,11 +228,8 @@ export function DocumentConsentModal({
                 {submitting
                   ? "Recording…"
                   : !canAccept
-                  ? `Please read the document… (${MIN_READ_SECONDS - elapsed}s)`
+                  ? `Please read… (${MIN_READ_SECONDS - elapsed}s)`
                   : "I Accept Terms & Submit"}
-              </Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
-                Cancel
               </Button>
             </div>
             {!viewUrl && (
