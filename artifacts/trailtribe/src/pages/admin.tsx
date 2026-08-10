@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { formatPhone } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
 import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy, AlertTriangle, LogIn, UserX } from "lucide-react";
@@ -320,6 +321,9 @@ export default function Admin() {
   const [shortName, setShortName] = useState("");
   const [shortNameInput, setShortNameInput] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState("roster");
 
   // Account Cleanup state
   const [cleanupEmail, setCleanupEmail] = useState("");
@@ -735,8 +739,21 @@ export default function Admin() {
         const emailList = warnings.join(", ");
         toast({
           title: "Family deleted — sign-in account(s) may still be active",
-          description: `The family's records were removed, but the following sign-in account${warnings.length > 1 ? "s" : ""} could not be fully deleted: ${emailList}. Use the Account Cleanup tool in Settings to remove ${warnings.length > 1 ? "them" : "it"} manually.`,
+          description: `The following sign-in account${warnings.length > 1 ? "s" : ""} could not be fully deleted: ${emailList}. Use Account Cleanup in Settings to remove ${warnings.length > 1 ? "them" : "it"} manually.`,
           variant: "destructive",
+          action: (
+            <ToastAction
+              altText="Go to Account Cleanup"
+              onClick={() => {
+                setActiveTab("settings");
+                setTimeout(() => {
+                  document.getElementById("account-cleanup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 100);
+              }}
+            >
+              Go to Cleanup
+            </ToastAction>
+          ),
         });
       } else {
         toast({ title: "Family permanently deleted" });
@@ -930,7 +947,7 @@ export default function Admin() {
         </div>
       )}
 
-      <Tabs defaultValue="roster">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="roster">Roster</TabsTrigger>
           <TabsTrigger value="approvals">Pending Approvals</TabsTrigger>
@@ -3176,7 +3193,7 @@ export default function Admin() {
               </Button>
             </CardContent>
           </Card>
-          <Card>
+          <Card id="account-cleanup">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500" />
