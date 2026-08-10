@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, Car } from "lucide-react";
+import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, Car, ShieldCheck, X } from "lucide-react";
 import { Link } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
+
+const COACH_WELCOMED_KEY = "trailtribe_coach_welcomed";
 
 export default function Dashboard() {
   const { data: me } = useGetMe();
@@ -13,6 +16,21 @@ export default function Dashboard() {
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const emailWarning = isCoachOrAdmin && summary != null && !summary.emailConfigured;
+
+  const [coachWelcomeSeen, setCoachWelcomeSeen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(COACH_WELCOMED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  function dismissCoachWelcome() {
+    try {
+      localStorage.setItem(COACH_WELCOMED_KEY, "true");
+    } catch {}
+    setCoachWelcomeSeen(true);
+  }
 
   if (isLoadingEvents) {
     return <div className="p-8 space-y-4 animate-pulse">
@@ -73,6 +91,41 @@ export default function Dashboard() {
                 Check that the SMTP credentials (SMTP_USER / SMTP_PASS) are correctly set in the server environment.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Coach/admin welcome banner — shown once per browser until dismissed */}
+        {isCoachOrAdmin && !coachWelcomeSeen && (
+          <div className="rounded-xl border-2 border-primary/40 bg-primary/5 p-5 flex flex-col sm:flex-row items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0 mt-0.5">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm text-foreground">You have coach/admin access</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Your account was upgraded. You can manage the team roster, events, pods, and more from the Admin section.
+                To show the Admin tab in your navigation, go to{" "}
+                <strong className="text-foreground">Profile → Admin Mode</strong>{" "}
+                and turn on "Show admin tabs".
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <Link href="/profile">
+                  <Button size="sm" variant="outline" className="text-xs h-7 px-3">
+                    Go to Profile
+                  </Button>
+                </Link>
+                <Button size="sm" variant="ghost" className="text-xs h-7 px-3" onClick={dismissCoachWelcome}>
+                  Got it
+                </Button>
+              </div>
+            </div>
+            <button
+              onClick={dismissCoachWelcome}
+              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
