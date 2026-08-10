@@ -955,22 +955,24 @@ export default function Admin() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="roster">Roster</TabsTrigger>
-          <TabsTrigger value="approvals">Pending Approvals</TabsTrigger>
-          <TabsTrigger value="events">Events</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="pods">Pods</TabsTrigger>
-          <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
-          <TabsTrigger value="volunteer-templates">Volunteer Templates</TabsTrigger>
-          <TabsTrigger value="season-builder" className="flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5" /> Season Builder
-          </TabsTrigger>
-          <TabsTrigger value="seasons" className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" /> Seasons
-          </TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
+          <TabsList className="flex-nowrap w-max h-auto">
+            <TabsTrigger value="roster" className="whitespace-nowrap">Roster</TabsTrigger>
+            <TabsTrigger value="approvals" className="whitespace-nowrap">Pending Approvals</TabsTrigger>
+            <TabsTrigger value="events" className="whitespace-nowrap">Events</TabsTrigger>
+            <TabsTrigger value="documents" className="whitespace-nowrap">Documents</TabsTrigger>
+            <TabsTrigger value="pods" className="whitespace-nowrap">Pods</TabsTrigger>
+            <TabsTrigger value="trailheads" className="whitespace-nowrap">Trailheads</TabsTrigger>
+            <TabsTrigger value="volunteer-templates" className="whitespace-nowrap">Volunteer Templates</TabsTrigger>
+            <TabsTrigger value="season-builder" className="flex items-center gap-1.5 whitespace-nowrap">
+              <Layers className="h-3.5 w-3.5" /> Season Builder
+            </TabsTrigger>
+            <TabsTrigger value="seasons" className="flex items-center gap-1.5 whitespace-nowrap">
+              <Calendar className="h-3.5 w-3.5" /> Seasons
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="whitespace-nowrap">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="roster" className="mt-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

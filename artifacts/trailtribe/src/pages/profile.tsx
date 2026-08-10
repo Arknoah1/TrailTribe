@@ -777,15 +777,15 @@ function VolunteerOpportunityCard({ event }: { event: { id: number; title: strin
       </CardHeader>
       <CardContent className="pt-0 space-y-1.5">
         {openTasks.map((task: any) => (
-          <label key={task.id} className="flex items-center gap-2.5 cursor-pointer py-1 rounded hover:bg-muted/40 px-1">
+          <label key={task.id} className="flex items-center gap-2.5 cursor-pointer py-1 rounded hover:bg-muted/40 px-1 overflow-hidden">
             <input
               type="checkbox"
               className="h-3.5 w-3.5 accent-primary shrink-0"
               checked={selected.has(task.id)}
               onChange={() => toggle(task.id)}
             />
-            <span className="text-sm flex-1">{task.title}</span>
-            {task.category && <Badge variant="secondary" className="text-xs py-0 px-1.5">{task.category}</Badge>}
+            <span className="text-sm flex-1 min-w-0 truncate">{task.title}</span>
+            {task.category && <Badge variant="secondary" className="text-xs py-0 px-1.5 shrink-0 max-w-[45%] truncate">{task.category}</Badge>}
           </label>
         ))}
         <Button
@@ -837,7 +837,7 @@ function VolunteerCommitmentsTab() {
             <Card key={s.id} className="overflow-hidden">
               <CardContent className="p-4 flex items-start gap-3">
                 <ClipboardCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="font-medium text-sm truncate">{s.task?.title ?? "Unknown task"}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {s.event?.title ?? "Unknown event"}
@@ -846,7 +846,7 @@ function VolunteerCommitmentsTab() {
                     )}
                   </div>
                   {s.task?.category && (
-                    <Badge variant="secondary" className="mt-1.5 text-xs py-0 px-1.5">{s.task.category}</Badge>
+                    <Badge variant="secondary" className="mt-1.5 text-xs py-0 px-1.5 max-w-full truncate inline-block">{s.task.category}</Badge>
                   )}
                 </div>
                 {s.event?.id && (
@@ -1528,7 +1528,7 @@ export default function Profile() {
               <CardDescription>Set your usual capacity once — it pre-fills the offer form and is used when you quickly claim a rider. Changes save automatically.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="default-seats">Seats I can offer</Label>
                   <Input
