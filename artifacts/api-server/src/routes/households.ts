@@ -378,6 +378,7 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
   // Clerk IDs are captured inside the transaction so the set of IDs to clean up
   // in Clerk exactly matches the set deleted from the DB — no race window.
   let memberClerkIds: string[] = [];
+  let memberEmailByClerkId: Record<string, string | null> = {};
 
   await db.transaction(async (tx) => {
     // Collect member user IDs — needed for tables that reference users but not
@@ -386,13 +387,19 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
     // explicit sweep makes the intent clear and guards against any future
     // migration that changes cascade behaviour.
     const memberRows = await tx
-      .select({ id: usersTable.id, clerkUserId: usersTable.clerkUserId })
+      .select({ id: usersTable.id, clerkUserId: usersTable.clerkUserId, email: usersTable.email })
       .from(usersTable)
       .where(eq(usersTable.householdId, id));
     const memberIds = memberRows.map((r) => r.id);
     memberClerkIds = memberRows
       .map((r) => r.clerkUserId)
       .filter((cid): cid is string => cid !== null && cid !== undefined);
+    // Build a map so we can name the email address in any Clerk-deletion warning
+    memberEmailByClerkId = Object.fromEntries(
+      memberRows
+        .filter((r) => r.clerkUserId != null)
+        .map((r) => [r.clerkUserId as string, r.email ?? null]),
+    );
 
     if (memberIds.length > 0) {
       // 1a. Carpool claims where a household member is the rider
@@ -450,8 +457,9 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
           await clerk.users.deleteUser(clerkUserId);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`Failed to delete Clerk user ${clerkUserId} after household ${id} deletion:`, err);
-          clerkWarnings.push(`Failed to delete Clerk account ${clerkUserId}: ${msg}`);
+          const email = memberEmailByClerkId[clerkUserId] ?? null;
+          console.error(`Failed to delete Clerk user ${clerkUserId}${email ? ` (${email})` : ""} after household ${id} deletion:`, err);
+          clerkWarnings.push(email ?? clerkUserId);
         }
       }),
     );

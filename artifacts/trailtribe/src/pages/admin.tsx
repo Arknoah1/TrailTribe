@@ -732,10 +732,10 @@ export default function Admin() {
       const body = await res.json().catch(() => ({}));
       const warnings: string[] = Array.isArray(body.warnings) ? body.warnings : [];
       if (warnings.length > 0) {
+        const emailList = warnings.join(", ");
         toast({
-          title: "Family deleted — sign-in accounts may still be active",
-          description:
-            "The family's records were removed, but their sign-in accounts could not be fully deleted from the authentication system. They may still be able to log in with their old email. Please contact support if this is a problem.",
+          title: "Family deleted — sign-in account(s) may still be active",
+          description: `The family's records were removed, but the following sign-in account${warnings.length > 1 ? "s" : ""} could not be fully deleted: ${emailList}. Use the Account Cleanup tool in Settings to remove ${warnings.length > 1 ? "them" : "it"} manually.`,
           variant: "destructive",
         });
       } else {
