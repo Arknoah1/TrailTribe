@@ -1,7 +1,7 @@
 import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
-import { CheckCircle2, XCircle, HelpCircle, Clock, ArrowRight, AlertTriangle, Car } from "lucide-react";
+import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, Car } from "lucide-react";
 import { Link } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,6 @@ export default function Dashboard() {
   const { data: me } = useGetMe();
   const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
   const { data: summary } = useGetDashboardSummary();
-
-  // approved is returned by the API even though it's not in the generated schema yet
-  const approved = (me as any)?.approved as boolean | undefined;
-  const isPending = me?.householdId && approved === false;
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const emailWarning = isCoachOrAdmin && summary != null && !summary.emailConfigured;
@@ -80,26 +76,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Pending approval banner */}
-        {isPending && (
-          <div className="rounded-xl border-2 border-[#0a0c10] bg-secondary p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="h-10 w-10 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
-              <Clock className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-sm text-foreground">Your account is pending approval</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                A coach or admin needs to approve your account before you can see team events and sign up for rides.
-                This usually happens within a day or two — hang tight!
-              </p>
-            </div>
-            <Button variant="outline" size="sm" asChild className="shrink-0">
-              <Link href="/profile">
-                Complete Profile <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Link>
-            </Button>
-          </div>
-        )}
 
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -177,7 +153,7 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <EmptyTrailState message={isPending ? "Events will appear here once your account is approved." : "No upcoming events for your pod."} />
+            <EmptyTrailState message="No upcoming events for your pod." />
           )}
         </div>
       </div>
