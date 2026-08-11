@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Check, Loader2 } from "lucide-react";
+import { FileText, Check, Loader2, ExternalLink } from "lucide-react";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { useToast } from "@/hooks/use-toast";
 
@@ -164,10 +164,23 @@ export function DocumentConsentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[95vw] sm:w-full sm:max-w-3xl h-[85dvh] sm:h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 sm:px-6 sm:py-4 border-b shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <FileText className="h-5 w-5 shrink-0" />
-            {label}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2 text-base min-w-0">
+              <FileText className="h-5 w-5 shrink-0" />
+              <span className="truncate">{label}</span>
+            </DialogTitle>
+            {iframeSrc && (
+              <a
+                href={iframeSrc}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 whitespace-nowrap transition-colors"
+              >
+                Open in new tab
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Document area */}
