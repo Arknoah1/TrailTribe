@@ -24,7 +24,7 @@ import { useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, Download, ShieldCheck, AlertTriangle, UserPlus, Lock } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, ShieldCheck, AlertTriangle, UserPlus, Lock } from "lucide-react";
 import { useAdminView } from "@/hooks/use-admin-view";
 import {
   AlertDialog,
@@ -1587,13 +1587,6 @@ export default function Profile() {
                           <a href={calSubscribeData.subscribeUrl}><ExternalLink className="h-4 w-4" /></a>
                         </Button>
                       </div>
-                      <a
-                        href={calSubscribeData.httpsUrl}
-                        download="trailtribe-team.ics"
-                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-                      >
-                        <Download className="h-3 w-3" /> Download .ics file instead
-                      </a>
                     </div>
                     <div className="pt-3 border-t flex items-center justify-between gap-3">
                       <p className="text-xs text-muted-foreground">Rotate this link if it was shared accidentally — old subscriptions stop syncing immediately.</p>

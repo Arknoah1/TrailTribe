@@ -654,14 +654,6 @@ export default function Calendar() {
                   <p className="text-xs text-muted-foreground">
                     Click <span className="font-medium">Open</span> to subscribe directly in your default calendar app.
                   </p>
-                  <a
-                    href={subscribeData.httpsUrl}
-                    download="trailtribe-team.ics"
-                    className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Download .ics file instead
-                  </a>
                 </div>
 
                 {/* Platform instructions */}
