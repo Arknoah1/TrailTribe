@@ -101,7 +101,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-11 z-[100] w-80 max-w-[calc(100vw-1rem)] rounded-xl border border-border bg-card shadow-xl">
+        <div className="fixed right-4 top-20 z-[100] w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-6rem)] rounded-xl border border-border bg-card shadow-xl">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="font-semibold text-sm">Notifications</span>
             <button
@@ -113,7 +113,7 @@ export function NotificationBell() {
             </button>
           </div>
 
-          <div className="max-h-96 overflow-y-auto divide-y divide-border">
+          <div className="max-h-[calc(100dvh-10rem)] overflow-y-auto divide-y divide-border">
             {notifications.length === 0 ? (
               <div className="py-10 text-center text-sm text-muted-foreground">
                 No notifications yet
@@ -140,7 +140,7 @@ export function NotificationBell() {
                   </div>
                   <button
                     onClick={(e) => handleDismiss(e, notif.id)}
-                    className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
+                    className="p-1 rounded opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-muted transition-all shrink-0"
                     aria-label="Dismiss"
                   >
                     <X className="h-3 w-3 text-muted-foreground" />
