@@ -13,9 +13,9 @@ import {
   getListBoardPostsQueryKey,
   getListBoardThreadsQueryKey
 } from "@workspace/api-client-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { 
-  ArrowLeft, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -83,9 +83,9 @@ export default function BoardThread() {
   const { toast } = useToast();
   const { data: me } = useGetMe();
 
-  const { data: thread, isLoading: isThreadLoading } = useGetBoardThread(id);
+  const { data: thread, isLoading: isThreadLoading, isError: isThreadError, refetch: refetchThread } = useGetBoardThread(id);
   
-  const { data: posts, isLoading: isPostsLoading } = useListBoardPosts(id, {
+  const { data: posts, isLoading: isPostsLoading, isError: isPostsError, refetch: refetchPosts } = useListBoardPosts(id, {
     query: { refetchInterval: 5000, queryKey: getListBoardPostsQueryKey(id) }
   });
 
@@ -141,25 +141,54 @@ export default function BoardThread() {
     });
   };
 
-  if (isThreadLoading) return <div className="p-8 max-w-3xl mx-auto space-y-4"><Skeleton className="h-10 w-32" /><Skeleton className="h-32 w-full" /></div>;
+  if (isThreadLoading) return <div className="p-6 max-w-3xl mx-auto space-y-5"><Skeleton className="h-14 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-2xl" /></div>;
+  if (isThreadError) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-12">
+        <div className="rounded-2xl border-2 border-destructive/60 bg-destructive/10 p-6 text-center">
+          <AlertTriangle className="h-7 w-7 mx-auto text-destructive" />
+          <h1 className="mt-3 font-bold text-lg">Couldn&apos;t load this discussion</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p>
+          <Button variant="outline" className="mt-4" onClick={() => refetchThread()}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
   if (!thread) return <div className="p-8 text-center font-bold text-xl text-destructive uppercase tracking-widest">Thread not found</div>;
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-background max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-card border-b-2 border-x-2 border-[#0a0c10] p-4 sm:px-6">
-        <div className="flex items-start gap-3 mb-4 sm:items-center">
-          <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 -ml-2 rounded-full hover:bg-muted sm:mt-0">
+    <div className="flex min-h-[100dvh] flex-col bg-background">
+      <header className="sticky top-0 z-30 border-b-2 border-[#0a0c10]/20 bg-background/95 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3 sm:items-center sm:px-6">
+          <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0">
             <Link href="/messages"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
-          <div className="flex-1 min-w-0 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2">
             {thread.isPinned && <Pin className="h-4 w-4 text-primary fill-primary shrink-0" />}
             <DiscussionTitle>{thread.title}</DiscussionTitle>
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              {thread.event ? (
+                <span className="inline-flex items-center gap-1 text-primary">
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {format(new Date(thread.event.startTime), "EEE, MMM d")}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5" /> Team discussion
+                </span>
+              )}
+              <span aria-hidden="true">•</span>
+              <span>{thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}</span>
+            </div>
           </div>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="mt-0.5 shrink-0 sm:mt-0">
+              <Button variant="ghost" size="icon" className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
@@ -177,44 +206,60 @@ export default function BoardThread() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </header>
 
-        {/* OP Content inside header area so it scrolls, wait no, let's keep OP as the first message in the scrollable area */}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 pb-[160px] md:pb-6">
-        {/* Original Post */}
-        <div className="flex gap-4">
-          <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-[#0a0c10] shrink-0">
-            <AvatarImage src={thread.author?.avatarUrl ?? undefined} />
-            <AvatarFallback className="font-bold text-lg">
-              {thread.author ? (thread.author.firstName[0] + thread.author.lastName[0]) : "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="font-bold text-foreground">
-                {thread.author ? `${thread.author.firstName} ${thread.author.lastName}` : "Unknown User"}
-              </span>
-              <span className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
-                {formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}
-              </span>
-              {thread.authorUserId === me?.id && <Badge variant="secondary" className="text-[10px] px-1.5 h-4">OP</Badge>}
+      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-32 sm:px-6 sm:py-7 md:pb-7">
+        <div className="flex w-full flex-1 flex-col gap-5">
+          <section className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
+            <div className="mb-3 flex items-center gap-3">
+              <Avatar className="h-10 w-10 border-2 border-[#0a0c10] shrink-0">
+                <AvatarImage src={thread.author?.avatarUrl ?? undefined} />
+                <AvatarFallback className="font-bold text-base">
+                  {thread.author ? (thread.author.firstName[0] + thread.author.lastName[0]) : "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-bold text-foreground">
+                    {thread.author ? `${thread.author.firstName} ${thread.author.lastName}` : "Unknown User"}
+                  </span>
+                  {thread.authorUserId === me?.id && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">You started this</Badge>}
+                </div>
+                <span className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
+                  Started {formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}
+                </span>
+              </div>
             </div>
-            <div className="text-foreground bg-card border-2 border-[#0a0c10] rounded-2xl p-4 shadow-cel-sm border-l-4 border-l-primary">
+            <div className="text-foreground">
               <ParsedContent text={thread.body} />
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* Replies */}
-        {isPostsLoading ? (
-          <div className="space-y-4 pl-12 sm:pl-16"><Skeleton className="h-20 w-full rounded-2xl" /><Skeleton className="h-20 w-3/4 rounded-2xl" /></div>
-        ) : (
-          posts?.map(post => {
+          <div className="flex items-center gap-3 px-1">
+            <span className="h-px flex-1 bg-[#0a0c10]/15" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              Replies
+            </span>
+            <span className="h-px flex-1 bg-[#0a0c10]/15" />
+          </div>
+
+          {isPostsLoading ? (
+            <div className="space-y-4"><Skeleton className="h-24 w-full rounded-2xl" /><Skeleton className="h-20 w-3/4 rounded-2xl" /></div>
+          ) : isPostsError ? (
+            <div className="rounded-2xl border-2 border-destructive/60 bg-destructive/10 p-5 text-center">
+              <AlertTriangle className="h-5 w-5 mx-auto text-destructive" />
+              <p className="mt-2 font-bold text-sm">Couldn&apos;t load replies</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => refetchPosts()}>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+              </Button>
+            </div>
+          ) : posts?.length ? (
+            <div className="space-y-4 sm:pl-8">
+              {posts.map(post => {
             const canDelete = isCoachOrAdmin || post.authorUserId === me?.id;
             return (
-              <div key={post.id} className="flex gap-3 sm:gap-4 pl-8 sm:pl-12">
-                <Avatar className="h-8 w-8 sm:h-10 sm:w-10 border-2 border-[#0a0c10] shrink-0">
+              <article key={post.id} className="flex gap-3 sm:gap-4">
+                <Avatar className="h-9 w-9 border-2 border-[#0a0c10] shrink-0">
                   <AvatarImage src={post.author?.avatarUrl ?? undefined} />
                   <AvatarFallback className="font-bold text-sm">
                     {post.author ? (post.author.firstName[0] + post.author.lastName[0]) : "?"}
@@ -243,31 +288,42 @@ export default function BoardThread() {
                       </button>
                     )}
                   </div>
-                  <div className="text-foreground bg-muted border border-[#0a0c10]/20 rounded-2xl p-3 transition-colors inline-block min-w-[50%]">
+                  <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
                     <ParsedContent text={post.body} isDeleted={post.isDeleted} />
                   </div>
                 </div>
-              </div>
+              </article>
             );
-          })
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-1 items-center justify-center py-8 sm:py-12">
+              <div className="max-w-sm rounded-2xl border-2 border-dashed border-[#0a0c10]/30 bg-secondary/50 px-6 py-7 text-center">
+                <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border-2 border-[#0a0c10] bg-card text-primary shadow-cel-sm">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <h2 className="mt-4 font-bold">Keep the ride conversation going</h2>
+                <p className="mt-1 text-sm text-muted-foreground">No replies yet. Share a question, a plan, or a helpful update for the team.</p>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </main>
 
-      {/* Compose Box */}
-      <div className="fixed md:sticky bottom-[78px] md:bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t-2 border-[#0a0c10] z-20">
+      <div className="fixed md:sticky bottom-[78px] md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 backdrop-blur-md sm:p-4">
         <div className="max-w-3xl mx-auto">
           {thread.isLocked && !isCoachOrAdmin ? (
             <div className="bg-muted border-2 border-[#0a0c10] rounded-xl p-4 flex items-center justify-center gap-2 text-muted-foreground font-bold tracking-wide">
               <Lock className="h-4 w-4" /> THIS THREAD IS LOCKED
             </div>
           ) : (
-            <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+            <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
               <Textarea
                 value={replyBody}
                 onChange={e => setReplyBody(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a reply... (Cmd+Enter to send)"
+                placeholder="Add to the conversation…"
                 className="min-h-[44px] max-h-[150px] border-0 focus-visible:ring-0 resize-none px-2 py-3 bg-transparent shadow-none"
                 disabled={createPost.isPending}
               />
