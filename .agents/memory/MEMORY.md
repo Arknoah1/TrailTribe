@@ -1,3 +1,4 @@
 - [Lib rebuild workflow](lib-rebuild-workflow.md) — after adding new tables or codegen, rebuild libs before typechecking leaf packages or HMR will fail
 - [Vite HMR new imports](vite-hmr-new-imports.md) — adding new named imports from workspace libs requires a workflow restart, not just HMR
 - [API server needs restart](api-server-restart.md) — new route files registered in routes/index.ts only take effect after a full server restart (rebuild + restart)
+- [TrailTribe test runner](trailtribe-test-runner.md) — prefer built-in Node tests when package-local browser tooling is unavailable
