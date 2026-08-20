@@ -10,6 +10,7 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -76,6 +77,35 @@ function resolveUrl(input: RequestInfo | URL): string {
   if (typeof input === "string") return input;
   if (isUrl(input)) return input.toString();
   return input.url;
+}
+
+/**
+ * Keeps a browser request from leaving a screen in a permanent loading state
+ * when a mobile network drops a connection without rejecting it.
+ */
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  const callerSignal = init.signal;
+
+  if (callerSignal?.aborted) {
+    controller.abort();
+  } else {
+    callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
+
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
 }
 
 function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
@@ -360,7 +390,7 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  const response = await fetchWithTimeout(input, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

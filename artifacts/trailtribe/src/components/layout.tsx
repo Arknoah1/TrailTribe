@@ -6,6 +6,7 @@ import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
 import { useAdminView } from "@/hooks/use-admin-view";
+import { NetworkStatusBanner } from "./network-status";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -81,6 +82,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background"
       style={{ "--mobile-bottom-nav-height": `${mobileNavHeight}px` } as React.CSSProperties}
     >
+      <NetworkStatusBanner />
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r-2 border-[#0a0c10] bg-card">
         {/* Wordmark */}

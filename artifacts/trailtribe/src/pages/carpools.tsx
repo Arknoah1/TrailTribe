@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { LoadErrorCard, LoadingState } from "@/components/network-status";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -42,14 +43,19 @@ export default function CarpoolBoard() {
   const authedFetch = useAuthedFetch();
 
   const { data: me } = useGetMe();
-  const { data: offers, isLoading: offersLoading } = useListEventCarpools(eventId, {
+  const { data: offers, isLoading: offersLoading, isError: offersError, error: offersLoadError, refetch: refetchOffers } = useListEventCarpools(eventId, {
     query: { enabled: !!eventId, queryKey: getListEventCarpoolsQueryKey(eventId) }
   });
-  const { data: requests, isLoading: requestsLoading } = useListEventCarpoolRequests(eventId, {
+  const { data: requests, isLoading: requestsLoading, isError: requestsError, error: requestsLoadError, refetch: refetchRequests } = useListEventCarpoolRequests(eventId, {
     query: { enabled: !!eventId, queryKey: getListEventCarpoolRequestsQueryKey(eventId) }
   });
 
   const isLoading = offersLoading || requestsLoading;
+  const loadError = offersLoadError ?? requestsLoadError;
+  const hasLoadError = offersError || requestsError;
+  const retryCarpools = () => {
+    void Promise.all([refetchOffers(), refetchRequests()]);
+  };
 
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [riders, setRiders] = useState<Rider[]>([]);
@@ -368,7 +374,15 @@ export default function CarpoolBoard() {
     }
   };
 
-  if (isLoading) return <div className="p-8 text-center">Loading carpools...</div>;
+  if (isLoading) return <LoadingState label="Loading carpools…" />;
+
+  if (hasLoadError) {
+    return (
+      <div className="mx-auto max-w-4xl px-6 pt-4 md:px-8 md:pt-8">
+        <LoadErrorCard feature="carpools" error={loadError} onRetry={retryCarpools} />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8">

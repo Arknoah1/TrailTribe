@@ -45,6 +45,10 @@ const queryClient = new QueryClient({
       // change/window refocus while still keeping things reasonably fresh.
       staleTime: 60_000,
       gcTime: 5 * 60_000,
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number } | null)?.status;
+        return status !== 401 && failureCount < 1;
+      },
     },
   },
 });
@@ -149,6 +153,26 @@ function ClerkAuthSyncer() {
     setAuthTokenGetter(stableGetter);
     return () => setAuthTokenGetter(null);
   }, [stableGetter]);
+
+  return null;
+}
+
+function SessionExpiryHandler() {
+  const { signOut } = useClerk();
+  const client = useQueryClient();
+  const isSigningOut = useRef(false);
+
+  useEffect(() => {
+    return client.getQueryCache().subscribe((event) => {
+      const status = (event.query.state.error as { status?: number } | null)?.status;
+      if (status !== 401 || isSigningOut.current) return;
+
+      isSigningOut.current = true;
+      signOut({ redirectUrl: `${basePath}/sign-in` }).catch(() => {
+        isSigningOut.current = false;
+      });
+    });
+  }, [client, signOut]);
 
   return null;
 }
@@ -312,6 +336,7 @@ function ClerkProviderWithRoutes() {
         <NativeAppBridge />
         <ClerkAuthSyncer />
         <ClerkQueryClientCacheInvalidator />
+        <SessionExpiryHandler />
         <Suspense fallback={
           <div className="flex min-h-[60vh] items-center justify-center">
             <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />

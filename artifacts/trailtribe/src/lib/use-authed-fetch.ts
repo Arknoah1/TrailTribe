@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/react";
 import { useCallback } from "react";
+import { fetchWithTimeout } from "@workspace/api-client-react";
 
 export function useAuthedFetch() {
   const { getToken } = useAuth();
@@ -11,7 +12,7 @@ export function useAuthedFetch() {
       if (token) {
         headers.set("Authorization", `Bearer ${token}`);
       }
-      return fetch(url, { ...options, headers });
+      return fetchWithTimeout(url, { ...options, headers });
     },
     [getToken],
   );

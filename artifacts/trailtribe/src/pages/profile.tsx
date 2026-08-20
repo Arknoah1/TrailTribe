@@ -39,6 +39,7 @@ import {
 import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
+import { LoadErrorCard, LoadingState } from "@/components/network-status";
 
 const profileSchema = z.object({
   firstName: z.string().min(2),
@@ -911,7 +912,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
-  const { data: household, isLoading } = useGetHousehold(householdId, {
+  const { data: household, isLoading, isError: householdError, error: householdLoadError, refetch: refetchHousehold } = useGetHousehold(householdId, {
     query: { queryKey: getGetHouseholdQueryKey(householdId) },
   });
   const updateHousehold = useUpdateHousehold();
@@ -940,20 +941,40 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
     signedAt: string | null;
   }
   const [complianceStatus, setComplianceStatus] = useState<ComplianceStatusItem[]>([]);
+  const [complianceLoading, setComplianceLoading] = useState(true);
+  const [complianceError, setComplianceError] = useState<unknown>(null);
+  const [ridersLoading, setRidersLoading] = useState(true);
+  const [ridersError, setRidersError] = useState<unknown>(null);
 
-  const fetchComplianceStatus = () => {
-    authedFetch(`${BASE_URL}/api/households/${householdId}/compliance/status`)
-      .then(r => r.ok ? r.json() : [])
-      .then(setComplianceStatus)
-      .catch(() => {});
+  const fetchComplianceStatus = async () => {
+    setComplianceLoading(true);
+    setComplianceError(null);
+    try {
+      const response = await authedFetch(`${BASE_URL}/api/households/${householdId}/compliance/status`);
+      if (!response.ok) throw Object.assign(new Error("Failed to load documents"), { status: response.status });
+      setComplianceStatus(await response.json());
+    } catch (error) {
+      setComplianceError(error);
+    } finally {
+      setComplianceLoading(false);
+    }
   };
 
   useEffect(() => { fetchComplianceStatus(); }, [householdId, authedFetch]);
 
 
   const fetchRiders = async () => {
-    const res = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders`);
-    if (res.ok) setRiders(await res.json());
+    setRidersLoading(true);
+    setRidersError(null);
+    try {
+      const response = await authedFetch(`${BASE_URL}/api/households/${householdId}/riders`);
+      if (!response.ok) throw Object.assign(new Error("Failed to load riders"), { status: response.status });
+      setRiders(await response.json());
+    } catch (error) {
+      setRidersError(error);
+    } finally {
+      setRidersLoading(false);
+    }
   };
 
   useEffect(() => { fetchRiders(); }, [householdId, authedFetch]);
@@ -1034,8 +1055,10 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (isLoading) return <div className="p-4 text-center text-muted-foreground">Loading family info...</div>;
-  if (!household) return <div className="p-4 text-center text-destructive">Could not load household.</div>;
+  if (isLoading) return <LoadingState label="Loading family info…" />;
+  if (householdError || !household) {
+    return <LoadErrorCard feature="your household" error={householdLoadError} onRetry={() => { void refetchHousehold(); }} />;
+  }
 
 
   return (
@@ -1103,7 +1126,11 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
           </Dialog>
         </CardHeader>
         <CardContent>
-          {riders.length === 0 ? (
+          {ridersLoading ? (
+            <LoadingState label="Loading riders…" className="min-h-24 p-4" />
+          ) : ridersError ? (
+            <LoadErrorCard feature="your riders" error={ridersError} onRetry={() => { void fetchRiders(); }} />
+          ) : riders.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Bike className="h-8 w-8 mx-auto mb-2 opacity-40" />
               <p className="text-sm">No riders added yet. Add your kids to get started.</p>
@@ -1265,8 +1292,12 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
           <CardDescription>Required forms for participation. Open each document to review and sign.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {complianceStatus.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Loading documents…</p>
+          {complianceLoading ? (
+            <LoadingState label="Loading documents…" className="min-h-24 p-4" />
+          ) : complianceError ? (
+            <LoadErrorCard feature="season documents" error={complianceError} onRetry={() => { void fetchComplianceStatus(); }} />
+          ) : complianceStatus.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">No required documents are available right now.</p>
           ) : complianceStatus.map((item) => (
             <div key={item.documentType} className="rounded-lg border p-4">
               <div className="flex items-center justify-between gap-3">
