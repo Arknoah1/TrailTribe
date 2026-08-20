@@ -21,8 +21,10 @@ test("visual viewport keyboard changes move the reply composer above the keyboar
   assert.match(threadSource, /Math\.max\(0, layoutViewportHeight - visibleViewportBottom\)/);
   assert.match(threadSource, /visualViewport\?\.addEventListener\("resize", updateKeyboardOffset\)/);
   assert.match(threadSource, /visualViewport\?\.addEventListener\("scroll", updateKeyboardOffset\)/);
+  assert.match(threadSource, /window\.addEventListener\("orientationchange", handleOrientationChange\)/);
+  assert.match(threadSource, /layoutViewportHeightRef\.current = window\.innerHeight/);
   assert.match(threadSource, /--keyboard-offset.*keyboardOffset/);
-  assert.match(threadSource, /bottom-\[calc\(78px\+env\(safe-area-inset-bottom\)\+var\(--keyboard-offset\)\)\]/);
+  assert.match(threadSource, /bottom-\[calc\(var\(--mobile-bottom-nav-height,78px\)\+var\(--keyboard-offset\)\)\]/);
 });
 
 test("keyboard dismissal restores the normal mobile navigation offset", () => {
@@ -35,6 +37,8 @@ test("keyboard dismissal restores the normal mobile navigation offset", () => {
   assert.match(layoutSource, /className=\{cn\("flex-1 overflow-y-auto pb-20 md:pb-0"/);
   assert.match(layoutSource, /height: "calc\(64px \+ env\(safe-area-inset-bottom\)\)"/);
   assert.match(layoutSource, /paddingBottom: "env\(safe-area-inset-bottom\)"/);
+  assert.match(layoutSource, /new ResizeObserver\(updateMobileNavHeight\)/);
+  assert.match(layoutSource, /--mobile-bottom-nav-height/);
 });
 
 test("the multiline composer and send control stay usable within the visible viewport", () => {

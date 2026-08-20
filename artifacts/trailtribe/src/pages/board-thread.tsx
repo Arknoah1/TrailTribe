@@ -224,6 +224,7 @@ export default function BoardThread() {
 
     const visualViewport = window.visualViewport;
     layoutViewportHeightRef.current = window.innerHeight;
+    let lastWindowHeight = window.innerHeight;
 
     const updateKeyboardOffset = () => {
       const layoutViewportHeight = layoutViewportHeightRef.current ?? window.innerHeight;
@@ -239,19 +240,38 @@ export default function BoardThread() {
     };
 
     const handleWindowResize = () => {
-      if (!visualViewport) {
+      // A rotation resizes the layout viewport as well as the visual viewport.
+      // Keep the keyboard baseline in sync so the composer is not left at the
+      // old portrait/landscape offset.
+      if (!visualViewport || window.innerHeight !== lastWindowHeight) {
         layoutViewportHeightRef.current = window.innerHeight;
       }
+      lastWindowHeight = window.innerHeight;
       updateKeyboardOffset();
+    };
+
+    const handleOrientationChange = () => {
+      // Wait for both viewport dimensions to settle after the orientation
+      // event. This also covers browsers that dispatch resize before the new
+      // visual viewport dimensions are available.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          layoutViewportHeightRef.current = window.innerHeight;
+          lastWindowHeight = window.innerHeight;
+          updateKeyboardOffset();
+        });
+      });
     };
 
     updateKeyboardOffset();
     window.addEventListener("resize", handleWindowResize);
+    window.addEventListener("orientationchange", handleOrientationChange);
     visualViewport?.addEventListener("resize", updateKeyboardOffset);
     visualViewport?.addEventListener("scroll", updateKeyboardOffset);
 
     return () => {
       window.removeEventListener("resize", handleWindowResize);
+      window.removeEventListener("orientationchange", handleOrientationChange);
       visualViewport?.removeEventListener("resize", updateKeyboardOffset);
       visualViewport?.removeEventListener("scroll", updateKeyboardOffset);
     };
@@ -539,7 +559,7 @@ export default function BoardThread() {
       </Dialog>
 
       <div
-        className="fixed bottom-[calc(78px+env(safe-area-inset-bottom)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
+        className="fixed bottom-[calc(var(--mobile-bottom-nav-height,78px)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
         style={{ "--keyboard-offset": `${keyboardOffset}px` } as React.CSSProperties}
       >
         <div className="max-w-3xl mx-auto">

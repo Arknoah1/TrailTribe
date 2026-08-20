@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const { adminViewEnabled } = useAdminView();
   const showAdminTabs = isCoachOrAdmin && adminViewEnabled;
+  const mobileNavRef = useRef<HTMLDivElement>(null);
+  const [mobileNavHeight, setMobileNavHeight] = useState(78);
 
   // Desktop sidebar: Admin tab visible when admin mode on; Season Builder lives inside Admin now
   const navItems = showAdminTabs
@@ -53,8 +55,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // Mobile bottom nav: always the same 5 items — Admin accessible via top bar
   const mobileItems = baseNavItems;
 
+  useEffect(() => {
+    const mobileNav = mobileNavRef.current;
+    if (!mobileNav) return;
+
+    const updateMobileNavHeight = () => {
+      setMobileNavHeight(mobileNav.getBoundingClientRect().height);
+    };
+
+    updateMobileNavHeight();
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(updateMobileNavHeight)
+      : null;
+    resizeObserver?.observe(mobileNav);
+    window.addEventListener("resize", updateMobileNavHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateMobileNavHeight);
+    };
+  }, []);
+
   return (
-    <div className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background">
+    <div
+      className="flex min-h-[100dvh] w-full flex-col md:flex-row bg-background"
+      style={{ "--mobile-bottom-nav-height": `${mobileNavHeight}px` } as React.CSSProperties}
+    >
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r-2 border-[#0a0c10] bg-card">
         {/* Wordmark */}
@@ -141,7 +167,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Bar — ridgeline divider + 64px tabs */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
+      <div ref={mobileNavRef} className="md:hidden fixed bottom-0 left-0 right-0 z-50">
         {/* Ridgeline silhouette chrome strip */}
         <svg
           viewBox="0 0 390 16"
