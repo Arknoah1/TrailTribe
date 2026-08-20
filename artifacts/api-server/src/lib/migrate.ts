@@ -418,6 +418,25 @@ const migrations: { name: string; sql: string }[] = [
         ADD COLUMN IF NOT EXISTS notification_preferences_locked boolean NOT NULL DEFAULT false;
     `,
   },
+  {
+    name: "create_board_reactions_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS board_reactions (
+        id serial PRIMARY KEY,
+        thread_id integer REFERENCES board_threads(id) ON DELETE CASCADE,
+        post_id integer REFERENCES board_posts(id) ON DELETE CASCADE,
+        user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reaction text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT board_reactions_target_check
+          CHECK ((thread_id IS NOT NULL) <> (post_id IS NOT NULL)),
+        CONSTRAINT board_reactions_user_target_reaction_unique
+          UNIQUE (user_id, thread_id, post_id, reaction)
+      );
+      CREATE INDEX IF NOT EXISTS board_reactions_thread_id_idx ON board_reactions(thread_id);
+      CREATE INDEX IF NOT EXISTS board_reactions_post_id_idx ON board_reactions(post_id);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

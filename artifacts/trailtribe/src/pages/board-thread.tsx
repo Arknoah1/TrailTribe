@@ -7,12 +7,14 @@ import {
   useDeleteBoardPost,
   useDeleteBoardThread,
   usePinBoardThread,
+  useToggleBoardReaction,
   useGetMe,
   useGetLinkPreview,
   getGetLinkPreviewQueryKey,
   getListBoardPostsQueryKey,
   getListBoardThreadsQueryKey
 } from "@workspace/api-client-react";
+import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
   AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw
@@ -74,6 +76,52 @@ function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean 
   );
 }
 
+const REACTIONS = [
+  { key: "helpful", emoji: "💡", label: "Helpful" },
+  { key: "like", emoji: "👍", label: "Like" },
+  { key: "celebrate", emoji: "🎉", label: "Celebrate" },
+] as const;
+
+function ReactionBar({
+  targetType,
+  targetId,
+  reactions,
+  onToggle,
+  disabled,
+}: {
+  targetType: "thread" | "post";
+  targetId: number;
+  reactions?: BoardReactionSummary["reactions"];
+  onToggle: (targetType: "thread" | "post", targetId: number, reaction: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Reactions">
+      {REACTIONS.map(({ key, emoji, label }) => {
+        const summary = reactions?.[key] ?? { count: 0, reacted: false };
+        return (
+          <button
+            key={key}
+            type="button"
+            aria-label={`${summary.reacted ? "Remove" : "Add"} ${label} reaction${summary.count ? `, ${summary.count}` : ""}`}
+            aria-pressed={summary.reacted}
+            disabled={disabled}
+            onClick={() => onToggle(targetType, targetId, key)}
+            className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+              summary.reacted
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-[#0a0c10]/20 bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+            }`}
+          >
+            <span aria-hidden="true">{emoji}</span>
+            {summary.count > 0 && <span>{summary.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function BoardThread() {
   const [, setLocation] = useLocation();
   const params = useParams();
@@ -93,6 +141,7 @@ export default function BoardThread() {
   const deletePost = useDeleteBoardPost();
   const deleteThread = useDeleteBoardThread();
   const pinThread = usePinBoardThread();
+  const toggleReaction = useToggleBoardReaction();
 
   const [replyBody, setReplyBody] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -100,6 +149,16 @@ export default function BoardThread() {
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const isAuthor = thread?.authorUserId === me?.id;
   const canDeleteThread = isCoachOrAdmin || isAuthor;
+
+  const handleToggleReaction = (targetType: "thread" | "post", targetId: number, reaction: string) => {
+    toggleReaction.mutate({ data: { targetType, targetId, reaction: reaction as "helpful" | "like" | "celebrate" } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListBoardPostsQueryKey(id) });
+        queryClient.invalidateQueries({ queryKey: ["getBoardThread", id] });
+      },
+      onError: () => toast({ title: "Couldn’t update reaction", variant: "destructive" }),
+    });
+  };
 
   const handleSend = () => {
     if (!replyBody.trim()) return;
@@ -233,6 +292,7 @@ export default function BoardThread() {
             <div className="text-foreground">
               <ParsedContent text={thread.body} />
             </div>
+            <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} disabled={toggleReaction.isPending} />
           </section>
 
           <div className="flex items-center gap-3 px-1">
@@ -291,6 +351,9 @@ export default function BoardThread() {
                   <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
                     <ParsedContent text={post.body} isDeleted={post.isDeleted} />
                   </div>
+                   {!post.isDeleted && (
+                     <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} disabled={toggleReaction.isPending} />
+                   )}
                 </div>
               </article>
             );

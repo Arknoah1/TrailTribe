@@ -2449,6 +2449,15 @@ export const ListBoardThreadsResponseItem = zod
           startTime: zod.coerce.date(),
         })
         .nullish(),
+      reactions: zod
+        .record(
+          zod.string(),
+          zod.object({
+            count: zod.number(),
+            reacted: zod.boolean(),
+          }),
+        )
+        .optional(),
     }),
   );
 export const ListBoardThreadsResponse = zod.array(ListBoardThreadsResponseItem);
@@ -2502,6 +2511,15 @@ export const GetBoardThreadResponse = zod
           startTime: zod.coerce.date(),
         })
         .nullish(),
+      reactions: zod
+        .record(
+          zod.string(),
+          zod.object({
+            count: zod.number(),
+            reacted: zod.boolean(),
+          }),
+        )
+        .optional(),
     }),
   );
 
@@ -2538,6 +2556,15 @@ export const ListBoardPostsResponseItem = zod
           avatarUrl: zod.string().nullish(),
         })
         .nullish(),
+      reactions: zod
+        .record(
+          zod.string(),
+          zod.object({
+            count: zod.number(),
+            reacted: zod.boolean(),
+          }),
+        )
+        .optional(),
     }),
   );
 export const ListBoardPostsResponse = zod.array(ListBoardPostsResponseItem);
@@ -2551,6 +2578,27 @@ export const CreateBoardPostParams = zod.object({
 
 export const CreateBoardPostBody = zod.object({
   body: zod.string(),
+});
+
+/**
+ * @summary Add or remove a reaction on a thread starter or reply
+ */
+export const ToggleBoardReactionBody = zod.object({
+  targetType: zod.enum(["thread", "post"]),
+  targetId: zod.number(),
+  reaction: zod.enum(["helpful", "like", "celebrate"]),
+});
+
+export const ToggleBoardReactionResponse = zod.object({
+  targetType: zod.enum(["thread", "post"]),
+  targetId: zod.number(),
+  reactions: zod.record(
+    zod.string(),
+    zod.object({
+      count: zod.number(),
+      reacted: zod.boolean(),
+    }),
+  ),
 });
 
 /**

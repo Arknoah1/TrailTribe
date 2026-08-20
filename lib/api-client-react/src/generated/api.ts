@@ -22,6 +22,7 @@ import type {
   BatchCreateEventsBody,
   BatchCreateEventsResult,
   BoardPostWithAuthor,
+  BoardReactionSummary,
   BoardThread,
   BoardThreadWithDetails,
   Broadcast,
@@ -85,6 +86,7 @@ import type {
   SetEventVolunteerTasksEnabledBody,
   SignUpForEventTaskBody,
   SuccessResponse,
+  ToggleBoardReactionBody,
   Trailhead,
   UpdateCarpoolOfferBody,
   UpdateCarpoolRequestBody,
@@ -6297,6 +6299,92 @@ export const useCreateBoardPost = <
   TContext
 > => {
   return useMutation(getCreateBoardPostMutationOptions(options));
+};
+
+/**
+ * @summary Add or remove a reaction on a thread starter or reply
+ */
+export const getToggleBoardReactionUrl = () => {
+  return `/api/board/reactions`;
+};
+
+export const toggleBoardReaction = async (
+  toggleBoardReactionBody: ToggleBoardReactionBody,
+  options?: RequestInit,
+): Promise<BoardReactionSummary> => {
+  return customFetch<BoardReactionSummary>(getToggleBoardReactionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(toggleBoardReactionBody),
+  });
+};
+
+export const getToggleBoardReactionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleBoardReaction>>,
+    TError,
+    { data: BodyType<ToggleBoardReactionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof toggleBoardReaction>>,
+  TError,
+  { data: BodyType<ToggleBoardReactionBody> },
+  TContext
+> => {
+  const mutationKey = ["toggleBoardReaction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof toggleBoardReaction>>,
+    { data: BodyType<ToggleBoardReactionBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return toggleBoardReaction(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ToggleBoardReactionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof toggleBoardReaction>>
+>;
+export type ToggleBoardReactionMutationBody = BodyType<ToggleBoardReactionBody>;
+export type ToggleBoardReactionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add or remove a reaction on a thread starter or reply
+ */
+export const useToggleBoardReaction = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof toggleBoardReaction>>,
+    TError,
+    { data: BodyType<ToggleBoardReactionBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof toggleBoardReaction>>,
+  TError,
+  { data: BodyType<ToggleBoardReactionBody> },
+  TContext
+> => {
+  return useMutation(getToggleBoardReactionMutationOptions(options));
 };
 
 /**

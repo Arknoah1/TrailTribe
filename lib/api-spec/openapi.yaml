@@ -1615,6 +1615,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/BoardPostWithAuthor"
 
+  /board/reactions:
+    post:
+      operationId: toggleBoardReaction
+      tags: [board]
+      summary: Add or remove a reaction on a thread starter or reply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleBoardReactionBody"
+      responses:
+        "200":
+          description: Updated reaction summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardReactionSummary"
+
   /board/posts/{id}:
     delete:
       operationId: deleteBoardPost
@@ -3125,6 +3144,10 @@ components:
             event:
               $ref: "#/components/schemas/BoardEventRef"
               nullable: true
+            reactions:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/BoardReactionCount"
 
     BoardPost:
       type: object
@@ -3153,6 +3176,46 @@ components:
             author:
               $ref: "#/components/schemas/BoardAuthor"
               nullable: true
+            reactions:
+              type: object
+              additionalProperties:
+                $ref: "#/components/schemas/BoardReactionCount"
+
+    BoardReactionSummary:
+      type: object
+      properties:
+        targetType:
+          type: string
+          enum: [thread, post]
+        targetId:
+          type: integer
+        reactions:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/BoardReactionCount"
+      required: [targetType, targetId, reactions]
+
+    BoardReactionCount:
+      type: object
+      properties:
+        count:
+          type: integer
+        reacted:
+          type: boolean
+      required: [count, reacted]
+
+    ToggleBoardReactionBody:
+      type: object
+      properties:
+        targetType:
+          type: string
+          enum: [thread, post]
+        targetId:
+          type: integer
+        reaction:
+          type: string
+          enum: [helpful, like, celebrate]
+      required: [targetType, targetId, reaction]
 
     CreateBoardThreadBody:
       type: object

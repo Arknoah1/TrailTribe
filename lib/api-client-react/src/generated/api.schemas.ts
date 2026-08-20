@@ -645,9 +645,19 @@ export interface BoardThread {
   updatedAt: string;
 }
 
+export interface BoardReactionCount {
+  count: number;
+  reacted: boolean;
+}
+
+export type BoardThreadWithDetailsReactions = {
+  [key: string]: BoardReactionCount;
+};
+
 export type BoardThreadWithDetails = BoardThread & {
   author?: BoardAuthor | null;
   event?: BoardEventRef | null;
+  reactions?: BoardThreadWithDetailsReactions;
 };
 
 export interface BoardPost {
@@ -659,9 +669,55 @@ export interface BoardPost {
   createdAt: string;
 }
 
+export type BoardPostWithAuthorReactions = {
+  [key: string]: BoardReactionCount;
+};
+
 export type BoardPostWithAuthor = BoardPost & {
   author?: BoardAuthor | null;
+  reactions?: BoardPostWithAuthorReactions;
 };
+
+export type BoardReactionSummaryTargetType =
+  (typeof BoardReactionSummaryTargetType)[keyof typeof BoardReactionSummaryTargetType];
+
+export const BoardReactionSummaryTargetType = {
+  thread: "thread",
+  post: "post",
+} as const;
+
+export type BoardReactionSummaryReactions = {
+  [key: string]: BoardReactionCount;
+};
+
+export interface BoardReactionSummary {
+  targetType: BoardReactionSummaryTargetType;
+  targetId: number;
+  reactions: BoardReactionSummaryReactions;
+}
+
+export type ToggleBoardReactionBodyTargetType =
+  (typeof ToggleBoardReactionBodyTargetType)[keyof typeof ToggleBoardReactionBodyTargetType];
+
+export const ToggleBoardReactionBodyTargetType = {
+  thread: "thread",
+  post: "post",
+} as const;
+
+export type ToggleBoardReactionBodyReaction =
+  (typeof ToggleBoardReactionBodyReaction)[keyof typeof ToggleBoardReactionBodyReaction];
+
+export const ToggleBoardReactionBodyReaction = {
+  helpful: "helpful",
+  like: "like",
+  celebrate: "celebrate",
+} as const;
+
+export interface ToggleBoardReactionBody {
+  targetType: ToggleBoardReactionBodyTargetType;
+  targetId: number;
+  reaction: ToggleBoardReactionBodyReaction;
+}
 
 export interface CreateBoardThreadBody {
   title: string;

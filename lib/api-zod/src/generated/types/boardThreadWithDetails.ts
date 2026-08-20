@@ -8,8 +8,10 @@
 import type { BoardAuthor } from "./boardAuthor";
 import type { BoardEventRef } from "./boardEventRef";
 import type { BoardThread } from "./boardThread";
+import type { BoardThreadWithDetailsReactions } from "./boardThreadWithDetailsReactions";
 
 export type BoardThreadWithDetails = BoardThread & {
   author?: BoardAuthor | null;
   event?: BoardEventRef | null;
+  reactions?: BoardThreadWithDetailsReactions;
 };

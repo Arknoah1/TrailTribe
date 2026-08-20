@@ -7,7 +7,9 @@
  */
 import type { BoardAuthor } from "./boardAuthor";
 import type { BoardPost } from "./boardPost";
+import type { BoardPostWithAuthorReactions } from "./boardPostWithAuthorReactions";
 
 export type BoardPostWithAuthor = BoardPost & {
   author?: BoardAuthor | null;
+  reactions?: BoardPostWithAuthorReactions;
 };

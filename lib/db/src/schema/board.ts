@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, boolean, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, index, unique, check } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -49,3 +50,19 @@ export const insertBoardPostSchema = createInsertSchema(boardPostsTable).omit({
 
 export type InsertBoardPost = z.infer<typeof insertBoardPostSchema>;
 export type BoardPost = typeof boardPostsTable.$inferSelect;
+
+export const boardReactionsTable = pgTable("board_reactions", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").references(() => boardThreadsTable.id, { onDelete: "cascade" }),
+  postId: integer("post_id").references(() => boardPostsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  reaction: text("reaction").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("board_reactions_user_target_reaction_unique").on(t.userId, t.threadId, t.postId, t.reaction),
+  check("board_reactions_target_check", sql`(${t.threadId} IS NOT NULL) <> (${t.postId} IS NOT NULL)`),
+  index("board_reactions_thread_id_idx").on(t.threadId),
+  index("board_reactions_post_id_idx").on(t.postId),
+]);
+
+export type BoardReaction = typeof boardReactionsTable.$inferSelect;

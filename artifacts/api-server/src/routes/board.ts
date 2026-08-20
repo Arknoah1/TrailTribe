@@ -5,8 +5,9 @@ import {
   boardPostsTable,
   usersTable,
   eventsTable,
+  boardReactionsTable,
 } from "@workspace/db";
-import { eq, and, desc, isNull, or, inArray, gt, gte } from "drizzle-orm";
+import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
@@ -33,7 +34,32 @@ async function enrichThread(thread: typeof boardThreadsTable.$inferSelect) {
   };
 }
 
-async function enrichPost(post: typeof boardPostsTable.$inferSelect) {
+const ALLOWED_REACTIONS = ["helpful", "like", "celebrate"] as const;
+type ReactionType = typeof ALLOWED_REACTIONS[number];
+type ReactionTarget = "thread" | "post";
+
+async function getReactionSummary(
+  targetType: ReactionTarget,
+  targetId: number,
+  userId: number,
+) {
+  const rows = await db.select({
+    reaction: boardReactionsTable.reaction,
+    count: sql<number>`count(*)::int`,
+    reacted: sql<boolean>`bool_or(${boardReactionsTable.userId} = ${userId})`,
+  }).from(boardReactionsTable).where(
+    targetType === "thread"
+      ? eq(boardReactionsTable.threadId, targetId)
+      : eq(boardReactionsTable.postId, targetId)
+  ).groupBy(boardReactionsTable.reaction);
+
+  return Object.fromEntries(ALLOWED_REACTIONS.map((reaction) => {
+    const row = rows.find((candidate) => candidate.reaction === reaction);
+    return [reaction, { count: row?.count ?? 0, reacted: row?.reacted ?? false }];
+  }));
+}
+
+async function enrichPost(post: typeof boardPostsTable.$inferSelect, userId?: number) {
   const author = post.authorUserId
     ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, post.authorUserId) })
     : null;
@@ -42,6 +68,7 @@ async function enrichPost(post: typeof boardPostsTable.$inferSelect) {
     // Redact body for soft-deleted posts so raw API consumers cannot read deleted content
     body: post.isDeleted ? "" : post.body,
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
+    reactions: userId ? await getReactionSummary("post", post.id, userId) : {},
   };
 }
 
@@ -214,7 +241,7 @@ router.get("/board/threads", requireApproved, async (req, res) => {
       .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
   }
 
-  const result = await Promise.all(threads.map(enrichThread));
+  const result = await Promise.all(threads.map((thread) => enrichThread(thread)));
   res.json(result);
 });
 
@@ -253,7 +280,7 @@ router.post("/board/threads", requireAuth, async (req, res) => {
     replyCount: 0,
   }).returning();
 
-  const result = await enrichThread(thread);
+  const result = { ...await enrichThread(thread), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.status(201).json(result);
 });
 
@@ -269,7 +296,7 @@ router.get("/board/threads/:id", requireApproved, async (req, res) => {
   if (!(await canAccessThread(me, thread))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
-  const result = await enrichThread(thread);
+  const result = { ...await enrichThread(thread), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.json(result);
 });
 
@@ -289,7 +316,7 @@ router.get("/board/threads/:id/posts", requireApproved, async (req, res) => {
   const posts = await db.select().from(boardPostsTable)
     .where(eq(boardPostsTable.threadId, threadId))
     .orderBy(boardPostsTable.createdAt);
-  const result = await Promise.all(posts.map(enrichPost));
+  const result = await Promise.all(posts.map((post) => enrichPost(post, me.id)));
   res.json(result);
 });
 
@@ -329,8 +356,63 @@ router.post("/board/threads/:id/posts", requireAuth, async (req, res) => {
   notifyThreadParticipants(threadId, me.id, thread.title)
     .catch((err) => logger.error({ err }, "[board] notify participants error"));
 
-  const result = await enrichPost(post);
+  const result = await enrichPost(post, me.id);
   res.status(201).json(result);
+});
+
+// POST /board/reactions — toggle a reaction on a visible thread starter or reply
+router.post("/board/reactions", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const { targetType, targetId, reaction } = req.body as {
+    targetType?: ReactionTarget;
+    targetId?: number;
+    reaction?: ReactionType;
+  };
+  if (!targetType || !Number.isInteger(targetId) || !reaction ||
+      !["thread", "post"].includes(targetType) ||
+      !ALLOWED_REACTIONS.includes(reaction)) {
+    res.status(400).json({ error: "targetType, targetId, and a valid reaction are required" }); return;
+  }
+  const safeTargetId = targetId as number;
+
+  if (targetType === "thread") {
+    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, safeTargetId) });
+    if (!thread) { res.status(404).json({ error: "Target not found" }); return; }
+    if (!(await canAccessThread(me, thread))) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+  } else {
+    const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, safeTargetId) });
+    if (!post) { res.status(404).json({ error: "Target not found" }); return; }
+    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) });
+    if (!thread || !(await canAccessThread(me, thread))) {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+    if (post.isDeleted) {
+      res.status(404).json({ error: "Post not found" }); return;
+    }
+  }
+
+  const existing = await db.query.boardReactionsTable.findFirst({
+    where: and(
+      eq(boardReactionsTable.userId, me.id),
+      targetType === "thread" ? eq(boardReactionsTable.threadId, safeTargetId) : eq(boardReactionsTable.postId, safeTargetId),
+      eq(boardReactionsTable.reaction, reaction),
+    ),
+  });
+  if (existing) {
+    await db.delete(boardReactionsTable).where(eq(boardReactionsTable.id, existing.id));
+  } else {
+    await db.insert(boardReactionsTable).values({
+      userId: me.id,
+      reaction,
+      ...(targetType === "thread" ? { threadId: safeTargetId } : { postId: safeTargetId }),
+    });
+  }
+  res.json({ targetType, targetId: safeTargetId, reactions: await getReactionSummary(targetType, safeTargetId, me.id) });
 });
 
 // DELETE /board/threads/:id — coach/admin or thread author
