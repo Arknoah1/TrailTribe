@@ -3,13 +3,14 @@ import { useGetMe, useGetUpcomingEvents, useGetDashboardSummary } from "@workspa
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format } from "date-fns";
 import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, Car, ShieldCheck, X } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
 
 const COACH_WELCOMED_KEY = "trailtribe_coach_welcomed";
 
 export default function Dashboard() {
+  const [, setLocation] = useLocation();
   const { data: me } = useGetMe();
   const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
   const { data: summary } = useGetDashboardSummary();
@@ -150,7 +151,23 @@ export default function Dashboard() {
           {events && events.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {events.map(event => (
-                <Card key={event.id} className="overflow-hidden flex flex-col cel-hover cursor-pointer">
+                <Card
+                  key={event.id}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Open ${event.title}`}
+                  onClick={e => {
+                    if ((e.target as HTMLElement).closest("a, button")) return;
+                    setLocation(`/events/${event.id}`);
+                  }}
+                  onKeyDown={e => {
+                    if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+                      e.preventDefault();
+                      setLocation(`/events/${event.id}`);
+                    }
+                  }}
+                  className="overflow-hidden flex flex-col cel-hover cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
                   <div className={`h-1.5 ${eventTypeStripe(event.eventType)}`} />
                   <div className="bg-secondary px-4 py-2 border-b-2 border-[#0a0c10] flex justify-between items-center">
                     <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-primary">{event.eventType}</span>
