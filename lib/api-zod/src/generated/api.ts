@@ -2602,6 +2602,32 @@ export const ToggleBoardReactionResponse = zod.object({
 });
 
 /**
+ * @summary List active members who used a reaction
+ */
+export const GetBoardReactionDetailsParams = zod.object({
+  targetType: zod.enum(["thread", "post"]),
+  targetId: zod.coerce.number(),
+});
+
+export const GetBoardReactionDetailsQueryParams = zod.object({
+  reaction: zod.enum(["helpful", "like", "celebrate"]),
+});
+
+export const GetBoardReactionDetailsResponse = zod.object({
+  targetType: zod.enum(["thread", "post"]),
+  targetId: zod.number(),
+  reaction: zod.enum(["helpful", "like", "celebrate"]),
+  members: zod.array(
+    zod.object({
+      id: zod.number(),
+      firstName: zod.string(),
+      lastName: zod.string(),
+      avatarUrl: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
  * @summary Delete a post (author or coach/admin, soft-delete)
  */
 export const DeleteBoardPostParams = zod.object({

@@ -8,9 +8,11 @@ import {
   useDeleteBoardThread,
   usePinBoardThread,
   useToggleBoardReaction,
+  useGetBoardReactionDetails,
   useGetMe,
   useGetLinkPreview,
   getGetLinkPreviewQueryKey,
+  getGetBoardReactionDetailsQueryKey,
   getListBoardPostsQueryKey,
   getListBoardThreadsQueryKey
 } from "@workspace/api-client-react";
@@ -28,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DiscussionTitle } from "@/components/discussion-title";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
@@ -87,12 +90,14 @@ function ReactionBar({
   targetId,
   reactions,
   onToggle,
+  onView,
   disabled,
 }: {
   targetType: "thread" | "post";
   targetId: number;
   reactions?: BoardReactionSummary["reactions"];
   onToggle: (targetType: "thread" | "post", targetId: number, reaction: string) => void;
+  onView: (targetType: "thread" | "post", targetId: number, reaction: "helpful" | "like" | "celebrate") => void;
   disabled?: boolean;
 }) {
   return (
@@ -100,22 +105,32 @@ function ReactionBar({
       {REACTIONS.map(({ key, emoji, label }) => {
         const summary = reactions?.[key] ?? { count: 0, reacted: false };
         return (
-          <button
-            key={key}
-            type="button"
-            aria-label={`${summary.reacted ? "Remove" : "Add"} ${label} reaction${summary.count ? `, ${summary.count}` : ""}`}
-            aria-pressed={summary.reacted}
-            disabled={disabled}
-            onClick={() => onToggle(targetType, targetId, key)}
-            className={`inline-flex min-h-7 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
-              summary.reacted
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-[#0a0c10]/20 bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
-            }`}
-          >
-            <span aria-hidden="true">{emoji}</span>
-            {summary.count > 0 && <span>{summary.count}</span>}
-          </button>
+          <div key={key} className="inline-flex min-h-7 items-center rounded-full border text-xs font-semibold">
+            <button
+              type="button"
+              aria-label={`${summary.reacted ? "Remove" : "Add"} ${label} reaction`}
+              aria-pressed={summary.reacted}
+              disabled={disabled}
+              onClick={() => onToggle(targetType, targetId, key)}
+              className={`inline-flex min-h-7 items-center gap-1 rounded-l-full px-2 py-0.5 transition-colors ${
+                summary.reacted
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-[#0a0c10]/20 bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+              }`}
+            >
+              <span aria-hidden="true">{emoji}</span>
+            </button>
+            {summary.count > 0 && (
+              <button
+                type="button"
+                aria-label={`View ${summary.count} ${label.toLowerCase()} reaction${summary.count === 1 ? "" : "s"}`}
+                onClick={() => onView(targetType, targetId, key)}
+                className="rounded-r-full border-l border-[#0a0c10]/20 bg-background px-1.5 py-0.5 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+              >
+                {summary.count}
+              </button>
+            )}
+          </div>
         );
       })}
     </div>
@@ -142,6 +157,24 @@ export default function BoardThread() {
   const deleteThread = useDeleteBoardThread();
   const pinThread = usePinBoardThread();
   const toggleReaction = useToggleBoardReaction();
+  const [reactionDetails, setReactionDetails] = useState<{
+    targetType: "thread" | "post";
+    targetId: number;
+    reaction: "helpful" | "like" | "celebrate";
+  } | null>(null);
+  const reactionDetailsQuery = useGetBoardReactionDetails(
+    reactionDetails?.targetType ?? "thread",
+    reactionDetails?.targetId ?? 0,
+    { reaction: reactionDetails?.reaction ?? "helpful" },
+    { query: {
+      enabled: reactionDetails !== null,
+      queryKey: getGetBoardReactionDetailsQueryKey(
+        reactionDetails?.targetType ?? "thread",
+        reactionDetails?.targetId ?? 0,
+        { reaction: reactionDetails?.reaction ?? "helpful" },
+      ),
+    } },
+  );
 
   const [replyBody, setReplyBody] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -159,6 +192,12 @@ export default function BoardThread() {
       onError: () => toast({ title: "Couldn’t update reaction", variant: "destructive" }),
     });
   };
+
+  const handleViewReaction = (
+    targetType: "thread" | "post",
+    targetId: number,
+    reaction: "helpful" | "like" | "celebrate",
+  ) => setReactionDetails({ targetType, targetId, reaction });
 
   const handleSend = () => {
     if (!replyBody.trim()) return;
@@ -292,7 +331,7 @@ export default function BoardThread() {
             <div className="text-foreground">
               <ParsedContent text={thread.body} />
             </div>
-            <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} disabled={toggleReaction.isPending} />
+            <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
           </section>
 
           <div className="flex items-center gap-3 px-1">
@@ -352,7 +391,7 @@ export default function BoardThread() {
                     <ParsedContent text={post.body} isDeleted={post.isDeleted} />
                   </div>
                    {!post.isDeleted && (
-                     <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} disabled={toggleReaction.isPending} />
+                     <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
                    )}
                 </div>
               </article>
@@ -373,6 +412,42 @@ export default function BoardThread() {
           <div ref={messagesEndRef} />
         </div>
       </main>
+
+      <Dialog open={reactionDetails !== null} onOpenChange={(open) => { if (!open) setReactionDetails(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {REACTIONS.find(({ key }) => key === reactionDetails?.reaction)?.emoji}{" "}
+              {REACTIONS.find(({ key }) => key === reactionDetails?.reaction)?.label} reactions
+            </DialogTitle>
+            <DialogDescription>Members who reacted to this update</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto">
+            {reactionDetailsQuery.isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            ) : reactionDetailsQuery.data?.members.length ? (
+              <div className="space-y-2">
+                {reactionDetailsQuery.data.members.map((member) => (
+                  <div key={member.id} className="flex items-center gap-3 rounded-lg border border-[#0a0c10]/15 bg-background p-2">
+                    <Avatar className="h-8 w-8 border border-[#0a0c10]">
+                      <AvatarImage src={member.avatarUrl ?? undefined} />
+                      <AvatarFallback className="text-xs font-bold">
+                        {member.firstName[0]}{member.lastName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-semibold">{member.firstName} {member.lastName}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">No active members found.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="fixed md:sticky bottom-[78px] md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 backdrop-blur-md sm:p-4">
         <div className="max-w-3xl mx-auto">

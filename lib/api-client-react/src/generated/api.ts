@@ -22,6 +22,7 @@ import type {
   BatchCreateEventsBody,
   BatchCreateEventsResult,
   BoardPostWithAuthor,
+  BoardReactionDetails,
   BoardReactionSummary,
   BoardThread,
   BoardThreadWithDetails,
@@ -59,6 +60,7 @@ import type {
   EventTaskSignup,
   EventTaskWithSignups,
   EventWithDetails,
+  GetBoardReactionDetailsParams,
   GetBoardUnreadCount200,
   GetLinkPreviewParams,
   HealthStatus,
@@ -6386,6 +6388,136 @@ export const useToggleBoardReaction = <
 > => {
   return useMutation(getToggleBoardReactionMutationOptions(options));
 };
+
+/**
+ * @summary List active members who used a reaction
+ */
+export const getGetBoardReactionDetailsUrl = (
+  targetType: "thread" | "post",
+  targetId: number,
+  params: GetBoardReactionDetailsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/board/reactions/${targetType}/${targetId}?${stringifiedParams}`
+    : `/api/board/reactions/${targetType}/${targetId}`;
+};
+
+export const getBoardReactionDetails = async (
+  targetType: "thread" | "post",
+  targetId: number,
+  params: GetBoardReactionDetailsParams,
+  options?: RequestInit,
+): Promise<BoardReactionDetails> => {
+  return customFetch<BoardReactionDetails>(
+    getGetBoardReactionDetailsUrl(targetType, targetId, params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetBoardReactionDetailsQueryKey = (
+  targetType: "thread" | "post",
+  targetId: number,
+  params?: GetBoardReactionDetailsParams,
+) => {
+  return [
+    `/api/board/reactions/${targetType}/${targetId}`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetBoardReactionDetailsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardReactionDetails>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  targetType: "thread" | "post",
+  targetId: number,
+  params: GetBoardReactionDetailsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardReactionDetails>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetBoardReactionDetailsQueryKey(targetType, targetId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBoardReactionDetails>>
+  > = ({ signal }) =>
+    getBoardReactionDetails(targetType, targetId, params, {
+      signal,
+      ...requestOptions,
+    });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!(targetType && targetId),
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardReactionDetails>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardReactionDetailsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardReactionDetails>>
+>;
+export type GetBoardReactionDetailsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List active members who used a reaction
+ */
+
+export function useGetBoardReactionDetails<
+  TData = Awaited<ReturnType<typeof getBoardReactionDetails>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  targetType: "thread" | "post",
+  targetId: number,
+  params: GetBoardReactionDetailsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardReactionDetails>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardReactionDetailsQueryOptions(
+    targetType,
+    targetId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Delete a post (author or coach/admin, soft-delete)

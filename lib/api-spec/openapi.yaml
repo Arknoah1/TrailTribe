@@ -1634,6 +1634,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/BoardReactionSummary"
 
+  /board/reactions/{targetType}/{targetId}:
+    get:
+      operationId: getBoardReactionDetails
+      tags: [board]
+      summary: List active members who used a reaction
+      parameters:
+        - name: targetType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [thread, post]
+        - name: targetId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reaction
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [helpful, like, celebrate]
+      responses:
+        "200":
+          description: Members who used the reaction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardReactionDetails"
+        "404":
+          description: Target not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /board/posts/{id}:
     delete:
       operationId: deleteBoardPost
@@ -3194,6 +3231,23 @@ components:
           additionalProperties:
             $ref: "#/components/schemas/BoardReactionCount"
       required: [targetType, targetId, reactions]
+
+    BoardReactionDetails:
+      type: object
+      properties:
+        targetType:
+          type: string
+          enum: [thread, post]
+        targetId:
+          type: integer
+        reaction:
+          type: string
+          enum: [helpful, like, celebrate]
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoardAuthor"
+      required: [targetType, targetId, reaction, members]
 
     BoardReactionCount:
       type: object

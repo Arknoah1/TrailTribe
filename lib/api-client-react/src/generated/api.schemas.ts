@@ -696,6 +696,30 @@ export interface BoardReactionSummary {
   reactions: BoardReactionSummaryReactions;
 }
 
+export type BoardReactionDetailsTargetType =
+  (typeof BoardReactionDetailsTargetType)[keyof typeof BoardReactionDetailsTargetType];
+
+export const BoardReactionDetailsTargetType = {
+  thread: "thread",
+  post: "post",
+} as const;
+
+export type BoardReactionDetailsReaction =
+  (typeof BoardReactionDetailsReaction)[keyof typeof BoardReactionDetailsReaction];
+
+export const BoardReactionDetailsReaction = {
+  helpful: "helpful",
+  like: "like",
+  celebrate: "celebrate",
+} as const;
+
+export interface BoardReactionDetails {
+  targetType: BoardReactionDetailsTargetType;
+  targetId: number;
+  reaction: BoardReactionDetailsReaction;
+  members: BoardAuthor[];
+}
+
 export type ToggleBoardReactionBodyTargetType =
   (typeof ToggleBoardReactionBodyTargetType)[keyof typeof ToggleBoardReactionBodyTargetType];
 
@@ -943,6 +967,19 @@ export const ListBoardThreadsScope = {
   general: "general",
   pod: "pod",
   event: "event",
+} as const;
+
+export type GetBoardReactionDetailsParams = {
+  reaction: GetBoardReactionDetailsReaction;
+};
+
+export type GetBoardReactionDetailsReaction =
+  (typeof GetBoardReactionDetailsReaction)[keyof typeof GetBoardReactionDetailsReaction];
+
+export const GetBoardReactionDetailsReaction = {
+  helpful: "helpful",
+  like: "like",
+  celebrate: "celebrate",
 } as const;
 
 export type GetBoardUnreadCount200 = {

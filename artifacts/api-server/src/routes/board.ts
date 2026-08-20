@@ -59,6 +59,50 @@ async function getReactionSummary(
   }));
 }
 
+// GET /board/reactions/:targetType/:targetId — list visible members for one reaction
+router.get("/board/reactions/:targetType/:targetId", requireApproved, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const targetType = str(req.params.targetType);
+  const targetId = parseInt(str(req.params.targetId), 10);
+  const reaction = typeof req.query.reaction === "string" ? req.query.reaction : "";
+  if ((targetType !== "thread" && targetType !== "post") || !Number.isInteger(targetId) ||
+      !ALLOWED_REACTIONS.includes(reaction as ReactionType)) {
+    res.status(400).json({ error: "A valid target and reaction are required" }); return;
+  }
+
+  if (targetType === "thread") {
+    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, targetId) });
+    if (!thread) { res.status(404).json({ error: "Target not found" }); return; }
+    if (!(await canAccessThread(me, thread))) { res.status(403).json({ error: "Forbidden" }); return; }
+  } else {
+    const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, targetId) });
+    if (!post || post.isDeleted) { res.status(404).json({ error: "Post not found" }); return; }
+    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) });
+    if (!thread || !(await canAccessThread(me, thread))) { res.status(403).json({ error: "Forbidden" }); return; }
+  }
+
+  const rows = await db.select({
+    id: usersTable.id,
+    firstName: usersTable.firstName,
+    lastName: usersTable.lastName,
+    avatarUrl: usersTable.avatarUrl,
+  }).from(boardReactionsTable)
+    .innerJoin(usersTable, eq(boardReactionsTable.userId, usersTable.id))
+    .where(and(
+      eq(boardReactionsTable.reaction, reaction),
+      targetType === "thread"
+        ? eq(boardReactionsTable.threadId, targetId)
+        : eq(boardReactionsTable.postId, targetId),
+      eq(usersTable.isActive, true),
+    ))
+    .orderBy(usersTable.firstName, usersTable.lastName);
+
+  res.json({ targetType, targetId, reaction, members: rows });
+});
+
 async function enrichPost(post: typeof boardPostsTable.$inferSelect, userId?: number) {
   const author = post.authorUserId
     ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, post.authorUserId) })
