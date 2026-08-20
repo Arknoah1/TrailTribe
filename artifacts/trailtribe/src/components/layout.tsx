@@ -160,7 +160,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </svg>
         <nav
           className="bg-card border-t-2 border-[#0a0c10] flex justify-around items-stretch"
-          style={{ height: 64 }}
+          style={{ height: "calc(64px + env(safe-area-inset-bottom))", paddingBottom: "env(safe-area-inset-bottom)" }}
         >
         {mobileItems.map((item) => {
           const Icon = item.icon;

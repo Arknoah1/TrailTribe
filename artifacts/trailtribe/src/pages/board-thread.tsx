@@ -214,8 +214,48 @@ export default function BoardThread() {
   );
 
   const [replyBody, setReplyBody] = useState("");
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const layoutViewportHeightRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const visualViewport = window.visualViewport;
+    layoutViewportHeightRef.current = window.innerHeight;
+
+    const updateKeyboardOffset = () => {
+      const layoutViewportHeight = layoutViewportHeightRef.current ?? window.innerHeight;
+      const visibleViewportBottom = visualViewport
+        ? visualViewport.height + visualViewport.offsetTop
+        : window.innerHeight;
+      const nextOffset = Math.max(0, layoutViewportHeight - visibleViewportBottom);
+
+      setKeyboardOffset(nextOffset);
+      if (nextOffset === 0) {
+        layoutViewportHeightRef.current = Math.max(layoutViewportHeight, window.innerHeight);
+      }
+    };
+
+    const handleWindowResize = () => {
+      if (!visualViewport) {
+        layoutViewportHeightRef.current = window.innerHeight;
+      }
+      updateKeyboardOffset();
+    };
+
+    updateKeyboardOffset();
+    window.addEventListener("resize", handleWindowResize);
+    visualViewport?.addEventListener("resize", updateKeyboardOffset);
+    visualViewport?.addEventListener("scroll", updateKeyboardOffset);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+      visualViewport?.removeEventListener("resize", updateKeyboardOffset);
+      visualViewport?.removeEventListener("scroll", updateKeyboardOffset);
+    };
+  }, []);
 
   useEffect(() => {
     const textarea = replyTextareaRef.current;
@@ -355,7 +395,7 @@ export default function BoardThread() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-44 sm:px-6 sm:py-7 md:pb-7">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-72 sm:px-6 sm:py-7 md:pb-7">
         <div className="flex w-full flex-1 flex-col gap-5">
           <section className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
             <div className="mb-3 flex items-center gap-3">
@@ -498,7 +538,10 @@ export default function BoardThread() {
         </DialogContent>
       </Dialog>
 
-      <div className="fixed md:sticky bottom-[78px] md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 backdrop-blur-md sm:p-4">
+      <div
+        className="fixed bottom-[calc(78px+env(safe-area-inset-bottom)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
+        style={{ "--keyboard-offset": `${keyboardOffset}px` } as React.CSSProperties}
+      >
         <div className="max-w-3xl mx-auto">
           {thread.isLocked && !isCoachOrAdmin ? (
             <div className="bg-muted border-2 border-[#0a0c10] rounded-xl p-4 flex items-center justify-center gap-2 text-muted-foreground font-bold tracking-wide">
