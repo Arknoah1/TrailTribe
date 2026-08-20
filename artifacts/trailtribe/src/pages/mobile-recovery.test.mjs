@@ -18,6 +18,41 @@ const [app, recoveryUi, carpools, profile, clientFetch, routePerformance, skelet
   readSource("../components/layout.tsx"),
 ]);
 
+test("Android-style offline and online events refetch active queries without reloading", () => {
+  const browser = new EventTarget();
+  const lifecycle = [];
+  let refetches = 0;
+  const onOffline = () => lifecycle.push("offline");
+  const onOnline = () => lifecycle.push("online");
+  const cleanup = (eventTarget, refetchActiveQueries, offline, online) => {
+    const markOffline = () => offline();
+    const markOnline = () => {
+      refetchActiveQueries();
+      online();
+    };
+    eventTarget.addEventListener("offline", markOffline);
+    eventTarget.addEventListener("online", markOnline);
+    return () => {
+      eventTarget.removeEventListener("offline", markOffline);
+      eventTarget.removeEventListener("online", markOnline);
+    };
+  };
+
+  const removeListeners = cleanup(browser, () => { refetches += 1; }, onOffline, onOnline);
+  browser.dispatchEvent(new Event("offline"));
+  browser.dispatchEvent(new Event("online"));
+
+  assert.deepEqual(lifecycle, ["offline", "online"]);
+  assert.equal(refetches, 1);
+
+  removeListeners();
+  browser.dispatchEvent(new Event("offline"));
+  browser.dispatchEvent(new Event("online"));
+  assert.deepEqual(lifecycle, ["offline", "online"]);
+  assert.equal(refetches, 1);
+  assert.match(recoveryUi, /subscribeToNetworkRecovery/);
+});
+
 test("mobile requests have a bounded deadline instead of loading forever", () => {
   assert.match(clientFetch, /DEFAULT_REQUEST_TIMEOUT_MS = 20_000/);
   assert.match(clientFetch, /export async function fetchWithTimeout/);
@@ -28,8 +63,8 @@ test("mobile requests have a bounded deadline instead of loading forever", () =>
 });
 
 test("a restored connection refreshes visible screen data", () => {
-  assert.match(recoveryUi, /window\.addEventListener\("offline", markOffline\)/);
-  assert.match(recoveryUi, /window\.addEventListener\("online", markOnline\)/);
+  assert.match(recoveryUi, /eventTarget\.addEventListener\("offline", markOffline\)/);
+  assert.match(recoveryUi, /eventTarget\.addEventListener\("online", markOnline\)/);
   assert.match(recoveryUi, /queryClient\.refetchQueries\(\{ type: "active" \}\)/);
 });
 

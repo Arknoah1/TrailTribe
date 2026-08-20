@@ -8,6 +8,33 @@ type RequestError = {
   status?: number;
 };
 
+type NetworkEventTarget = Pick<Window, "addEventListener" | "removeEventListener">;
+
+/**
+ * Keeps the browser lifecycle separate from the banner so the offline-to-online
+ * transition can be exercised without relying on a particular browser runner.
+ */
+export function subscribeToNetworkRecovery(
+  eventTarget: NetworkEventTarget,
+  refetchActiveQueries: () => void,
+  onOffline: () => void,
+  onOnline: () => void,
+) {
+  const markOffline = () => onOffline();
+  const markOnline = () => {
+    refetchActiveQueries();
+    onOnline();
+  };
+
+  eventTarget.addEventListener("offline", markOffline);
+  eventTarget.addEventListener("online", markOnline);
+
+  return () => {
+    eventTarget.removeEventListener("offline", markOffline);
+    eventTarget.removeEventListener("online", markOnline);
+  };
+}
+
 function getStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") return undefined;
   const status = (error as RequestError).status;
@@ -82,24 +109,27 @@ export function NetworkStatusBanner() {
   const wasOffline = useRef(connectionState === "offline");
 
   useEffect(() => {
-    const markOffline = () => {
+    const handleOffline = () => {
       wasOffline.current = true;
       setConnectionState("offline");
     };
-    const markOnline = () => {
-      queryClient.refetchQueries({ type: "active" });
+
+    const handleOnline = () => {
       if (wasOffline.current) {
         setConnectionState("restored");
         window.setTimeout(() => setConnectionState(null), 4_000);
       }
     };
 
-    window.addEventListener("offline", markOffline);
-    window.addEventListener("online", markOnline);
-    return () => {
-      window.removeEventListener("offline", markOffline);
-      window.removeEventListener("online", markOnline);
-    };
+    return subscribeToNetworkRecovery(
+      window,
+      () => { void queryClient.refetchQueries({ type: "active" }); },
+      () => {
+        wasOffline.current = true;
+        setConnectionState("offline");
+      },
+      handleOnline,
+    );
   }, [queryClient]);
 
   if (!connectionState) return null;
