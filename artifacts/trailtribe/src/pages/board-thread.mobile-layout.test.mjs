@@ -13,6 +13,71 @@ function keyboardOffset(layoutViewportHeight, visualViewportHeight, visualViewpo
   return Math.max(0, layoutViewportHeight - visibleViewportBottom);
 }
 
+const IOS_SAFE_AREA_INSETS = {
+  portrait: 34,
+  landscape: 21,
+};
+
+function iOSBottomNavigationHeight(safeAreaInset) {
+  return 64 + safeAreaInset;
+}
+
+function composerBottom(layoutViewportHeight, composerHeight, bottomNavigationHeight, offset = 0) {
+  return layoutViewportHeight - composerHeight - bottomNavigationHeight - offset;
+}
+
+/**
+ * This is intentionally a browser-independent contract test. The viewport
+ * values are the dimensions used by an iPhone Safari rotation, including the
+ * safe-area values Safari exposes through env(safe-area-inset-bottom).
+ *
+ * Keeping this scenario in the package test suite means it runs in every
+ * release check, while the same assertions can be copied into a real-device
+ * WebKit runner when one is available in CI.
+ */
+test("iOS Safari rotation keeps the reply and composer above navigation", () => {
+  const reply = { value: "" };
+  const orientations = [
+    { name: "portrait", layoutHeight: 844, composerHeight: 88 },
+    { name: "landscape", layoutHeight: 390, composerHeight: 88 },
+    { name: "portrait", layoutHeight: 844, composerHeight: 88 },
+  ];
+
+  for (const [index, orientation] of orientations.entries()) {
+    if (index === 0) reply.value = "Meet at the north trailhead";
+
+    const safeAreaInset = IOS_SAFE_AREA_INSETS[orientation.name];
+    const bottomNavigationHeight = iOSBottomNavigationHeight(safeAreaInset);
+    const composerBottomEdge = composerBottom(
+      orientation.layoutHeight,
+      orientation.composerHeight,
+      bottomNavigationHeight,
+    );
+
+    assert.equal(reply.value, "Meet at the north trailhead");
+    assert.ok(
+      composerBottomEdge >= 0,
+      `${orientation.name} composer should remain in the visible viewport`,
+    );
+    assert.equal(
+      orientation.layoutHeight - composerBottomEdge - orientation.composerHeight,
+      bottomNavigationHeight,
+      `${orientation.name} composer should clear the measured bottom navigation`,
+    );
+    assert.ok(
+      bottomNavigationHeight > 64,
+      `${orientation.name} clearance should include Safari's safe-area inset`,
+    );
+  }
+
+  assert.match(threadSource, /value=\{replyBody\}/);
+  assert.match(threadSource, /aria-label="Send reply"/);
+  assert.match(threadSource, /bottom-\[calc\(var\(--mobile-bottom-nav-height,78px\)\+var\(--keyboard-offset\)\)\]/);
+  assert.match(threadSource, /pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(layoutSource, /new ResizeObserver\(updateMobileNavHeight\)/);
+  assert.match(layoutSource, /--mobile-bottom-nav-height/);
+});
+
 test("visual viewport keyboard changes move the reply composer above the keyboard", () => {
   assert.equal(keyboardOffset(800, 480), 320);
   assert.equal(keyboardOffset(800, 480, 24), 296);
