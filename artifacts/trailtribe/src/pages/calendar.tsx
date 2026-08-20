@@ -420,7 +420,13 @@ export default function Calendar() {
               </Card>
             ))
           ) : (
-            <EmptyTrailState message={podFilter !== "all" ? "No upcoming events for this filter." : "No upcoming events yet."}>
+            <EmptyTrailState message={
+              podFilter !== "all"
+                ? "No upcoming events for this filter."
+                : me?.role === "student"
+                  ? "No upcoming events are assigned to your pod yet. Your coach will post them here."
+                  : "No upcoming events yet."
+            }>
               {podFilter !== "all" && (
                 <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => setPodFilter("all")}>Show all events</button>
               )}

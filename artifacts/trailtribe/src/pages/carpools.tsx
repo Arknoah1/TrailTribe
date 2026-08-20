@@ -54,9 +54,14 @@ export default function CarpoolBoard() {
 
   const isLoading = offersLoading || requestsLoading;
   useRoutePerformance("carpool-board", !!eventId, !isLoading);
+  const isStudent = me?.role === "student";
 
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [riders, setRiders] = useState<Rider[]>([]);
+  const requestableRiders = isStudent
+    ? riders.filter(rider => rider.id === me?.id)
+    : riders;
+  const claimableRiders = requestableRiders;
 
   // Claim dialog state (2+ riders)
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
@@ -172,7 +177,7 @@ export default function CarpoolBoard() {
 
   // True if the claim belongs to the current household (rider or parent)
   const isMyHouseholdClaim = (claim: any) => {
-    const myRiderIds = riders.map(r => r.id);
+    const myRiderIds = claimableRiders.map(r => r.id);
     return myRiderIds.includes(claim.riderUserId) || claim.riderUserId === me?.id;
   };
 
@@ -184,10 +189,10 @@ export default function CarpoolBoard() {
   const myAllOffers = offers?.filter((o: any) => o.driverUserId === me?.id) ?? [];
 
   const handleClaimClick = (offer: any, needsTray: boolean) => {
-    if (riders.length === 0) {
+    if (claimableRiders.length === 0) {
       claimForRiders(offer.id, [null], needsTray);
-    } else if (riders.length === 1) {
-      claimForRiders(offer.id, [riders[0].id], needsTray);
+    } else if (claimableRiders.length === 1) {
+      claimForRiders(offer.id, [claimableRiders[0].id], needsTray);
     } else {
       setClaimingOffer(offer);
       setClaimNeedsTray(needsTray);
@@ -382,14 +387,18 @@ export default function CarpoolBoard() {
             <ChevronLeft className="h-3.5 w-3.5 mr-0.5" /> Back to Event
           </Link>
           <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Carpool Board</h1>
-          <p className="text-muted-foreground mt-1 text-sm">Need a ride? Post a request, or offer one if you're driving.</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {isStudent
+              ? "Request or claim a ride for yourself. A parent or guardian can post driver offers."
+              : "Need a ride? Post a request, or offer one if you're driving."}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => {
-            setRequestRiderIds(new Set(riders.map(r => r.id)));
+            setRequestRiderIds(new Set((isStudent ? requestableRiders : riders).map(r => r.id)));
             setIsRequestOpen(true);
           }}><Plus className="h-4 w-4 mr-2" /> Request a Ride</Button>
-          <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
+          {!isStudent && <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-2" /> Offer a Ride</Button>
           </DialogTrigger>
@@ -431,7 +440,7 @@ export default function CarpoolBoard() {
               </Button>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>}
         </div>
       </div>
 
@@ -443,7 +452,7 @@ export default function CarpoolBoard() {
             <DialogDescription>Select the rider(s) you're claiming for.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            {riders.map(rider => (
+            {claimableRiders.map(rider => (
               <label key={rider.id} className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
                 <input
                   type="checkbox"
@@ -501,7 +510,11 @@ export default function CarpoolBoard() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Request a Ride</DialogTitle>
-            <DialogDescription>Post a ride request so a driver can pick up your rider.</DialogDescription>
+            <DialogDescription>
+              {isStudent
+                ? "Post a ride request for yourself so a driver can pick you up."
+                : "Post a ride request so a driver can pick up your rider."}
+            </DialogDescription>
           </DialogHeader>
           <form
             onSubmit={async (e) => {
@@ -510,7 +523,7 @@ export default function CarpoolBoard() {
                 toast({ title: "Please select at least one rider", variant: "destructive" });
                 return;
               }
-              const selectedRiders = riders.filter(r => requestRiderIds.has(r.id));
+              const selectedRiders = requestableRiders.filter(r => requestRiderIds.has(r.id));
               try {
                 for (const rider of selectedRiders) {
                   const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpool-requests`, {
@@ -536,11 +549,11 @@ export default function CarpoolBoard() {
             }}
             className="space-y-4"
           >
-            {riders.length > 0 && (
+            {requestableRiders.length > 0 && (
               <div className="space-y-2">
-                <Label>Rider{riders.length > 1 ? "s" : ""}</Label>
+                <Label>{isStudent ? "Rider" : `Rider${requestableRiders.length > 1 ? "s" : ""}`}</Label>
                 <div className="space-y-2">
-                  {riders.map(r => (
+                  {requestableRiders.map(r => (
                     <label key={r.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${requestRiderIds.has(r.id) ? "border-primary bg-primary/10" : "hover:bg-muted/50"}`}>
                       <input
                         type="checkbox"
@@ -758,7 +771,7 @@ export default function CarpoolBoard() {
               const isOpen = request.status === "open";
               const isMatched = request.status === "matched";
               const mine = isMyRequest(request);
-              const canMatch = isOpen && !mine;
+              const canMatch = isOpen && !mine && !isStudent;
 
               return (
                 <Card key={request.id} className={cn("overflow-hidden", isMatched ? "border-primary/60 bg-primary/5" : "")}>

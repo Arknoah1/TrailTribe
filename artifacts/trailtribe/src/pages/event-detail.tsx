@@ -966,6 +966,11 @@ export default function EventDetail() {
               {!volunteerTasksEnabled && isCoach && (
                 <p className="text-sm text-muted-foreground mt-0.5">Enable to let families sign up for volunteer tasks at this event.</p>
               )}
+              {volunteerTasksEnabled && isStudent && (
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  These opportunities apply to this event only. Choose a task after confirming you plan to attend.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               {isCoach && volunteerTasksEnabled && (

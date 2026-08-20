@@ -1,4 +1,4 @@
-import { useGetCarpoolEvents } from "@workspace/api-client-react";
+import { useGetCarpoolEvents, useGetMe } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ type EventTypeFilter = "all" | "practice" | "race";
 
 export default function CarpoolHub() {
   const { data: events, isLoading, isError, refetch } = useGetCarpoolEvents();
+  const { data: me } = useGetMe();
   const [filter, setFilter] = useState<EventTypeFilter>("all");
 
   const carpoolEvents = events?.filter(e =>
@@ -80,7 +81,9 @@ export default function CarpoolHub() {
 
       {filtered.length === 0 ? (
         <EmptyTrailState
-          message={`No upcoming ${filter !== "all" ? filter + " " : ""}events with carpool boards right now.`}
+          message={me?.role === "student"
+            ? "No upcoming events with carpools are available yet. Ask your coach if you expected a ride board."
+            : `No upcoming ${filter !== "all" ? filter + " " : ""}events with carpool boards right now.`}
         />
       ) : (
         <div className="space-y-3">

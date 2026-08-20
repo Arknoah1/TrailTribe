@@ -804,7 +804,7 @@ function VolunteerOpportunityCard({ event }: { event: { id: number; title: strin
   );
 }
 
-function VolunteerCommitmentsTab() {
+function VolunteerCommitmentsTab({ isStudent = false }: { isStudent?: boolean }) {
   const { data: signups, isLoading } = useGetMyVolunteerSignups();
   const { data: allEvents } = useListEvents();
   const now = new Date();
@@ -875,8 +875,14 @@ function VolunteerCommitmentsTab() {
       <Card className="border-dashed">
         <CardContent className="py-12 text-center text-muted-foreground">
           <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">No volunteer activity yet</p>
-          <p className="text-xs mt-1">Visit an event page to sign up for volunteer tasks.</p>
+          <p className="text-sm font-medium">
+            {isStudent ? "No volunteer opportunities yet" : "No volunteer activity yet"}
+          </p>
+          <p className="text-xs mt-1">
+            {isStudent
+              ? "Your coach can open tasks on an upcoming event. You can sign up from that event page."
+              : "Visit an event page to sign up for volunteer tasks."}
+          </p>
         </CardContent>
       </Card>
     );
@@ -910,7 +916,11 @@ function VolunteerCommitmentsTab() {
   );
 }
 
-function MyFamilyTab({ householdId, currentUserId }: { householdId: number; currentUserId: number }) {
+function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
+  householdId: number;
+  currentUserId: number;
+  readOnly?: boolean;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
@@ -1065,6 +1075,17 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
 
   return (
     <div className="space-y-6">
+      {readOnly && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3" role="note">
+          <Lock className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+          <div>
+            <p className="text-sm font-semibold">Family information is view-only</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              A parent or guardian manages household details, riders, invitations, and required documents.
+            </p>
+          </div>
+        </div>
+      )}
       <Form {...householdForm}>
         <form onSubmit={householdForm.handleSubmit(saveHousehold)}>
           <Card>
@@ -1080,7 +1101,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
               <FormField control={householdForm.control} name="name" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Family Name</FormLabel>
-                  <FormControl><Input placeholder="e.g. Garcia Family" {...field} /></FormControl>
+                  <FormControl><Input placeholder="e.g. Garcia Family" disabled={readOnly} {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -1088,21 +1109,23 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                 <FormField control={householdForm.control} name="emergencyContactName" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Emergency Contact Name</FormLabel>
-                    <FormControl><Input placeholder="Full name" {...field} /></FormControl>
+                    <FormControl><Input placeholder="Full name" disabled={readOnly} {...field} /></FormControl>
                   </FormItem>
                 )} />
                 <FormField control={householdForm.control} name="emergencyContactPhone" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Emergency Contact Phone</FormLabel>
-                    <FormControl><Input type="tel" placeholder="(555) 000-0000" {...field} onChange={e => field.onChange(formatPhoneInput(e.target.value))} /></FormControl>
+                    <FormControl><Input type="tel" placeholder="(555) 000-0000" disabled={readOnly} {...field} onChange={e => field.onChange(formatPhoneInput(e.target.value))} /></FormControl>
                   </FormItem>
                 )} />
               </div>
-              <div className="flex justify-end">
-                <Button type="submit" size="sm" disabled={updateHousehold.isPending}>
-                  {updateHousehold.isPending ? "Saving..." : "Save Family Info"}
-                </Button>
-              </div>
+              {!readOnly && (
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" disabled={updateHousehold.isPending}>
+                    {updateHousehold.isPending ? "Saving..." : "Save Family Info"}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </form>
@@ -1110,22 +1133,24 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
 
       {/* Riders */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div>
             <CardTitle className="flex items-center gap-2"><Bike className="h-5 w-5" /> Riders</CardTitle>
             <CardDescription className="mt-1">Students registered under this household.</CardDescription>
           </div>
-          <Dialog open={riderDialogOpen && !editingRider} onOpenChange={(o) => { setRiderDialogOpen(o); if (!o) setEditingRider(null); }}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" onClick={() => setEditingRider(null)}>
-                <Plus className="h-4 w-4 mr-1" /> Add Rider
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Add a Rider</DialogTitle></DialogHeader>
-              <RiderDialog householdId={householdId} onClose={() => setRiderDialogOpen(false)} onSaved={fetchRiders} />
-            </DialogContent>
-          </Dialog>
+            {!readOnly && (
+              <Dialog open={riderDialogOpen && !editingRider} onOpenChange={(o) => { setRiderDialogOpen(o); if (!o) setEditingRider(null); }}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" onClick={() => setEditingRider(null)}>
+                    <Plus className="h-4 w-4 mr-1" /> Add Rider
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Add a Rider</DialogTitle></DialogHeader>
+                  <RiderDialog householdId={householdId} onClose={() => setRiderDialogOpen(false)} onSaved={fetchRiders} />
+                </DialogContent>
+              </Dialog>
+            )}
         </CardHeader>
         <CardContent>
           {ridersLoading ? (
@@ -1156,8 +1181,8 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    {!rider.clerkUserId && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                    <div className="flex gap-2 items-center">
+                    {!readOnly && !rider.clerkUserId && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1169,7 +1194,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                         {sendingInviteForRider === rider.id ? "Sending…" : "Invite to app"}
                       </Button>
                     )}
-                    <Dialog open={riderDialogOpen && editingRider?.id === rider.id} onOpenChange={(o) => { setRiderDialogOpen(o); if (!o) setEditingRider(null); }}>
+                    {!readOnly && <Dialog open={riderDialogOpen && editingRider?.id === rider.id} onOpenChange={(o) => { setRiderDialogOpen(o); if (!o) setEditingRider(null); }}>
                       <DialogTrigger asChild>
                         <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingRider(rider)}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -1179,10 +1204,12 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                         <DialogHeader><DialogTitle>Edit Rider</DialogTitle></DialogHeader>
                         <RiderDialog householdId={householdId} rider={rider} onClose={() => { setRiderDialogOpen(false); setEditingRider(null); }} onSaved={fetchRiders} />
                       </DialogContent>
-                    </Dialog>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteRider(rider.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    </Dialog>}
+                    {!readOnly && (
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteRider(rider.id)} aria-label={`Remove ${rider.firstName}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1202,9 +1229,11 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                   <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
                   <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
                 </div>
-                <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Add Parent
-                </Button>
+                {!readOnly && (
+                  <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1.5" /> Add Parent
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-2">
                 {adults.length === 0 ? (
@@ -1227,7 +1256,7 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                           {m.emailNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">Email</span>}
                           {m.smsNotifications && <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs">SMS</span>}
                         </div>
-                        {m.id !== currentUserId && (
+                        {!readOnly && m.id !== currentUserId && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1291,7 +1320,11 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5" /> Season Documents</CardTitle>
-          <CardDescription>Required forms for participation. Open each document to review and sign.</CardDescription>
+          <CardDescription>
+            {readOnly
+              ? "Required forms for participation. You can view signed documents; a parent or guardian handles signing."
+              : "Required forms for participation. Open each document to review and sign."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {complianceLoading ? (
@@ -1327,6 +1360,8 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
                       View Document
                     </Button>
                   ) : null
+                ) : readOnly ? (
+                  <span className="text-xs text-muted-foreground text-right max-w-32">Ask a parent or guardian to sign</span>
                 ) : (
                   <Button
                     size="sm"
@@ -1478,6 +1513,7 @@ export default function Profile() {
   const { signOut } = useClerk();
   const { adminViewEnabled, setAdminView } = useAdminView();
   const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
+  const isStudent = user?.role === "student";
   useRoutePerformance("profile", user !== undefined, user !== undefined && !isLoading);
 
   if (isLoading) return <ProfileSkeleton />;
@@ -1506,18 +1542,28 @@ export default function Profile() {
         <p className="text-muted-foreground mt-1">Manage your account and your family.</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="account" className="flex items-center gap-1.5 text-xs sm:text-sm">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+      >
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 mb-3" role="note">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {isStudent
+              ? "My Account and Notifications are yours to manage. My Family is view-only, and Volunteer shows event-specific tasks your coach opens."
+              : "My Account and Notifications are yours to manage. My Family contains household settings and rider management."}
+          </p>
+        </div>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4" aria-label="Profile sections">
+          <TabsTrigger value="account" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="notifications" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <Bell className="h-4 w-4" /> Notifications
           </TabsTrigger>
-          <TabsTrigger value="family" className="flex items-center gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="family" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <Home className="h-4 w-4" /> My Family
           </TabsTrigger>
-          <TabsTrigger value="volunteer" className="flex items-center gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="volunteer" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <ClipboardCheck className="h-4 w-4" /> Volunteer
           </TabsTrigger>
         </TabsList>
@@ -1705,15 +1751,25 @@ export default function Profile() {
         {/* My Family tab */}
         <TabsContent value="family" className="mt-6">
           {user?.householdId ? (
-            <MyFamilyTab householdId={user.householdId} currentUserId={user.id} />
+            <MyFamilyTab householdId={user.householdId} currentUserId={user.id} readOnly={isStudent} />
           ) : (
-            <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
+            isStudent ? (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Home className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No household is linked yet</p>
+                  <p className="text-xs mt-1">Ask a parent or guardian to invite you to their TrailTribe household.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <NoHouseholdSetup userId={user?.id} onCreated={() => queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() })} />
+            )
           )}
         </TabsContent>
 
         {/* Volunteer Commitments tab */}
         <TabsContent value="volunteer" className="mt-6">
-          <VolunteerCommitmentsTab />
+          <VolunteerCommitmentsTab isStudent={isStudent} />
         </TabsContent>
       </Tabs>
 

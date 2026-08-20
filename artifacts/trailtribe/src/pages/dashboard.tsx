@@ -234,7 +234,11 @@ export default function Dashboard() {
               ))}
             </div>
           ) : (
-            <EmptyTrailState message="No upcoming events for your pod." />
+            <EmptyTrailState
+              message={me?.role === "student"
+                ? "No upcoming events are assigned to your pod yet. Ask your coach if you expected to see one."
+                : "No upcoming events for your pod."}
+            />
           )}
         </div>
       </div>
