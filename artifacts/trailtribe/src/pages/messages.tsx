@@ -379,7 +379,12 @@ function ThreadsList({
   return (
     <div className="space-y-3">
       {sortedThreads.map(thread => (
-        <Link key={thread.id} href={`/messages/thread/${thread.id}`} className="block">
+        <Link
+          key={thread.id}
+          href={`/messages/thread/${thread.id}`}
+          className="block"
+          data-testid={`event-discussion-${thread.id}`}
+        >
           <ThreadCard thread={thread} podNameMap={podNameMap} />
         </Link>
       ))}

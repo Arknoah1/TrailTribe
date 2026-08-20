@@ -40,10 +40,18 @@ function EventDiscussion({ eventId }: { eventId: number }) {
 
   if (!thread) return null;
 
-  const recentPosts = (posts ?? []).slice(-3);
+  // Keep the preview stable even if the API response order changes. The full
+  // thread remains available through the link below, including after the
+  // board-wide 36-hour visibility window has elapsed.
+  const recentPosts = [...(posts ?? [])]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .slice(-3);
 
   return (
-    <Card className="border-2 border-[#0a0c10] shadow-cel-sm mt-8 bg-card">
+    <Card
+      className="border-2 border-[#0a0c10] shadow-cel-sm mt-8 bg-card"
+      data-testid={`event-discussion-preview-${eventId}`}
+    >
       <CardHeader className="pb-3 border-b-2 border-[#0a0c10] bg-muted/50">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl flex items-center gap-2">
@@ -83,7 +91,7 @@ function EventDiscussion({ eventId }: { eventId: number }) {
         </div>
         <div className="p-4 bg-muted/30 border-t-2 border-[#0a0c10]">
           <Button asChild className="w-full cel-interactive border-2 border-[#0a0c10]">
-            <Link href={`/messages/thread/${thread.id}`}>
+            <Link href={`/messages/thread/${thread.id}`} data-testid="event-discussion-thread-link">
               Join the Discussion
             </Link>
           </Button>
