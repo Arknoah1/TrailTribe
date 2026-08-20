@@ -190,6 +190,25 @@ vi.mock("@workspace/db", () => {
               (reaction.threadId === currentTargetId || reaction.postId === currentTargetId));
             if (index >= 0) reactions.splice(index, 1);
           }
+          if (source === boardThreadsTable) {
+            const threadId = targetIdFrom(condition);
+            const threadIndex = threads.findIndex((thread) => thread.id === threadId);
+            if (threadIndex >= 0) threads.splice(threadIndex, 1);
+
+            // Mirror the database-level cascades from board.ts: deleting a
+            // thread removes its posts and all reactions on the thread/posts.
+            const postIds = posts
+              .filter((post) => post.threadId === threadId)
+              .map((post) => post.id);
+            for (let index = posts.length - 1; index >= 0; index -= 1) {
+              if (posts[index].threadId === threadId) posts.splice(index, 1);
+            }
+            for (let index = reactions.length - 1; index >= 0; index -= 1) {
+              if (reactions[index].threadId === threadId || (reactions[index].postId != null && postIds.includes(reactions[index].postId))) {
+                reactions.splice(index, 1);
+              }
+            }
+          }
         }),
       })),
       update: vi.fn((source: object) => ({
@@ -367,6 +386,26 @@ async function getReactionView(user: typeof COACH, targetType: "thread" | "post"
   return { status: response.status, body: await response.json() };
 }
 
+async function getReactionMembers(user: typeof COACH, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = targetId;
+  currentReaction = reaction;
+  const response = await fetch(`${baseUrl}/board/reactions/${targetType}/${targetId}?reaction=${reaction}`, {
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+async function deleteThread(user: typeof COACH, threadId: number) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = threadId;
+  const response = await fetch(`${baseUrl}/board/threads/${threadId}`, {
+    method: "DELETE",
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status };
+}
+
 describe("event discussion board visibility and ordering", () => {
   it("includes upcoming, active, and recently ended events, but expires after 36 hours", async () => {
     addEvent(1, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
@@ -464,5 +503,29 @@ describe("event discussion reactions", () => {
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: "Post not found" });
     expect(reactions).toHaveLength(1);
+  });
+
+  it("removes thread and reply reactions when the thread is deleted", async () => {
+    await toggleReaction(RIDER, "thread", 100);
+    await toggleReaction(OTHER_RIDER, "thread", 100);
+    await toggleReaction(RIDER, "post", 200);
+
+    const beforeDelete = await getReactionView(COACH, "thread", 100);
+    expect(beforeDelete.status).toBe(200);
+    expect(beforeDelete.body.reactions.helpful).toEqual({ count: 2, reacted: false });
+    expect(reactions).toHaveLength(3);
+
+    const deleted = await deleteThread(COACH, 100);
+    expect(deleted.status).toBe(204);
+    expect(reactions).toHaveLength(0);
+    expect(posts).toHaveLength(0);
+
+    const detail = await getReactionView(COACH, "thread", 100);
+    expect(detail.status).toBe(404);
+    expect(detail.body).toEqual({ error: "Thread not found" });
+
+    const members = await getReactionMembers(COACH, "thread", 100);
+    expect(members.status).toBe(404);
+    expect(members.body).toEqual({ error: "Target not found" });
   });
 });
