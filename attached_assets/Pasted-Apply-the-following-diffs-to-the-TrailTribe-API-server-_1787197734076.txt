@@ -1,0 +1,171 @@
+Apply the following diffs to the TrailTribe API server (artifacts/api-server). These fix a real overbooking race condition on volunteer task sign-ups, plus two N+1 query patterns in write-heavy paths.
+
+Context/notes for the agent:
+- volunteerTasks.ts: both the single-task signup endpoint (POST /events/:id/tasks/:taskId/signup) and the bulk-signup endpoint (POST /events/:id/tasks/bulk-signup) previously did a check-then-insert with no locking — two concurrent requests for the last open slot could both pass the capacity check and both succeed, overbooking the task beyond slotsNeeded. Fixed by wrapping the capacity check + insert in db.transaction() with .for("update") to lock the task row, serializing concurrent attempts on the same task. The bulk endpoint also had 3 unbatched sequential queries per taskId; now batches the task and existing-signup lookups into 2 queries total up front, keeping only the capacity-check-and-insert as a per-task locked transaction (which must stay per-task for the locking to be correct).
+- board.ts: notifyThreadParticipants ran one usersTable lookup per thread participant on every single board reply. Now batches all participants into one inArray query.
+- Verified: tsc --noEmit clean on both files, and the full vitest suite (92 tests across 9 files, including carpools.test.ts and dashboard.test.ts) passes unmodified against these changes.
+- No schema/migration changes — pure route logic, drizzle-orm's .for("update") requires no schema change, just a row lock at query time.
+
+--- a/artifacts/api-server/src/routes/volunteerTasks.ts
++++ b/artifacts/api-server/src/routes/volunteerTasks.ts
+@@ -188,34 +188,50 @@
+   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+   if (!me) { res.status(401).json({ error: "User not found" }); return; }
+ 
++  // Batch-fetch tasks and this user's existing signups up front (2 queries
++  // total instead of 2 per taskId) to weed out invalid/duplicate requests
++  // before touching the DB in a loop.
++  const tasks = await db.select().from(eventTasksTable)
++    .where(and(inArray(eventTasksTable.id, taskIds), eq(eventTasksTable.eventId, eventId)));
++  const tasksById = new Map(tasks.map((t) => [t.id, t]));
++
++  const existingSignups = await db.select({ eventTaskId: eventTaskSignupsTable.eventTaskId })
++    .from(eventTaskSignupsTable)
++    .where(and(inArray(eventTaskSignupsTable.eventTaskId, taskIds), eq(eventTaskSignupsTable.userId, me.id)));
++  const alreadySignedUp = new Set(existingSignups.map((s) => s.eventTaskId));
++
+   let added = 0;
+   let skipped = 0;
+ 
+   for (const taskId of taskIds) {
+-    const task = await db.query.eventTasksTable.findFirst({
+-      where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+-    });
+-    if (!task) { skipped++; continue; }
++    const task = tasksById.get(taskId);
++    if (!task || alreadySignedUp.has(taskId)) { skipped++; continue; }
+ 
+-    const existing = await db.query.eventTaskSignupsTable.findFirst({
+-      where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
++    // Capacity check + insert still need to be transactional per task, since
++    // two concurrent bulk-signups could both target the same last-open slot.
++    const inserted = await db.transaction(async (tx) => {
++      const [lockedTask] = await tx.select().from(eventTasksTable)
++        .where(eq(eventTasksTable.id, taskId))
++        .for("update");
++      if (!lockedTask) return false;
++
++      const [{ currentCount }] = await tx
++        .select({ currentCount: count() })
++        .from(eventTaskSignupsTable)
++        .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
++      if (currentCount >= lockedTask.slotsNeeded) return false;
++
++      await tx.insert(eventTaskSignupsTable).values({
++        eventTaskId: taskId,
++        eventId,
++        userId: me.id,
++        notes: null,
++      });
++      return true;
+     });
+-    if (existing) { skipped++; continue; }
+ 
+-    const [{ currentCount }] = await db
+-      .select({ currentCount: count() })
+-      .from(eventTaskSignupsTable)
+-      .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
+-
+-    if (currentCount >= task.slotsNeeded) { skipped++; continue; }
+-
+-    await db.insert(eventTaskSignupsTable).values({
+-      eventTaskId: taskId,
+-      eventId,
+-      userId: me.id,
+-      notes: null,
+-    });
+-    added++;
++    if (inserted) added++;
++    else skipped++;
+   }
+ 
+   res.status(201).json({ added, skipped });
+@@ -257,32 +273,43 @@
+   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+   if (!me) { res.status(401).json({ error: "User not found" }); return; }
+ 
+-  const task = await db.query.eventTasksTable.findFirst({
+-    where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+-  });
+-  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
++  const result = await db.transaction(async (tx) => {
++    // Lock the task row for the duration of this transaction so two concurrent
++    // signups for the last slot can't both pass the capacity check below.
++    const [task] = await tx.select().from(eventTasksTable)
++      .where(and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)))
++      .for("update");
++    if (!task) return { status: 404 as const, error: "Task not found" };
+ 
+-  const existing = await db.query.eventTaskSignupsTable.findFirst({
+-    where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
+-  });
+-  if (existing) { res.status(409).json({ error: "Already signed up" }); return; }
++    const existing = await tx.query.eventTaskSignupsTable.findFirst({
++      where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
++    });
++    if (existing) return { status: 409 as const, error: "Already signed up" };
+ 
+-  const [{ currentCount }] = await db
+-    .select({ currentCount: count() })
+-    .from(eventTaskSignupsTable)
+-    .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
++    const [{ currentCount }] = await tx
++      .select({ currentCount: count() })
++      .from(eventTaskSignupsTable)
++      .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
++
++    if (currentCount >= task.slotsNeeded) {
++      return { status: 409 as const, error: "Task is at capacity" };
++    }
+ 
+-  if (currentCount >= task.slotsNeeded) {
+-    res.status(409).json({ error: "Task is at capacity" });
++    const [signup] = await tx.insert(eventTaskSignupsTable).values({
++      eventTaskId: taskId,
++      eventId,
++      userId: me.id,
++      notes: notes ?? null,
++    }).returning();
++
++    return { status: 201 as const, signup, task };
++  });
++
++  if (result.status !== 201) {
++    res.status(result.status).json({ error: result.error });
+     return;
+   }
+-
+-  const [signup] = await db.insert(eventTaskSignupsTable).values({
+-    eventTaskId: taskId,
+-    eventId,
+-    userId: me.id,
+-    notes: notes ?? null,
+-  }).returning();
++  const { signup, task } = result;
+ 
+   try {
+     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
+
+--- a/artifacts/api-server/src/routes/board.ts
++++ b/artifacts/api-server/src/routes/board.ts
+@@ -59,12 +59,14 @@
+   }
+   participantIds.delete(actorUserId);
+ 
+-  for (const userId of participantIds) {
+-    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
+-    if (!user) continue;
++  if (participantIds.size === 0) return;
++
++  const participants = await db.select().from(usersTable).where(inArray(usersTable.id, Array.from(participantIds)));
++
++  for (const user of participants) {
+     if (user.notificationPreferences?.boardReplies === false) continue;
+     await createNotification(
+-      userId,
++      user.id,
+       "boardReplies",
+       "New reply on the board",
+       `Someone replied to "${threadTitle}"`,
+
+After applying: run `pnpm --filter @workspace/api-server test` (should pass 92/92 unmodified) and `tsc --noEmit` for a final typecheck. Worth manually testing the race-condition fix if you can: try firing two concurrent signup requests at a task with 1 remaining slot and confirm only one succeeds with a 201 and the other gets a 409 "Task is at capacity".
