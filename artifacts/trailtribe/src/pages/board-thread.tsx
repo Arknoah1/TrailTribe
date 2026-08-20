@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams, Link } from "wouter";
 import {
   useGetBoardThread,
@@ -215,6 +215,18 @@ export default function BoardThread() {
 
   const [replyBody, setReplyBody] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = replyTextareaRef.current;
+    if (!textarea) return;
+
+    const maxHeight = 128;
+    textarea.style.height = "0px";
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 40), maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [replyBody]);
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const isAuthor = thread?.authorUserId === me?.id;
@@ -343,7 +355,7 @@ export default function BoardThread() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-32 sm:px-6 sm:py-7 md:pb-7">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-44 sm:px-6 sm:py-7 md:pb-7">
         <div className="flex w-full flex-1 flex-col gap-5">
           <section className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
             <div className="mb-3 flex items-center gap-3">
@@ -495,17 +507,21 @@ export default function BoardThread() {
           ) : (
             <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
               <Textarea
+                ref={replyTextareaRef}
+                rows={1}
                 value={replyBody}
                 onChange={e => setReplyBody(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Add to the conversation…"
-                className="min-h-[44px] max-h-[150px] border-0 focus-visible:ring-0 resize-none px-2 py-3 bg-transparent shadow-none"
+                aria-label="Reply to this discussion"
+                className="!min-h-10 max-h-32 overflow-y-auto border-0 bg-transparent px-2 py-2 text-base leading-5 shadow-none focus-visible:ring-0"
                 disabled={createPost.isPending}
               />
               <Button 
                 size="icon"
                 onClick={handleSend}
                 disabled={!replyBody.trim() || createPost.isPending}
+                aria-label="Send reply"
                 className="shrink-0 h-10 w-10 rounded-lg cel-interactive border-2 border-[#0a0c10]"
               >
                 <Send className="h-4 w-4" />
