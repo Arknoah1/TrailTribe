@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useLocation, useParams, Link } from "wouter";
 import {
   useGetBoardThread,
@@ -19,7 +19,7 @@ import {
 import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,39 +100,76 @@ function ReactionBar({
   onView: (targetType: "thread" | "post", targetId: number, reaction: "helpful" | "like" | "celebrate") => void;
   disabled?: boolean;
 }) {
+  const visibleReactions = REACTIONS.filter(({ key }) => {
+    const summary = reactions?.[key];
+    return Boolean(summary?.count || summary?.reacted);
+  });
+
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Reactions">
-      {REACTIONS.map(({ key, emoji, label }) => {
+    <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Reactions">
+      {visibleReactions.map(({ key, emoji, label }) => {
         const summary = reactions?.[key] ?? { count: 0, reacted: false };
         return (
-          <div key={key} className="inline-flex min-h-7 items-center rounded-full border text-xs font-semibold">
+          <div
+            key={key}
+            className={`inline-flex h-9 items-center rounded-full border px-0.5 text-xs font-semibold shadow-sm transition-colors ${
+              summary.reacted
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-[#0a0c10]/20 bg-card text-foreground"
+            }`}
+          >
             <button
               type="button"
               aria-label={`${summary.reacted ? "Remove" : "Add"} ${label} reaction`}
               aria-pressed={summary.reacted}
               disabled={disabled}
               onClick={() => onToggle(targetType, targetId, key)}
-              className={`inline-flex min-h-7 items-center gap-1 rounded-l-full px-2 py-0.5 transition-colors ${
-                summary.reacted
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-[#0a0c10]/20 bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
-              }`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-background/70 disabled:cursor-not-allowed"
             >
               <span aria-hidden="true">{emoji}</span>
             </button>
-            {summary.count > 0 && (
-              <button
-                type="button"
-                aria-label={`View ${summary.count} ${label.toLowerCase()} reaction${summary.count === 1 ? "" : "s"}`}
-                onClick={() => onView(targetType, targetId, key)}
-                className="rounded-r-full border-l border-[#0a0c10]/20 bg-background px-1.5 py-0.5 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
-              >
-                {summary.count}
-              </button>
-            )}
+            <button
+              type="button"
+              aria-label={`View ${summary.count} ${label.toLowerCase()} reaction${summary.count === 1 ? "" : "s"}`}
+              onClick={() => onView(targetType, targetId, key)}
+              className="inline-flex h-8 min-w-7 items-center justify-center rounded-full px-1.5 font-bold text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+            >
+              {summary.count}
+            </button>
           </div>
         );
       })}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            aria-label="Choose a reaction"
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[#0a0c10]/25 bg-background px-3 text-xs font-bold text-muted-foreground shadow-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <SmilePlus className="h-3.5 w-3.5" />
+            React
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start" sideOffset={8} className="min-w-44 border-2 border-[#0a0c10] bg-card p-1.5 shadow-cel-sm">
+          <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Choose a reaction</p>
+          {REACTIONS.map(({ key, emoji, label }) => {
+            const summary = reactions?.[key] ?? { count: 0, reacted: false };
+            return (
+              <DropdownMenuItem
+                key={key}
+                onSelect={() => onToggle(targetType, targetId, key)}
+                className="min-h-10 cursor-pointer rounded-lg px-2.5 py-2 font-semibold focus:bg-primary/10"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-base" aria-hidden="true">{emoji}</span>
+                <span>{label}</span>
+                {summary.reacted && <Check className="ml-auto h-4 w-4 text-primary" aria-label="Selected" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
