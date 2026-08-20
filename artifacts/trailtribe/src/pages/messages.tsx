@@ -31,7 +31,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  AlertTriangle,
   Archive,
   ArchiveRestore,
   ChevronDown,
@@ -49,6 +48,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { EmptyTrailState } from "@/components/illustrations";
+import { LoadErrorCard } from "@/components/network-status";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -219,7 +219,7 @@ function BroadcastCard({
 }
 
 function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string, string>; isCoachOrAdmin: boolean }) {
-  const { data: broadcasts, isLoading, isError, refetch } = useListBroadcasts();
+  const { data: broadcasts, isLoading, isError, error, refetch } = useListBroadcasts();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -259,18 +259,7 @@ function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string
   if (isLoading) return <div className="p-8 text-center"><Skeleton className="h-32 w-full mb-4" /><Skeleton className="h-32 w-full" /></div>;
 
   if (isError) {
-    return (
-      <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-        </div>
-        <div className="flex-1">
-          <p className="font-semibold text-sm text-foreground">Couldn't load broadcasts</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
-      </div>
-    );
+    return <LoadErrorCard feature="broadcasts" error={error} onRetry={() => void refetch()} />;
   }
 
   return (
@@ -338,7 +327,7 @@ function ThreadsList({
   podId?: string;
   podNameMap: Map<string, string>;
 }) {
-  const { data: threads, isLoading, isError, refetch } = useListBoardThreads({ scope, podId });
+  const { data: threads, isLoading, isError, error, refetch } = useListBoardThreads({ scope, podId });
 
   // Event threads are ordered chronologically, then by most recent activity.
   const sortedThreads = [...(threads ?? [])].sort((a, b) => {
@@ -358,18 +347,7 @@ function ThreadsList({
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>;
 
   if (isError) {
-    return (
-      <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-        </div>
-        <div className="flex-1">
-          <p className="font-semibold text-sm text-foreground">Couldn't load threads</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
-      </div>
-    );
+    return <LoadErrorCard feature="threads" error={error} onRetry={() => void refetch()} />;
   }
 
   if (!sortedThreads.length) {

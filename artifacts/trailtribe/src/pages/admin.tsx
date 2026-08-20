@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { LoadErrorCard } from "@/components/network-status";
 import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
 import SeasonBuilder from "./season-builder";
@@ -269,7 +270,7 @@ function DocumentCard({ docType, doc, onRefresh }: { docType: DocType; doc: Team
 }
 
 export default function Admin() {
-  const { data: pendingUsers, isLoading, isError, refetch } = useListPendingApprovals();
+  const { data: pendingUsers, isLoading, isError, error, refetch } = useListPendingApprovals();
   const { data: pods } = useListPods();
   const { data: summary } = useGetDashboardSummary();
   const approveUser = useApproveUser();
@@ -892,16 +893,7 @@ export default function Admin() {
   if (isError) {
     return (
       <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
-        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-sm text-foreground">Couldn't load admin dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">Retry</Button>
-        </div>
+        <LoadErrorCard feature="the admin dashboard" error={error} onRetry={() => void refetch()} />
       </div>
     );
   }

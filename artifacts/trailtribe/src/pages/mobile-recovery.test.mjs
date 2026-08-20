@@ -7,7 +7,7 @@ import test from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const readSource = (relativePath) => readFile(resolve(here, relativePath), "utf8");
 
-const [app, recoveryUi, carpools, profile, clientFetch, routePerformance, skeletons, layout] = await Promise.all([
+const [app, recoveryUi, carpools, profile, clientFetch, routePerformance, skeletons, layout, admin, roster, messages] = await Promise.all([
   readSource("../App.tsx"),
   readSource("../components/network-status.tsx"),
   readSource("carpools.tsx"),
@@ -16,6 +16,9 @@ const [app, recoveryUi, carpools, profile, clientFetch, routePerformance, skelet
   readSource("../lib/route-performance.ts"),
   readSource("../components/route-skeletons.tsx"),
   readSource("../components/layout.tsx"),
+  readSource("admin.tsx"),
+  readSource("roster.tsx"),
+  readSource("messages.tsx"),
 ]);
 
 test("Android-style offline and online events refetch active queries without reloading", () => {
@@ -84,6 +87,21 @@ test("carpool and household sections expose a recoverable failure state", () => 
   assert.match(profile, /feature="your household"/);
   assert.match(profile, /feature="your riders"/);
   assert.match(profile, /feature="season documents"/);
+});
+
+test("coach and admin mobile routes expose retryable connection-drop states", () => {
+  for (const [route, source, feature] of [
+    ["/admin", admin, "the admin dashboard"],
+    ["/roster", roster, "the roster"],
+    ["/messages", messages, "threads"],
+  ]) {
+    assert.match(app, new RegExp(`path="${route}"`), `${route} must remain a protected route`);
+    assert.match(source, /LoadErrorCard/, `${route} should use the shared recoverable error state`);
+    assert.match(source, new RegExp(`feature="${feature}"`), `${route} should identify the failed feature`);
+    assert.match(source, /onRetry=/, `${route} should expose a retry action`);
+    assert.doesNotMatch(source, /window\.location\.reload|location\.reload/, `${route} must recover without a full reload`);
+  }
+  assert.match(recoveryUi, /queryClient\.refetchQueries\(\{ type: "active" \}\)/);
 });
 
 test("mobile routes report real browser timing marks against Android targets", () => {

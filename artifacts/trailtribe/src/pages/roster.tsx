@@ -1,16 +1,17 @@
 import { useListHouseholds, useListPods, useListUsers } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, User, CheckCircle2, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Users, User, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
 import { PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
+import { LoadErrorCard } from "@/components/network-status";
 
 export default function Roster() {
-  const { data: pods, isLoading: isLoadingPods, isError: isErrorPods, refetch: refetchPods } = useListPods();
-  const { data: households, isLoading: isLoadingHouseholds, isError: isErrorHouseholds, refetch: refetchHouseholds } = useListHouseholds();
-  const { data: coaches, isLoading: isLoadingCoaches, isError: isErrorCoaches, refetch: refetchCoaches } = useListUsers({ role: "coach" });
+  const { data: pods, isLoading: isLoadingPods, isError: isErrorPods, error: podsError, refetch: refetchPods } = useListPods();
+  const { data: households, isLoading: isLoadingHouseholds, isError: isErrorHouseholds, error: householdsError, refetch: refetchHouseholds } = useListHouseholds();
+  const { data: coaches, isLoading: isLoadingCoaches, isError: isErrorCoaches, error: coachesError, refetch: refetchCoaches } = useListUsers({ role: "coach" });
 
   if (isLoadingPods || isLoadingHouseholds || isLoadingCoaches) {
     return <div className="p-8 text-center">Loading roster...</div>;
@@ -20,16 +21,7 @@ export default function Roster() {
     const refetch = () => { void refetchPods(); void refetchHouseholds(); void refetchCoaches(); };
     return (
       <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
-        <div className="rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-sm text-foreground">Couldn't load the roster</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={refetch} className="shrink-0">Retry</Button>
-        </div>
+        <LoadErrorCard feature="the roster" error={podsError ?? householdsError ?? coachesError} onRetry={refetch} />
       </div>
     );
   }
