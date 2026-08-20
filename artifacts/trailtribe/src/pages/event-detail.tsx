@@ -4,7 +4,8 @@ import {
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
-  useListBoardThreads, useListBoardPosts, getListBoardPostsQueryKey,
+  useListBoardThreads, useListBoardPosts, useCreateBoardThread,
+  getListBoardPostsQueryKey, getListBoardThreadsQueryKey,
   useListEventRsvps, getListEventRsvpsQueryKey
 } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
@@ -30,15 +31,91 @@ const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const EVENT_TYPES = Object.values(UpdateEventBodyEventType) as string[];
 
-function EventDiscussion({ eventId }: { eventId: number }) {
-  const { data: threads } = useListBoardThreads({ scope: "event", eventId });
+function EventDiscussion({ eventId, eventTitle }: { eventId: number; eventTitle: string }) {
+  const { data: threads, isLoading, isError, refetch } = useListBoardThreads({ scope: "event", eventId });
   const thread = threads?.[0];
+  const createThread = useCreateBoardThread();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: posts } = useListBoardPosts(thread?.id ?? 0, {
     query: { enabled: !!thread?.id, queryKey: getListBoardPostsQueryKey(thread?.id ?? 0) }
   });
 
-  if (!thread) return null;
+  const handleCreateDiscussion = () => {
+    createThread.mutate({
+      data: {
+        title: `Discussion: ${eventTitle}`,
+        body: `Use this thread to coordinate for ${eventTitle} — meet-up spots, ride shares, questions, or anything else.`,
+        eventId,
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Discussion started" });
+        queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
+        refetch();
+      },
+      onError: () => {
+        toast({ title: "Couldn't start the discussion", description: "Please check your access and try again.", variant: "destructive" });
+      },
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-2 border-[#0a0c10] shadow-cel-sm mt-8 bg-card" data-testid={`event-discussion-loading-${eventId}`}>
+        <CardContent className="p-6 flex items-center justify-center gap-2 text-sm text-muted-foreground font-medium">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading discussion…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-2 border-destructive/60 bg-destructive/10 mt-8" data-testid={`event-discussion-error-${eventId}`}>
+        <CardContent className="p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="h-10 w-10 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-foreground">Couldn't load the discussion</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Check your connection and try again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="shrink-0">
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!thread) {
+    return (
+      <Card className="border-2 border-[#0a0c10] shadow-cel-sm mt-8 bg-card" data-testid={`event-discussion-empty-${eventId}`}>
+        <CardContent className="p-6 flex flex-col items-center text-center gap-3">
+          <div className="h-11 w-11 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center">
+            <MessageSquare className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-bold text-foreground">No discussion yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Start a conversation about meet-up spots, ride shares, or event questions.
+            </p>
+          </div>
+          <Button
+            onClick={handleCreateDiscussion}
+            disabled={createThread.isPending}
+            className="cel-interactive border-2 border-[#0a0c10]"
+          >
+            {createThread.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Start the Discussion
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Keep the preview stable even if the API response order changes. The full
   // thread remains available through the link below, including after the
@@ -1135,7 +1212,7 @@ export default function EventDetail() {
       )}
 
       {/* ─── EVENT DISCUSSION ──────────────────────────────────────────────────── */}
-      <EventDiscussion eventId={eventId} />
+      <EventDiscussion eventId={eventId} eventTitle={event.title} />
 
       {/* ─── EDIT EVENT DIALOG ─────────────────────────────────────────────────── */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>
