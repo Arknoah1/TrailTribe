@@ -188,34 +188,57 @@ router.post("/events/:id/tasks/bulk-signup", requireAuth, async (req, res) => {
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
 
+  // Preserve request order while ensuring repeated IDs cannot attempt a second
+  // insert after the initial signup snapshot was taken.
+  const uniqueTaskIds = [...new Set(taskIds)];
+
+  // Batch-fetch tasks and this user's existing signups up front (2 queries
+  // total instead of 2 per taskId) to weed out invalid/duplicate requests.
+  const tasks = await db.select().from(eventTasksTable)
+    .where(and(inArray(eventTasksTable.id, uniqueTaskIds), eq(eventTasksTable.eventId, eventId)));
+  const tasksById = new Map(tasks.map((t) => [t.id, t]));
+
+  const existingSignups = await db.select({ eventTaskId: eventTaskSignupsTable.eventTaskId })
+    .from(eventTaskSignupsTable)
+    .where(and(inArray(eventTaskSignupsTable.eventTaskId, uniqueTaskIds), eq(eventTaskSignupsTable.userId, me.id)));
+  const alreadySignedUp = new Set(existingSignups.map((s) => s.eventTaskId));
+
   let added = 0;
   let skipped = 0;
 
-  for (const taskId of taskIds) {
-    const task = await db.query.eventTasksTable.findFirst({
-      where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+  for (const taskId of uniqueTaskIds) {
+    const task = tasksById.get(taskId);
+    if (!task || alreadySignedUp.has(taskId)) { skipped++; continue; }
+
+    // Capacity check + insert still need to be transactional per task, since
+    // two concurrent bulk-signups could both target the same last-open slot.
+    const inserted = await db.transaction(async (tx) => {
+      const [lockedTask] = await tx.select().from(eventTasksTable)
+        .where(and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)))
+        .for("update");
+      if (!lockedTask) return false;
+
+      const [{ currentCount }] = await tx
+        .select({ currentCount: count() })
+        .from(eventTaskSignupsTable)
+        .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
+      if (currentCount >= lockedTask.slotsNeeded) return false;
+
+      await tx.insert(eventTaskSignupsTable).values({
+        eventTaskId: taskId,
+        eventId,
+        userId: me.id,
+        notes: null,
+      });
+      return true;
     });
-    if (!task) { skipped++; continue; }
 
-    const existing = await db.query.eventTaskSignupsTable.findFirst({
-      where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
-    });
-    if (existing) { skipped++; continue; }
-
-    const [{ currentCount }] = await db
-      .select({ currentCount: count() })
-      .from(eventTaskSignupsTable)
-      .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
-
-    if (currentCount >= task.slotsNeeded) { skipped++; continue; }
-
-    await db.insert(eventTaskSignupsTable).values({
-      eventTaskId: taskId,
-      eventId,
-      userId: me.id,
-      notes: null,
-    });
-    added++;
+    if (inserted) {
+      added++;
+      alreadySignedUp.add(taskId);
+    } else {
+      skipped++;
+    }
   }
 
   res.status(201).json({ added, skipped });
@@ -257,32 +280,43 @@ router.post("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) =>
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
 
-  const task = await db.query.eventTasksTable.findFirst({
-    where: and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)),
+  const result = await db.transaction(async (tx) => {
+    // Lock the task row for the duration of this transaction so two concurrent
+    // signups for the last slot cannot both pass the capacity check below.
+    const [task] = await tx.select().from(eventTasksTable)
+      .where(and(eq(eventTasksTable.id, taskId), eq(eventTasksTable.eventId, eventId)))
+      .for("update");
+    if (!task) return { status: 404 as const, error: "Task not found" };
+
+    const existing = await tx.query.eventTaskSignupsTable.findFirst({
+      where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
+    });
+    if (existing) return { status: 409 as const, error: "Already signed up" };
+
+    const [{ currentCount }] = await tx
+      .select({ currentCount: count() })
+      .from(eventTaskSignupsTable)
+      .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
+
+    if (currentCount >= task.slotsNeeded) {
+      return { status: 409 as const, error: "Task is at capacity" };
+    }
+
+    const [signup] = await tx.insert(eventTaskSignupsTable).values({
+      eventTaskId: taskId,
+      eventId,
+      userId: me.id,
+      notes: notes ?? null,
+    }).returning();
+
+    return { status: 201 as const, signup, task };
   });
-  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
 
-  const existing = await db.query.eventTaskSignupsTable.findFirst({
-    where: and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id)),
-  });
-  if (existing) { res.status(409).json({ error: "Already signed up" }); return; }
-
-  const [{ currentCount }] = await db
-    .select({ currentCount: count() })
-    .from(eventTaskSignupsTable)
-    .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
-
-  if (currentCount >= task.slotsNeeded) {
-    res.status(409).json({ error: "Task is at capacity" });
+  if (result.status !== 201) {
+    res.status(result.status).json({ error: result.error });
     return;
   }
-
-  const [signup] = await db.insert(eventTaskSignupsTable).values({
-    eventTaskId: taskId,
-    eventId,
-    userId: me.id,
-    notes: notes ?? null,
-  }).returning();
+  const { signup, task } = result;
 
   try {
     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });

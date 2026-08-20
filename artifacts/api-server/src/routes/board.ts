@@ -59,12 +59,14 @@ async function notifyThreadParticipants(threadId: number, actorUserId: number, t
   }
   participantIds.delete(actorUserId);
 
-  for (const userId of participantIds) {
-    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-    if (!user) continue;
+  if (participantIds.size === 0) return;
+
+  const participants = await db.select().from(usersTable).where(inArray(usersTable.id, Array.from(participantIds)));
+
+  for (const user of participants) {
     if (user.notificationPreferences?.boardReplies === false) continue;
     await createNotification(
-      userId,
+      user.id,
       "boardReplies",
       "New reply on the board",
       `Someone replied to "${threadTitle}"`,
