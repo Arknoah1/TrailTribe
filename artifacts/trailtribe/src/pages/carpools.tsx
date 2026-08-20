@@ -25,7 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { LoadErrorCard, LoadingState } from "@/components/network-status";
+import { LoadErrorCard } from "@/components/network-status";
+import { CarpoolBoardSkeleton } from "@/components/route-skeletons";
+import { useRoutePerformance } from "@/lib/route-performance";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -51,11 +53,7 @@ export default function CarpoolBoard() {
   });
 
   const isLoading = offersLoading || requestsLoading;
-  const loadError = offersLoadError ?? requestsLoadError;
-  const hasLoadError = offersError || requestsError;
-  const retryCarpools = () => {
-    void Promise.all([refetchOffers(), refetchRequests()]);
-  };
+  useRoutePerformance("carpool-board", !!eventId, !isLoading);
 
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [riders, setRiders] = useState<Rider[]>([]);
@@ -373,16 +371,6 @@ export default function CarpoolBoard() {
       toast({ title: "Failed to delete offer", variant: "destructive" });
     }
   };
-
-  if (isLoading) return <LoadingState label="Loading carpools…" />;
-
-  if (hasLoadError) {
-    return (
-      <div className="mx-auto max-w-4xl px-6 pt-4 md:px-8 md:pt-8">
-        <LoadErrorCard feature="carpools" error={loadError} onRetry={retryCarpools} />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8">
@@ -754,6 +742,11 @@ export default function CarpoolBoard() {
       </Dialog>
 
       {/* ── RIDES NEEDED ─────────────────────────────────────── */}
+      {requestsLoading ? (
+        <CarpoolBoardSkeleton section="requests" />
+      ) : requestsError ? (
+        <LoadErrorCard feature="ride requests" error={requestsLoadError} onRetry={() => { void refetchRequests(); }} />
+      ) : (
       <div className="space-y-4">
         <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2 border-b-2 border-[#0a0c10] pb-2">
           <Users className="h-5 w-5 text-primary" /> Rides Needed
@@ -849,8 +842,14 @@ export default function CarpoolBoard() {
           )}
         </div>
       </div>
+      )}
 
       {/* ── RIDES AVAILABLE ─────────────────────────────────── */}
+      {offersLoading ? (
+        <CarpoolBoardSkeleton section="offers" />
+      ) : offersError ? (
+        <LoadErrorCard feature="ride offers" error={offersLoadError} onRetry={() => { void refetchOffers(); }} />
+      ) : (
       <div className="space-y-4">
         <h2 className="font-display text-2xl tracking-wider leading-none flex items-center gap-2 border-b-2 border-[#0a0c10] pb-2">
           <Car className="h-5 w-5 text-primary" /> Rides Available
@@ -983,6 +982,7 @@ export default function CarpoolBoard() {
           )}
         </div>
       </div>
+      )}
       </div>
     </div>
   );

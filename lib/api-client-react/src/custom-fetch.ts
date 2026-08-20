@@ -11,6 +11,7 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+const API_REQUEST_SLOW_MS = 1_000;
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -79,6 +80,36 @@ function resolveUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
+function performancePath(url: string): string {
+  try {
+    return new URL(
+      url,
+      typeof location !== "undefined" ? location.origin : "http://localhost",
+    ).pathname;
+  } catch {
+    return url.split("?", 1)[0];
+  }
+}
+
+function reportApiRequest(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  startedAt: number,
+  result: { status?: number; outcome: "success" | "error" },
+) {
+  if (typeof performance === "undefined") return;
+  const durationMs = Math.round(performance.now() - startedAt);
+  // The path intentionally excludes query strings so console telemetry never
+  // records private filters, tokens, or other user-provided request values.
+  console.info("[TrailTribe API]", {
+    method: resolveMethod(input, init.method),
+    path: performancePath(resolveUrl(input)),
+    ...result,
+    durationMs,
+    slow: durationMs >= API_REQUEST_SLOW_MS,
+  });
+}
+
 /**
  * Keeps a browser request from leaving a screen in a permanent loading state
  * when a mobile network drops a connection without rejecting it.
@@ -88,6 +119,7 @@ export async function fetchWithTimeout(
   init: RequestInit = {},
   timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
+  const startedAt = typeof performance !== "undefined" ? performance.now() : 0;
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   const callerSignal = init.signal;
@@ -101,7 +133,12 @@ export async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(input, { ...init, signal: controller.signal });
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    reportApiRequest(input, init, startedAt, { status: response.status, outcome: "success" });
+    return response;
+  } catch (error) {
+    reportApiRequest(input, init, startedAt, { outcome: "error" });
+    throw error;
   } finally {
     clearTimeout(timeout);
     callerSignal?.removeEventListener("abort", abortFromCaller);

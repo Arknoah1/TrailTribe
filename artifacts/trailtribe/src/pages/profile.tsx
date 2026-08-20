@@ -40,6 +40,8 @@ import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
 import { LoadErrorCard, LoadingState } from "@/components/network-status";
+import { ProfileSkeleton } from "@/components/route-skeletons";
+import { useRoutePerformance } from "@/lib/route-performance";
 
 const profileSchema = z.object({
   firstName: z.string().min(2),
@@ -1364,6 +1366,8 @@ function MyFamilyTab({ householdId, currentUserId }: { householdId: number; curr
 export default function Profile() {
   const search = useSearch();
   const initialTab = new URLSearchParams(search).get("tab") ?? "account";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [loadCalendarFeed, setLoadCalendarFeed] = useState(false);
 
   const { data: user, isLoading, isError, refetch } = useGetMe();
   const updateMutation = useUpdateMe();
@@ -1404,7 +1408,12 @@ export default function Profile() {
 
   const [calCopied, setCalCopied] = useState<"webcal" | "https" | null>(null);
   const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
-  const { data: calSubscribeData, isLoading: calSubscribeLoading } = useGetCalendarSubscribeUrl({ query: { enabled: !!user, queryKey: getGetCalendarSubscribeUrlQueryKey() } });
+  const { data: calSubscribeData, isLoading: calSubscribeLoading } = useGetCalendarSubscribeUrl({
+    query: {
+      enabled: !!user && activeTab === "account" && loadCalendarFeed,
+      queryKey: getGetCalendarSubscribeUrlQueryKey(),
+    },
+  });
   const regenMutation = useRegenerateCalendarToken();
 
   const copyCalUrl = async (text: string, which: "webcal" | "https" = "webcal") => {
@@ -1434,6 +1443,14 @@ export default function Profile() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user || activeTab !== "account") return;
+    // The feed is below the first interaction on the account tab, so it can
+    // wait briefly for the form and core profile controls to become usable.
+    const timer = window.setTimeout(() => setLoadCalendarFeed(true), 700);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, user]);
+
   const saveCarpoolDefaults = async () => {
     setIsSavingDefaults(true);
     try {
@@ -1461,8 +1478,9 @@ export default function Profile() {
   const { signOut } = useClerk();
   const { adminViewEnabled, setAdminView } = useAdminView();
   const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
+  useRoutePerformance("profile", user !== undefined, user !== undefined && !isLoading);
 
-  if (isLoading) return <div className="p-8 text-center">Loading profile...</div>;
+  if (isLoading) return <ProfileSkeleton />;
 
   if (isError) {
     return (
@@ -1488,7 +1506,7 @@ export default function Profile() {
         <p className="text-muted-foreground mt-1">Manage your account and your family.</p>
       </div>
 
-      <Tabs defaultValue={initialTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="account" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account
@@ -1601,7 +1619,7 @@ export default function Profile() {
                 <CardDescription>Subscribe to your personal team calendar in Google Calendar, Apple Calendar, or Outlook. Events stay automatically in sync.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {calSubscribeLoading ? (
+                {!loadCalendarFeed || calSubscribeLoading ? (
                   <div className="text-sm text-muted-foreground py-2">Loading your calendar link...</div>
                 ) : calSubscribeData ? (
                   <>

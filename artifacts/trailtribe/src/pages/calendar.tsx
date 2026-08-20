@@ -32,7 +32,9 @@ import {
 import { MonthCalendar } from "@/components/month-calendar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { LoadErrorCard, LoadingState } from "@/components/network-status";
+import { LoadErrorCard } from "@/components/network-status";
+import { CalendarSkeleton } from "@/components/route-skeletons";
+import { useRoutePerformance } from "@/lib/route-performance";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -196,6 +198,7 @@ export default function Calendar() {
   const { data: events, isLoading, isError, error, refetch } = useListEvents(
     view === "month" ? monthParams : undefined
   );
+  useRoutePerformance("calendar", events !== undefined, events !== undefined && !isLoading);
 
   const filteredEvents = useMemo(() => {
     if (!events) return [];
@@ -221,7 +224,7 @@ export default function Calendar() {
   };
 
   if (isLoading) {
-    return <LoadingState label="Loading calendar…" />;
+    return <CalendarSkeleton />;
   }
 
   if (isError) {

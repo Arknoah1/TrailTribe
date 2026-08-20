@@ -7,6 +7,7 @@ import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
 import { useAdminView } from "@/hooks/use-admin-view";
 import { NetworkStatusBanner } from "./network-status";
+import { preloadRoute } from "@/lib/route-preload";
 
 const baseNavItems = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -113,6 +114,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onPointerEnter={() => preloadRoute(item.href)}
+                onFocus={() => preloadRoute(item.href)}
+                onTouchStart={() => preloadRoute(item.href)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold uppercase tracking-wide transition-all border-2 cel-interactive",
                   isActive
@@ -197,6 +201,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              onPointerEnter={() => preloadRoute(item.href)}
+              onFocus={() => preloadRoute(item.href)}
+              onTouchStart={() => preloadRoute(item.href)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wide transition-all min-w-0 flex-1 relative",
                 isActive

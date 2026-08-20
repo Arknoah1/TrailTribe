@@ -26,7 +26,9 @@ import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } 
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
-import { LoadErrorCard, LoadingState } from "@/components/network-status";
+import { LoadErrorCard } from "@/components/network-status";
+import { EventDetailSkeleton } from "@/components/route-skeletons";
+import { useRoutePerformance } from "@/lib/route-performance";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -188,6 +190,7 @@ export default function EventDetail() {
   const { data: event, isLoading, isError, error, refetch } = useGetEvent(eventId, {
     query: { enabled: !!eventId, queryKey: getGetEventQueryKey(eventId) }
   });
+  useRoutePerformance("event-detail", event !== undefined, event !== undefined && !isLoading);
   const { data: me } = useGetMe();
   const { data: trailheads } = useListTrailheads();
   const { data: pods } = useListPods();
@@ -531,7 +534,7 @@ export default function EventDetail() {
     }
   };
 
-  if (isLoading) return <LoadingState label="Loading event…" />;
+  if (isLoading) return <EventDetailSkeleton />;
 
   if (isError) {
     return (
