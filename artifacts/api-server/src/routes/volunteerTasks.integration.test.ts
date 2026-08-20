@@ -26,6 +26,7 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
   let baseUrl: string;
   let eventId: number;
   let taskId: number;
+  let bulkTaskId: number;
   let userIds: number[] = [];
 
   beforeAll(async () => {
@@ -85,6 +86,20 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
       userId: existingUser.id,
     });
 
+    const [bulkTask] = await db.insert(eventTasksTable).values({
+      eventId,
+      category: "Test",
+      title: "Bulk final slot",
+      slotsNeeded: 2,
+    }).returning();
+    bulkTaskId = bulkTask.id;
+
+    await db.insert(eventTaskSignupsTable).values({
+      eventTaskId: bulkTaskId,
+      eventId,
+      userId: existingUser.id,
+    });
+
     const app = express();
     app.use(express.json());
     app.use("/", volunteerTasksRouter);
@@ -140,6 +155,42 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
       .select({ signupCount: count() })
       .from(eventTaskSignupsTable)
       .where(eq(eventTaskSignupsTable.eventTaskId, taskId));
+    expect(Number(signupCount)).toBeLessThanOrEqual(2);
+    expect(Number(signupCount)).toBe(2);
+  });
+
+  it("does not overbook the final slot across concurrent bulk requests", async () => {
+    const bulkSignup = (clerkUserId: string) => {
+      return fetch(`${baseUrl}/events/${eventId}/tasks/bulk-signup`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-test-clerk-user-id": clerkUserId,
+        },
+        body: JSON.stringify({ taskIds: [bulkTaskId] }),
+      });
+    };
+
+    const [firstUser, secondUser] = await db
+      .select({ clerkUserId: usersTable.clerkUserId })
+      .from(usersTable)
+      .where(inArray(usersTable.id, userIds.slice(1)));
+    const responses = await Promise.all([
+      bulkSignup(firstUser.clerkUserId!),
+      bulkSignup(secondUser.clerkUserId!),
+    ]);
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 201]);
+    expect(bodies.sort((a, b) => a.added - b.added)).toEqual([
+      { added: 0, skipped: 1 },
+      { added: 1, skipped: 0 },
+    ]);
+
+    const [{ signupCount }] = await db
+      .select({ signupCount: count() })
+      .from(eventTaskSignupsTable)
+      .where(eq(eventTaskSignupsTable.eventTaskId, bulkTaskId));
     expect(Number(signupCount)).toBeLessThanOrEqual(2);
     expect(Number(signupCount)).toBe(2);
   });
