@@ -340,12 +340,16 @@ function ThreadsList({
 }) {
   const { data: threads, isLoading, isError, refetch } = useListBoardThreads({ scope, podId });
 
-  // Event threads sorted by event.startTime desc, then by activity
+  // Event threads are ordered chronologically, then by most recent activity.
   const sortedThreads = [...(threads ?? [])].sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    if (scope === "event" && a.event && b.event) {
-      return new Date(b.event.startTime).getTime() - new Date(a.event.startTime).getTime();
+    if (scope === "event") {
+      const aEventTime = a.event ? new Date(a.event.startTime).getTime() : Number.MAX_SAFE_INTEGER;
+      const bEventTime = b.event ? new Date(b.event.startTime).getTime() : Number.MAX_SAFE_INTEGER;
+      if (aEventTime !== bEventTime) {
+        return aEventTime - bEventTime;
+      }
     }
+
     const aDate = new Date(a.lastReplyAt || a.createdAt).getTime();
     const bDate = new Date(b.lastReplyAt || b.createdAt).getTime();
     return bDate - aDate;

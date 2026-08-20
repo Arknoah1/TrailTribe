@@ -163,6 +163,39 @@ router.get("/board/threads", requireApproved, async (req, res) => {
         .where(gt(boardThreadsTable.eventId, 0))
         .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
     }
+
+    // The board-wide Events list keeps discussions visible through the event
+    // and for a 36-hour grace period after it ends. Direct event lookups are
+    // intentionally not filtered so calendar event details retain access.
+    const eventIds = candidates.map((thread) => thread.eventId!).filter((id, index, ids) => ids.indexOf(id) === index);
+    const eventRows = eventIds.length > 0
+      ? await db.query.eventsTable.findMany({ where: inArray(eventsTable.id, eventIds) })
+      : [];
+    const eventById = new Map(eventRows.map((event) => [event.id, event]));
+
+    if (!eventId) {
+      const gracePeriodMs = 36 * 60 * 60 * 1000;
+      const now = Date.now();
+      candidates = candidates.filter((thread) => {
+        const event = eventById.get(thread.eventId!);
+        if (!event) return false;
+        const eventEnd = event.endTime ?? event.startTime;
+        return now <= eventEnd.getTime() + gracePeriodMs;
+      });
+
+      candidates.sort((a, b) => {
+        const aEvent = eventById.get(a.eventId!);
+        const bEvent = eventById.get(b.eventId!);
+        const eventDateDifference = (aEvent?.startTime.getTime() ?? Number.MAX_SAFE_INTEGER)
+          - (bEvent?.startTime.getTime() ?? Number.MAX_SAFE_INTEGER);
+        if (eventDateDifference !== 0) return eventDateDifference;
+
+        const aActivity = (a.lastReplyAt ?? a.createdAt).getTime();
+        const bActivity = (b.lastReplyAt ?? b.createdAt).getTime();
+        return bActivity - aActivity;
+      });
+    }
+
     // Enforce event audience: filter out events the user's pod isn't invited to
     const accessResults = await Promise.all(
       candidates.map((t) => canAccessEventThread(me, t.eventId!))
