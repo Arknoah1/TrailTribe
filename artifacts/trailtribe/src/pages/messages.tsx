@@ -74,7 +74,7 @@ function ThreadCard({ thread, podNameMap }: { thread: BoardThreadWithDetails; po
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-lg leading-tight truncate">
+                <h3 title={thread.title} className="font-bold text-lg leading-tight truncate">
                   {thread.isPinned && <Pin className="inline-block h-4 w-4 mr-1.5 text-primary fill-primary" />}
                   {thread.title}
                 </h3>

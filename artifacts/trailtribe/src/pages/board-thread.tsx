@@ -23,6 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { DiscussionTitle } from "@/components/discussion-title";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
@@ -147,18 +148,18 @@ export default function BoardThread() {
     <div className="flex flex-col min-h-[100dvh] bg-background max-w-3xl mx-auto">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-card border-b-2 border-x-2 border-[#0a0c10] p-4 sm:px-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Button variant="ghost" size="icon" asChild className="shrink-0 -ml-2 rounded-full hover:bg-muted">
+        <div className="flex items-start gap-3 mb-4 sm:items-center">
+          <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 -ml-2 rounded-full hover:bg-muted sm:mt-0">
             <Link href="/messages"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div className="flex-1 min-w-0 flex items-center gap-2">
             {thread.isPinned && <Pin className="h-4 w-4 text-primary fill-primary shrink-0" />}
-            <h1 className="font-bold text-xl truncate">{thread.title}</h1>
+            <DiscussionTitle>{thread.title}</DiscussionTitle>
           </div>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
+              <Button variant="ghost" size="icon" className="mt-0.5 shrink-0 sm:mt-0">
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
