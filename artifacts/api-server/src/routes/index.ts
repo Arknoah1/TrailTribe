@@ -19,6 +19,7 @@ import seasonsRouter from "./seasons";
 import familyInvitesRouter from "./family-invites";
 import riderInvitesRouter from "./rider-invites";
 import settingsRouter from "./settings";
+import pushDevicesRouter from "./push-devices";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(seasonsRouter);
 router.use(familyInvitesRouter);
 router.use(riderInvitesRouter);
 router.use(settingsRouter);
+router.use(pushDevicesRouter);
 
 export default router;

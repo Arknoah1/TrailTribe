@@ -3,6 +3,20 @@ import { logger } from "./logger";
 
 const migrations: { name: string; sql: string }[] = [
   {
+    name: "create_push_devices_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS push_devices (
+        id serial PRIMARY KEY,
+        user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token text NOT NULL UNIQUE,
+        platform text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS push_devices_user_id_idx ON push_devices(user_id);
+    `,
+  },
+  {
     name: "add_broadcasts_delivery_counts",
     sql: `
       ALTER TABLE broadcasts

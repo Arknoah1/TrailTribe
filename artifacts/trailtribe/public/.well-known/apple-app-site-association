@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.com.trailtribemtb.trailtribe"],
+        "components": [
+          { "/": "/events/*" },
+          { "/": "/messages/*" },
+          { "/": "/carpools/*" },
+          { "/": "/family-invite/*" },
+          { "/": "/rider-invite/*" },
+          { "/": "/join/*" }
+        ]
+      }
+    ]
+  }
+}

@@ -4,8 +4,9 @@ import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { APP_BASE_URL } from "@/lib/api-origin";
 
-const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+const BASE_URL = APP_BASE_URL;
 
 interface AppNotification {
   id: number;

@@ -31,6 +31,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
+import { NativeAppBridge } from "@/lib/native-app";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -308,6 +309,7 @@ function ClerkProviderWithRoutes() {
       }}
     >
       <QueryClientProvider client={queryClient}>
+        <NativeAppBridge />
         <ClerkAuthSyncer />
         <ClerkQueryClientCacheInvalidator />
         <Suspense fallback={

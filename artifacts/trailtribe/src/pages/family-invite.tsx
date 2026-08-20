@@ -7,8 +7,9 @@ import { Mountain, Mail, ShieldAlert, CheckCircle2, Loader2 } from "lucide-react
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
+import { APP_BASE_URL } from "@/lib/api-origin";
 
-const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
+const BASE_URL = APP_BASE_URL;
 
 type Status = "loading" | "invalid" | "ready" | "accepting" | "done" | "already-used" | "error";
 
