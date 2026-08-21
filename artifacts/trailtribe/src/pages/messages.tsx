@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   useListBoardThreads,
   useListBroadcasts,
@@ -62,8 +62,8 @@ const newThreadSchema = z.object({
 
 type MessageTab = "general" | "pod" | "events" | "announcements";
 
-function getMessageTabFromLocation(location: string): MessageTab {
-  const tab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
+function getMessageTabFromLocation(search: string): MessageTab {
+  const tab = new URLSearchParams(search).get("tab");
   return tab === "pod" || tab === "events" || tab === "announcements" ? tab : "general";
 }
 
@@ -378,7 +378,7 @@ function ThreadsList({
 }
 
 export default function Messages() {
-  const [location] = useLocation();
+  const search = useSearch();
   const { data: me } = useGetMe();
   const { data: pods } = useListPods();
   const markSeen = useMarkBoardSeen();
@@ -386,7 +386,7 @@ export default function Messages() {
   const { toast } = useToast();
   
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
-  const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(location));
+  const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(search));
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const podNameMap = new Map<string, string>((pods ?? []).map(p => [String(p.id), p.name]));

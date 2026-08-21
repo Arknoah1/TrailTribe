@@ -120,10 +120,15 @@ test("the multiline composer and send control stay usable within the visible vie
 });
 
 test("discussion navigation preserves the originating Messages category", () => {
+  // Messages page reads the query string via useSearch(), not useLocation(), so
+  // that wouter v3 actually provides the "?tab=..." value (useLocation() strips it).
+  assert.match(messagesSource, /useSearch/);
   assert.match(messagesSource, /getMessageTabFromLocation/);
   assert.match(messagesSource, /tab === "pod" \|\| tab === "events" \|\| tab === "announcements"/);
   assert.match(messagesSource, /scope === "event" \? "events" : scope/);
-  assert.match(messagesSource, /useState<MessageTab>\(\(\) => getMessageTabFromLocation\(location\)\)/);
+  assert.match(messagesSource, /useState<MessageTab>\(\(\) => getMessageTabFromLocation\(search\)\)/);
+  // board-thread also reads the query string via useSearch() for the returnTab fallback.
+  assert.match(threadSource, /useSearch/);
   assert.match(threadSource, /requestedTab === "pod" \|\| requestedTab === "events" \|\| requestedTab === "announcements"/);
   assert.match(threadSource, /\? "events"\s*: "general"/);
   assert.match(threadSource, /href=\{`\/messages\?tab=\$\{returnTab\}`\}/);

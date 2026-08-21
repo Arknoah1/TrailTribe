@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useLocation, useParams, Link } from "wouter";
+import { useLocation, useParams, Link, useSearch } from "wouter";
 import {
   useGetBoardThread,
   useListBoardPosts,
@@ -189,7 +189,8 @@ export default function BoardThread() {
     query: { refetchInterval: 5000, queryKey: getListBoardPostsQueryKey(id) }
   });
 
-  const requestedTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
+  const search = useSearch();
+  const requestedTab = new URLSearchParams(search).get("tab");
   const returnTab = requestedTab === "pod" || requestedTab === "events" || requestedTab === "announcements"
     ? requestedTab
     : thread?.event
