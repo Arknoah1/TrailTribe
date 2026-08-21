@@ -3,3 +3,4 @@
 - [API server needs restart](api-server-restart.md) — new route files registered in routes/index.ts only take effect after a full server restart (rebuild + restart)
 - [TrailTribe test runner](trailtribe-test-runner.md) — prefer built-in Node tests when package-local browser tooling is unavailable
 - [Board reaction test mocks](board-reaction-test-mocks.md) — track request targets explicitly when lightweight Drizzle mocks cannot inspect SQL conditions
+- [API Zod exports](api-zod-exports.md) — export generated validators only; generated component types collide with operation validator names

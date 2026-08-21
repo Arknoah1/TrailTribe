@@ -45,6 +45,8 @@ export * from "./cloneEventTasksFromTemplate201";
 export * from "./cloneEventTasksFromTemplateBody";
 export * from "./complianceStats";
 export * from "./contactCoachBody";
+export * from "./coParentInviteDelivery";
+export * from "./coParentInviteInput";
 export * from "./createBoardPostBody";
 export * from "./createBoardThreadBody";
 export * from "./createCarpoolOfferBody";

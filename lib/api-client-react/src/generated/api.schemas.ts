@@ -137,6 +137,15 @@ export type HouseholdWithMembers = Household & {
   members: User[];
 };
 
+export interface CoParentInviteInput {
+  email: string;
+}
+
+export interface CoParentInviteDelivery {
+  email: string;
+  expiresAt: string;
+}
+
 export interface CreateHouseholdBody {
   name: string;
   podId?: string;

@@ -1,11 +1,13 @@
 import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { householdsTable } from "./households";
 
 export const familyInvitesTable = pgTable("family_invites", {
   id: serial("id").primaryKey(),
   email: text("email"),
   token: text("token").notNull().unique(),
   invitedByUserId: integer("invited_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  householdId: integer("household_id").references(() => householdsTable.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   acceptedByClerkUserId: text("accepted_by_clerk_user_id"),

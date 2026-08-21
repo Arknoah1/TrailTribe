@@ -38,6 +38,8 @@ import type {
   ClaimCarpoolBody,
   CloneEventTasksFromTemplate201,
   CloneEventTasksFromTemplateBody,
+  CoParentInviteDelivery,
+  CoParentInviteInput,
   ContactCoachBody,
   CreateBoardPostBody,
   CreateBoardThreadBody,
@@ -1214,6 +1216,93 @@ export const useUpdateHousehold = <
   TContext
 > => {
   return useMutation(getUpdateHouseholdMutationOptions(options));
+};
+
+/**
+ * @summary Email a co-parent a secure household invitation
+ */
+export const getSendCoParentInviteUrl = (id: number) => {
+  return `/api/households/${id}/co-parent-invites`;
+};
+
+export const sendCoParentInvite = async (
+  id: number,
+  coParentInviteInput: CoParentInviteInput,
+  options?: RequestInit,
+): Promise<CoParentInviteDelivery> => {
+  return customFetch<CoParentInviteDelivery>(getSendCoParentInviteUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(coParentInviteInput),
+  });
+};
+
+export const getSendCoParentInviteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCoParentInvite>>,
+    TError,
+    { id: number; data: BodyType<CoParentInviteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendCoParentInvite>>,
+  TError,
+  { id: number; data: BodyType<CoParentInviteInput> },
+  TContext
+> => {
+  const mutationKey = ["sendCoParentInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendCoParentInvite>>,
+    { id: number; data: BodyType<CoParentInviteInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return sendCoParentInvite(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendCoParentInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendCoParentInvite>>
+>;
+export type SendCoParentInviteMutationBody = BodyType<CoParentInviteInput>;
+export type SendCoParentInviteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Email a co-parent a secure household invitation
+ */
+export const useSendCoParentInvite = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCoParentInvite>>,
+    TError,
+    { id: number; data: BodyType<CoParentInviteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendCoParentInvite>>,
+  TError,
+  { id: number; data: BodyType<CoParentInviteInput> },
+  TContext
+> => {
+  return useMutation(getSendCoParentInviteMutationOptions(options));
 };
 
 /**

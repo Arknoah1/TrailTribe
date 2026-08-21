@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { familyInvitesTable, usersTable } from "@workspace/db";
+import { familyInvitesTable, householdsTable, usersTable } from "@workspace/db";
 import { eq, and, isNull, gt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
@@ -236,8 +236,12 @@ router.get("/family-invites/validate/:token", publicLookupLimiter, async (req, r
     res.status(404).json({ error: "Invite link is invalid, expired, or already used" });
     return;
   }
-  // email may be null for link-only invites
-  res.json({ email: invite.email ?? null });
+  const household = invite.householdId
+    ? await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, invite.householdId) })
+    : null;
+  // Email may be null for link-only invites. Household names are revealed only
+  // after the unguessable, active token has been validated.
+  res.json({ email: invite.email ?? null, householdName: household?.name ?? null });
 });
 
 // POST /family-invites/accept — authenticated; accept invite and auto-approve user
@@ -266,6 +270,14 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
     return;
   }
 
+  const invitedHousehold = invite.householdId
+    ? await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, invite.householdId) })
+    : null;
+  if (invite.householdId && !invitedHousehold) {
+    res.status(404).json({ error: "This household is no longer available." });
+    return;
+  }
+
   // Fetch the Clerk user — fail hard if we can't (never silently consume the invite)
   const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
   let clerkUser: Awaited<ReturnType<typeof clerkClient.users.getUser>>;
@@ -286,6 +298,10 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
   // (skip this check for link-only invites that have no email constraint)
   if (invite.email) {
     const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
+    if (invite.householdId && !clerkEmails.includes(invite.email.toLowerCase())) {
+      res.status(403).json({ error: "Sign in with the email address this co-parent invitation was sent to." });
+      return;
+    }
     if (!clerkEmails.includes(invite.email.toLowerCase())) {
       logger.info(
         { inviteEmail: invite.email, actualEmail: primaryEmail, clerkUserId },
@@ -298,10 +314,18 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
   let user = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
   });
+  const householdAssignment = invitedHousehold
+    ? { householdId: invitedHousehold.id, podId: invitedHousehold.podId ?? null }
+    : {};
+
+  if (invitedHousehold && user?.householdId && user.householdId !== invitedHousehold.id) {
+    res.status(409).json({ error: "Your account already belongs to a different household." });
+    return;
+  }
 
   if (user) {
     const [updated] = await db.update(usersTable)
-      .set({ approved: true })
+      .set({ approved: true, ...householdAssignment })
       .where(eq(usersTable.id, user.id))
       .returning();
     user = updated ?? user;
@@ -311,8 +335,12 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
       where: eq(usersTable.email, primaryEmail),
     });
     if (byEmail) {
+      if (invitedHousehold && byEmail.householdId && byEmail.householdId !== invitedHousehold.id) {
+        res.status(409).json({ error: "Your account already belongs to a different household." });
+        return;
+      }
       const [updated] = await db.update(usersTable)
-        .set({ clerkUserId, approved: true })
+        .set({ clerkUserId, approved: true, ...householdAssignment })
         .where(eq(usersTable.id, byEmail.id))
         .returning();
       user = updated ?? byEmail;
@@ -324,6 +352,7 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
         email: primaryEmail,
         role: "parent",
         approved: true,
+        ...householdAssignment,
         notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
       }).returning();
       user = created ?? null;

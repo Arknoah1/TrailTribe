@@ -361,6 +361,13 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "add_household_id_to_family_invites",
+    sql: `
+      ALTER TABLE family_invites
+        ADD COLUMN IF NOT EXISTS household_id integer REFERENCES households(id) ON DELETE CASCADE;
+    `,
+  },
+  {
     name: "add_archived_at_to_broadcasts",
     sql: `
       ALTER TABLE broadcasts

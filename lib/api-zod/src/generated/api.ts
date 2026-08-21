@@ -665,6 +665,17 @@ export const UpdateHouseholdResponse = zod.object({
 });
 
 /**
+ * @summary Email a co-parent a secure household invitation
+ */
+export const SendCoParentInviteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendCoParentInviteBody = zod.object({
+  email: zod.string().email(),
+});
+
+/**
  * @summary Mark compliance docs as signed
  */
 export const UpdateHouseholdComplianceParams = zod.object({

@@ -23,6 +23,7 @@ export default function FamilyInvite() {
 
   const [status, setStatus] = useState<Status>("loading");
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
+  const [householdName, setHouseholdName] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
   // Step 1: Validate the token (public endpoint)
@@ -33,6 +34,7 @@ export default function FamilyInvite() {
         if (!res.ok) { setStatus("invalid"); return; }
         const data = await res.json();
         setInviteEmail(data.email ?? null);
+        setHouseholdName(data.householdName ?? null);
         setStatus("ready");
       })
       .catch(() => setStatus("invalid"));
@@ -93,7 +95,7 @@ export default function FamilyInvite() {
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-muted-foreground">
-              This invite link is invalid, expired, or has already been used. Ask your coach to send a fresh invite.
+              This invite link is invalid, expired, or has already been used. Ask the person who invited you to send a fresh one.
             </p>
             <Button asChild className="w-full">
               <a href={`${BASE_URL}/`}>Return to Home</a>
@@ -174,7 +176,9 @@ export default function FamilyInvite() {
         <CardHeader className="text-center pb-4">
           <CardTitle className="text-2xl">You've been invited!</CardTitle>
           <CardDescription className="text-base mt-2">
-            Your coach has invited you to join the team on TrailTribe.
+            {householdName
+              ? `You've been invited to join the ${householdName} household on TrailTribe.`
+              : "Your coach has invited you to join the team on TrailTribe."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

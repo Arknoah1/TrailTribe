@@ -2,7 +2,7 @@ import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
   useGetMyVolunteerSignups, useListEvents, useListEventTasks, useBulkSignupForEventTasks,
-  getListEventTasksQueryKey,
+  getListEventTasksQueryKey, useSendCoParentInvite,
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,6 +53,10 @@ const householdSchema = z.object({
   name: z.string().min(2),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
+});
+
+const coParentInviteSchema = z.object({
+  email: z.string().trim().email("Enter a valid email address"),
 });
 
 const riderSchema = z.object({
@@ -928,6 +932,7 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
     query: { queryKey: getGetHouseholdQueryKey(householdId) },
   });
   const updateHousehold = useUpdateHousehold();
+  const sendCoParentInvite = useSendCoParentInvite();
   // updateCompliance retained for compatibility; signing now goes through DocumentConsentModal
 
   const [riders, setRiders] = useState<any[]>([]);
@@ -935,6 +940,7 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
   const [editingRider, setEditingRider] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [coParentEmail, setCoParentEmail] = useState("");
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
   const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
   const [consentModal, setConsentModal] = useState<{
@@ -1065,6 +1071,31 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
     navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const sendCoParentInviteEmail = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsed = coParentInviteSchema.safeParse({ email: coParentEmail });
+    if (!parsed.success) {
+      toast({ title: parsed.error.issues[0]?.message ?? "Enter a valid email address", variant: "destructive" });
+      return;
+    }
+
+    sendCoParentInvite.mutate(
+      { id: householdId, data: parsed.data },
+      {
+        onSuccess: ({ email }) => {
+          setCoParentEmail("");
+          toast({ title: `Invitation emailed to ${email}` });
+        },
+        onError: (error: any) => {
+          toast({
+            title: error?.data?.error ?? "We couldn't send that invitation. You can still copy the link instead.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
   };
 
   if (isLoading) return <LoadingState label="Loading family info…" />;
@@ -1293,13 +1324,39 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
               </AlertDialogContent>
             </AlertDialog>
 
-            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <Dialog open={inviteOpen} onOpenChange={(open) => {
+              setInviteOpen(open);
+              if (!open) setCoParentEmail("");
+            }}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</DialogTitle>
-                  <DialogDescription>Share this link so another parent can join your household and see the same events and notifications.</DialogDescription>
+                  <DialogDescription>Send a private invitation by email, or copy a link to share yourself.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-3 pt-1">
+                <div className="space-y-5 pt-1">
+                  <form onSubmit={sendCoParentInviteEmail} className="space-y-2">
+                    <Label htmlFor="co-parent-email">Co-parent email</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        id="co-parent-email"
+                        type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        placeholder="parent@example.com"
+                        value={coParentEmail}
+                        onChange={(event) => setCoParentEmail(event.target.value)}
+                        disabled={sendCoParentInvite.isPending}
+                      />
+                      <Button type="submit" className="shrink-0" disabled={sendCoParentInvite.isPending}>
+                        {sendCoParentInvite.isPending ? "Sending…" : "Send invite"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      They’ll receive a private link to join your household. You can send a fresh invitation to this address if needed.
+                    </p>
+                  </form>
+                  <div className="border-t pt-4 space-y-3">
+                    <p className="text-sm font-medium">Or share the household link</p>
                   <div className="flex gap-2">
                     <Input value={inviteUrl} readOnly className="font-mono text-xs bg-muted" />
                     <Button variant="outline" size="icon" onClick={copyInvite} className="shrink-0">
@@ -1309,6 +1366,7 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
                   <p className="text-xs text-muted-foreground">
                     Code: <span className="font-mono font-medium">{household.inviteCode}</span>
                   </p>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>

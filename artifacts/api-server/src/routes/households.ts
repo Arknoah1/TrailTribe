@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import {
   householdsTable,
   usersTable,
+  familyInvitesTable,
   documentConsentsTable,
   teamDocumentsTable,
   seasonsTable,
@@ -16,11 +17,14 @@ import {
   boardThreadsTable,
   boardPostsTable,
 } from "@workspace/db";
-import { eq, and, isNull, desc, inArray, or } from "drizzle-orm";
+import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
+import { SendCoParentInviteBody, SendCoParentInviteParams } from "@workspace/api-zod";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 import { z } from "zod";
+import { sendEmail } from "../lib/email";
+import { getAppBase } from "../lib/config";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -31,8 +35,16 @@ const studentNotifPrefsSchema = z.object({
   eventReminders: z.boolean(),
 }).partial();
 
+const CO_PARENT_INVITE_TTL_DAYS = 7;
+
 function generateInviteCode(): string {
   return randomBytes(6).toString("hex");
+}
+
+function coParentInviteExpiresAt(): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + CO_PARENT_INVITE_TTL_DAYS);
+  return date;
 }
 
 const createHouseholdSchema = z.object({
@@ -176,6 +188,98 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
     .where(eq(householdsTable.id, id))
     .returning();
   res.json(updated);
+});
+
+router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): Promise<void> => {
+  const params = SendCoParentInviteParams.safeParse(req.params);
+  const body = SendCoParentInviteBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Enter a valid email address." });
+    return;
+  }
+
+  const householdId = params.data.id;
+  const requester = await getRequester(req);
+  if (!requester || requester.role !== "parent" || requester.householdId !== householdId) {
+    res.status(403).json({ error: "Only a parent in this household can send a co-parent invitation." });
+    return;
+  }
+
+  const household = await db.query.householdsTable.findFirst({
+    where: eq(householdsTable.id, householdId),
+  });
+  if (!household) {
+    res.status(404).json({ error: "Household not found." });
+    return;
+  }
+
+  const appBase = getAppBase();
+  if (!appBase) {
+    res.status(503).json({ error: "Email invitations are not configured right now. You can still copy and share the link." });
+    return;
+  }
+
+  const email = body.data.email.trim().toLowerCase();
+  const now = new Date();
+  const expiresAt = coParentInviteExpiresAt();
+  const existing = await db.query.familyInvitesTable.findFirst({
+    where: and(
+      eq(familyInvitesTable.householdId, householdId),
+      eq(familyInvitesTable.email, email),
+      isNull(familyInvitesTable.acceptedAt),
+      isNull(familyInvitesTable.revokedAt),
+      gt(familyInvitesTable.expiresAt, now),
+    ),
+  });
+
+  let token: string;
+  if (existing) {
+    token = existing.token;
+    await db.update(familyInvitesTable)
+      .set({ expiresAt, invitedByUserId: requester.id })
+      .where(eq(familyInvitesTable.id, existing.id));
+  } else {
+    token = randomBytes(24).toString("hex");
+    await db.insert(familyInvitesTable).values({
+      email,
+      token,
+      householdId,
+      invitedByUserId: requester.id,
+      expiresAt,
+    });
+  }
+
+  const inviterName = `${requester.firstName} ${requester.lastName}`.trim() || "A parent";
+  const inviteUrl = `${appBase}/family-invite/${token}`;
+  const emailResult = await sendEmail({
+    to: email,
+    subject: `${inviterName} invited you to join the ${household.name} household on TrailTribe`,
+    text: [
+      "Hi there!",
+      "",
+      `${inviterName} invited you to join the ${household.name} household on TrailTribe.`,
+      "You'll be able to see the same events, carpools, messages, and notifications.",
+      "",
+      `Use this private link to join. It is valid for ${CO_PARENT_INVITE_TTL_DAYS} days:`,
+      "",
+      inviteUrl,
+      "",
+      "If you weren't expecting this invitation, you can safely ignore this email.",
+      "",
+      "— The TrailTribe Team",
+    ].join("\n"),
+  });
+
+  if (emailResult.status === "skipped") {
+    res.status(503).json({ error: "Email delivery is unavailable right now. You can still copy and share the link." });
+    return;
+  }
+  if (emailResult.status === "failed") {
+    res.status(502).json({ error: "We couldn't send that invitation. Please try again or copy the link instead." });
+    return;
+  }
+
+  res.status(201).json({ email, expiresAt });
 });
 
 /** Verbatim text shown to the user and stored in the audit log */
