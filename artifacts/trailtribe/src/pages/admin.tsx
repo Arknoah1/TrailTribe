@@ -2538,6 +2538,7 @@ export default function Admin() {
                             src={editPhotoPreview ?? trailheadPhotoUrl(editingTrailheadData.photoObjectPath)}
                             alt="Trailhead"
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                         ) : (
                           <Mountain className="h-10 w-10 text-muted-foreground/30" />
@@ -2634,6 +2635,7 @@ export default function Admin() {
                             src={trailheadPhotoUrl(th.photoObjectPath)}
                             alt={th.name}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                         ) : (th.address || th.googleMapsUrl) ? (
                           <iframe
@@ -2726,6 +2728,7 @@ export default function Admin() {
                       src={newPhotoPreview ?? trailheadPhotoUrl(newTrailhead.photoObjectPath)}
                       alt="Preview"
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <Mountain className="h-10 w-10 text-muted-foreground/30" />
