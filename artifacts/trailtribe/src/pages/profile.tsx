@@ -258,7 +258,7 @@ function RiderDialog({
     grade?: number | null; allergies?: string | null; medicalNotes?: string | null;
     email?: string | null; emailNotifications?: boolean | null;
     notificationPreferencesLocked?: boolean | null;
-    clerkUserId?: string | null;
+    hasAppAccess?: boolean;
     notificationPreferences?: {
       practiceReminders?: boolean; coachMessages?: boolean; eventReminders?: boolean;
     } | null;
@@ -1169,8 +1169,8 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
                   <div>
                     <div className="font-medium flex items-center gap-2">
                       {rider.firstName} {rider.lastName}
-                      {rider.clerkUserId && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Has login</Badge>
+                      {rider.hasAppAccess && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">App access</Badge>
                       )}
                     </div>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-0.5">
@@ -1182,7 +1182,7 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
                     </div>
                   </div>
                     <div className="flex gap-2 items-center">
-                    {!readOnly && !rider.clerkUserId && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                    {!readOnly && !rider.hasAppAccess && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
                       <Button
                         size="sm"
                         variant="outline"

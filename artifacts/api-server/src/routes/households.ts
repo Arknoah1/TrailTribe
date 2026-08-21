@@ -58,6 +58,19 @@ function shapeMedical<T>(user: T, canSee: boolean): T {
   return canSee ? user : stripMedical(user);
 }
 
+/**
+ * Household member responses may tell authorized viewers whether a rider has
+ * linked an app account, but must never expose the underlying Clerk subject.
+ */
+function shapeHouseholdMember<T extends { clerkUserId?: string | null }>(
+  user: T,
+  canSeeMedicalFields: boolean,
+) {
+  const shaped = shapeMedical(user, canSeeMedicalFields);
+  const { clerkUserId, ...safeUser } = shaped;
+  return { ...safeUser, hasAppAccess: Boolean(clerkUserId) };
+}
+
 async function getRequester(req: any) {
   const clerkUserId = (req as any).clerkUserId as string | null;
   if (!clerkUserId) return null;
@@ -89,7 +102,7 @@ router.get("/households", requireApproved, async (req, res) => {
     households.map(async (h) => {
       const members = await db.select().from(usersTable).where(eq(usersTable.householdId, h.id));
       const see = canSeeMedical(requester, h.id);
-      return { ...h, members: members.map((m) => shapeMedical(m, see)) };
+      return { ...h, members: members.map((m) => shapeHouseholdMember(m, see)) };
     })
   );
   res.json(result);
@@ -138,7 +151,7 @@ router.get("/households/:id", requireApproved, async (req, res) => {
     db.select().from(usersTable).where(eq(usersTable.householdId, id)),
   ]);
   const see = canSeeMedical(requester, id);
-  res.json({ ...household, members: members.map((m) => shapeMedical(m, see)) });
+  res.json({ ...household, members: members.map((m) => shapeHouseholdMember(m, see)) });
 });
 
 router.patch("/households/:id", requireAuth, async (req, res) => {

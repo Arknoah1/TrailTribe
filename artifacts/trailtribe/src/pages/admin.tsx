@@ -1094,14 +1094,14 @@ export default function Admin() {
                                   </div>
                                 </td>
                                 <td className="px-4 py-2.5 hidden lg:table-cell">
-                                  {m.clerkUserId ? (
+                                  {m.hasAppAccess ? (
                                     <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
-                                      <LogIn className="h-3 w-3" /> Has login
+                                      <LogIn className="h-3 w-3" /> App access
                                     </span>
                                   ) : (
                                     <div className="flex items-center gap-2">
                                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                        <UserX className="h-3 w-3" /> No login
+                                        <UserX className="h-3 w-3" /> Not linked
                                       </span>
                                       {m.email && !m.email.includes("@trailtribe.internal") && (
                                         <button
@@ -1256,14 +1256,16 @@ export default function Admin() {
                                     <Bike className="h-3 w-3 text-muted-foreground" />
                                     <span>{r.firstName} {r.lastName}</span>
                                     {r.grade && <span className="text-muted-foreground text-xs">· Gr {r.grade}</span>}
-                                    {r.clerkUserId ? (
-                                      <span className="text-green-600 dark:text-green-400" title="Has login">
+                                    {r.hasAppAccess ? (
+                                      <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400" title="App access is active">
                                         <LogIn className="h-3 w-3" />
+                                        App access
                                       </span>
                                     ) : (
                                       <>
-                                        <span className="text-muted-foreground" title="No login">
+                                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="The rider has not linked an app account">
                                           <UserX className="h-3 w-3" />
+                                          Not linked
                                         </span>
                                         {r.email && !r.email.includes("@trailtribe.internal") && (
                                           <button
