@@ -175,7 +175,7 @@ function ReactionBar({
 }
 
 export default function BoardThread() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const params = useParams();
   const id = parseInt(params.id || "0");
   
@@ -188,6 +188,13 @@ export default function BoardThread() {
   const { data: posts, isLoading: isPostsLoading, isError: isPostsError, refetch: refetchPosts } = useListBoardPosts(id, {
     query: { refetchInterval: 5000, queryKey: getListBoardPostsQueryKey(id) }
   });
+
+  const requestedTab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
+  const returnTab = requestedTab === "pod" || requestedTab === "events" || requestedTab === "announcements"
+    ? requestedTab
+    : thread?.event
+      ? "events"
+      : "general";
 
   const createPost = useCreateBoardPost();
   const deletePost = useDeleteBoardPost();
@@ -333,7 +340,7 @@ export default function BoardThread() {
       onSuccess: () => {
         toast({ title: "Thread deleted" });
         queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
-        setLocation("/messages");
+        setLocation(`/messages?tab=${returnTab}`);
       },
       onError: () => toast({ title: "Failed to delete thread", variant: "destructive" })
     });
@@ -370,7 +377,7 @@ export default function BoardThread() {
       <header className="sticky top-0 z-30 border-b-2 border-[#0a0c10]/20 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3 sm:items-center sm:px-6">
           <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0">
-            <Link href="/messages"><ArrowLeft className="h-5 w-5" /></Link>
+            <Link href={`/messages?tab=${returnTab}`}><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2">

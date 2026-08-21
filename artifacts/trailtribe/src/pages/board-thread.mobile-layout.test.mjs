@@ -7,6 +7,8 @@ import test from "node:test";
 const pagesDir = dirname(fileURLToPath(import.meta.url));
 const threadSource = await readFile(resolve(pagesDir, "board-thread.tsx"), "utf8");
 const layoutSource = await readFile(resolve(pagesDir, "../components/layout.tsx"), "utf8");
+const messagesSource = await readFile(resolve(pagesDir, "messages.tsx"), "utf8");
+const eventDetailSource = await readFile(resolve(pagesDir, "event-detail.tsx"), "utf8");
 
 function keyboardOffset(layoutViewportHeight, visualViewportHeight, visualViewportTop = 0) {
   const visibleViewportBottom = visualViewportHeight + visualViewportTop;
@@ -78,6 +80,7 @@ test("iOS Safari rotation keeps the reply and composer above navigation", () => 
   assert.match(layoutSource, /--mobile-bottom-nav-height/);
 });
 
+
 test("visual viewport keyboard changes move the reply composer above the keyboard", () => {
   assert.equal(keyboardOffset(800, 480), 320);
   assert.equal(keyboardOffset(800, 480, 24), 296);
@@ -114,4 +117,15 @@ test("the multiline composer and send control stay usable within the visible vie
   assert.match(threadSource, /<Button[\s\S]*?aria-label="Send reply"/);
   assert.match(threadSource, /className="shrink-0 h-10 w-10/);
   assert.match(threadSource, /disabled=\{!replyBody\.trim\(\) \|\| createPost\.isPending\}/);
+});
+
+test("discussion navigation preserves the originating Messages category", () => {
+  assert.match(messagesSource, /getMessageTabFromLocation/);
+  assert.match(messagesSource, /tab === "pod" \|\| tab === "events" \|\| tab === "announcements"/);
+  assert.match(messagesSource, /scope === "event" \? "events" : scope/);
+  assert.match(messagesSource, /useState<MessageTab>\(\(\) => getMessageTabFromLocation\(location\)\)/);
+  assert.match(threadSource, /requestedTab === "pod" \|\| requestedTab === "events" \|\| requestedTab === "announcements"/);
+  assert.match(threadSource, /\? "events"\s*: "general"/);
+  assert.match(threadSource, /href=\{`\/messages\?tab=\$\{returnTab\}`\}/);
+  assert.match(eventDetailSource, /href=\{`\/messages\/thread\/\$\{thread\.id\}\?tab=events`\}/);
 });

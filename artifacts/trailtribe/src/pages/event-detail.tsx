@@ -171,7 +171,7 @@ function EventDiscussion({ eventId, eventTitle }: { eventId: number; eventTitle:
         </div>
         <div className="p-4 bg-muted/30 border-t-2 border-[#0a0c10]">
           <Button asChild className="w-full cel-interactive border-2 border-[#0a0c10]">
-            <Link href={`/messages/thread/${thread.id}`} data-testid="event-discussion-thread-link">
+            <Link href={`/messages/thread/${thread.id}?tab=events`} data-testid="event-discussion-thread-link">
               Join the Discussion
             </Link>
           </Button>

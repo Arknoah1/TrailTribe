@@ -60,6 +60,13 @@ const newThreadSchema = z.object({
   body: z.string().min(1, "Message body is required"),
 });
 
+type MessageTab = "general" | "pod" | "events" | "announcements";
+
+function getMessageTabFromLocation(location: string): MessageTab {
+  const tab = new URLSearchParams(location.split("?")[1] ?? "").get("tab");
+  return tab === "pod" || tab === "events" || tab === "announcements" ? tab : "general";
+}
+
 function ThreadCard({ thread, podNameMap }: { thread: BoardThreadWithDetails; podNameMap: Map<string, string> }) {
   return (
     <Card className="hover:border-[#0a0c10] hover:shadow-cel-sm transition-all cursor-pointer">
@@ -359,7 +366,7 @@ function ThreadsList({
       {sortedThreads.map(thread => (
         <Link
           key={thread.id}
-          href={`/messages/thread/${thread.id}`}
+          href={`/messages/thread/${thread.id}?tab=${scope === "event" ? "events" : scope}`}
           className="block"
           data-testid={`event-discussion-${thread.id}`}
         >
@@ -371,6 +378,7 @@ function ThreadsList({
 }
 
 export default function Messages() {
+  const [location] = useLocation();
   const { data: me } = useGetMe();
   const { data: pods } = useListPods();
   const markSeen = useMarkBoardSeen();
@@ -378,7 +386,7 @@ export default function Messages() {
   const { toast } = useToast();
   
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(location));
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const podNameMap = new Map<string, string>((pods ?? []).map(p => [String(p.id), p.name]));
@@ -472,7 +480,11 @@ export default function Messages() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(getMessageTabFromLocation(`?tab=${value}`))}
+        className="w-full"
+      >
         <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex sm:inline-flex bg-muted/50 border-2 border-[#0a0c10] p-1 h-auto gap-1">
           <TabsTrigger value="general" className="data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:border-2 data-[state=active]:border-[#0a0c10] border-2 border-transparent font-bold tracking-wide py-2">
             General
