@@ -1,0 +1,36 @@
+Apply the following diff to the TrailTribe frontend (artifacts/trailtribe). This adds native lazy-loading to all three <img> tags in admin.tsx (trailhead photos) — a small, safe, zero-risk performance improvement.
+
+Context/notes for the agent:
+- loading="lazy" is a standard HTML attribute, no dependency or config change needed.
+- Verified: esbuild syntax check passes cleanly on the edited file. Full tsc typecheck is currently blocked repo-wide by the known, pre-existing lib/api-zod TS2308 export collision (unrelated to this change, already flagged separately).
+- No behavior change for images already in the viewport when the page loads — the browser only defers offscreen images, so this is safe to apply with no visual difference.
+- The middle image (trailhead list-card photo) is the main beneficiary since it renders once per trailhead in a scrollable admin list; the other two are photo previews inside an open edit/create form and load immediately regardless, but adding the attribute there too is harmless and keeps the three instances consistent.
+
+--- a/artifacts/trailtribe/src/pages/admin.tsx
++++ b/artifacts/trailtribe/src/pages/admin.tsx
+@@ -2538,6 +2538,7 @@
+                             src={editPhotoPreview ?? trailheadPhotoUrl(editingTrailheadData.photoObjectPath)}
+                             alt="Trailhead"
+                             className="w-full h-full object-cover"
++                            loading="lazy"
+                           />
+                         ) : (
+                           <Mountain className="h-10 w-10 text-muted-foreground/30" />
+@@ -2634,6 +2635,7 @@
+                             src={trailheadPhotoUrl(th.photoObjectPath)}
+                             alt={th.name}
+                             className="w-full h-full object-cover"
++                            loading="lazy"
+                           />
+                         ) : (th.address || th.googleMapsUrl) ? (
+                           <iframe
+@@ -2726,6 +2728,7 @@
+                       src={newPhotoPreview ?? trailheadPhotoUrl(newTrailhead.photoObjectPath)}
+                       alt="Preview"
+                       className="w-full h-full object-cover"
++                      loading="lazy"
+                     />
+                   ) : (
+                     <Mountain className="h-10 w-10 text-muted-foreground/30" />
+
+After applying, no test run needed for a change this small — just confirm the trailhead admin page still renders and loads photos normally.
