@@ -9,6 +9,23 @@ import { randomUUID } from "crypto";
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
+type CalendarFeedEvent = {
+  iCalUid: string;
+  startTime: Date;
+  endTime: Date | null;
+  updatedAt: Date;
+  title: string;
+  eventType: string;
+  description: string | null;
+  trailheadId: number | null;
+  locationOverride: string | null;
+};
+
+type CalendarFeedTrailhead = {
+  name: string;
+  address: string | null;
+};
+
 function fmtICalDate(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
@@ -32,6 +49,70 @@ function foldICalLine(line: string): string {
     start = end;
   }
   return chunks.join("\r\n");
+}
+
+export function buildTeamCalendarIcs(
+  events: CalendarFeedEvent[],
+  trailheads: Record<number, CalendarFeedTrailhead>,
+  generatedAt = new Date(),
+): string {
+  const dtstamp = fmtICalDate(generatedAt);
+
+  const vevents = events.map(event => {
+    // UTC timestamps include a trailing Z, which describes one unambiguous
+    // instant. Do not set X-WR-TIMEZONE:UTC on the calendar: Apple Calendar
+    // treats it as a display-zone preference and can show local PM events as
+    // their UTC morning times.
+    const dtstart = fmtICalDate(new Date(event.startTime));
+    const dtend = event.endTime
+      ? fmtICalDate(new Date(event.endTime))
+      : fmtICalDate(new Date(new Date(event.startTime).getTime() + 3600000));
+
+    const trailhead = event.trailheadId ? trailheads[event.trailheadId] : null;
+    const locationParts: string[] = [];
+    if (trailhead) {
+      locationParts.push(trailhead.name);
+      if (trailhead.address) locationParts.push(trailhead.address);
+    } else if (event.locationOverride) {
+      locationParts.push(event.locationOverride);
+    }
+    const location = locationParts.join(", ");
+
+    const descParts: string[] = [
+      `Type: ${event.eventType}`,
+    ];
+    if (event.description) descParts.push(event.description);
+
+    const lines = [
+      "BEGIN:VEVENT",
+      foldICalLine(`UID:${event.iCalUid}@trailtribe`),
+      foldICalLine(`DTSTAMP:${dtstamp}`),
+      foldICalLine(`DTSTART:${dtstart}`),
+      foldICalLine(`DTEND:${dtend}`),
+      foldICalLine(`LAST-MODIFIED:${fmtICalDate(new Date(event.updatedAt))}`),
+      foldICalLine(`SUMMARY:${escapeICalText(event.title)}`),
+      foldICalLine(`DESCRIPTION:${escapeICalText(descParts.join("\\n"))}`),
+    ];
+
+    if (location) {
+      lines.push(foldICalLine(`LOCATION:${escapeICalText(location)}`));
+    }
+
+    lines.push("END:VEVENT");
+    return lines.join("\r\n");
+  });
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//TrailTribe//Team Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:TrailTribe Team Calendar",
+    "X-WR-CALDESC:Your mountain bike team schedule",
+    ...vevents,
+    "END:VCALENDAR",
+  ].join("\r\n");
 }
 
 router.get("/calendar/subscribe-url", requireAuth, async (req, res) => {
@@ -100,62 +181,7 @@ router.get("/calendar/:token/team.ics", publicLookupLimiter, async (req, res) =>
     rows.forEach(t => { trailheads[t.id] = t; });
   }
 
-  const dtstamp = fmtICalDate(new Date());
-
-  const vevents = events.map(event => {
-    const dtstart = fmtICalDate(new Date(event.startTime));
-    const dtend = event.endTime
-      ? fmtICalDate(new Date(event.endTime))
-      : fmtICalDate(new Date(new Date(event.startTime).getTime() + 3600000));
-
-    const trailhead = event.trailheadId ? trailheads[event.trailheadId] : null;
-    const locationParts: string[] = [];
-    if (trailhead) {
-      locationParts.push(trailhead.name);
-      if (trailhead.address) locationParts.push(trailhead.address);
-    } else if (event.locationOverride) {
-      locationParts.push(event.locationOverride);
-    }
-    const location = locationParts.join(", ");
-
-    const descParts: string[] = [
-      `Type: ${event.eventType}`,
-    ];
-    if (event.description) descParts.push(event.description);
-
-    const lines = [
-      "BEGIN:VEVENT",
-      foldICalLine(`UID:${event.iCalUid}@trailtribe`),
-      foldICalLine(`DTSTAMP:${dtstamp}`),
-      foldICalLine(`DTSTART:${dtstart}`),
-      foldICalLine(`DTEND:${dtend}`),
-      foldICalLine(`LAST-MODIFIED:${fmtICalDate(new Date(event.updatedAt))}`),
-      foldICalLine(`SUMMARY:${escapeICalText(event.title)}`),
-      foldICalLine(`DESCRIPTION:${escapeICalText(descParts.join("\\n"))}`),
-    ];
-
-    if (location) {
-      lines.push(foldICalLine(`LOCATION:${escapeICalText(location)}`));
-    }
-
-    lines.push("END:VEVENT");
-    return lines.join("\r\n");
-  });
-
-  const calLines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//TrailTribe//Team Calendar//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-    "X-WR-CALNAME:TrailTribe Team Calendar",
-    "X-WR-CALDESC:Your mountain bike team schedule",
-    "X-WR-TIMEZONE:UTC",
-    ...vevents,
-    "END:VCALENDAR",
-  ];
-
-  const body = calLines.join("\r\n");
+  const body = buildTeamCalendarIcs(events, trailheads);
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", 'attachment; filename="trailtribe-team.ics"');
