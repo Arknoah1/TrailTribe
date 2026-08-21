@@ -9,7 +9,7 @@ import {
   documentConsentsTable,
 } from "@workspace/db";
 import { eq, and, ilike, or, isNull, desc } from "drizzle-orm";
-import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { hasStudentAccess, requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { notifyCoachesOfNewFamily, notifyCoachesOfReturningFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
@@ -471,7 +471,13 @@ router.post("/users/me/regenerate-calendar-token", requireAuth, async (req, res)
     where: eq(usersTable.clerkUserId, clerkUserId),
   });
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  if (!user.approved) { res.status(403).json({ error: "Account not yet approved" }); return; }
+  if (!user.approved && !hasStudentAccess(user)) {
+    res.status(403).json({ error: "Account not yet approved" });
+    return;
+  }
+  if (!user.approved && hasStudentAccess(user)) {
+    await db.update(usersTable).set({ approved: true }).where(eq(usersTable.id, user.id));
+  }
 
   const token = randomUUID();
   await db.update(usersTable).set({ calendarToken: token }).where(eq(usersTable.id, user.id));
@@ -521,6 +527,7 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
     lastName,
     phone: phone ?? null,
     role: role ?? "parent",
+    approved: (role ?? "parent") === "student" && householdId !== null,
     householdId,
     podId,
     email: `${clerkUserId}@pending.trailtribe.app`,

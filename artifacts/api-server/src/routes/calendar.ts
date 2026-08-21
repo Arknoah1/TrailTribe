@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, eventsTable, trailheadsTable } from "@workspace/db";
 import { eq, and, gte, asc, inArray } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { hasStudentAccess, requireAuth } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomUUID } from "crypto";
 
@@ -45,9 +45,13 @@ router.get("/calendar/subscribe-url", requireAuth, async (req, res) => {
     return;
   }
 
-  if (!user.approved) {
+  if (!user.approved && !hasStudentAccess(user)) {
     res.status(403).json({ error: "Account not yet approved" });
     return;
+  }
+  if (!user.approved && hasStudentAccess(user)) {
+    await db.update(usersTable).set({ approved: true }).where(eq(usersTable.id, user.id));
+    user = { ...user, approved: true };
   }
 
   if (!user.calendarToken) {

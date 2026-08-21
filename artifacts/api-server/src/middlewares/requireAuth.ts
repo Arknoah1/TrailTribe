@@ -4,6 +4,22 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+type ApprovalUser = {
+  role: string | null;
+  householdId: number | null;
+  approved: boolean;
+};
+
+/**
+ * Students are created by a household member, rather than self-onboarding.
+ * A household link is therefore the approval signal for student-safe routes.
+ * Do not broaden this to any user with a household: parents still require
+ * coach approval.
+ */
+export function hasStudentAccess(user: ApprovalUser): boolean {
+  return user.role === "student" && user.householdId != null;
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);
   const userId = auth?.userId;
@@ -71,9 +87,14 @@ export async function requireApproved(req: Request, res: Response, next: NextFun
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  if (!user.approved) {
+  if (!user.approved && !hasStudentAccess(user)) {
     res.status(403).json({ error: "Forbidden: your account is pending coach approval" });
     return;
+  }
+  // Repair linked student rows created before student approval was persisted.
+  // This is intentionally limited to student rows with a household link.
+  if (!user.approved && hasStudentAccess(user)) {
+    await db.update(usersTable).set({ approved: true }).where(eq(usersTable.id, user.id));
   }
   next();
 }

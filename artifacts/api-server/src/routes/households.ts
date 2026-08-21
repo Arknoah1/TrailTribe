@@ -519,6 +519,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
     firstName,
     lastName,
     role: "student",
+    approved: true,
     podId: household.podId ?? null,
     email: (email && email.trim()) ? email.trim() : `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
     emailNotifications: emailNotifications ?? false,
