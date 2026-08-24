@@ -17,7 +17,8 @@ const [profile, carpools, dashboard, calendar, eventDetail] = await Promise.all(
 
 test("students retain profile access without household-management controls", () => {
   assert.match(profile, /const isStudent = user\?\.role === "student"/);
-  assert.match(profile, /<MyFamilyTab householdId=\{user\.householdId\} currentUserId=\{user\.id\} readOnly=\{isStudent\}/);
+  assert.match(profile, /<MyFamilyTab[\s\S]*?householdId=\{user\.householdId\}[\s\S]*?currentUserId=\{user\.id\}[\s\S]*?readOnly=\{isStudent\}/);
+  assert.match(profile, /canInviteCoParent=\{user\.role === "parent" \|\| user\.role === "coach"\}/);
   assert.match(profile, /Family information is view-only/);
   assert.match(profile, /disabled=\{readOnly\}/);
   assert.match(profile, /!readOnly && \(\s*<Dialog open=\{riderDialogOpen/);

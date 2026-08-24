@@ -200,8 +200,11 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
 
   const householdId = params.data.id;
   const requester = await getRequester(req);
-  if (!requester || requester.role !== "parent" || requester.householdId !== householdId) {
-    res.status(403).json({ error: "Only a parent in this household can send a co-parent invitation." });
+  const canInviteCoParent = requester
+    && requester.householdId === householdId
+    && (requester.role === "parent" || requester.role === "coach");
+  if (!canInviteCoParent) {
+    res.status(403).json({ error: "Only a parent or coach in this household can send a co-parent invitation." });
     return;
   }
 

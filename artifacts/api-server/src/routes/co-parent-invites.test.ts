@@ -144,13 +144,30 @@ describe("POST /households/:id/co-parent-invites", () => {
     expect(state.emails).toEqual([]);
   });
 
-  it("allows only a parent in the requested household", async () => {
-    state.requester = { id: 8, role: "student", householdId: 42 };
+  it.each([
+    ["a student in the household", { id: 8, role: "student", householdId: 42 }],
+    ["a coach from a different household", { id: 9, role: "coach", householdId: 99 }],
+    ["an admin in the household", { id: 10, role: "admin", householdId: 42 }],
+  ])("rejects %s", async (_description, requester) => {
+    state.requester = requester;
     const response = await send({ email: "coparent@example.com" });
 
     expect(response.status).toBe(403);
     expect(state.inserts).toEqual([]);
     expect(state.emails).toEqual([]);
+  });
+
+  it("allows a coach in the requested household to invite a co-parent", async () => {
+    state.requester = {
+      id: 8, role: "coach", householdId: 42, clerkUserId: "coach_parent_clerk", firstName: "Katharine", lastName: "Bill",
+    };
+
+    const response = await send({ email: "coparent@example.com" });
+
+    expect(response.status).toBe(201);
+    expect(state.inserts).toHaveLength(1);
+    expect(state.inserts[0]).toMatchObject({ householdId: 42, invitedByUserId: 8 });
+    expect(state.emails).toHaveLength(1);
   });
 
   it("creates a household-bound invite and emails its private link", async () => {

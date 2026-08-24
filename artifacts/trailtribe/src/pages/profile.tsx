@@ -920,9 +920,10 @@ function VolunteerCommitmentsTab({ isStudent = false }: { isStudent?: boolean })
   );
 }
 
-function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
+function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly = false }: {
   householdId: number;
   currentUserId: number;
+  canInviteCoParent: boolean;
   readOnly?: boolean;
 }) {
   const { toast } = useToast();
@@ -1260,11 +1261,15 @@ function MyFamilyTab({ householdId, currentUserId, readOnly = false }: {
                   <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
                   <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
                 </div>
-                {!readOnly && (
+                {canInviteCoParent ? (
                   <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
                     <Plus className="h-4 w-4 mr-1.5" /> Add Parent
                   </Button>
-                )}
+                ) : !readOnly ? (
+                  <p className="max-w-40 text-right text-xs text-muted-foreground">
+                    Only a parent or coach in this household can invite a co-parent.
+                  </p>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-2">
                 {adults.length === 0 ? (
@@ -1809,7 +1814,12 @@ export default function Profile() {
         {/* My Family tab */}
         <TabsContent value="family" className="mt-6">
           {user?.householdId ? (
-            <MyFamilyTab householdId={user.householdId} currentUserId={user.id} readOnly={isStudent} />
+            <MyFamilyTab
+              householdId={user.householdId}
+              currentUserId={user.id}
+              canInviteCoParent={user.role === "parent" || user.role === "coach"}
+              readOnly={isStudent}
+            />
           ) : (
             isStudent ? (
               <Card className="border-dashed">
