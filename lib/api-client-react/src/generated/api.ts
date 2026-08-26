@@ -77,6 +77,7 @@ import type {
   MatchCarpoolRequestBody,
   MyVolunteerSignup,
   OnboardUserBody,
+  OnboardingVolunteerOpportunity,
   Pod,
   PodWithMembers,
   PodWithStats,
@@ -3035,6 +3036,88 @@ export const useSetEventVolunteerTasksEnabled = <
 > => {
   return useMutation(getSetEventVolunteerTasksEnabledMutationOptions(options));
 };
+
+/**
+ * @summary List privacy-safe upcoming volunteer opportunities during onboarding
+ */
+export const getListOnboardingVolunteerOpportunitiesUrl = () => {
+  return `/api/onboarding/volunteer-opportunities`;
+};
+
+export const listOnboardingVolunteerOpportunities = async (
+  options?: RequestInit,
+): Promise<OnboardingVolunteerOpportunity[]> => {
+  return customFetch<OnboardingVolunteerOpportunity[]>(
+    getListOnboardingVolunteerOpportunitiesUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListOnboardingVolunteerOpportunitiesQueryKey = () => {
+  return [`/api/onboarding/volunteer-opportunities`] as const;
+};
+
+export const getListOnboardingVolunteerOpportunitiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListOnboardingVolunteerOpportunitiesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>
+  > = ({ signal }) =>
+    listOnboardingVolunteerOpportunities({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListOnboardingVolunteerOpportunitiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>
+>;
+export type ListOnboardingVolunteerOpportunitiesQueryError =
+  ErrorType<ErrorResponse>;
+
+/**
+ * @summary List privacy-safe upcoming volunteer opportunities during onboarding
+ */
+
+export function useListOnboardingVolunteerOpportunities<
+  TData = Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listOnboardingVolunteerOpportunities>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions =
+    getListOnboardingVolunteerOpportunitiesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getListEventTasksUrl = (id: number) => {
   return `/api/events/${id}/tasks`;

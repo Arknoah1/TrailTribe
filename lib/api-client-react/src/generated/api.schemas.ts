@@ -494,6 +494,23 @@ export type EventTaskWithSignups = EventTask & {
   mySignup?: EventTaskSignup | null;
 };
 
+export interface OnboardingVolunteerTask {
+  id: number;
+  category: string;
+  title: string;
+  description?: string | null;
+  slotsNeeded: number;
+  signupCount: number;
+  mySignup: boolean;
+}
+
+export interface OnboardingVolunteerOpportunity {
+  id: number;
+  title: string;
+  startTime: string;
+  tasks: OnboardingVolunteerTask[];
+}
+
 export interface CarpoolOffer {
   id: number;
   eventId: number;

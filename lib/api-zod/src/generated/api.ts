@@ -1339,6 +1339,29 @@ export const SetEventVolunteerTasksEnabledBody = zod.object({
   enabled: zod.boolean(),
 });
 
+/**
+ * @summary List privacy-safe upcoming volunteer opportunities during onboarding
+ */
+export const ListOnboardingVolunteerOpportunitiesResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  startTime: zod.coerce.date(),
+  tasks: zod.array(
+    zod.object({
+      id: zod.number(),
+      category: zod.string(),
+      title: zod.string(),
+      description: zod.string().nullish(),
+      slotsNeeded: zod.number(),
+      signupCount: zod.number(),
+      mySignup: zod.boolean(),
+    }),
+  ),
+});
+export const ListOnboardingVolunteerOpportunitiesResponse = zod.array(
+  ListOnboardingVolunteerOpportunitiesResponseItem,
+);
+
 export const ListEventTasksParams = zod.object({
   id: zod.coerce.number(),
 });

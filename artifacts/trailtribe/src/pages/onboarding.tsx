@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  useGetMe,
+  getGetMeQueryKey,
+  useListOnboardingVolunteerOpportunities,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +17,7 @@ import {
   ArrowRight, Plus, X, ChevronRight, Clock, ClipboardCheck,
 } from "lucide-react";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
+import { VolunteerSignupChoices, type VolunteerEvent } from "./volunteer";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -23,6 +28,7 @@ const STEPS = [
   { label: "Your family", Icon: Home },
   { label: "Your riders", Icon: Bike },
   { label: "Documents", Icon: ClipboardCheck },
+  { label: "Volunteer", Icon: Users },
 ];
 
 function ProgressBar({ step }: { step: number }) {
@@ -647,6 +653,66 @@ function StepCompliance({ householdId, onNext }: { householdId: number; onNext: 
   );
 }
 
+// ─── Step 5: Optional volunteer opportunities ─────────────────────────────────
+
+function StepVolunteer({ onNext }: { onNext: () => void }) {
+  const {
+    data: opportunities,
+    isLoading,
+    isError,
+    refetch,
+  } = useListOnboardingVolunteerOpportunities();
+  const events = (opportunities ?? []) as VolunteerEvent[];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-3xl tracking-widest text-foreground leading-none">Pitch in, if you can</h2>
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+            Optional
+          </span>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Every family can help, whether or not you’re racing. Choose a role at an event you expect to attend, or skip this for now.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="flex min-h-32 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground" role="status">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Loading volunteer opportunities…
+        </div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/60 bg-destructive/10 p-4" role="alert">
+          <p className="text-sm font-semibold">Couldn’t load volunteer opportunities</p>
+          <p className="mt-1 text-sm text-muted-foreground">You can finish onboarding now and check back later, or try again.</p>
+          <Button className="mt-3" variant="outline" size="sm" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="rounded-xl border border-dashed p-5 text-center text-muted-foreground">
+          <ClipboardCheck className="mx-auto mb-2 h-8 w-8 text-primary opacity-60" />
+          <p className="text-sm font-semibold">No volunteer opportunities yet</p>
+          <p className="mt-1 text-sm">Your coach will add openings for upcoming events. You can visit Volunteer later to see them.</p>
+        </div>
+      ) : (
+        <VolunteerSignupChoices events={events} onSignupSuccess={() => void refetch()} />
+      )}
+
+      <div className="flex flex-col-reverse gap-3 sm:flex-row">
+        <Button variant="outline" className="flex-1" onClick={onNext}>
+          Skip for now
+        </Button>
+        <Button className="flex-1" size="lg" onClick={onNext}>
+          Continue to finish <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading household ID after creation ──────────────────────────────────────
 // After creating or joining, poll /me until householdId is populated.
 
@@ -699,7 +765,7 @@ export default function Onboarding() {
       {/* Wizard body */}
       <div className="flex-1 flex items-start justify-center p-6 pt-10">
         <div className="w-full max-w-lg">
-          {step < 4 && <ProgressBar step={step} />}
+          {step < 5 && <ProgressBar step={step} />}
 
           <div className="rounded-2xl border-2 border-[#0a0c10] bg-card p-6 shadow-cel">
             {step === 0 && (
@@ -733,6 +799,10 @@ export default function Onboarding() {
             )}
 
             {step === 4 && (
+              <StepVolunteer onNext={() => setStep(5)} />
+            )}
+
+            {step === 5 && (
               <StepDone
                 approved={autoApproved}
                 onGo={() => setLocation("/dashboard")}
@@ -740,9 +810,9 @@ export default function Onboarding() {
             )}
           </div>
 
-          {step < 4 && (
+          {step < 5 && (
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Step {step + 1} of 4 — you can finish this later from your Profile
+              Step {step + 1} of 5 — you can finish this later from your Profile
             </p>
           )}
         </div>

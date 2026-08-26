@@ -3,13 +3,14 @@ export type VolunteerTaskState = "available" | "claimed" | "full";
 export type VolunteerTaskStatusInput = {
   mySignup?: unknown;
   signups?: unknown[];
+  signupCount?: number;
   slotsNeeded?: number;
 };
 
 export function getVolunteerTaskState(task: VolunteerTaskStatusInput): VolunteerTaskState {
   if (task.mySignup) return "claimed";
 
-  const filled = task.signups?.length ?? 0;
+  const filled = task.signupCount ?? task.signups?.length ?? 0;
   return filled >= (task.slotsNeeded ?? 0) ? "full" : "available";
 }
 

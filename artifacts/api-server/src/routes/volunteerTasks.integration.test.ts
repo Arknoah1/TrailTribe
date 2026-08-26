@@ -8,12 +8,17 @@ import {
   eventTaskSignupsTable,
   eventTasksTable,
   eventsTable,
+  householdsTable,
   notificationsTable,
   usersTable,
 } from "@workspace/db";
 
 vi.mock("../middlewares/requireAuth", () => ({
   requireAuth: (req: any, _res: any, next: any) => {
+    req.clerkUserId = req.header("x-test-clerk-user-id");
+    next();
+  },
+  requireApproved: (req: any, _res: any, next: any) => {
     req.clerkUserId = req.header("x-test-clerk-user-id");
     next();
   },
@@ -27,6 +32,8 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
   let eventId: number;
   let taskId: number;
   let bulkTaskId: number;
+  let onboardingClerkUserId: string;
+  let householdId: number;
   let userIds: number[] = [];
 
   beforeAll(async () => {
@@ -62,6 +69,22 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
     const secondUser = secondUsers[0];
 
     userIds = [existingUser.id, firstUser.id, secondUser.id];
+    const [household] = await db.insert(householdsTable).values({
+      name: "Onboarding test family",
+      inviteCode: `onboarding-family-${process.pid}-${Date.now()}`,
+    }).returning();
+    householdId = household.id;
+    onboardingClerkUserId = `onboarding-volunteer-${process.pid}-${Date.now()}`;
+    const [onboardingUser] = await db.insert(usersTable).values({
+      firstName: "Onboarding",
+      lastName: "Volunteer",
+      email: `${onboardingClerkUserId}@example.test`,
+      clerkUserId: onboardingClerkUserId,
+      householdId,
+      approved: false,
+    }).returning();
+    userIds.push(onboardingUser.id);
+
     const [event] = await db.insert(eventsTable).values({
       title: "Concurrent volunteer signup test",
       eventType: "volunteer",
@@ -119,6 +142,9 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
           ? eq(usersTable.id, userIds[0])
           : and(...userIds.map((id) => eq(usersTable.id, id))),
       );
+    }
+    if (householdId) {
+      await db.delete(householdsTable).where(eq(householdsTable.id, householdId));
     }
     if (server) {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -193,5 +219,29 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
       .where(eq(eventTaskSignupsTable.eventTaskId, bulkTaskId));
     expect(Number(signupCount)).toBeLessThanOrEqual(2);
     expect(Number(signupCount)).toBe(2);
+  });
+
+  it("gives pending households a volunteer view without other volunteers' details", async () => {
+    const response = await fetch(`${baseUrl}/onboarding/volunteer-opportunities`, {
+      headers: { "x-test-clerk-user-id": onboardingClerkUserId },
+    });
+
+    expect(response.status).toBe(200);
+    const opportunities = await response.json();
+    const opportunity = opportunities.find((item: any) => item.id === eventId);
+    const task = opportunity.tasks.find((item: any) => item.id === taskId);
+
+    expect(opportunity).toMatchObject({
+      id: eventId,
+      title: "Concurrent volunteer signup test",
+    });
+    expect(task).toMatchObject({
+      id: taskId,
+      title: "Final slot",
+      mySignup: false,
+    });
+    expect(task.signupCount).toBeGreaterThan(0);
+    expect(task).not.toHaveProperty("signups");
+    expect(JSON.stringify(task)).not.toContain("Existing Volunteer");
   });
 });

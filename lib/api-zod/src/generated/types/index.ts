@@ -94,6 +94,8 @@ export * from "./listUsersParams";
 export * from "./listUsersRole";
 export * from "./matchCarpoolRequestBody";
 export * from "./myVolunteerSignup";
+export * from "./onboardingVolunteerOpportunity";
+export * from "./onboardingVolunteerTask";
 export * from "./onboardUserBody";
 export * from "./onboardUserBodyRole";
 export * from "./pod";

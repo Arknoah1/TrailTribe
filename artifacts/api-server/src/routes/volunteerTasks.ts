@@ -10,8 +10,8 @@ import {
   usersTable,
   notificationsTable,
 } from "@workspace/db";
-import { eq, and, inArray, count } from "drizzle-orm";
-import { requireAuth, requireAdmin, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { eq, and, inArray, count, gte } from "drizzle-orm";
+import { requireAuth, requireApproved, requireAdmin, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -79,6 +79,83 @@ router.patch("/events/:id/volunteer-tasks-enabled", requireCoachOrAdmin, async (
   res.json({ ok: true });
 });
 
+// ─── ONBOARDING OPPORTUNITIES ──────────────────────────────────────────────────
+// Pending households may need to volunteer before their coach approves them. This
+// deliberately returns only the event and task data needed to choose a role—not
+// protected event details or other volunteers' identities.
+router.get("/onboarding/volunteer-opportunities", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+  if (!me?.householdId) {
+    res.status(403).json({ error: "Finish family setup before viewing volunteer opportunities" });
+    return;
+  }
+
+  const events = await db
+    .select({
+      id: eventsTable.id,
+      title: eventsTable.title,
+      startTime: eventsTable.startTime,
+    })
+    .from(eventsTable)
+    .where(and(
+      eq(eventsTable.volunteerTasksEnabled, true),
+      eq(eventsTable.isArchived, false),
+      gte(eventsTable.startTime, new Date()),
+    ))
+    .orderBy(eventsTable.startTime);
+
+  if (events.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const eventIds = events.map((event) => event.id);
+  const tasks = await db
+    .select()
+    .from(eventTasksTable)
+    .where(inArray(eventTasksTable.eventId, eventIds))
+    .orderBy(eventTasksTable.sortOrder, eventTasksTable.category, eventTasksTable.title);
+
+  if (tasks.length === 0) {
+    res.json(events.map((event) => ({ ...event, tasks: [] })));
+    return;
+  }
+
+  const taskIds = tasks.map((task) => task.id);
+  const [signupCounts, mySignups] = await Promise.all([
+    db
+      .select({ eventTaskId: eventTaskSignupsTable.eventTaskId, signupCount: count() })
+      .from(eventTaskSignupsTable)
+      .where(inArray(eventTaskSignupsTable.eventTaskId, taskIds))
+      .groupBy(eventTaskSignupsTable.eventTaskId),
+    db
+      .select({ eventTaskId: eventTaskSignupsTable.eventTaskId })
+      .from(eventTaskSignupsTable)
+      .where(and(
+        inArray(eventTaskSignupsTable.eventTaskId, taskIds),
+        eq(eventTaskSignupsTable.userId, me.id),
+      )),
+  ]);
+  const signupCountByTaskId = new Map(signupCounts.map((row) => [row.eventTaskId, Number(row.signupCount)]));
+  const myTaskIds = new Set(mySignups.map((signup) => signup.eventTaskId));
+
+  res.json(events.map((event) => ({
+    ...event,
+    tasks: tasks
+      .filter((task) => task.eventId === event.id)
+      .map((task) => ({
+        id: task.id,
+        category: task.category,
+        title: task.title,
+        description: task.description,
+        slotsNeeded: task.slotsNeeded,
+        signupCount: signupCountByTaskId.get(task.id) ?? 0,
+        mySignup: myTaskIds.has(task.id),
+      })),
+  })));
+});
+
 // ─── EVENT TASKS ──────────────────────────────────────────────────────────────
 
 async function buildTaskWithSignups(task: typeof eventTasksTable.$inferSelect, clerkUserId?: string) {
@@ -105,7 +182,7 @@ async function buildTaskWithSignups(task: typeof eventTasksTable.$inferSelect, c
   return { ...task, signups: signupsWithUsers, mySignup };
 }
 
-router.get("/events/:id/tasks", requireAuth, async (req, res) => {
+router.get("/events/:id/tasks", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const tasks = await db

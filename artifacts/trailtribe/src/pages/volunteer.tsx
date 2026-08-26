@@ -24,11 +24,12 @@ import {
   type VolunteerTaskState,
 } from "@/lib/volunteer-task-status";
 
-type VolunteerEvent = {
+export type VolunteerEvent = {
   id: number;
   title: string;
   startTime: string;
   volunteerTasksEnabled?: boolean;
+  tasks?: any[];
 };
 
 function EventTaskLoader({
@@ -49,7 +50,13 @@ function EventTaskLoader({
   return null;
 }
 
-function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
+export function CrossEventSignupPanel({
+  events,
+  onSignupSuccess,
+}: {
+  events: VolunteerEvent[];
+  onSignupSuccess?: () => void;
+}) {
   const [attendedIds, setAttendedIds] = useState<Set<number>>(new Set());
   const [tasksByEvent, setTasksByEvent] = useState<Map<number, any[]>>(new Map());
   const bulkSignup = useBulkSignupForEventTasks();
@@ -89,10 +96,10 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
       }[]
     >();
     for (const eventId of attendedIds) {
-      const tasks = tasksByEvent.get(eventId) ?? [];
       const event = events.find((candidate) => candidate.id === eventId);
+      const tasks = event?.tasks ?? tasksByEvent.get(eventId) ?? [];
       for (const task of tasks) {
-        const filled = task.signups?.length ?? 0;
+        const filled = task.signupCount ?? task.signups?.length ?? 0;
         const state = getVolunteerTaskState(task);
         if (!groups.has(task.title)) groups.set(task.title, []);
         groups.get(task.title)!.push({
@@ -109,7 +116,10 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
   }, [attendedIds, events, tasksByEvent]);
 
   const selectedEventIds = [...attendedIds];
-  const isLoadingSelectedTasks = selectedEventIds.some((eventId) => !tasksByEvent.has(eventId));
+  const isLoadingSelectedTasks = selectedEventIds.some((eventId) => {
+    const event = events.find((candidate) => candidate.id === eventId);
+    return event?.tasks === undefined && !tasksByEvent.has(eventId);
+  });
 
   const applyTask = async (
     title: string,
@@ -130,6 +140,7 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
     });
 
     if (added > 0) {
+      onSignupSuccess?.();
       toast({
         title: `Signed up for "${title}" at ${added} event${added === 1 ? "" : "s"}`,
         description: skipped > 0 ? `${skipped} task${skipped === 1 ? " was" : "s were"} already filled or claimed.` : undefined,
@@ -198,9 +209,12 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
           </div>
         </fieldset>
 
-        {selectedEventIds.map((eventId) => (
-          <EventTaskLoader key={eventId} eventId={eventId} onLoad={handleTasksLoaded} />
-        ))}
+        {selectedEventIds.map((eventId) => {
+          const event = events.find((candidate) => candidate.id === eventId);
+          return event?.tasks === undefined
+            ? <EventTaskLoader key={eventId} eventId={eventId} onLoad={handleTasksLoaded} />
+            : null;
+        })}
 
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {selectionHint}
@@ -290,16 +304,27 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
   );
 }
 
-function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
-  const { data: tasks, isLoading, isError, refetch } = useListEventTasks(event.id, {
-    query: { enabled: true, queryKey: getListEventTasksQueryKey(event.id) },
+export function VolunteerOpportunityCard({
+  event,
+  onSignupSuccess,
+}: {
+  event: VolunteerEvent;
+  onSignupSuccess?: () => void;
+}) {
+  const {
+    data: fetchedTasks,
+    isLoading: isLoadingTasks,
+    isError: isTasksError,
+    refetch,
+  } = useListEventTasks(event.id, {
+    query: { enabled: event.tasks === undefined, queryKey: getListEventTasksQueryKey(event.id) },
   });
   const bulkSignup = useBulkSignupForEventTasks();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const allTasks = tasks ?? [];
+  const allTasks = event.tasks ?? fetchedTasks ?? [];
   const availableTasks = allTasks.filter((task: any) => getVolunteerTaskState(task) === "available");
 
   const toggle = (id: number) => {
@@ -324,6 +349,7 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
           setSelected(new Set());
           queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(event.id) });
           if (added > 0) {
+            onSignupSuccess?.();
             toast({
               title: `Signed up for ${added} task${added === 1 ? "" : "s"} at ${event.title}`,
               description: skipped > 0 ? `${skipped} selected task${skipped === 1 ? " was" : "s were"} no longer available.` : undefined,
@@ -345,7 +371,7 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
     );
   };
 
-  if (isLoading) {
+  if (event.tasks === undefined && isLoadingTasks) {
     return (
       <Card>
         <CardContent className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -355,7 +381,7 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
     );
   }
 
-  if (isError) {
+  if (event.tasks === undefined && isTasksError) {
     return (
       <Card className="border-destructive/60 bg-destructive/10">
         <CardContent className="flex min-h-28 flex-col items-start justify-center gap-3 p-4 sm:flex-row sm:items-center">
@@ -390,7 +416,7 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
             {allTasks.map((task: any) => {
               const inputId = `volunteer-task-${event.id}-${task.id}`;
               const state = getVolunteerTaskState(task);
-              const filled = task.signups?.length ?? 0;
+              const filled = task.signupCount ?? task.signups?.length ?? 0;
               const statusLabel = getVolunteerTaskStateLabel(state);
               const isAvailable = state === "available";
               const isSelected = isAvailable && selected.has(task.id);
@@ -466,6 +492,37 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export function VolunteerSignupChoices({
+  events,
+  onSignupSuccess,
+  showMultipleEvents = true,
+}: {
+  events: VolunteerEvent[];
+  onSignupSuccess?: () => void;
+  showMultipleEvents?: boolean;
+}) {
+  return (
+    <div className="space-y-8">
+      {showMultipleEvents && (
+        <CrossEventSignupPanel events={events} onSignupSuccess={onSignupSuccess} />
+      )}
+      {events.length > 0 && (
+        <section className="space-y-4" aria-labelledby="opportunities-heading">
+          <div>
+            <h2 id="opportunities-heading" className="text-xl font-bold">Volunteer Opportunities</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Choose one or more open tasks for a specific event.
+            </p>
+          </div>
+          {events.map((event) => (
+            <VolunteerOpportunityCard key={event.id} event={event} onSignupSuccess={onSignupSuccess} />
+          ))}
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -696,19 +753,7 @@ export default function Volunteer() {
         <div className="space-y-8">
           <CrossEventSignupPanel events={upcomingVolunteerEvents} />
           <Commitments signups={signups ?? []} />
-          {upcomingVolunteerEvents.length > 0 && (
-            <section className="space-y-4" aria-labelledby="opportunities-heading">
-              <div>
-                <h2 id="opportunities-heading" className="text-xl font-bold">Volunteer Opportunities</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Choose one or more open tasks for a specific event.
-                </p>
-              </div>
-              {upcomingVolunteerEvents.map((event) => (
-                <VolunteerOpportunityCard key={event.id} event={event} />
-              ))}
-            </section>
-          )}
+          <VolunteerSignupChoices events={upcomingVolunteerEvents} showMultipleEvents={false} />
         </div>
       )}
     </div>

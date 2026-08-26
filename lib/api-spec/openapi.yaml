@@ -802,6 +802,27 @@ paths:
         "200":
           description: Updated
 
+  /onboarding/volunteer-opportunities:
+    get:
+      operationId: listOnboardingVolunteerOpportunities
+      tags: [events]
+      summary: List privacy-safe upcoming volunteer opportunities during onboarding
+      responses:
+        "200":
+          description: Upcoming volunteer events and available task details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OnboardingVolunteerOpportunity"
+        "403":
+          description: Household setup is required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /events/{id}/tasks:
     get:
       operationId: listEventTasks
@@ -2910,6 +2931,42 @@ components:
               $ref: "#/components/schemas/EventTaskSignup"
               nullable: true
           required: [signups]
+
+    OnboardingVolunteerTask:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        slotsNeeded:
+          type: integer
+        signupCount:
+          type: integer
+        mySignup:
+          type: boolean
+      required: [id, category, title, slotsNeeded, signupCount, mySignup]
+
+    OnboardingVolunteerOpportunity:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OnboardingVolunteerTask"
+      required: [id, title, startTime, tasks]
 
     # ─── CARPOOL ──────────────────────────────────────────────────────────────
 
