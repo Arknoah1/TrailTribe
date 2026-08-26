@@ -1,8 +1,7 @@
 import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
-  useGetMyVolunteerSignups, useListEvents, useListEventTasks, useBulkSignupForEventTasks,
-  getListEventTasksQueryKey, useSendCoParentInvite,
+  useSendCoParentInvite,
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -20,7 +19,7 @@ import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearch } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
@@ -598,328 +597,6 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
 
 
 
-function EventTaskLoader({
-  eventId,
-  onLoad,
-}: {
-  eventId: number;
-  onLoad: (id: number, tasks: any[]) => void;
-}) {
-  const { data: tasks } = useListEventTasks(eventId, {
-    query: { enabled: true, queryKey: getListEventTasksQueryKey(eventId) },
-  });
-  useEffect(() => {
-    if (tasks) onLoad(eventId, tasks);
-  }, [eventId, tasks, onLoad]);
-  return null;
-}
-
-function CrossEventSignupPanel({ events }: { events: any[] }) {
-  const [attendedIds, setAttendedIds] = useState<Set<number>>(new Set());
-  const [tasksByEvent, setTasksByEvent] = useState<Map<number, any[]>>(new Map());
-  const bulkSignup = useBulkSignupForEventTasks();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const handleTasksLoaded = useCallback((eventId: number, tasks: any[]) => {
-    setTasksByEvent(prev => {
-      const next = new Map(prev);
-      next.set(eventId, tasks);
-      return next;
-    });
-  }, []);
-
-  const toggleAttended = (eventId: number) => {
-    setAttendedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(eventId)) next.delete(eventId); else next.add(eventId);
-      return next;
-    });
-  };
-
-  const taskGroups = useMemo(() => {
-    const map = new Map<string, { eventId: number; taskId: number; eventTitle: string }[]>();
-    for (const eventId of attendedIds) {
-      const tasks = tasksByEvent.get(eventId) ?? [];
-      const event = events.find((e: any) => e.id === eventId);
-      for (const task of tasks) {
-        if (task.mySignup) continue;
-        const filled = task.signups?.length ?? 0;
-        if (filled >= task.slotsNeeded) continue;
-        if (!map.has(task.title)) map.set(task.title, []);
-        map.get(task.title)!.push({ eventId, taskId: task.id, eventTitle: event?.title ?? "" });
-      }
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [attendedIds, tasksByEvent, events]);
-
-  const applyTask = (title: string, occurrences: { eventId: number; taskId: number }[]) => {
-    Promise.all(
-      occurrences.map(({ eventId, taskId }) =>
-        bulkSignup.mutateAsync({ id: eventId, data: { taskIds: [taskId] } }).catch(() => null)
-      )
-    ).then(() => {
-      const n = occurrences.length;
-      toast({ title: `Signed up for "${title}" at ${n} event${n !== 1 ? "s" : ""}` });
-      occurrences.forEach(({ eventId }) =>
-        queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(eventId) })
-      );
-    });
-  };
-
-  if (events.length < 2) return null;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Apply to Multiple Events</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Check the events you're attending, then sign up for recurring tasks across all of them at once.
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        {events.map((e: any) => (
-          <label key={e.id} className="flex items-center gap-2.5 cursor-pointer px-3 py-2 rounded border hover:bg-muted/30">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 accent-primary shrink-0"
-              checked={attendedIds.has(e.id)}
-              onChange={() => toggleAttended(e.id)}
-            />
-            <span className="text-sm flex-1">{e.title}</span>
-            <span className="text-xs text-muted-foreground">{format(new Date(e.startTime), "MMM d")}</span>
-          </label>
-        ))}
-      </div>
-
-      {[...attendedIds].map(id => (
-        <EventTaskLoader key={id} eventId={id} onLoad={handleTasksLoaded} />
-      ))}
-
-      {attendedIds.size > 0 && taskGroups.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Open tasks at your attended events
-          </h3>
-          {taskGroups.map(([title, occurrences]) => (
-            <div key={title} className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {occurrences.length === 1
-                    ? occurrences[0].eventTitle
-                    : `${occurrences.length} events`}
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant={occurrences.length > 1 ? "default" : "outline"}
-                onClick={() => applyTask(title, occurrences)}
-                disabled={bulkSignup.isPending}
-                className="shrink-0"
-              >
-                {occurrences.length > 1 ? `Sign up at all ${occurrences.length}` : "Sign up"}
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {attendedIds.size > 0 && taskGroups.length === 0 && [...attendedIds].every(id => tasksByEvent.has(id)) && (
-        <p className="text-sm text-muted-foreground text-center py-3">No open tasks at your selected events.</p>
-      )}
-    </div>
-  );
-}
-
-function VolunteerOpportunityCard({ event }: { event: { id: number; title: string; startTime: string } }) {
-  const { data: tasks } = useListEventTasks(event.id, {
-    query: { enabled: true, queryKey: getListEventTasksQueryKey(event.id) }
-  });
-  const bulkSignup = useBulkSignupForEventTasks();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-
-  const openTasks = (tasks ?? []).filter((t: any) => {
-    const filled = t.signups?.length ?? 0;
-    return !t.mySignup && filled < t.slotsNeeded;
-  });
-
-  if (openTasks.length === 0) return null;
-
-  const toggle = (id: number) => setSelected(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-
-  const handleApply = () => {
-    if (selected.size === 0) return;
-    bulkSignup.mutate(
-      { id: event.id, data: { taskIds: [...selected] } },
-      {
-        onSuccess: (result: any) => {
-          const added = result?.added ?? selected.size;
-          toast({ title: `Signed up for ${added} task${added !== 1 ? "s" : ""} at ${event.title}` });
-          setSelected(new Set());
-          queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(event.id) });
-        },
-        onError: () => toast({ title: "Sign-up failed", variant: "destructive" }),
-      }
-    );
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-sm font-semibold">{event.title}</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">{format(new Date(event.startTime), "EEE, MMM d")}</p>
-          </div>
-          <Badge variant="outline" className="text-xs shrink-0">{openTasks.length} open</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-1.5">
-        {openTasks.map((task: any) => (
-          <label key={task.id} className="flex items-center gap-2.5 cursor-pointer py-1 rounded hover:bg-muted/40 px-1 overflow-hidden">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 accent-primary shrink-0"
-              checked={selected.has(task.id)}
-              onChange={() => toggle(task.id)}
-            />
-            <span className="text-sm flex-1 min-w-0 truncate">{task.title}</span>
-            {task.category && <Badge variant="secondary" className="text-xs py-0 px-1.5 shrink-0 max-w-[45%] truncate">{task.category}</Badge>}
-          </label>
-        ))}
-        <Button
-          size="sm"
-          className="w-full mt-2"
-          onClick={handleApply}
-          disabled={selected.size === 0 || bulkSignup.isPending}
-        >
-          {bulkSignup.isPending ? "Signing up…" : `Sign Up${selected.size > 0 ? ` for ${selected.size}` : ""}`}
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function VolunteerCommitmentsTab({ isStudent = false }: { isStudent?: boolean }) {
-  const { data: signups, isLoading } = useGetMyVolunteerSignups();
-  const { data: allEvents } = useListEvents();
-  const now = new Date();
-
-  const upcoming = (signups ?? []).filter(s => {
-    const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
-    return eventStart && eventStart >= now;
-  });
-  const past = (signups ?? []).filter(s => {
-    const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
-    return eventStart && eventStart < now;
-  });
-
-  const signedUpEventIds = new Set((signups ?? []).map(s => s.event?.id).filter(Boolean));
-  const opportunities = (allEvents ?? []).filter((e: any) => {
-    if (!e.volunteerTasksEnabled) return false;
-    const start = new Date(e.startTime);
-    return start >= now && !signedUpEventIds.has(e.id);
-  }).slice(0, 8);
-
-  if (isLoading) {
-    return <div className="py-8 text-center text-muted-foreground text-sm">Loading commitments…</div>;
-  }
-
-  const renderGroup = (items: typeof signups, label: string) => {
-    if (!items || items.length === 0) return null;
-    return (
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</h3>
-        {items.map(s => {
-          const eventStart = s.event?.startTime ? new Date(s.event.startTime) : null;
-          return (
-            <Card key={s.id} className="overflow-hidden">
-              <CardContent className="p-4 flex items-start gap-3">
-                <ClipboardCheck className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0 overflow-hidden">
-                  <div className="font-medium text-sm truncate">{s.task?.title ?? "Unknown task"}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {s.event?.title ?? "Unknown event"}
-                    {eventStart && (
-                      <> · {format(eventStart, "EEE, MMM d")}</>
-                    )}
-                  </div>
-                  {s.task?.category && (
-                    <Badge variant="secondary" className="mt-1.5 text-xs py-0 px-1.5 max-w-full truncate inline-block">{s.task.category}</Badge>
-                  )}
-                </div>
-                {s.event?.id && (
-                  <a
-                    href={`/events/${s.event.id}`}
-                    className="text-xs text-primary hover:underline shrink-0 mt-0.5 font-medium"
-                  >
-                    View
-                  </a>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const hasContent = (signups ?? []).length > 0 || opportunities.length > 0;
-
-  if (!hasContent) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-12 text-center text-muted-foreground">
-          <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">
-            {isStudent ? "No volunteer opportunities yet" : "No volunteer activity yet"}
-          </p>
-          <p className="text-xs mt-1">
-            {isStudent
-              ? "Your coach can open tasks on an upcoming event. You can sign up from that event page."
-              : "Visit an event page to sign up for volunteer tasks."}
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {opportunities.length > 0 && (
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-lg font-semibold">Volunteer Opportunities</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Upcoming events with open tasks — select and sign up in one click.</p>
-          </div>
-          {opportunities.map((e: any) => (
-            <VolunteerOpportunityCard key={e.id} event={e} />
-          ))}
-        </div>
-      )}
-      <CrossEventSignupPanel events={opportunities} />
-      {(signups ?? []).length > 0 && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">My Commitments</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Events you've signed up to help at.</p>
-          </div>
-          {renderGroup(upcoming, `Upcoming (${upcoming.length})`)}
-          {renderGroup(past, `Past (${past.length})`)}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly = false }: {
   householdId: number;
   currentUserId: number;
@@ -1463,7 +1140,9 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
 
 export default function Profile() {
   const search = useSearch();
-  const initialTab = new URLSearchParams(search).get("tab") ?? "account";
+  const [, navigate] = useLocation();
+  const requestedTab = new URLSearchParams(search).get("tab");
+  const initialTab = requestedTab === "volunteer" ? "account" : requestedTab ?? "account";
   const [activeTab, setActiveTab] = useState(initialTab);
   const [loadCalendarFeed, setLoadCalendarFeed] = useState(false);
 
@@ -1487,6 +1166,12 @@ export default function Profile() {
       });
     }
   }, [user, form]);
+
+  useEffect(() => {
+    if (requestedTab === "volunteer") {
+      navigate("/volunteer");
+    }
+  }, [navigate, requestedTab]);
 
   const onSubmit = (values: z.infer<typeof profileSchema>) => {
     updateMutation.mutate({ data: values }, {
@@ -1612,11 +1297,11 @@ export default function Profile() {
         <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 mb-3" role="note">
           <p className="text-xs leading-relaxed text-muted-foreground">
             {isStudent
-              ? "My Account and Notifications are yours to manage. My Family is view-only, and Volunteer shows event-specific tasks your coach opens."
+              ? "My Account and Notifications are yours to manage. My Family is view-only."
               : "My Account and Notifications are yours to manage. My Family contains household settings and rider management."}
           </p>
         </div>
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4" aria-label="Profile sections">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3" aria-label="Profile sections">
           <TabsTrigger value="account" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <UserCircle className="h-4 w-4" /> My Account
           </TabsTrigger>
@@ -1625,9 +1310,6 @@ export default function Profile() {
           </TabsTrigger>
           <TabsTrigger value="family" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
             <Home className="h-4 w-4" /> My Family
-          </TabsTrigger>
-          <TabsTrigger value="volunteer" className="min-h-11 flex items-center gap-1.5 px-2 text-xs sm:text-sm">
-            <ClipboardCheck className="h-4 w-4" /> Volunteer
           </TabsTrigger>
         </TabsList>
 
@@ -1835,10 +1517,6 @@ export default function Profile() {
           )}
         </TabsContent>
 
-        {/* Volunteer Commitments tab */}
-        <TabsContent value="volunteer" className="mt-6">
-          <VolunteerCommitmentsTab isStudent={isStudent} />
-        </TabsContent>
       </Tabs>
 
       <AlertDialog open={regenConfirmOpen} onOpenChange={setRegenConfirmOpen}>

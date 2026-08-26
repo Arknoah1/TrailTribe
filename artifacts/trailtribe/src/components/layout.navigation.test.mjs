@@ -19,15 +19,16 @@ test("the mobile actions menu keeps notifications visible while grouping account
   assert.match(source, /onSelect=\{toggleTheme\}/);
 });
 
-test("the mobile bottom bar replaces Profile with the existing Volunteer destination", () => {
-  assert.match(source, /href: "\/profile\?tab=volunteer"/);
+test("the mobile bottom bar links to the dedicated Volunteer destination", () => {
+  assert.match(source, /href: "\/volunteer"/);
   assert.match(source, /label: "Volunteer"/);
+  assert.match(source, /preloadHref: "\/volunteer"/);
   assert.match(source, /const mobileItems = \[\.\.\.baseNavItems\.slice\(0, 4\), volunteerNavItem\]/);
   assert.doesNotMatch(source, /const mobileItems = baseNavItems/);
 });
 
-test("the Volunteer tab stays highlighted and the bottom-nav safe area remains measured", () => {
-  assert.match(source, /getPathname\(location\) === "\/profile" && new URLSearchParams\(search\)\.get\("tab"\) === "volunteer"/);
+test("the Volunteer route stays highlighted and the bottom-nav safe area remains measured", () => {
+  assert.match(source, /getPathname\(location\) === "\/volunteer"/);
   assert.match(source, /--mobile-bottom-nav-height/);
   assert.match(source, /env\(safe-area-inset-bottom\)/);
 });

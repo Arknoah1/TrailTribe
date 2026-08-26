@@ -12,6 +12,7 @@ const ContactCoach = lazy(() => import("./pages/contact-coach"));
 const Roster = lazy(() => import("./pages/roster"));
 const HouseholdDetail = lazy(() => import("./pages/household-detail"));
 const Profile = lazy(() => import("./pages/profile"));
+const Volunteer = lazy(() => import("./pages/volunteer"));
 const Admin = lazy(() => import("./pages/admin"));
 const SeasonBuilder = lazy(() => import("./pages/season-builder"));
 const Join = lazy(() => import("./pages/join"));
@@ -357,6 +358,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/messages/contact" component={() => <ProtectedRoute component={ContactCoach} />} />
             <Route path="/roster" component={() => <ProtectedRoute component={Roster} />} />
             <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
+            <Route path="/volunteer" component={() => <ProtectedRoute component={Volunteer} />} />
             <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
             <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
             <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />

@@ -36,13 +36,11 @@ const adminNavItem: NavigationItem = { href: "/admin", label: "Admin", icon: Shi
 const seasonBuilderNavItem: NavigationItem = { href: "/season-builder", label: "Season", icon: Layers };
 const getPathname = (location: string) => location.split("?")[0];
 const volunteerNavItem: NavigationItem = {
-  href: "/profile?tab=volunteer",
+  href: "/volunteer",
   label: "Volunteer",
   icon: ClipboardCheck,
-  preloadHref: "/profile",
-  isActive: (location, search) => (
-    getPathname(location) === "/profile" && new URLSearchParams(search).get("tab") === "volunteer"
-  ),
+  preloadHref: "/volunteer",
+  isActive: (location) => getPathname(location) === "/volunteer",
 };
 
 function ThemeToggle({ className }: { className?: string }) {
@@ -78,8 +76,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   // Desktop sidebar: Admin tab visible when admin mode on; Season Builder lives inside Admin now
   const navItems = showAdminTabs
-    ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
-    : baseNavItems;
+    ? [...baseNavItems.slice(0, 4), adminNavItem, volunteerNavItem, baseNavItems[4]]
+    : [...baseNavItems.slice(0, 4), volunteerNavItem, baseNavItems[4]];
 
   // Mobile bottom nav: the account controls live in the top actions menu.
   const mobileItems = [...baseNavItems.slice(0, 4), volunteerNavItem];

@@ -7,8 +7,9 @@ import test from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const readSource = (relativePath) => readFile(resolve(here, relativePath), "utf8");
 
-const [profile, carpools, dashboard, calendar, eventDetail] = await Promise.all([
+const [profile, volunteer, carpools, dashboard, calendar, eventDetail] = await Promise.all([
   readSource("profile.tsx"),
+  readSource("volunteer.tsx"),
   readSource("carpools.tsx"),
   readSource("dashboard.tsx"),
   readSource("calendar.tsx"),
@@ -34,7 +35,7 @@ test("student carpool actions stay scoped to their own transportation", () => {
 });
 
 test("student-facing mobile surfaces describe when coaches control availability", () => {
-  assert.match(profile, /Your coach can open tasks on an upcoming event/);
+  assert.match(volunteer, /Your coach can open volunteer tasks for an upcoming event/);
   assert.match(eventDetail, /These opportunities apply to this event only/);
   assert.match(dashboard, /No upcoming events are assigned to your pod yet/);
   assert.match(calendar, /Your coach will post them here/);
