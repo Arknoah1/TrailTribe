@@ -20,12 +20,44 @@ native package identifiers are permanent:
 6. For a live dev server, use `CAP_SERVER_URL=https://... CAP_CLEAR_TEXT=true`
    before `cap sync`; never ship a build with `CAP_SERVER_URL`.
 
+## Debug APK sideloading
+
+Use the debug build to install TrailTeam on an Android device before the Play
+Store release process is ready:
+
+1. Install a JDK plus Android SDK Platform 36 and Build Tools 36.0.0.
+2. From the workspace root, run
+   `pnpm --filter @workspace/trailtribe run mobile:debug:android`.
+3. The debug-signed APK is created at
+   `artifacts/trailtribe/android/app/build/outputs/apk/debug/app-debug.apk`.
+4. On the Android device, download the APK, allow the browser or file manager
+   to install unknown apps when Android prompts, then open TrailTeam.
+
+This APK is for pre-store testing only. It uses the Android debug signing key
+and must not be uploaded to Google Play. The app bundles the production web
+build pointed at `https://trailteam.app`; do not set `CAP_SERVER_URL` for a
+sideload build.
+
+## GitHub debug releases
+
+The `Build Android Debug APK` workflow runs manually or when a
+`sideload-v*` tag is pushed. It builds a debug APK on GitHub, verifies the
+TrailTeam package ID and the absence of deprecated identifiers, then attaches
+the APK and a SHA-256 checksum to a prerelease.
+
+- Start the workflow with a unique tag such as `sideload-v1.0.0-1`, or push a
+  tag following that pattern.
+- Download `trailteam-debug.apk` and `trailteam-debug.apk.sha256` from the
+  release, verify the checksum, then follow the sideload steps above.
+- GitHub releases are used for generated binaries. Do not commit APK files,
+  keystores, or signing credentials to the source repository.
+
 ## Release configuration
 
 - Replace the `REPLACE_WITH_*` values in `public/.well-known/apple-app-site-association`
   and `public/.well-known/assetlinks.json` with the Apple Team ID and the
   Play App Signing SHA-256 fingerprint. Verify both files over HTTPS on
-   `https://trailteam.app/.well-known/`.
+  `https://trailteam.app/.well-known/`.
 - Configure Google and Sign in with Apple in Clerk, including native redirect
   URLs for the production domain. Keep invitation links on the verified
   production domain so the app can open `/events/*`, `/messages/*`,
