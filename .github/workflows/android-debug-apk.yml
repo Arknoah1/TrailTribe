@@ -53,6 +53,7 @@ jobs:
 
       - name: Verify web app
         run: |
+          pnpm run typecheck:libs
           pnpm --filter @workspace/trailtribe run typecheck
           pnpm --filter @workspace/trailtribe run test
 
