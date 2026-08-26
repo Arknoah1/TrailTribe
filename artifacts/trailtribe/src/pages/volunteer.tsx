@@ -469,6 +469,115 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
   );
 }
 
+type CommitmentEventGroup = {
+  eventId: number | null;
+  eventTitle: string;
+  eventStart: Date | null;
+  signups: any[];
+};
+
+function groupCommitmentsByEvent(signups: any[]): CommitmentEventGroup[] {
+  const groups = new Map<string, CommitmentEventGroup>();
+
+  signups.forEach((signup, index) => {
+    const eventId = typeof signup.event?.id === "number" ? signup.event.id : null;
+    const key = eventId === null ? `missing-event-${signup.id ?? index}` : `event-${eventId}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.signups.push(signup);
+      return;
+    }
+
+    groups.set(key, {
+      eventId,
+      eventTitle: signup.event?.title ?? "Event details unavailable",
+      eventStart: signup.event?.startTime ? new Date(signup.event.startTime) : null,
+      signups: [signup],
+    });
+  });
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      signups: [...group.signups].sort((a, b) => {
+        const categoryOrder = (a.task?.category ?? "").localeCompare(b.task?.category ?? "");
+        if (categoryOrder !== 0) return categoryOrder;
+        const titleOrder = (a.task?.title ?? "Volunteer task").localeCompare(b.task?.title ?? "Volunteer task");
+        if (titleOrder !== 0) return titleOrder;
+        return Number(a.id ?? 0) - Number(b.id ?? 0);
+      }),
+    }))
+    .sort((a, b) => {
+      const aTime = a.eventStart?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const bTime = b.eventStart?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      return aTime - bTime || a.eventTitle.localeCompare(b.eventTitle);
+    });
+}
+
+function CommitmentGroups({
+  signups,
+  sectionLabel,
+  sectionId,
+}: {
+  signups: any[];
+  sectionLabel: string;
+  sectionId: string;
+}) {
+  const groups = groupCommitmentsByEvent(signups);
+
+  return (
+    <div className="space-y-4">
+      <h3 id={sectionId} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {sectionLabel}
+      </h3>
+      {groups.map((group, groupIndex) => {
+        const eventHeadingId = `${sectionId}-event-${group.eventId ?? groupIndex}`;
+        return (
+          <section key={`${group.eventId ?? "missing"}-${groupIndex}`} className="space-y-2" aria-labelledby={eventHeadingId}>
+            <div className="flex flex-col gap-3 rounded-lg border-2 border-[#0a0c10] bg-muted/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h4 id={eventHeadingId} className="text-base font-bold">
+                  {group.eventTitle}
+                </h4>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {group.eventStart ? format(group.eventStart, "EEEE, MMM d") : "Date unavailable"} ·{" "}
+                  {group.signups.length} task{group.signups.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              {group.eventId !== null && (
+                <Link
+                  href={`/events/${group.eventId}`}
+                  aria-label={`View details for ${group.eventTitle}`}
+                  className="inline-flex min-h-11 shrink-0 items-center self-start text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:self-auto"
+                >
+                  View event
+                </Link>
+              )}
+            </div>
+            <div className="space-y-2 border-l-2 border-primary/30 pl-3 sm:pl-4">
+              {group.signups.map((signup) => (
+                <Card key={signup.id}>
+                  <CardContent className="flex items-start gap-3 p-4">
+                    <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">{signup.task?.title ?? "Volunteer task"}</p>
+                      {signup.task?.category && (
+                        <Badge variant="secondary" className="mt-2 whitespace-normal">
+                          {signup.task.category}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function Commitments({ signups }: { signups: any[] }) {
   const now = new Date();
   const upcoming = signups.filter((signup) => {
@@ -480,39 +589,6 @@ function Commitments({ signups }: { signups: any[] }) {
     return startTime && startTime < now;
   });
 
-  const renderGroup = (items: any[], label: string) => (
-    <div className="space-y-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</h3>
-      {items.map((signup) => {
-        const eventStart = signup.event?.startTime ? new Date(signup.event.startTime) : null;
-        const eventTitle = signup.event?.title ?? "this event";
-        return (
-          <Card key={signup.id}>
-            <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
-              <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{signup.task?.title ?? "Volunteer task"}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {eventTitle}{eventStart && <> · {format(eventStart, "EEEE, MMM d")}</>}
-                </p>
-                {signup.task?.category && <Badge variant="secondary" className="mt-2 whitespace-normal">{signup.task.category}</Badge>}
-              </div>
-              {signup.event?.id && (
-                <Link
-                  href={`/events/${signup.event.id}`}
-                  aria-label={`View details for ${eventTitle}`}
-                  className="min-h-11 shrink-0 self-start text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                >
-                  View event
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-
   if (signups.length === 0) return null;
 
   return (
@@ -521,11 +597,19 @@ function Commitments({ signups }: { signups: any[] }) {
         <h2 id="commitments-heading" className="text-xl font-bold">My Commitments</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">Your confirmed volunteer tasks, ordered by event date.</p>
       </div>
-      {upcoming.length > 0 && renderGroup(upcoming, `Upcoming (${upcoming.length})`)}
+      {upcoming.length > 0 && (
+        <CommitmentGroups
+          signups={upcoming}
+          sectionLabel={`Upcoming (${upcoming.length})`}
+          sectionId="upcoming-commitments"
+        />
+      )}
       {past.length > 0 && (
         <details className="rounded-lg border bg-muted/20 p-3">
           <summary className="cursor-pointer text-sm font-semibold">Past commitments ({past.length})</summary>
-          <div className="mt-3">{renderGroup(past, "Past events")}</div>
+          <div className="mt-3">
+            <CommitmentGroups signups={past} sectionLabel="Past events" sectionId="past-commitments" />
+          </div>
         </details>
       )}
     </section>

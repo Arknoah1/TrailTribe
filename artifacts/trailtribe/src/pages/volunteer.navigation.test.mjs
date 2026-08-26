@@ -43,7 +43,7 @@ test("Volunteer actions keep accessible labels and feedback", () => {
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /htmlFor=\{inputId\}/);
   assert.match(source, /<label[\s\S]*?<input[\s\S]*?type="checkbox"/);
-  assert.match(source, /aria-label=\{`View details for \$\{eventTitle\}`\}/);
+  assert.match(source, /aria-label=\{`View details for \$\{group\.eventTitle\}`\}/);
   assert.match(source, /That task is no longer available/);
 });
 
@@ -63,6 +63,16 @@ test("event detail uses the same green, claimed, and full task states", () => {
   assert.match(eventDetailSource, /You’re on it/);
   assert.match(eventDetailSource, /aria-label=\{isFull \? `Full: \$\{task\.title\}` : `Sign up for \$\{task\.title\}`\}/);
   assert.match(eventDetailSource, /className=\{isFull \? volunteerTaskUnavailableButtonClassName : volunteerTaskAvailableButtonClassName\}/);
+});
+
+test("commitments are grouped by event for easier scanning", () => {
+  assert.match(source, /function groupCommitmentsByEvent\(signups: any\[\]\)/);
+  assert.match(source, /function CommitmentGroups\(/);
+  assert.match(source, /sectionLabel=\{`Upcoming \(\$\{upcoming\.length\}\)`\}/);
+  assert.match(source, /sectionLabel="Past events"/);
+  assert.match(source, /aria-labelledby=\{eventHeadingId\}/);
+  assert.match(source, /aria-label=\{`View details for \$\{group\.eventTitle\}`\}/);
+  assert.doesNotMatch(source, /\{eventTitle\}\{eventStart &&/);
 });
 
 test("legacy Profile Volunteer links are sent to the dedicated page", () => {
