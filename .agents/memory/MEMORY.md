@@ -4,3 +4,4 @@
 - [TrailTribe test runner](trailtribe-test-runner.md) — prefer built-in Node tests when package-local browser tooling is unavailable
 - [Board reaction test mocks](board-reaction-test-mocks.md) — track request targets explicitly when lightweight Drizzle mocks cannot inspect SQL conditions
 - [API Zod exports](api-zod-exports.md) — export generated validators only; generated component types collide with operation validator names
+- [Mobile browser test runtime](mobile-browser-test-runtime.md) — Playwright Chromium checks need the browser binary and shared libraries declared in the workspace environment

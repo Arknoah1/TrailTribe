@@ -567,6 +567,7 @@ export default function BoardThread() {
       </Dialog>
 
       <div
+        data-testid="reply-composer"
         className="fixed bottom-[calc(var(--mobile-bottom-nav-height,78px)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
         style={{ "--keyboard-offset": `${keyboardOffset}px` } as React.CSSProperties}
       >
