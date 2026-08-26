@@ -153,17 +153,17 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
                   key={event.id}
                   className="rounded-lg border border-border bg-card transition-colors hover:bg-muted/30 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
                 >
-                  <input
-                    id={inputId}
-                    type="checkbox"
-                    className="h-5 w-5 shrink-0 accent-primary"
-                    checked={attendedIds.has(event.id)}
-                    onChange={() => toggleAttended(event.id)}
-                  />
                   <label
                     htmlFor={inputId}
                     className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2.5"
                   >
+                    <input
+                      id={inputId}
+                      type="checkbox"
+                      className="h-5 w-5 shrink-0 accent-primary"
+                      checked={attendedIds.has(event.id)}
+                      onChange={() => toggleAttended(event.id)}
+                    />
                     <span className="min-w-0 flex-1 text-sm font-medium">{event.title}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {format(new Date(event.startTime), "MMM d")}
@@ -328,17 +328,17 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
                   key={task.id}
                   className="rounded-lg transition-colors hover:bg-muted/40 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
                 >
-                  <input
-                    id={inputId}
-                    type="checkbox"
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
-                    checked={selected.has(task.id)}
-                    onChange={() => toggle(task.id)}
-                  />
                   <label
                     htmlFor={inputId}
                     className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5"
                   >
+                    <input
+                      id={inputId}
+                      type="checkbox"
+                      className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                      checked={selected.has(task.id)}
+                      onChange={() => toggle(task.id)}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{task.title}</span>
                       {task.description && <span className="mt-0.5 block text-xs text-muted-foreground">{task.description}</span>}

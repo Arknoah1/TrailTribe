@@ -34,6 +34,7 @@ test("the cross-event shortcut leads the Volunteer page", () => {
 test("Volunteer actions keep accessible labels and feedback", () => {
   assert.match(source, /aria-live="polite"/);
   assert.match(source, /htmlFor=\{inputId\}/);
+  assert.match(source, /<label[\s\S]*?<input[\s\S]*?type="checkbox"/);
   assert.match(source, /aria-label=\{`View details for \$\{eventTitle\}`\}/);
   assert.match(source, /That task is no longer available/);
 });
