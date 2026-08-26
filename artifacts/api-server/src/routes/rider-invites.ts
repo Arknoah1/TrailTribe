@@ -48,7 +48,7 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
   if (!rider || rider.role !== "student" || rider.householdId !== householdId) {
     res.status(404).json({ error: "Rider not found" }); return;
   }
-  if (!rider.email || rider.email.endsWith("@trailtribe.internal")) {
+  if (!rider.email || rider.email.endsWith("@trailteam.internal")) {
     res.status(400).json({ error: "This rider doesn't have a real email address. Add one before sending an invite." }); return;
   }
   if (rider.clerkUserId) {

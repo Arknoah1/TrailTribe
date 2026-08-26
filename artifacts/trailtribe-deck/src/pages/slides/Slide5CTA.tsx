@@ -46,7 +46,7 @@ export default function Slide5CTA() {
           textTransform: "uppercase",
           marginBottom: "4vh"
         }}>
-          trailtribemtb.com
+          trailteam.app
         </div>
 
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.9vw", letterSpacing: "0.15em" }}>
@@ -55,7 +55,7 @@ export default function Slide5CTA() {
       </div>
 
       <div style={{ position: "absolute", bottom: "5vh", left: "5vw", fontFamily: "'DM Mono', monospace", color: "#A8A096", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-        trailtribemtb.com
+        trailteam.app
       </div>
       <div style={{ position: "absolute", bottom: "5vh", right: "5vw", fontFamily: "'DM Mono', monospace", color: "#A8A096", fontSize: "0.8vw" }}>
         05

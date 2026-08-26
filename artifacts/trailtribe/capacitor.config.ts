@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: "com.trailtribemtb.trailtribe",
+  appId: "app.trailteam.trailteam",
   appName: "TrailTeam",
   webDir: "dist/public",
   bundledWebRuntime: false,

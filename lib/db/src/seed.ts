@@ -110,28 +110,28 @@ async function seed() {
       -- Perin Family (coach household)
       (${hhMap['Perin Family']}, 'Noah',    'Perin',    'arknoah1@gmail.com',                     '(707) 555-0101', 'coach',   '1', true, 'male',   NULL, true, true, true, false, true,  ${notifPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
       (${hhMap['Perin Family']}, 'Suzanne', 'Perin',    'suznoahperin@gmail.com',                 '(707) 555-0102', 'parent',  '1', true, 'female', NULL, true, true, true, true,  true,  ${notifPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
-      (${hhMap['Perin Family']}, 'Sophia',  'Perin',    'rider-f7137299ab11@trailtribe.internal',  NULL,             'student', '2', true, 'female', 10,   true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
-      (${hhMap['Perin Family']}, 'Rebekah', 'Perin',    'rider-32ba1ef372e8@trailtribe.internal',  NULL,             'student', '3', true, 'female', 8,    true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
+      (${hhMap['Perin Family']}, 'Sophia',  'Perin',    'rider-f7137299ab11@trailteam.internal',  NULL,             'student', '2', true, 'female', 10,   true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
+      (${hhMap['Perin Family']}, 'Rebekah', 'Perin',    'rider-32ba1ef372e8@trailteam.internal',  NULL,             'student', '3', true, 'female', 8,    true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '90 days', NOW()),
       -- Ramirez Family
       (${hhMap['Ramirez Family']}, 'Diego',  'Ramirez', 'diego.ramirez@email.com',  '(707) 555-0181', 'parent',  '1', true, 'male',   NULL, true, true, true, false, true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '45 days', NOW()),
       (${hhMap['Ramirez Family']}, 'Carmen', 'Ramirez', 'carmen.ramirez@email.com', '(707) 555-0182', 'parent',  '1', true, 'female', NULL, true, true, true, true,  true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '45 days', NOW()),
-      (${hhMap['Ramirez Family']}, 'Lucas',  'Ramirez', 'rider-lucas-ramirez@trailtribe.internal', NULL, 'student', '1', true, 'male', 9, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '45 days', NOW()),
+      (${hhMap['Ramirez Family']}, 'Lucas',  'Ramirez', 'rider-lucas-ramirez@trailteam.internal', NULL, 'student', '1', true, 'male', 9, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '45 days', NOW()),
       -- Johnson Family
       (${hhMap['Johnson Family']}, 'Dave',  'Johnson',  'dave.johnson@email.com',  '(707) 555-0241', 'parent',  '2', true, 'male',   NULL, true, true, true, true,  true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '30 days', NOW()),
       (${hhMap['Johnson Family']}, 'Lisa',  'Johnson',  'lisa.johnson@email.com',  '(707) 555-0242', 'parent',  '2', true, 'female', NULL, true, true, true, false, true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '30 days', NOW()),
-      (${hhMap['Johnson Family']}, 'Mia',   'Johnson',  'rider-mia-johnson@trailtribe.internal',   NULL, 'student', '2', true, 'female', 10, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '30 days', NOW()),
-      (${hhMap['Johnson Family']}, 'Tyler', 'Johnson',  'rider-tyler-johnson@trailtribe.internal',  NULL, 'student', '2', true, 'male',    8, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '30 days', NOW()),
+      (${hhMap['Johnson Family']}, 'Mia',   'Johnson',  'rider-mia-johnson@trailteam.internal',   NULL, 'student', '2', true, 'female', 10, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '30 days', NOW()),
+      (${hhMap['Johnson Family']}, 'Tyler', 'Johnson',  'rider-tyler-johnson@trailteam.internal',  NULL, 'student', '2', true, 'male',    8, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '30 days', NOW()),
       -- Chen Family
       (${hhMap['Chen Family']}, 'Wei',  'Chen', 'wei.chen@email.com',  '(707) 555-0311', 'parent',  '2', true, 'male',   NULL, true, true, true, false, true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '60 days', NOW()),
       (${hhMap['Chen Family']}, 'Amy',  'Chen', 'amy.chen@email.com',  '(707) 555-0312', 'parent',  '2', true, 'female', NULL, true, true, true, true,  true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '60 days', NOW()),
-      (${hhMap['Chen Family']}, 'Jake', 'Chen', 'rider-jake-chen@trailtribe.internal', NULL, 'student', '2', true, 'male', 11, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '60 days', NOW()),
+      (${hhMap['Chen Family']}, 'Jake', 'Chen', 'rider-jake-chen@trailteam.internal', NULL, 'student', '2', true, 'male', 11, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '60 days', NOW()),
       -- Williams Family
       (${hhMap['Williams Family']}, 'Marcus', 'Williams', 'marcus.williams@email.com', '(707) 555-0421', 'parent',  '3', true, 'male',   NULL, true, true, true, false, true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '20 days', NOW()),
       (${hhMap['Williams Family']}, 'Tanya',  'Williams', 'tanya.williams@email.com',  '(707) 555-0422', 'parent',  '3', true, 'female', NULL, true, true, true, true,  true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '20 days', NOW()),
-      (${hhMap['Williams Family']}, 'Zoe',    'Williams', 'rider-zoe-williams@trailtribe.internal', NULL, 'student', '3', true, 'female', 10, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '20 days', NOW()),
+      (${hhMap['Williams Family']}, 'Zoe',    'Williams', 'rider-zoe-williams@trailteam.internal', NULL, 'student', '3', true, 'female', 10, true, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '20 days', NOW()),
       -- Martinez Family (pending approval)
       (${hhMap['Martinez Family']}, 'Carlos', 'Martinez', 'carlos.martinez@email.com',                   '(707) 555-0531', 'parent',  '1', true, 'male', NULL, false, true, true, false, true,  ${notifPrefs}::jsonb,   NOW()-INTERVAL '5 days', NOW()),
-      (${hhMap['Martinez Family']}, 'Javier', 'Martinez', 'rider-javier-martinez@trailtribe.internal',    NULL,             'student', '1', true, 'male', 9,    false, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '5 days', NOW())
+      (${hhMap['Martinez Family']}, 'Javier', 'Martinez', 'rider-javier-martinez@trailteam.internal',    NULL,             'student', '1', true, 'male', 9,    false, true, true, false, false, ${noRiderPrefs}::jsonb, NOW()-INTERVAL '5 days', NOW())
     ) AS v(household_id, first_name, last_name, email, phone, role, pod_id,
            is_active, gender, grade, approved, notifications_enabled, email_notifications,
            sms_notifications, push_notifications, notification_preferences, created_at, updated_at)

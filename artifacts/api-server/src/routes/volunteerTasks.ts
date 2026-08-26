@@ -253,7 +253,7 @@ router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req,
 });
 
 // Bulk signup: sign the current user up for multiple tasks; skip silently if already signed up or at capacity
-router.post("/events/:id/tasks/bulk-signup", requireAuth, async (req, res) => {
+router.post("/events/:id/tasks/bulk-signup", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { taskIds } = req.body as { taskIds?: number[] };
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
@@ -348,7 +348,7 @@ router.delete("/events/:id/tasks/:taskId", requireCoachOrAdmin, async (req, res)
 
 // ─── TASK SIGNUPS ─────────────────────────────────────────────────────────────
 
-router.post("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) => {
+router.post("/events/:id/tasks/:taskId/signup", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const taskId = parseInt(str(req.params.taskId));
   const clerkUserId = (req as any).clerkUserId;
@@ -413,7 +413,7 @@ router.post("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) =>
   res.status(201).json(signup);
 });
 
-router.delete("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) => {
+router.delete("/events/:id/tasks/:taskId/signup", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const taskId = parseInt(str(req.params.taskId));
   const clerkUserId = (req as any).clerkUserId;
@@ -422,7 +422,11 @@ router.delete("/events/:id/tasks/:taskId/signup", requireAuth, async (req, res) 
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
 
   await db.delete(eventTaskSignupsTable).where(
-    and(eq(eventTaskSignupsTable.eventTaskId, taskId), eq(eventTaskSignupsTable.userId, me.id))
+    and(
+      eq(eventTaskSignupsTable.eventId, eventId),
+      eq(eventTaskSignupsTable.eventTaskId, taskId),
+      eq(eventTaskSignupsTable.userId, me.id),
+    )
   );
 
   res.status(204).send();

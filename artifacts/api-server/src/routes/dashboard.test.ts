@@ -88,7 +88,7 @@ vi.mock("@workspace/db", () => {
 });
 
 vi.mock("../middlewares/requireAuth", () => ({
-  requireAuth: (_req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  requireApproved: (_req: express.Request, _res: express.Response, next: express.NextFunction) => {
     (_req as any).clerkUserId = null;
     next();
   },
@@ -99,7 +99,7 @@ const emailState = vi.hoisted(() => ({ healthy: false }));
 
 vi.mock("../lib/email", () => ({
   get emailHealthy() { return emailState.healthy; },
-  FROM_ADDRESS: "TrailTeam <noreply@trailtribe.app>",
+  FROM_ADDRESS: "TrailTeam <noreply@trailteam.app>",
   sendEmail: vi.fn(),
 }));
 

@@ -271,7 +271,7 @@ function RiderDialog({
 }) {
   const { toast } = useToast();
   const authedFetch = useAuthedFetch();
-  const riderEmail = rider?.email?.endsWith("@trailtribe.internal") ? "" : (rider?.email ?? "");
+  const riderEmail = rider?.email?.endsWith("@trailteam.internal") ? "" : (rider?.email ?? "");
   const riderPrefs = rider?.notificationPreferences ?? {};
 
   const form = useForm<RiderFormValues>({
@@ -885,13 +885,13 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-3 mt-0.5">
                       {rider.grade && <span>Grade {rider.grade}</span>}
                       {rider.allergies && <span className="text-amber-600 dark:text-amber-500">⚠ {rider.allergies}</span>}
-                      {rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                      {rider.email && !rider.email.endsWith("@trailteam.internal") && (
                         <span className="text-xs text-primary/70">{rider.email}</span>
                       )}
                     </div>
                   </div>
                     <div className="flex gap-2 items-center">
-                    {!readOnly && !rider.hasAppAccess && rider.email && !rider.email.endsWith("@trailtribe.internal") && (
+                    {!readOnly && !rider.hasAppAccess && rider.email && !rider.email.endsWith("@trailteam.internal") && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -960,7 +960,7 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
                           {m.role === "coach" && <Badge variant="secondary" className="text-xs">Coach</Badge>}
                         </div>
                         <div className="text-xs text-muted-foreground truncate mt-0.5">
-                          {m.email && !m.email.endsWith("@trailtribe.internal") ? m.email : ""}
+                          {m.email && !m.email.endsWith("@trailteam.internal") ? m.email : ""}
                           {m.phone && <span className="ml-2">{formatPhone(m.phone)}</span>}
                         </div>
                       </div>

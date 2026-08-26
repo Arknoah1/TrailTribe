@@ -98,8 +98,8 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
     const filtered = toArray.filter(
       (e) =>
         e &&
-        !e.endsWith("@trailtribe.internal") &&
-        !e.endsWith("@pending.trailtribe.app"),
+        !e.endsWith("@trailteam.internal") &&
+        !e.endsWith("@pending.trailteam.app"),
     );
     if (filtered.length === 0) {
       logger.info({ subject: opts.subject }, "[email] no valid recipients — skipping");

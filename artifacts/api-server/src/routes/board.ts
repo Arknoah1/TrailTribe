@@ -290,7 +290,7 @@ router.get("/board/threads", requireApproved, async (req, res) => {
 });
 
 // POST /board/threads
-router.post("/board/threads", requireAuth, async (req, res) => {
+router.post("/board/threads", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
@@ -365,7 +365,7 @@ router.get("/board/threads/:id/posts", requireApproved, async (req, res) => {
 });
 
 // POST /board/threads/:id/posts
-router.post("/board/threads/:id/posts", requireAuth, async (req, res) => {
+router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const threadId = parseInt(str(req.params.id));
   const me = await getMe(clerkUserId);
@@ -405,7 +405,7 @@ router.post("/board/threads/:id/posts", requireAuth, async (req, res) => {
 });
 
 // POST /board/reactions — toggle a reaction on a visible thread starter or reply
-router.post("/board/reactions", requireAuth, async (req, res) => {
+router.post("/board/reactions", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
@@ -460,7 +460,7 @@ router.post("/board/reactions", requireAuth, async (req, res) => {
 });
 
 // DELETE /board/threads/:id — coach/admin or thread author
-router.delete("/board/threads/:id", requireAuth, async (req, res) => {
+router.delete("/board/threads/:id", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const threadId = parseInt(str(req.params.id));
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -479,7 +479,7 @@ router.delete("/board/threads/:id", requireAuth, async (req, res) => {
 });
 
 // DELETE /board/posts/:id — coach/admin or post author
-router.delete("/board/posts/:id", requireAuth, async (req, res) => {
+router.delete("/board/posts/:id", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const postId = parseInt(str(req.params.id));
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -512,7 +512,7 @@ router.patch("/board/threads/:id/pin", requireCoachOrAdmin, async (req, res) => 
 });
 
 // GET /board/unread-count — threads with new activity since boardLastSeenAt, respecting pod/event access
-router.get("/board/unread-count", requireAuth, async (req, res) => {
+router.get("/board/unread-count", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ count: 0 }); return; }
@@ -567,6 +567,7 @@ router.get("/board/unread-count", requireAuth, async (req, res) => {
   res.json({ count: threads.length });
 });
 
+// Self-only preference update; pending users need this to keep their own state coherent.
 // PATCH /board/seen — update boardLastSeenAt to now
 router.patch("/board/seen", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
@@ -688,6 +689,7 @@ function fetchWithPinnedIP(
   });
 }
 
+// Authenticated-only utility with no team data; it supports composing an onboarding contact message.
 // GET /board/link-preview?url= — fetch og: tags for a URL
 router.get("/board/link-preview", requireAuth, async (req, res) => {
   const { url } = req.query as { url: string };

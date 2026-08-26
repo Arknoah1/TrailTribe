@@ -2,12 +2,12 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { trailheadsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
-router.get("/trailheads", requireAuth, async (req, res) => {
+router.get("/trailheads", requireApproved, async (req, res) => {
   const trailheads = await db.select().from(trailheadsTable).orderBy(trailheadsTable.name);
   res.json(trailheads);
 });

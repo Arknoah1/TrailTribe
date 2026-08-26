@@ -69,7 +69,7 @@ router.get("/events/:id/carpools", requireApproved, async (req, res) => {
   res.json(result);
 });
 
-router.post("/events/:id/carpools", requireAuth, async (req, res) => {
+router.post("/events/:id/carpools", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -114,7 +114,7 @@ router.post("/events/:id/carpools", requireAuth, async (req, res) => {
   res.status(201).json(offer);
 });
 
-router.patch("/carpools/:offerId", requireAuth, async (req, res) => {
+router.patch("/carpools/:offerId", requireApproved, async (req, res) => {
   const offerId = parseInt(str(req.params.offerId));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -133,7 +133,7 @@ router.patch("/carpools/:offerId", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-router.delete("/carpools/:offerId", requireAuth, async (req, res) => {
+router.delete("/carpools/:offerId", requireApproved, async (req, res) => {
   const offerId = parseInt(str(req.params.offerId));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -148,7 +148,7 @@ router.delete("/carpools/:offerId", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
+router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
   const offerId = parseInt(str(req.params.offerId));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -160,6 +160,22 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
   // Accept an explicit riderUserId (for claiming on behalf of a student),
   // otherwise fall back to the logged-in parent
   const riderUserId = riderUserIdBody ?? me.id;
+  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
+  if (!offer) {
+    res.status(404).json({ error: "Offer not found" });
+    return;
+  }
+  if (riderUserId !== me.id) {
+    const rider = me.householdId == null
+      ? null
+      : await db.query.usersTable.findFirst({
+          where: and(eq(usersTable.id, riderUserId), eq(usersTable.householdId, me.householdId)),
+        });
+    if (!rider) {
+      res.status(403).json({ error: "You can only claim a carpool spot for members of your own household" });
+      return;
+    }
+  }
   const [claim] = await db.insert(carpoolClaimsTable).values({
     carpoolOfferId: offerId,
     riderUserId,
@@ -199,12 +215,14 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
   res.status(201).json(claim);
 });
 
-router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
+router.patch("/carpools/:offerId/claims/:claimId", requireApproved, async (req, res) => {
+  const offerId = parseInt(str(req.params.offerId));
   const claimId = parseInt(str(req.params.claimId));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
   const claim = await db.query.carpoolClaimsTable.findFirst({ where: eq(carpoolClaimsTable.id, claimId) });
   if (!claim) { res.status(404).json({ error: "Claim not found" }); return; }
+  if (claim.carpoolOfferId !== offerId) { res.status(404).json({ error: "Claim not found" }); return; }
   if (!(await canManageClaim(requester, claim))) {
     res.status(403).json({ error: "Forbidden" });
     return;
@@ -221,12 +239,14 @@ router.patch("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res)
   res.json(updated);
 });
 
-router.delete("/carpools/:offerId/claims/:claimId", requireAuth, async (req, res) => {
+router.delete("/carpools/:offerId/claims/:claimId", requireApproved, async (req, res) => {
+  const offerId = parseInt(str(req.params.offerId));
   const claimId = parseInt(str(req.params.claimId));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
   const claim = await db.query.carpoolClaimsTable.findFirst({ where: eq(carpoolClaimsTable.id, claimId) });
   if (!claim) { res.status(404).json({ error: "Claim not found" }); return; }
+  if (claim.carpoolOfferId !== offerId) { res.status(404).json({ error: "Claim not found" }); return; }
   if (!(await canManageClaim(requester, claim))) {
     res.status(403).json({ error: "Forbidden" });
     return;
@@ -249,14 +269,14 @@ async function buildRequestWithUsers(req: any) {
   return { ...req, rider, requestedBy, matchedOffer };
 }
 
-router.get("/events/:id/carpool-requests", requireAuth, async (req, res) => {
+router.get("/events/:id/carpool-requests", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const requests = await db.select().from(carpoolRequestsTable).where(eq(carpoolRequestsTable.eventId, eventId));
   const result = await Promise.all(requests.map(buildRequestWithUsers));
   res.json(result);
 });
 
-router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
+router.post("/events/:id/carpool-requests", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -341,7 +361,7 @@ router.post("/events/:id/carpool-requests", requireAuth, async (req, res) => {
   res.status(201).json(result);
 });
 
-router.patch("/carpool-requests/:id", requireAuth, async (req, res) => {
+router.patch("/carpool-requests/:id", requireApproved, async (req, res) => {
   const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -391,7 +411,7 @@ router.patch("/carpool-requests/:id", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.delete("/carpool-requests/:id", requireAuth, async (req, res) => {
+router.delete("/carpool-requests/:id", requireApproved, async (req, res) => {
   const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -418,7 +438,7 @@ router.delete("/carpool-requests/:id", requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
-router.post("/carpool-requests/:id/match", requireAuth, async (req, res) => {
+router.post("/carpool-requests/:id/match", requireApproved, async (req, res) => {
   const requestId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });

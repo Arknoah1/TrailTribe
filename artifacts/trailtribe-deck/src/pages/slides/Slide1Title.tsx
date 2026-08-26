@@ -48,7 +48,7 @@ export default function Slide1Title() {
         </p>
 
         <div style={{ marginTop: "auto", fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-          trailtribemtb.com
+          trailteam.app
         </div>
       </div>
 

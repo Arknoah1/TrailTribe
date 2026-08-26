@@ -13,12 +13,12 @@ import {
   trailheadsTable,
 } from "@workspace/db";
 import { eq, gte, lte, and, isNull, inArray } from "drizzle-orm";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireApproved } from "../middlewares/requireAuth";
 import { emailHealthy } from "../lib/email";
 
 const router = Router();
 
-router.get("/dashboard/summary", requireAuth, async (req, res) => {
+router.get("/dashboard/summary", requireApproved, async (req, res) => {
   const now = new Date();
   const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -110,7 +110,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res) => {
   });
 });
 
-router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
+router.get("/dashboard/upcoming-events", requireApproved, async (req, res) => {
   const now = new Date();
   const twoWeeksOut = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const clerkUserId = (req as any).clerkUserId;
@@ -191,7 +191,7 @@ router.get("/dashboard/upcoming-events", requireAuth, async (req, res) => {
 
 // GET /dashboard/carpool-events — upcoming events within 60 days for the carpool hub.
 // Uses a wider window than /upcoming-events (14 days) so carpools planned in advance appear.
-router.get("/dashboard/carpool-events", requireAuth, async (req, res) => {
+router.get("/dashboard/carpool-events", requireApproved, async (req, res) => {
   const now = new Date();
   const sixtyDaysOut = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
   const clerkUserId = (req as any).clerkUserId;

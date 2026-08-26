@@ -1103,7 +1103,7 @@ export default function Admin() {
                                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                                         <UserX className="h-3 w-3" /> Not linked
                                       </span>
-                                      {m.email && !m.email.includes("@trailtribe.internal") && (
+                                      {m.email && !m.email.includes("@trailteam.internal") && (
                                         <button
                                           onClick={() => sendRiderInvite(m.household.id, m)}
                                           disabled={sendingInviteForRider === m.id}
@@ -1267,7 +1267,7 @@ export default function Admin() {
                                           <UserX className="h-3 w-3" />
                                           Not linked
                                         </span>
-                                        {r.email && !r.email.includes("@trailtribe.internal") && (
+                                        {r.email && !r.email.includes("@trailteam.internal") && (
                                           <button
                                             onClick={() => sendRiderInvite(household.id, r)}
                                             disabled={sendingInviteForRider === r.id}

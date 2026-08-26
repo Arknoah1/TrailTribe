@@ -27,8 +27,26 @@ const BASE_URL = process.env.BASE_URL || "";
 /** Public-facing frontend URL used in email links (e.g. https://trailteam.app). */
 const APP_URL = process.env.APP_URL || getAppBase() || BASE_URL;
 
-router.get("/team-documents", async (_req, res) => {
+// Pending families need the documents to complete onboarding, but not team-wide completion counts.
+router.get("/team-documents", requireAuth, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId as string;
+  const requester = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!requester) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
   const docs = await db.select().from(teamDocumentsTable);
+  const canSeeUnsignedCounts = requester.role === "coach" || requester.role === "admin";
+  if (!canSeeUnsignedCounts) {
+    res.json(docs.map((doc) => ({
+      ...doc,
+      viewUrl: doc.objectPath ? `${BASE_URL}/api/storage${doc.objectPath}` : doc.externalUrl ?? null,
+      unsignedCount: null,
+    })));
+    return;
+  }
 
   // Compute how many non-archived households haven't signed each active document.
   // Mirrors the same version string used in the compliance check: `type@vN`.
@@ -377,8 +395,8 @@ async function notifyUnsignedFamilies(
       // Respect the user's email notification opt-out
       u.emailNotifications !== false &&
       u.email &&
-      !u.email.endsWith("@trailtribe.internal") &&
-      !u.email.endsWith("@pending.trailtribe.app"),
+      !u.email.endsWith("@trailteam.internal") &&
+      !u.email.endsWith("@pending.trailteam.app"),
   );
 
   if (emailTargets.length === 0) {

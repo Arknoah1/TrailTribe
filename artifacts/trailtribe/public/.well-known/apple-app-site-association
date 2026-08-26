@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.com.trailtribemtb.trailtribe"],
+        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.app.trailteam.trailteam"],
         "components": [
           { "/": "/events/*" },
           { "/": "/messages/*" },

@@ -93,7 +93,7 @@ export default function Slide6HowItWorks() {
           display: "flex", justifyContent: "space-between", alignItems: "center", width: "calc(62vw - 14vw)"
         }}>
           <span style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw", letterSpacing: "0.1em" }}>
-            trailtribemtb.com
+            trailteam.app
           </span>
           <span style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw" }}>05</span>
         </div>

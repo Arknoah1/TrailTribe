@@ -290,7 +290,7 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
   }
 
   // Get the primary email to use for the user record
-  const primaryEmail = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailtribe.app`;
+  const primaryEmail = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailteam.app`;
   const firstName = clerkUser.firstName ?? "New";
   const lastName = clerkUser.lastName ?? "User";
 

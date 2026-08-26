@@ -68,7 +68,7 @@ export default function Slide4Season() {
 
       <div style={{ marginTop: "3vh", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-          trailtribemtb.com
+          trailteam.app
         </div>
       </div>
     </div>

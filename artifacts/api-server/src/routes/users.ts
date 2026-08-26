@@ -124,7 +124,7 @@ async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$
   try {
     const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
     const clerkUser = await clerkClient.users.getUser(clerkUserId);
-    const email = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailtribe.app`;
+    const email = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailteam.app`;
     const firstName = clerkUser.firstName ?? "New";
     const lastName = clerkUser.lastName ?? "User";
 
@@ -530,7 +530,7 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
     approved: (role ?? "parent") === "student" && householdId !== null,
     householdId,
     podId,
-    email: `${clerkUserId}@pending.trailtribe.app`,
+    email: `${clerkUserId}@pending.trailteam.app`,
   }).returning();
 
   // Notify coaches/admins that a new family is waiting for approval (fire-and-forget)

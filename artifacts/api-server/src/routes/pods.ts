@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { podsTable, usersTable, householdsTable } from "@workspace/db";
 import { eq, asc, sql } from "drizzle-orm";
-import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { z } from "zod";
 
 const router = Router();
@@ -17,7 +17,7 @@ const podBodySchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-router.get("/pods", requireAuth, async (req, res) => {
+router.get("/pods", requireApproved, async (req, res) => {
   const pods = await db.select().from(podsTable).orderBy(asc(podsTable.sortOrder), asc(podsTable.id));
   const result = await Promise.all(
     pods.map(async (pod) => {
@@ -76,7 +76,7 @@ router.post("/pods", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json(pod);
 });
 
-router.get("/pods/:id", requireAuth, async (req, res) => {
+router.get("/pods/:id", requireApproved, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const pod = await db.query.podsTable.findFirst({ where: eq(podsTable.id, id) });
   if (!pod) {

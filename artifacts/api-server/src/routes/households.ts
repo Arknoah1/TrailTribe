@@ -590,10 +590,16 @@ router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
 
 router.get("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const [requester, riders] = await Promise.all([
-    getRequester(req),
-    db.select().from(usersTable).where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student"))),
-  ]);
+  const requester = await getRequester(req);
+  if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+    res.status(403).json({ error: "Forbidden: you are not a member of this household" });
+    return;
+  }
+  const riders = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.householdId, id), eq(usersTable.role, "student")));
   const see = canSeeMedical(requester, id);
   res.json(riders.map((r) => shapeMedical(r, see)));
 });
@@ -641,7 +647,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
     role: "student",
     approved: true,
     podId: household.podId ?? null,
-    email: (email && email.trim()) ? email.trim() : `rider-${randomBytes(6).toString("hex")}@trailtribe.internal`,
+    email: (email && email.trim()) ? email.trim() : `rider-${randomBytes(6).toString("hex")}@trailteam.internal`,
     emailNotifications: emailNotifications ?? false,
     smsNotifications: false,
     pushNotifications: false,
@@ -676,7 +682,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
     medications: medications ?? null,
     medicalNotes: medicalNotes ?? null,
   };
-  if (email !== undefined) updates.email = email || `rider-${riderId}@trailtribe.internal`;
+  if (email !== undefined) updates.email = email || `rider-${riderId}@trailteam.internal`;
   if (emailNotifications !== undefined) updates.emailNotifications = emailNotifications;
   if (notificationPreferencesLocked !== undefined) updates.notificationPreferencesLocked = !!notificationPreferencesLocked;
   // Students cannot receive SMS or push notifications

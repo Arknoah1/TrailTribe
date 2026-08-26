@@ -213,7 +213,7 @@ router.get("/events", requireApproved, async (req, res) => {
   res.json(result);
 });
 
-router.post("/events", requireAuth, async (req, res) => {
+router.post("/events", requireCoachOrAdmin, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const {
@@ -292,7 +292,7 @@ router.delete("/events/:id", requireCoachOrAdmin, async (req, res) => {
   res.status(204).send();
 });
 
-router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
+router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
@@ -401,7 +401,7 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
   res.json(lastRsvp);
 });
 
-router.get("/events/:id/rsvps", requireAuth, async (req, res) => {
+router.get("/events/:id/rsvps", requireApproved, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const rsvps = await db.select().from(eventRsvpsTable).where(eq(eventRsvpsTable.eventId, eventId));
   const result = await Promise.all(
@@ -413,7 +413,7 @@ router.get("/events/:id/rsvps", requireAuth, async (req, res) => {
   res.json(result);
 });
 
-router.post("/events/:id/attachments", requireAuth, async (req, res) => {
+router.post("/events/:id/attachments", requireCoachOrAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));
   const { label, objectPath, mimeType } = req.body;
   const [attachment] = await db.insert(eventAttachmentsTable).values({

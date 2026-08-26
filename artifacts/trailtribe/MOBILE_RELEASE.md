@@ -3,8 +3,8 @@
 This workspace produces the iOS and Android shells from the same Vite build. The
 native package identifiers are permanent:
 
-- iOS: `com.trailtribemtb.trailtribe`
-- Android: `com.trailtribemtb.trailtribe`
+- iOS: `app.trailteam.trailteam`
+- Android: `app.trailteam.trailteam`
 - Store listing name: TrailTeam
 - Support: coaches@methowcyclingteam.com / https://trailteam.app
 - Current public domain: https://trailteam.app
