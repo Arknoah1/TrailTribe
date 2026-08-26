@@ -209,22 +209,21 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
         {attendedIds.size > 0 && taskGroups.length > 0 && !isLoadingSelectedTasks && (
           <section className="space-y-2" aria-live="polite" aria-labelledby="recurring-tasks-heading">
             <h3 id="recurring-tasks-heading" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Recurring open tasks
+              Recurring tasks
             </h3>
-            {taskGroups.map(([title, occurrences]) => (
-              (() => {
-                const availableOccurrences = occurrences.filter((occurrence) => occurrence.state === "available");
-                const claimedOccurrences = occurrences.filter((occurrence) => occurrence.state === "claimed");
-                const fullOccurrences = occurrences.filter((occurrence) => occurrence.state === "full");
-                const statusLabel = availableOccurrences.length > 0
-                  ? null
-                  : claimedOccurrences.length > 0 && fullOccurrences.length === 0
-                    ? "You’re on it"
-                    : fullOccurrences.length > 0 && claimedOccurrences.length === 0
-                      ? "Full"
-                      : "No openings";
+            {taskGroups.map(([title, occurrences]) => {
+              const availableOccurrences = occurrences.filter((occurrence) => occurrence.state === "available");
+              const claimedOccurrences = occurrences.filter((occurrence) => occurrence.state === "claimed");
+              const fullOccurrences = occurrences.filter((occurrence) => occurrence.state === "full");
+              const statusLabel = availableOccurrences.length > 0
+                ? null
+                : claimedOccurrences.length > 0 && fullOccurrences.length === 0
+                  ? "You’re on it"
+                  : fullOccurrences.length > 0 && claimedOccurrences.length === 0
+                    ? "Full"
+                    : "No openings";
 
-                return (
+              return (
               <div key={title} className="flex flex-col gap-3 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{title}</p>
@@ -276,9 +275,8 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
                   </Button>
                 )}
               </div>
-                );
-              })()
-            ))}
+              );
+            })}
           </section>
         )}
 
@@ -399,13 +397,13 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
               return (
                 <div
                   key={task.id}
-                  className={`rounded-lg transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
+                  className={`flex items-start gap-2 rounded-lg px-2 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
                     isAvailable ? "hover:bg-muted/40" : "bg-muted/20"
                   }`}
                 >
                   <label
                     htmlFor={inputId}
-                    className={`flex min-h-11 items-start gap-3 rounded-lg px-2 py-2.5 ${
+                    className={`flex min-h-11 min-w-0 flex-1 items-start gap-3 ${
                       isAvailable ? "cursor-pointer" : "cursor-default"
                     }`}
                   >
@@ -432,19 +430,19 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
                         {task.category}
                       </Badge>
                     )}
-                    {!isAvailable && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled
-                        aria-label={`${statusLabel}: ${task.title}`}
-                        className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
-                      >
-                        {statusLabel}
-                      </Button>
-                    )}
                   </label>
+                  {!isAvailable && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      aria-label={`${statusLabel}: ${task.title}`}
+                      className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
+                    >
+                      {statusLabel}
+                    </Button>
+                  )}
                 </div>
               );
             })}
@@ -459,10 +457,9 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
                 : `${selected.size} task${selected.size === 1 ? "" : "s"} selected.`}
           </p>
           <Button
-            className="min-h-11 sm:min-w-36"
             onClick={handleApply}
             disabled={selected.size === 0 || availableTasks.length === 0 || bulkSignup.isPending}
-            className={volunteerTaskAvailableButtonClassName}
+            className={`min-h-11 sm:min-w-36 ${volunteerTaskAvailableButtonClassName}`}
           >
             {bulkSignup.isPending ? "Saving…" : `Sign Up${selected.size > 0 ? ` for ${selected.size}` : ""}`}
           </Button>

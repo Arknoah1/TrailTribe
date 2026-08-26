@@ -16,6 +16,14 @@ const profileSource = await readFile(
   resolve(dirname(fileURLToPath(import.meta.url)), "profile.tsx"),
   "utf8",
 );
+const eventDetailSource = await readFile(
+  resolve(dirname(fileURLToPath(import.meta.url)), "event-detail.tsx"),
+  "utf8",
+);
+const taskStatusSource = await readFile(
+  resolve(dirname(fileURLToPath(import.meta.url)), "../lib/volunteer-task-status.ts"),
+  "utf8",
+);
 
 test("Volunteer is a dedicated protected route", () => {
   assert.match(appSource, /const Volunteer = lazy\(\(\) => import\("\.\/pages\/volunteer"\)\)/);
@@ -37,6 +45,24 @@ test("Volunteer actions keep accessible labels and feedback", () => {
   assert.match(source, /<label[\s\S]*?<input[\s\S]*?type="checkbox"/);
   assert.match(source, /aria-label=\{`View details for \$\{eventTitle\}`\}/);
   assert.match(source, /That task is no longer available/);
+});
+
+test("Volunteer keeps claimed and full tasks visible with clear disabled states", () => {
+  assert.match(taskStatusSource, /if \(task\.mySignup\) return "claimed";/);
+  assert.match(taskStatusSource, /return filled >= \(task\.slotsNeeded \?\? 0\) \? "full" : "available";/);
+  assert.match(source, /const allTasks = tasks \?\? \[\];/);
+  assert.doesNotMatch(source, /const openTasks =/);
+  assert.match(source, /disabled=\{!isAvailable\}/);
+  assert.match(source, /You’re on it/);
+  assert.match(source, /Full/);
+  assert.match(source, /volunteerTaskUnavailableButtonClassName/);
+});
+
+test("event detail uses the same green, claimed, and full task states", () => {
+  assert.match(eventDetailSource, /getVolunteerTaskState/);
+  assert.match(eventDetailSource, /You’re on it/);
+  assert.match(eventDetailSource, /aria-label=\{isFull \? `Full: \$\{task\.title\}` : `Sign up for \$\{task\.title\}`\}/);
+  assert.match(eventDetailSource, /className=\{isFull \? volunteerTaskUnavailableButtonClassName : volunteerTaskAvailableButtonClassName\}/);
 });
 
 test("legacy Profile Volunteer links are sent to the dedicated page", () => {
