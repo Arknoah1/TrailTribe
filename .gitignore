@@ -8,6 +8,12 @@ out-tsc
 .expo
 .expo-shared
 
+# Mobile packages and signing material are delivered outside source history.
+*.apk
+*.aab
+*.jks
+*.keystore
+
 # dependencies
 node_modules
 
