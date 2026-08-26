@@ -13,6 +13,7 @@ test("the mobile actions menu keeps notifications visible while grouping account
   assert.match(source, /<NotificationBell\s*\/>/);
   assert.match(source, /<DropdownMenu>/);
   assert.match(source, /<MoreHorizontal className="h-5 w-5"\s*\/>/);
+  assert.match(source, /rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground data-\[state=open\]:bg-secondary data-\[state=open\]:text-primary transition-colors/);
   assert.match(source, /onSelect=\{\(\) => navigate\("\/profile"\)\}/);
   assert.match(source, /\{showAdminTabs && \(/);
   assert.match(source, /onSelect=\{toggleTheme\}/);
