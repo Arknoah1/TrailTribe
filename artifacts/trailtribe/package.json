@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test src/**/*.test.mjs",
     "test:browser": "node --test tests/board-thread.mobile-browser.test.mjs",
-    "mobile:build": "NODE_ENV=production PORT=5173 BASE_PATH=/ VITE_API_ORIGIN=https://trailtribemtb.com pnpm run build",
+    "mobile:build": "NODE_ENV=production PORT=5173 BASE_PATH=/ VITE_API_ORIGIN=https://trailteam.app pnpm run build",
     "mobile:sync": "pnpm run mobile:build && cap sync",
     "mobile:android": "pnpm run mobile:sync && cap open android",
     "mobile:ios": "pnpm run mobile:sync && cap open ios",

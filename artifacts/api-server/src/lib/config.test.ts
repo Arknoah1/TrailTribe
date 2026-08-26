@@ -26,15 +26,15 @@ describe("getAppBase()", () => {
     for (const key of WATCHED) delete process.env[key];
   });
 
-  it("branch 1: returns APP_BASE_URL verbatim when set", () => {
-    process.env.APP_BASE_URL = "https://trailtribe.example.com";
-    expect(getAppBase()).toBe("https://trailtribe.example.com");
+  it("branch 1: returns the TrailTeam public URL when configured", () => {
+    process.env.APP_BASE_URL = "https://trailteam.app";
+    expect(getAppBase()).toBe("https://trailteam.app");
   });
 
   it("branch 1: APP_BASE_URL takes priority over REPLIT_DEV_DOMAIN", () => {
-    process.env.APP_BASE_URL = "https://trailtribe.example.com";
+    process.env.APP_BASE_URL = "https://trailteam.app";
     process.env.REPLIT_DEV_DOMAIN = "abc.replit.dev";
-    expect(getAppBase()).toBe("https://trailtribe.example.com");
+    expect(getAppBase()).toBe("https://trailteam.app");
   });
 
   it("branch 2: uses REPLIT_DEV_DOMAIN with the default base path (root)", () => {

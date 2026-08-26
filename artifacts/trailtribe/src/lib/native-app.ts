@@ -16,7 +16,7 @@ const API_BASE = `${(import.meta.env.VITE_API_ORIGIN ?? BASE_URL).replace(/\/$/,
 function appRoute(rawUrl: string | null | undefined): string | null {
   if (!rawUrl) return null;
   try {
-    const url = new URL(rawUrl, "https://trailtribemtb.com");
+    const url = new URL(rawUrl, "https://trailteam.app");
     const path = `${url.pathname}${url.search}${url.hash}`;
     const normalized = path.replace(/^\/+/, "/");
     const knownRoute = /^\/(events\/\d+|messages(?:\/thread\/\d+)?|carpools(?:\/\d+)?|family-invite\/[^/]+|rider-invite\/[^/]+|join\/[^/]+|dashboard|calendar|profile|onboarding|reenroll|sign-in|sign-up)(?:[/?#]|$)/;

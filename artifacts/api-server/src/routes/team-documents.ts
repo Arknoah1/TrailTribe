@@ -16,6 +16,7 @@ import {
   storePendingObjectAcl,
 } from "../lib/objectAcl";
 import { sendEmail } from "../lib/email";
+import { getAppBase } from "../lib/config";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -23,8 +24,8 @@ const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 const storage = new ObjectStorageService();
 
 const BASE_URL = process.env.BASE_URL || "";
-/** Public-facing frontend URL used in email links (e.g. https://trailtribemtb.com) */
-const APP_URL = process.env.APP_URL || BASE_URL;
+/** Public-facing frontend URL used in email links (e.g. https://trailteam.app). */
+const APP_URL = process.env.APP_URL || getAppBase() || BASE_URL;
 
 router.get("/team-documents", async (_req, res) => {
   const docs = await db.select().from(teamDocumentsTable);

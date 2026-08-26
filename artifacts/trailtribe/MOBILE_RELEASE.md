@@ -6,8 +6,8 @@ native package identifiers are permanent:
 - iOS: `com.trailtribemtb.trailtribe`
 - Android: `com.trailtribemtb.trailtribe`
 - Store listing name: TrailTeam
-- Support: support@trailtribemtb.com / https://trailtribemtb.com
-- Current public domain: https://trailtribemtb.com (retained for link compatibility)
+- Support: coaches@methowcyclingteam.com / https://trailteam.app
+- Current public domain: https://trailteam.app
 
 ## Local development
 
@@ -25,13 +25,13 @@ native package identifiers are permanent:
 - Replace the `REPLACE_WITH_*` values in `public/.well-known/apple-app-site-association`
   and `public/.well-known/assetlinks.json` with the Apple Team ID and the
   Play App Signing SHA-256 fingerprint. Verify both files over HTTPS on
-  `https://trailtribemtb.com/.well-known/`.
+   `https://trailteam.app/.well-known/`.
 - Configure Google and Sign in with Apple in Clerk, including native redirect
   URLs for the production domain. Keep invitation links on the verified
   production domain so the app can open `/events/*`, `/messages/*`,
   `/carpools/*`, `/family-invite/*`, and `/rider-invite/*`.
 - In Xcode, enable Push Notifications and Associated Domains
-  (`applinks:trailtribemtb.com`), set the App Group only if a later native
+  (`applinks:trailteam.app`), set the App Group only if a later native
   extension needs it, and provide APNs production credentials.
 - In Android Studio, confirm the package ID, HTTPS app links intent filter,
   notification permission, release keystore, and Play App Signing.

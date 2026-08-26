@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { logger } from "./logger";
+import { DEFAULT_FROM_ADDRESS } from "./emailIdentity";
 
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
@@ -73,7 +74,7 @@ export function stopEmailHealthCheck(): void {
 }
 
 export const FROM_ADDRESS =
-  process.env.EMAIL_FROM ?? "TrailTeam <noreply@trailtribe.app>";
+  process.env.EMAIL_FROM ?? DEFAULT_FROM_ADDRESS;
 
 export interface SendEmailOptions {
   to: string | string[];
