@@ -117,6 +117,6 @@ test("slow routes show mobile-sized structure and preload likely navigation targ
   assert.match(skeletons, /export function EventDetailSkeleton/);
   assert.match(skeletons, /export function CarpoolBoardSkeleton/);
   assert.match(skeletons, /export function ProfileSkeleton/);
-  assert.match(layout, /onPointerEnter=\{\(\) => preloadRoute\(item\.href\)\}/);
+  assert.match(layout, /onPointerEnter=\{\(\) => preloadRoute\(item\.preloadHref \?\? item\.href\)\}/);
   assert.match(profile, /setTimeout\(\(\) => setLoadCalendarFeed\(true\), 700\)/);
 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "wouter";
-import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers } from "lucide-react";
+import { Link, useLocation, useSearch } from "wouter";
+import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers, MoreHorizontal, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
@@ -8,8 +8,23 @@ import { useTheme } from "@/lib/theme-context";
 import { useAdminView } from "@/hooks/use-admin-view";
 import { NetworkStatusBanner } from "./network-status";
 import { preloadRoute } from "@/lib/route-preload";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const baseNavItems = [
+type NavigationItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  preloadHref?: string;
+  isActive?: (location: string, search: string) => boolean;
+};
+
+const baseNavItems: NavigationItem[] = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/carpools", label: "Carpools", icon: Car },
@@ -17,8 +32,18 @@ const baseNavItems = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
-const adminNavItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
-const seasonBuilderNavItem = { href: "/season-builder", label: "Season", icon: Layers };
+const adminNavItem: NavigationItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
+const seasonBuilderNavItem: NavigationItem = { href: "/season-builder", label: "Season", icon: Layers };
+const getPathname = (location: string) => location.split("?")[0];
+const volunteerNavItem: NavigationItem = {
+  href: "/profile?tab=volunteer",
+  label: "Volunteer",
+  icon: ClipboardCheck,
+  preloadHref: "/profile",
+  isActive: (location, search) => (
+    getPathname(location) === "/profile" && new URLSearchParams(search).get("tab") === "volunteer"
+  ),
+};
 
 function ThemeToggle({ className }: { className?: string }) {
   const { theme, toggleTheme } = useTheme();
@@ -38,13 +63,15 @@ function ThemeToggle({ className }: { className?: string }) {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const search = useSearch();
   const { data: me } = useGetMe();
   const { data: unreadData } = useGetBoardUnreadCount({ query: { refetchInterval: 30000, queryKey: getGetBoardUnreadCountQueryKey() } });
   const unreadCount = typeof unreadData === "number" ? unreadData : (unreadData as any)?.count ?? 0;
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
   const { adminViewEnabled } = useAdminView();
+  const { theme, toggleTheme } = useTheme();
   const showAdminTabs = isCoachOrAdmin && adminViewEnabled;
   const mobileNavRef = useRef<HTMLDivElement>(null);
   const [mobileNavHeight, setMobileNavHeight] = useState(78);
@@ -54,8 +81,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
     ? [...baseNavItems.slice(0, 4), adminNavItem, baseNavItems[4]]
     : baseNavItems;
 
-  // Mobile bottom nav: always the same 5 items — Admin accessible via top bar
-  const mobileItems = baseNavItems;
+  // Mobile bottom nav: the account controls live in the top actions menu.
+  const mobileItems = [...baseNavItems.slice(0, 4), volunteerNavItem];
+
+  const isNavItemActive = (item: NavigationItem) => (
+    item.isActive?.(location, search)
+      ?? (getPathname(location) === item.href || getPathname(location).startsWith(item.href + "/"))
+  );
 
   useEffect(() => {
     const mobileNav = mobileNavRef.current;
@@ -109,14 +141,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 space-y-1 p-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location === item.href || location.startsWith(item.href + "/");
+              const isActive = isNavItemActive(item);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                onPointerEnter={() => preloadRoute(item.href)}
-                onFocus={() => preloadRoute(item.href)}
-                onTouchStart={() => preloadRoute(item.href)}
+                  onPointerEnter={() => preloadRoute(item.preloadHref ?? item.href)}
+                  onFocus={() => preloadRoute(item.preloadHref ?? item.href)}
+                  onTouchStart={() => preloadRoute(item.preloadHref ?? item.href)}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold uppercase tracking-wide transition-all border-2 cel-interactive",
                   isActive
@@ -145,24 +177,56 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
           <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTeam</span>
           <div className="flex items-center gap-1.5">
-            {showAdminTabs && (
-              <Link href="/admin">
-                <button
-                  className={cn(
-                    "min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border-2 border-[#0a0c10] shadow-cel-sm cel-interactive transition-colors",
-                    location.startsWith("/admin")
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:text-foreground"
-                  )}
-                  title="Admin"
-                  aria-label="Admin"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                </button>
-              </Link>
-            )}
-            <ThemeToggle />
             <NotificationBell />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border-2 border-[#0a0c10] bg-secondary text-muted-foreground hover:text-foreground shadow-cel-sm cel-interactive transition-colors"
+                  title="Open navigation and display options"
+                  aria-label="Open navigation and display options"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                className="min-w-52 border-2 border-[#0a0c10] bg-card p-1.5 shadow-cel-sm"
+              >
+                <DropdownMenuItem
+                  onSelect={() => navigate("/profile")}
+                  className={cn(
+                    "min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide",
+                    getPathname(location) === "/profile" && new URLSearchParams(search).get("tab") !== "volunteer"
+                      && "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                  )}
+                >
+                  <UserIcon className="h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
+                {showAdminTabs && (
+                  <DropdownMenuItem
+                    onSelect={() => navigate("/admin")}
+                    className={cn(
+                      "min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide",
+                      location.startsWith("/admin")
+                        && "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                    )}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Admin
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator className="bg-[#0a0c10]/20" />
+                <DropdownMenuItem
+                  onSelect={toggleTheme}
+                  className="min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide"
+                >
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  {theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       )}
@@ -196,14 +260,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
         {mobileItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location === item.href || location.startsWith(item.href + "/");
+          const isActive = isNavItemActive(item);
           return (
             <Link
               key={item.href}
               href={item.href}
-              onPointerEnter={() => preloadRoute(item.href)}
-              onFocus={() => preloadRoute(item.href)}
-              onTouchStart={() => preloadRoute(item.href)}
+              onPointerEnter={() => preloadRoute(item.preloadHref ?? item.href)}
+              onFocus={() => preloadRoute(item.preloadHref ?? item.href)}
+              onTouchStart={() => preloadRoute(item.preloadHref ?? item.href)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-bold uppercase tracking-wide transition-all min-w-0 flex-1 relative",
                 isActive
