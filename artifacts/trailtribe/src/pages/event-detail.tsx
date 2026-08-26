@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, formatEventType } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } from "@workspace/api-client-react";
@@ -1233,7 +1233,7 @@ export default function EventDetail() {
             <div className="space-y-1.5">
               <Label className="text-sm">Type *</Label>
               <Select value={editData.eventType} onValueChange={v => setEditData(p => ({ ...p, eventType: v }))}>
-                <SelectTrigger className="capitalize"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{formatEventType(editData.eventType)}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {EVENT_TYPES.map(t => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                 </SelectContent>

@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function formatEventType(value: string): string {
+  return value ? `${value.charAt(0).toUpperCase()}${value.slice(1)}` : "";
+}
+
 /**
  * Format a stored phone string for display as (XXX) XXX-XXXX.
  * Returns the value as-is if it doesn't contain exactly 10 digits.

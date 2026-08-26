@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { formatEventType } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -463,7 +464,7 @@ export default function Calendar() {
             <div className="space-y-1.5">
               <Label className="text-sm">Type *</Label>
               <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{formatEventType(newEvent.eventType)}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {(Object.values(CreateEventBodyEventType) as string[]).map(t => (
                     <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>

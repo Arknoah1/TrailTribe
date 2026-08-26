@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { formatPhone } from "@/lib/utils";
+import { formatEventType, formatPhone } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
@@ -1951,7 +1951,7 @@ export default function Admin() {
                                 <td className="px-4 py-2.5 hidden sm:table-cell">
                                   {isEditing ? (
                                     <Select value={editingEventData.eventType} onValueChange={v => setEditingEventData((p: any) => ({ ...p, eventType: v }))}>
-                                      <SelectTrigger className="h-7 text-xs w-24 capitalize"><SelectValue /></SelectTrigger>
+                                      <SelectTrigger className="h-7 text-xs w-24"><SelectValue>{formatEventType(editingEventData.eventType)}</SelectValue></SelectTrigger>
                                       <SelectContent>
                                         {["practice","race","social","volunteer","other"].map(t => (
                                           <SelectItem key={t} value={t} className="capitalize text-xs">{t}</SelectItem>
@@ -2086,7 +2086,7 @@ export default function Admin() {
                           <div className="space-y-1">
                             <Label className="text-xs">Type *</Label>
                             <Select value={newEvent.eventType} onValueChange={v => setNewEvent(p => ({ ...p, eventType: v as CreateEventBodyEventType }))}>
-                              <SelectTrigger className="h-8 text-sm capitalize"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue>{formatEventType(newEvent.eventType)}</SelectValue></SelectTrigger>
                               <SelectContent>
                                 {(Object.values(CreateEventBodyEventType) as string[]).map(t => (
                                   <SelectItem key={t} value={t} className="capitalize text-sm">{t}</SelectItem>

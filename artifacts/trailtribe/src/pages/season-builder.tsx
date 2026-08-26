@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { formatEventType } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpDown, Users, AlertTriangle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
@@ -324,7 +325,7 @@ export default function SeasonBuilder() {
                 <Label>Append to existing series <span className="text-muted-foreground text-xs">(optional)</span></Label>
                 <Select value={existingSeriesId} onValueChange={setExistingSeriesId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>{formatEventType(eventType)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="new">— Create new series —</SelectItem>
@@ -584,7 +585,7 @@ export default function SeasonBuilder() {
                               onValueChange={v => updateRow(row.id, { eventType: v as EventType })}
                             >
                               <SelectTrigger className="h-7 text-xs w-24">
-                                <SelectValue />
+                                <SelectValue>{formatEventType(row.eventType)}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {EVENT_TYPES.map(t => (
