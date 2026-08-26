@@ -29,6 +29,11 @@ import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { LoadErrorCard } from "@/components/network-status";
 import { EventDetailSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
+import {
+  getVolunteerTaskState,
+  volunteerTaskAvailableButtonClassName,
+  volunteerTaskUnavailableButtonClassName,
+} from "@/lib/volunteer-task-status";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -1116,8 +1121,9 @@ export default function EventDetail() {
                           {catTasks.map((task) => {
                             const filled = task.signups?.length ?? 0;
                             const pct = task.slotsNeeded > 0 ? Math.min(100, Math.round((filled / task.slotsNeeded) * 100)) : 100;
-                            const isFull = filled >= task.slotsNeeded;
-                            const mySignup = task.mySignup;
+                            const taskState = getVolunteerTaskState(task);
+                            const isFull = taskState === "full";
+                            const mySignup = taskState === "claimed";
 
                             return (
                               <div key={task.id} className="px-5 py-4 flex items-start gap-4">
@@ -1165,21 +1171,35 @@ export default function EventDetail() {
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0 pt-0.5">
                                   {mySignup ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                                      onClick={() => handleCancel(task.id)}
-                                      disabled={cancelMut.isPending}
-                                    >
-                                      Cancel
-                                    </Button>
+                                    <>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled
+                                        aria-label={`You’re on it: ${task.title}`}
+                                        className={volunteerTaskUnavailableButtonClassName}
+                                      >
+                                        You’re on it
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                                        onClick={() => handleCancel(task.id)}
+                                        disabled={cancelMut.isPending}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
                                   ) : (
                                     <Button
-                                      variant={isFull ? "secondary" : "outline"}
+                                      variant="default"
                                       size="sm"
                                       onClick={() => handleSignUp(task.id)}
                                       disabled={signUpMut.isPending || isFull}
+                                      aria-label={isFull ? `Full: ${task.title}` : `Sign up for ${task.title}`}
+                                      className={isFull ? volunteerTaskUnavailableButtonClassName : volunteerTaskAvailableButtonClassName}
                                     >
                                       {isFull ? "Full" : "Sign Up"}
                                     </Button>

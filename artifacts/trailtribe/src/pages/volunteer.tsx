@@ -16,6 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useRoutePerformance } from "@/lib/route-performance";
+import {
+  getVolunteerTaskState,
+  getVolunteerTaskStateLabel,
+  volunteerTaskAvailableButtonClassName,
+  volunteerTaskUnavailableButtonClassName,
+  type VolunteerTaskState,
+} from "@/lib/volunteer-task-status";
 
 type VolunteerEvent = {
   id: number;
@@ -70,16 +77,32 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
   };
 
   const taskGroups = useMemo(() => {
-    const groups = new Map<string, { eventId: number; taskId: number; eventTitle: string }[]>();
+    const groups = new Map<
+      string,
+      {
+        eventId: number;
+        taskId: number;
+        eventTitle: string;
+        state: VolunteerTaskState;
+        filled: number;
+        slotsNeeded: number;
+      }[]
+    >();
     for (const eventId of attendedIds) {
       const tasks = tasksByEvent.get(eventId) ?? [];
       const event = events.find((candidate) => candidate.id === eventId);
       for (const task of tasks) {
-        if (task.mySignup) continue;
         const filled = task.signups?.length ?? 0;
-        if (filled >= task.slotsNeeded) continue;
+        const state = getVolunteerTaskState(task);
         if (!groups.has(task.title)) groups.set(task.title, []);
-        groups.get(task.title)!.push({ eventId, taskId: task.id, eventTitle: event?.title ?? "" });
+        groups.get(task.title)!.push({
+          eventId,
+          taskId: task.id,
+          eventTitle: event?.title ?? "",
+          state,
+          filled,
+          slotsNeeded: task.slotsNeeded,
+        });
       }
     }
     return [...groups.entries()].sort(([first], [second]) => first.localeCompare(second));
@@ -189,29 +212,72 @@ function CrossEventSignupPanel({ events }: { events: VolunteerEvent[] }) {
               Recurring open tasks
             </h3>
             {taskGroups.map(([title, occurrences]) => (
+              (() => {
+                const availableOccurrences = occurrences.filter((occurrence) => occurrence.state === "available");
+                const claimedOccurrences = occurrences.filter((occurrence) => occurrence.state === "claimed");
+                const fullOccurrences = occurrences.filter((occurrence) => occurrence.state === "full");
+                const statusLabel = availableOccurrences.length > 0
+                  ? null
+                  : claimedOccurrences.length > 0 && fullOccurrences.length === 0
+                    ? "You’re on it"
+                    : fullOccurrences.length > 0 && claimedOccurrences.length === 0
+                      ? "Full"
+                      : "No openings";
+
+                return (
               <div key={title} className="flex flex-col gap-3 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {occurrences.length === 1
-                      ? `Available at ${occurrences[0].eventTitle}`
-                      : `Available at ${occurrences.length} selected events`}
+                    {availableOccurrences.length === 0
+                      ? "Unavailable at the selected events"
+                      : availableOccurrences.length === 1
+                        ? `Available at ${availableOccurrences[0].eventTitle}`
+                        : `Available at ${availableOccurrences.length} selected events`}
                   </p>
+                  {(claimedOccurrences.length > 0 || fullOccurrences.length > 0) && (
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      {claimedOccurrences.length > 0 && (
+                        <span>
+                          {getVolunteerTaskStateLabel("claimed")} at {claimedOccurrences.length} event{claimedOccurrences.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                      {fullOccurrences.length > 0 && (
+                        <span>
+                          Full at {fullOccurrences.length} event{fullOccurrences.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <Button
-                  size="sm"
-                  variant={occurrences.length > 1 ? "default" : "outline"}
-                  onClick={() => void applyTask(title, occurrences)}
-                  disabled={bulkSignup.isPending}
-                  className="min-h-11 shrink-0"
-                >
-                  {bulkSignup.isPending
-                    ? "Saving…"
-                    : occurrences.length > 1
-                      ? `Sign up at all ${occurrences.length}`
-                      : "Sign up"}
-                </Button>
+                {availableOccurrences.length > 0 ? (
+                  <Button
+                    size="sm"
+                    onClick={() => void applyTask(title, availableOccurrences)}
+                    disabled={bulkSignup.isPending}
+                    className={`min-h-11 shrink-0 ${volunteerTaskAvailableButtonClassName}`}
+                  >
+                    {bulkSignup.isPending
+                      ? "Saving…"
+                      : availableOccurrences.length > 1
+                        ? `Sign up at all ${availableOccurrences.length}`
+                        : "Sign up"}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled
+                    aria-label={`${statusLabel}: ${title}`}
+                    className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
+                  >
+                    {statusLabel}
+                  </Button>
+                )}
               </div>
+                );
+              })()
             ))}
           </section>
         )}
@@ -235,10 +301,8 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
   const { toast } = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const openTasks = (tasks ?? []).filter((task: any) => {
-    const filled = task.signups?.length ?? 0;
-    return !task.mySignup && filled < task.slotsNeeded;
-  });
+  const allTasks = tasks ?? [];
+  const availableTasks = allTasks.filter((task: any) => getVolunteerTaskState(task) === "available");
 
   const toggle = (id: number) => {
     setSelected((previous) => {
@@ -250,9 +314,11 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
   };
 
   const handleApply = () => {
-    if (selected.size === 0) return;
+    const availableTaskIds = new Set(availableTasks.map((task: any) => task.id));
+    const taskIds = [...selected].filter((taskId) => availableTaskIds.has(taskId));
+    if (taskIds.length === 0) return;
     bulkSignup.mutate(
-      { id: event.id, data: { taskIds: [...selected] } },
+      { id: event.id, data: { taskIds } },
       {
         onSuccess: (result: any) => {
           const added = result?.added ?? 0;
@@ -303,7 +369,7 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
     );
   }
 
-  if (openTasks.length === 0) return null;
+  if (allTasks.length === 0) return null;
 
   const eventHeadingId = `volunteer-opportunity-${event.id}`;
   return (
@@ -314,39 +380,69 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
             <CardTitle id={eventHeadingId} className="text-base">{event.title}</CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">{format(new Date(event.startTime), "EEEE, MMM d")}</p>
           </div>
-          <Badge variant="outline" className="shrink-0">{openTasks.length} open</Badge>
+          <Badge variant="outline" className="shrink-0">
+            {availableTasks.length > 0 ? `${availableTasks.length} open` : "No openings"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-1">
         <fieldset aria-labelledby={eventHeadingId}>
           <legend className="sr-only">Choose volunteer tasks for {event.title}</legend>
           <div className="space-y-2">
-            {openTasks.map((task: any) => {
+            {allTasks.map((task: any) => {
               const inputId = `volunteer-task-${event.id}-${task.id}`;
+              const state = getVolunteerTaskState(task);
+              const filled = task.signups?.length ?? 0;
+              const statusLabel = getVolunteerTaskStateLabel(state);
+              const isAvailable = state === "available";
+              const isSelected = isAvailable && selected.has(task.id);
               return (
                 <div
                   key={task.id}
-                  className="rounded-lg transition-colors hover:bg-muted/40 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2"
+                  className={`rounded-lg transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
+                    isAvailable ? "hover:bg-muted/40" : "bg-muted/20"
+                  }`}
                 >
                   <label
                     htmlFor={inputId}
-                    className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5"
+                    className={`flex min-h-11 items-start gap-3 rounded-lg px-2 py-2.5 ${
+                      isAvailable ? "cursor-pointer" : "cursor-default"
+                    }`}
                   >
                     <input
                       id={inputId}
                       type="checkbox"
                       className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
-                      checked={selected.has(task.id)}
-                      onChange={() => toggle(task.id)}
+                      checked={state === "claimed" || isSelected}
+                      disabled={!isAvailable}
+                      aria-label={`${task.title}: ${statusLabel}`}
+                      onChange={() => {
+                        if (isAvailable) toggle(task.id);
+                      }}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{task.title}</span>
                       {task.description && <span className="mt-0.5 block text-xs text-muted-foreground">{task.description}</span>}
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {filled}/{task.slotsNeeded} filled · {statusLabel}
+                      </span>
                     </span>
                     {task.category && (
                       <Badge variant="secondary" className="max-w-[45%] shrink-0 whitespace-normal text-right leading-tight">
                         {task.category}
                       </Badge>
+                    )}
+                    {!isAvailable && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled
+                        aria-label={`${statusLabel}: ${task.title}`}
+                        className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
+                      >
+                        {statusLabel}
+                      </Button>
                     )}
                   </label>
                 </div>
@@ -356,12 +452,17 @@ function VolunteerOpportunityCard({ event }: { event: VolunteerEvent }) {
         </fieldset>
         <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground" aria-live="polite">
-            {selected.size === 0 ? "Select one or more tasks to continue." : `${selected.size} task${selected.size === 1 ? "" : "s"} selected.`}
+            {availableTasks.length === 0
+              ? "All tasks are already claimed or full."
+              : selected.size === 0
+                ? "Select one or more available tasks to continue."
+                : `${selected.size} task${selected.size === 1 ? "" : "s"} selected.`}
           </p>
           <Button
             className="min-h-11 sm:min-w-36"
             onClick={handleApply}
-            disabled={selected.size === 0 || bulkSignup.isPending}
+            disabled={selected.size === 0 || availableTasks.length === 0 || bulkSignup.isPending}
+            className={volunteerTaskAvailableButtonClassName}
           >
             {bulkSignup.isPending ? "Saving…" : `Sign Up${selected.size > 0 ? ` for ${selected.size}` : ""}`}
           </Button>
