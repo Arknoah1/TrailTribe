@@ -3,14 +3,14 @@ import { db } from "@workspace/db";
 import { broadcastsTable, usersTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
-import { sendEmail } from "../lib/email";
+import { sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
 
 const router = Router();
 
 router.get("/messages", requireApproved, async (req, res) => {
-  const emailConfigured = !!process.env.RESEND_API_KEY;
+  const emailConfigured = emailHealthy;
   const broadcasts = await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt);
   const result = await Promise.all(
     broadcasts.map(async (b) => {
@@ -57,7 +57,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   const orgPrefix = await getShortNamePrefix();
   const emailSubject = `${orgPrefix}${subject ? subject : `Message from ${senderName}`}`;
 
-  const emailNotConfigured = !process.env.RESEND_API_KEY;
+  const emailNotConfigured = !emailHealthy;
 
   (async () => {
     let delivered = 0;

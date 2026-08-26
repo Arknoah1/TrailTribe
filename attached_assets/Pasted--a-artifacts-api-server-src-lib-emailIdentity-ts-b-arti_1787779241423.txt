@@ -1,0 +1,56 @@
+--- a/artifacts/api-server/src/lib/emailIdentity.ts
++++ b/artifacts/api-server/src/lib/emailIdentity.ts
+@@ -1,3 +1,4 @@
+ /** Customer-visible fallback identity for transactional email. */
+-// This sender needs a verified Resend domain with SPF/DKIM before mail can deliver reliably.
+-export const DEFAULT_FROM_ADDRESS = "TrailTeam <noreply@trailteam.app>";
++// Mail is sent via Gmail SMTP (smtp.gmail.com), authenticated as SMTP_USER.
++// This address must be that same Gmail mailbox (or a verified "Send As"
++// alias on it) — trailteam.app has no mail server of its own.
++export const DEFAULT_FROM_ADDRESS = "TrailTeam <admin@methowcyclingteam.com>";
+
+--- a/artifacts/api-server/src/lib/emailIdentity.test.ts
++++ b/artifacts/api-server/src/lib/emailIdentity.test.ts
+@@ -3,6 +3,6 @@
+ 
+ describe("transactional email identity", () => {
+   it("uses the TrailTeam display name in the fallback sender", () => {
+-    expect(DEFAULT_FROM_ADDRESS).toBe("TrailTeam <noreply@trailteam.app>");
++    expect(DEFAULT_FROM_ADDRESS).toBe("TrailTeam <admin@methowcyclingteam.com>");
+   });
+ });
+
+--- a/artifacts/api-server/src/routes/messages.ts
++++ b/artifacts/api-server/src/routes/messages.ts
+@@ -3,7 +3,7 @@
+ import { broadcastsTable, usersTable } from "@workspace/db";
+ import { eq, inArray } from "drizzle-orm";
+ import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+-import { sendEmail } from "../lib/email";
++import { sendEmail, emailHealthy } from "../lib/email";
+ import { logger } from "../lib/logger";
+ import { getShortNamePrefix } from "./settings";
+ 
+ const router = Router();
+ 
+ router.get("/messages", requireApproved, async (req, res) => {
+-  const emailConfigured = !!process.env.RESEND_API_KEY;
++  const emailConfigured = emailHealthy;
+   const broadcasts = await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt);
+@@ -57,7 +57,7 @@
+   const orgPrefix = await getShortNamePrefix();
+   const emailSubject = `${orgPrefix}${subject ? subject : `Message from ${senderName}`}`;
+ 
+-  const emailNotConfigured = !process.env.RESEND_API_KEY;
++  const emailNotConfigured = !emailHealthy;
+ 
+   (async () => {
+
+--- a/threat_model.md
++++ b/threat_model.md
+@@ -2,7 +2,7 @@
+ 
+ ## Project Overview
+ 
+-TrailTeam is a full-stack team management web application for a high school mountain bike team, serving as a TeamSnap alternative. The stack is Node.js/Express 5 (API server), React/Vite (frontend), PostgreSQL via Drizzle ORM, Clerk for authentication, Resend for email, and Replit Object Storage for file uploads. It is deployed publicly on Replit Autoscale (`https://trailteam.app`).
++TrailTeam is a full-stack team management web application for a high school mountain bike team, serving as a TeamSnap alternative. The stack is Node.js/Express 5 (API server), React/Vite (frontend), PostgreSQL via Drizzle ORM, Clerk for authentication, Gmail SMTP (via nodemailer) for email, and Replit Object Storage for file uploads. It is deployed publicly on Replit Autoscale (`https://trailteam.app`).

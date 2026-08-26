@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-TrailTeam is a full-stack team management web application for a high school mountain bike team, serving as a TeamSnap alternative. The stack is Node.js/Express 5 (API server), React/Vite (frontend), PostgreSQL via Drizzle ORM, Clerk for authentication, Resend for email, and Replit Object Storage for file uploads. It is deployed publicly on Replit Autoscale (`https://trailteam.app`).
+TrailTeam is a full-stack team management web application for a high school mountain bike team, serving as a TeamSnap alternative. The stack is Node.js/Express 5 (API server), React/Vite (frontend), PostgreSQL via Drizzle ORM, Clerk for authentication, Gmail SMTP (via nodemailer) for email, and Replit Object Storage for file uploads. It is deployed publicly on Replit Autoscale (`https://trailteam.app`).
 
 Primary user roles: **admin**, **coach**, **parent**, **student**. New families register via invite links and require coach/admin approval before accessing team resources.
 
