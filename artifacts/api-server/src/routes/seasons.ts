@@ -409,15 +409,15 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
         text: [
           `Hi,`,
           ``,
-          `A new season (${active.name}) has started on TrailTribe!`,
+          `A new season (${active.name}) has started on TrailTeam!`,
           ``,
           `Please log in and complete your enrollment to join the roster for this season.`,
           `Your family will need to re-sign compliance documents and confirm your spot`,
           `before a coach can assign you to a pod.`,
           ``,
-          `Log in at TrailTribe to get started.`,
+          `Log in at TrailTeam to get started.`,
           ``,
-          `— The TrailTribe Team`,
+          `— The TrailTeam`,
         ].join("\n"),
       })
     )
@@ -503,15 +503,15 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
     text: [
       `Hi,`,
       ``,
-      `A new season (${active.name}) has started on TrailTribe!`,
+      `A new season (${active.name}) has started on TrailTeam!`,
       ``,
       `Please log in and complete your enrollment to join the roster for this season.`,
       `Your family will need to re-sign compliance documents and confirm your spot`,
       `before a coach can assign you to a pod.`,
       ``,
-      `Log in at TrailTribe to get started.`,
+      `Log in at TrailTeam to get started.`,
       ``,
-      `— The TrailTribe Team`,
+      `— The TrailTeam`,
     ].join("\n"),
   });
 

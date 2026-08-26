@@ -619,7 +619,7 @@ export default function Calendar() {
               Subscribe to Team Calendar
             </DialogTitle>
             <DialogDescription>
-              Add the TrailTribe team calendar to your Google Calendar, Apple Calendar, or Outlook. Events stay automatically in sync.
+              Add the TrailTeam calendar to your Google Calendar, Apple Calendar, or Outlook. Events stay automatically in sync.
             </DialogDescription>
           </DialogHeader>
 

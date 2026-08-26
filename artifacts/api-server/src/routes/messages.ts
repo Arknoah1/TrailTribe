@@ -71,7 +71,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
           ``,
           body,
           ``,
-          `— TrailTribe`,
+          `— TrailTeam`,
         ].join("\n"),
         replyTo: me?.email,
       });
@@ -148,12 +148,12 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
         to: coach.email,
         subject: emailSubject,
         text: [
-          `${senderName} sent you a message via TrailTribe:`,
+          `${senderName} sent you a message via TrailTeam:`,
           ``,
           body,
           ``,
           `Reply directly to this email to respond.`,
-          `— TrailTribe`,
+          `— TrailTeam`,
         ].join("\n"),
         replyTo: me?.email,
       });

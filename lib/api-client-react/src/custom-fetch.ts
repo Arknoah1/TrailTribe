@@ -101,7 +101,7 @@ function reportApiRequest(
   const durationMs = Math.round(performance.now() - startedAt);
   // The path intentionally excludes query strings so console telemetry never
   // records private filters, tokens, or other user-provided request values.
-  console.info("[TrailTribe API]", {
+  console.info("[TrailTeam API]", {
     method: resolveMethod(input, init.method),
     path: performancePath(resolveUrl(input)),
     ...result,

@@ -98,9 +98,9 @@ export function NativeAppBridge() {
       void syncPushToken(token, getToken);
     });
     const errorListener = PushNotifications.addListener("registrationError", (error) => {
-      console.warn("[TrailTribe] push registration failed", error);
+      console.warn("[TrailTeam] push registration failed", error);
     });
-    void registerPush().catch((error) => console.warn("[TrailTribe] push setup failed", error));
+    void registerPush().catch((error) => console.warn("[TrailTeam] push setup failed", error));
 
     return () => {
       cancelled = true;

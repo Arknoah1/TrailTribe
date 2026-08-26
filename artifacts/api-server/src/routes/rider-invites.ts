@@ -87,8 +87,8 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
   const teamName = settings.teamName?.trim() || null;
   const orgPrefix = settings.shortName?.trim() ? `${settings.shortName.trim()}: ` : "";
   const subject = teamName
-    ? `${orgPrefix}You've been invited to join ${teamName} on TrailTribe`
-    : `${orgPrefix}You've been invited to TrailTribe`;
+    ? `${orgPrefix}You've been invited to join ${teamName} on TrailTeam`
+    : `${orgPrefix}You've been invited to TrailTeam`;
 
   const emailResult = await sendEmail({
     to: rider.email,
@@ -96,7 +96,7 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
     text: [
       `Hi ${rider.firstName}!`,
       ``,
-      `${requester.firstName} ${requester.lastName} has invited you to access TrailTribe — your team's hub for schedules, RSVPs, carpools, and communication.`,
+      `${requester.firstName} ${requester.lastName} has invited you to access TrailTeam — your team's hub for schedules, RSVPs, carpools, and communication.`,
       ``,
       `Click the link below to create your account. This link is valid for ${INVITE_TTL_DAYS} days and is for your use only.`,
       ``,
@@ -104,7 +104,7 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
       ``,
       `If you weren't expecting this, you can safely ignore this email.`,
       ``,
-      `— The TrailTribe Team`,
+      `— The TrailTeam`,
     ].join("\n"),
   });
 

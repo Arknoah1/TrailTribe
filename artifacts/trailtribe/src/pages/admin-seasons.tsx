@@ -420,7 +420,7 @@ export default function SeasonsTab() {
                 <span className="text-sm">
                   <span className="font-medium">Auto-enroll returning families</span>
                   <span className="block text-muted-foreground text-xs mt-0.5">
-                    Mark all currently-approved households as enrolled so they appear on the active roster without re-registering. Useful when migrating an existing team into TrailTribe.
+                    Mark all currently-approved households as enrolled so they appear on the active roster without re-registering. Useful when migrating an existing team into TrailTeam.
                   </span>
                 </span>
               </label>

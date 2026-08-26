@@ -25,7 +25,7 @@ test("wider screens retain the compact one-line title treatment", () => {
 });
 
 test("unbroken titles can wrap without creating horizontal overflow", () => {
-  const unbrokenTitle = "TrailTribe".repeat(80);
+  const unbrokenTitle = "TrailTeam".repeat(80);
 
   assert.doesNotMatch(unbrokenTitle, /\s/);
   assert.match(titleClass, /\[overflow-wrap:anywhere\]/);

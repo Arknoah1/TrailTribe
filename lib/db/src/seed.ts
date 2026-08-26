@@ -1,5 +1,5 @@
 /**
- * TrailTribe seed script — run with: pnpm --filter @workspace/db run seed
+ * TrailTeam seed script — run with: pnpm --filter @workspace/db run seed
  *
  * Populates the database with realistic example data for a mountain bike team.
  * Safe to re-run: uses ON CONFLICT DO NOTHING where possible.

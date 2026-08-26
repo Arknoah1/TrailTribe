@@ -107,7 +107,7 @@ router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, async (req, 
   });
   if (activeUser) {
     res.status(409).json({
-      error: `This account belongs to an active TrailTribe user (${activeUser.firstName} ${activeUser.lastName}). Remove or archive the family first before clearing their sign-in account.`,
+      error: `This account belongs to an active TrailTeam user (${activeUser.firstName} ${activeUser.lastName}). Remove or archive the family first before clearing their sign-in account.`,
     });
     return;
   }

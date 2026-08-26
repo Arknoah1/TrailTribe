@@ -54,14 +54,14 @@ export default function Slide10Inviting() {
               {["#FF5F57","#FEBC2E","#28C840"].map(c => <div key={c} style={{ width: "0.65vw", height: "0.65vw", borderRadius: "50%", background: c }} />)}
             </div>
             <div style={{ flex: 1, background: "#1A1917", borderRadius: 4, margin: "0 0.8vw", height: "1.8vh", display: "flex", alignItems: "center", paddingLeft: "0.6vw" }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.58vw", color: "#5A5550" }}>trailtribe.app/admin</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "0.58vw", color: "#5A5550" }}>trailtribemtb.com/admin</span>
             </div>
           </div>
           {/* App layout */}
           <div style={{ height: "calc(100% - 3.6vh)", display: "flex", overflow: "hidden" }}>
             {/* Sidebar */}
             <div style={{ width: "11vw", background: SIDEBAR_BG, borderRight: `1px solid ${SIDEBAR_BORDER}`, flexShrink: 0, display: "flex", flexDirection: "column", padding: "1.5vh 0.6vw 1vh" }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", color: AMBER, fontSize: "0.6vw", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "2.2vh", paddingLeft: "0.5vw" }}>TrailTribe</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", color: AMBER, fontSize: "0.6vw", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "2.2vh", paddingLeft: "0.5vw" }}>TrailTeam</div>
               {NAV_ITEMS.map(({ label, active }) => (
                 <div key={label} style={{ padding: "0.65vh 0.6vw", borderRadius: 5, marginBottom: "0.2vh", background: active ? "#2A2724" : "transparent", color: active ? "#F0E8DD" : "#5A5550", fontSize: "0.62vw", fontFamily: "'Space Grotesk', sans-serif", fontWeight: active ? 600 : 400 }}>{label}</div>
               ))}
@@ -131,7 +131,7 @@ export default function Slide10Inviting() {
           ))}
         </div>
         <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw", letterSpacing: "0.1em" }}>trailtribe.app</div>
+          <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw", letterSpacing: "0.1em" }}>trailtribemtb.com</div>
           <div style={{ fontFamily: "'DM Mono', monospace", color: AMBER, fontSize: "0.75vw", letterSpacing: "0.15em", textTransform: "uppercase" }}>Coaches / 2025–26</div>
         </div>
       </div>

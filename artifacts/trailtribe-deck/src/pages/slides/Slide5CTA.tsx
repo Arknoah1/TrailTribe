@@ -33,7 +33,7 @@ export default function Slide5CTA() {
         </h2>
 
         <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#A8A096", fontSize: "1.3vw", lineHeight: 1.6, margin: "0 0 5vh 0", maxWidth: "34vw", textWrap: "pretty" }}>
-          Get your team on TrailTribe before the season starts.
+          Get your team on TrailTeam before the season starts.
         </p>
 
         <div style={{
@@ -46,7 +46,7 @@ export default function Slide5CTA() {
           textTransform: "uppercase",
           marginBottom: "4vh"
         }}>
-          trailtribe.app
+          trailtribemtb.com
         </div>
 
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.9vw", letterSpacing: "0.15em" }}>
@@ -55,7 +55,7 @@ export default function Slide5CTA() {
       </div>
 
       <div style={{ position: "absolute", bottom: "5vh", left: "5vw", fontFamily: "'DM Mono', monospace", color: "#A8A096", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-        trailtribe.app
+        trailtribemtb.com
       </div>
       <div style={{ position: "absolute", bottom: "5vh", right: "5vw", fontFamily: "'DM Mono', monospace", color: "#A8A096", fontSize: "0.8vw" }}>
         05

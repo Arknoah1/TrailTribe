@@ -693,7 +693,7 @@ export default function Onboarding() {
       {/* Header */}
       <div className="border-b-2 border-[#0a0c10] px-6 py-4 flex items-center gap-3">
         <Mountain className="h-6 w-6 text-primary" />
-        <span className="font-display text-xl tracking-widest text-primary">TrailTribe</span>
+        <span className="font-display text-xl tracking-widest text-primary">TrailTeam</span>
       </div>
 
       {/* Wizard body */}

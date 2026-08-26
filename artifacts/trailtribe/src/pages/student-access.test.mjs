@@ -22,7 +22,7 @@ test("students retain profile access without household-management controls", () 
   assert.match(profile, /Family information is view-only/);
   assert.match(profile, /disabled=\{readOnly\}/);
   assert.match(profile, /!readOnly && \(\s*<Dialog open=\{riderDialogOpen/);
-  assert.match(profile, /Ask a parent or guardian to invite you to their TrailTribe household/);
+  assert.match(profile, /Ask a parent or guardian to invite you to their TrailTeam household/);
 });
 
 test("student carpool actions stay scoped to their own transportation", () => {

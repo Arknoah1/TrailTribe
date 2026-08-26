@@ -178,7 +178,7 @@ function NotificationsTab({ user }: { user: User }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
-          <CardDescription>Control when and how TrailTribe contacts you.</CardDescription>
+          <CardDescription>Control when and how TrailTeam contacts you.</CardDescription>
         </CardHeader>
         <CardContent>
           <ToggleRow
@@ -470,7 +470,7 @@ function NoHouseholdSetup({ userId, onCreated }: { userId?: number; onCreated: (
         toast({ title: data.error ?? "Failed to create household", variant: "destructive" });
         return;
       }
-      toast({ title: "Household created! Welcome to TrailTribe." });
+      toast({ title: "Household created! Welcome to TrailTeam." });
       onCreated();
     } finally {
       setIsSubmitting(false);
@@ -1826,7 +1826,7 @@ export default function Profile() {
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Home className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm font-medium">No household is linked yet</p>
-                  <p className="text-xs mt-1">Ask a parent or guardian to invite you to their TrailTribe household.</p>
+                  <p className="text-xs mt-1">Ask a parent or guardian to invite you to their TrailTeam household.</p>
                 </CardContent>
               </Card>
             ) : (

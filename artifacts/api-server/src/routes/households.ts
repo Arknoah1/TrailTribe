@@ -256,11 +256,11 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
   const inviteUrl = `${appBase}/family-invite/${token}`;
   const emailResult = await sendEmail({
     to: email,
-    subject: `${inviterName} invited you to join the ${household.name} household on TrailTribe`,
+    subject: `${inviterName} invited you to join the ${household.name} household on TrailTeam`,
     text: [
       "Hi there!",
       "",
-      `${inviterName} invited you to join the ${household.name} household on TrailTribe.`,
+      `${inviterName} invited you to join the ${household.name} household on TrailTeam.`,
       "You'll be able to see the same events, carpools, messages, and notifications.",
       "",
       `Use this private link to join. It is valid for ${CO_PARENT_INVITE_TTL_DAYS} days:`,
@@ -269,7 +269,7 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
       "",
       "If you weren't expecting this invitation, you can safely ignore this email.",
       "",
-      "— The TrailTribe Team",
+      "— The TrailTeam",
     ].join("\n"),
   });
 

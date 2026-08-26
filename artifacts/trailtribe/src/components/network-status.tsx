@@ -57,7 +57,7 @@ export function getLoadErrorMessage(feature: string, error: unknown) {
     return `This ${feature} is no longer available.`;
   }
   if (status && status >= 500) {
-    return `TrailTribe couldn't load ${feature} right now. Please try again.`;
+    return `TrailTeam couldn't load ${feature} right now. Please try again.`;
   }
   return `Check your connection and try loading ${feature} again.`;
 }

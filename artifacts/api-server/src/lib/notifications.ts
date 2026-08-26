@@ -77,7 +77,7 @@ export async function notifyCoachesOfReturningFamily(user: {
           ``,
           `Visit the Admin page to assign them to a pod.`,
           ``,
-          `— TrailTribe`,
+          `— TrailTeam`,
         ].join("\n"),
       });
     }
@@ -130,14 +130,14 @@ export async function notifyCoachesOfNewFamily(newUser: {
         text: [
           `Hi,`,
           ``,
-          `A new family has registered on TrailTribe and is waiting for your approval.`,
+          `A new family has registered on TrailTeam and is waiting for your approval.`,
           ``,
           `Name:  ${fullName}`,
           `Email: ${newUser.email}`,
           ``,
           `Visit the Admin page to approve or review their account.`,
           ``,
-          `— TrailTribe`,
+          `— TrailTeam`,
         ].join("\n"),
       });
     }

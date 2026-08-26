@@ -33,7 +33,7 @@ export default function Slide6HowItWorks() {
           <span style={{
             fontFamily: "'DM Mono', monospace", color: "#C49A6C", fontSize: "0.75vw",
             letterSpacing: "0.2em", textTransform: "uppercase"
-          }}>TrailTribe</span>
+          }}>TrailTeam</span>
         </div>
 
         {/* Section label rotated */}
@@ -93,7 +93,7 @@ export default function Slide6HowItWorks() {
           display: "flex", justifyContent: "space-between", alignItems: "center", width: "calc(62vw - 14vw)"
         }}>
           <span style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw", letterSpacing: "0.1em" }}>
-            trailtribe.app
+            trailtribemtb.com
           </span>
           <span style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.75vw" }}>05</span>
         </div>

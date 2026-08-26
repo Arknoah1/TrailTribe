@@ -105,10 +105,10 @@ export function buildTeamCalendarIcs(
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//TrailTribe//Team Calendar//EN",
+    "PRODID:-//TrailTeam//Team Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:TrailTribe Team Calendar",
+    "X-WR-CALNAME:TrailTeam Calendar",
     "X-WR-CALDESC:Your mountain bike team schedule",
     ...vevents,
     "END:VCALENDAR",

@@ -168,7 +168,7 @@ export default function FamilyInvite() {
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-6">
       <div className="text-center mb-8">
         <Mountain className="h-12 w-12 mx-auto text-primary mb-4" />
-        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTribe</h1>
+        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTeam</h1>
         <p className="text-muted-foreground mt-1">Mountain bike team hub</p>
       </div>
 
@@ -177,8 +177,8 @@ export default function FamilyInvite() {
           <CardTitle className="text-2xl">You've been invited!</CardTitle>
           <CardDescription className="text-base mt-2">
             {householdName
-              ? `You've been invited to join the ${householdName} household on TrailTribe.`
-              : "Your coach has invited you to join the team on TrailTribe."}
+              ? `You've been invited to join the ${householdName} household on TrailTeam.`
+              : "Your coach has invited you to join the team on TrailTeam."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -190,9 +190,9 @@ export default function FamilyInvite() {
           )}
 
           <div className="bg-muted p-4 rounded-lg text-sm">
-            <p className="font-medium text-foreground mb-1">What is TrailTribe?</p>
+            <p className="font-medium text-foreground mb-1">What is TrailTeam?</p>
             <p className="text-muted-foreground">
-              TrailTribe is your team's hub for schedules, RSVPs, carpools, and team communication — built for mountain bike families.
+              TrailTeam is your team's hub for schedules, RSVPs, carpools, and team communication — built for mountain bike families.
             </p>
           </div>
 

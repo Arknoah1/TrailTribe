@@ -1517,7 +1517,7 @@ export default function Admin() {
                   <Link2 className="h-5 w-5 text-primary" /> Invite Link Ready
                 </DialogTitle>
                 <DialogDescription>
-                  Copy this link and send it via text, email, or any other way. Anyone with this link can create a TrailTribe account and skip the approval queue.
+                  Copy this link and send it via text, email, or any other way. Anyone with this link can create a TrailTeam account and skip the approval queue.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 mt-1">
@@ -3167,7 +3167,7 @@ export default function Admin() {
               <div className="space-y-1.5 max-w-sm">
                 <Label htmlFor="team-name-input">Full Team Name</Label>
                 <p className="text-xs text-muted-foreground">
-                  Used in invite emails and body text — e.g. "Coach has invited you to join <strong>{teamNameInput || "your team"}</strong> on TrailTribe".
+                  Used in invite emails and body text — e.g. "Coach has invited you to join <strong>{teamNameInput || "your team"}</strong> on TrailTeam".
                 </p>
                 <Input
                   id="team-name-input"
@@ -3264,7 +3264,7 @@ export default function Admin() {
             <AlertDialogTitle>Remove sign-in account for {cleanupEmail}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete their sign-in credentials from the authentication system.
-              Only do this for email addresses belonging to families that have already been deleted from TrailTribe.
+              Only do this for email addresses belonging to families that have already been deleted from TrailTeam.
               The person will be able to create a new account with this email afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>

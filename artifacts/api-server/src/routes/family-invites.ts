@@ -125,11 +125,11 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
 
     const settings = await getOrCreateSettings();
     const teamName = settings.teamName?.trim() || null;
-    const teamPhrase = teamName ? `join ${teamName} on TrailTribe` : `join TrailTribe`;
+    const teamPhrase = teamName ? `join ${teamName} on TrailTeam` : `join TrailTeam`;
     const orgPrefix = settings.shortName?.trim() ? `${settings.shortName.trim()}: ` : "";
     const subject = teamName
-      ? `${orgPrefix}You've been invited to join ${teamName} on TrailTribe`
-      : `${orgPrefix}You've been invited to join TrailTribe`;
+      ? `${orgPrefix}You've been invited to join ${teamName} on TrailTeam`
+      : `${orgPrefix}You've been invited to join TrailTeam`;
 
     const emailResult = await sendEmail({
       to: email,
@@ -145,7 +145,7 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
         ``,
         `If you weren't expecting this invite, you can safely ignore this email.`,
         ``,
-        `— The TrailTribe Team`,
+        `— The TrailTeam`,
       ].join("\n"),
     });
 

@@ -89,7 +89,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* Wordmark */}
         <div className="p-6 flex items-start justify-between border-b-2 border-[#0a0c10]">
           <div>
-            <h1 className="font-display text-3xl tracking-wider text-primary leading-none">TrailTribe</h1>
+            <h1 className="font-display text-3xl tracking-wider text-primary leading-none">TrailTeam</h1>
             {isCoachOrAdmin && (
               <span className={cn(
                 "text-[10px] font-bold uppercase tracking-[0.12em] mt-1 block",
@@ -143,7 +143,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Mobile Top Bar — h-16 matches <main>'s pt-16 below; keep these in sync if either changes */}
       {me && (
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
-          <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTribe</span>
+          <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTeam</span>
           <div className="flex items-center gap-1.5">
             {showAdminTabs && (
               <Link href="/admin">

@@ -27,7 +27,7 @@ export default function Slide1Title() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "7vh" }}>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#C49A6C", fontSize: "0.85vw", letterSpacing: "0.15em", textTransform: "uppercase" }}>
-            TrailTribe
+            TrailTeam
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div style={{ width: "1px", height: "2vh", background: "#C49A6C", marginBottom: "0.5vh" }} />
@@ -40,7 +40,7 @@ export default function Slide1Title() {
         </div>
 
         <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#F0E8DD", fontSize: "5vw", margin: "0 0 2.5vh 0", lineHeight: 1.05, fontWeight: 500, textWrap: "balance" }}>
-          TrailTribe
+          TrailTeam
         </h1>
 
         <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#A8A096", fontSize: "1.3vw", lineHeight: 1.5, margin: 0, maxWidth: "30vw", textWrap: "pretty" }}>
@@ -48,7 +48,7 @@ export default function Slide1Title() {
         </p>
 
         <div style={{ marginTop: "auto", fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-          trailtribe.app
+          trailtribemtb.com
         </div>
       </div>
 

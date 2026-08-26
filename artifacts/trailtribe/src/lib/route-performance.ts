@@ -29,7 +29,7 @@ export function reportRouteMilestone(route: string, milestone: RoutePerformanceM
   performance.measure(key, `${START_PREFIX}${route}`, key);
   // User Timing entries are available in Android Chrome's performance tools.
   // The console record makes the same measurement easy to collect remotely.
-  console.info("[TrailTribe performance]", {
+  console.info("[TrailTeam performance]", {
     route,
     milestone,
     durationMs: duration,

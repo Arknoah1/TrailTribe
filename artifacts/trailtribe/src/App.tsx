@@ -91,7 +91,7 @@ function SignInPage() {
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center">
-            <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTribe</h1>
+             <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTeam</h1>
             <p className="text-muted-foreground text-sm font-medium">Welcome back, rider.</p>
           </div>
           <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
@@ -107,7 +107,7 @@ function SignUpPage() {
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center">
-            <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTribe</h1>
+             <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTeam</h1>
             <p className="text-muted-foreground text-sm font-medium">Join the crew.</p>
           </div>
           <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
@@ -182,7 +182,7 @@ function Home() {
     <div className="min-h-[100dvh] w-full flex flex-col bg-background overflow-hidden">
       <div className="flex flex-1 flex-col items-center justify-center p-8">
         <div className="text-center max-w-sm mx-auto">
-          <h1 className="font-display text-6xl tracking-widest text-primary mb-2 leading-none">TrailTribe</h1>
+           <h1 className="font-display text-6xl tracking-widest text-primary mb-2 leading-none">TrailTeam</h1>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
@@ -320,13 +320,13 @@ function ClerkProviderWithRoutes() {
         socialButtonsBlockButton: "Continue with {{provider|titleize}}",
         signIn: {
           start: {
-            title: "Sign in to TrailTribe",
+             title: "Sign in to TrailTeam",
             subtitle: "Welcome back! Please sign in to continue",
           },
         },
         signUp: {
           start: {
-            title: "Create your TrailTribe account",
+             title: "Create your TrailTeam account",
             subtitle: "Welcome! Please fill in the details to get started",
           },
         },

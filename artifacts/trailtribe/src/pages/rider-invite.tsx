@@ -188,7 +188,7 @@ export default function RiderInvite() {
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-6">
       <div className="text-center mb-8">
         <Mountain className="h-12 w-12 mx-auto text-primary mb-4" />
-        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTribe</h1>
+        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTeam</h1>
         <p className="text-muted-foreground mt-1">Mountain bike team hub</p>
       </div>
 
@@ -199,7 +199,7 @@ export default function RiderInvite() {
             {riderFirstName ? `Hey ${riderFirstName}!` : "You've been invited!"}
           </CardTitle>
           <CardDescription className="text-base mt-2">
-            Your parent has invited you to manage your own TrailTribe account — view events, RSVP, and join carpools yourself.
+            Your parent has invited you to manage your own TrailTeam account — view events, RSVP, and join carpools yourself.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

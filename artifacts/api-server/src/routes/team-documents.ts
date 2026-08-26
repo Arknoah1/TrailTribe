@@ -23,7 +23,7 @@ const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 const storage = new ObjectStorageService();
 
 const BASE_URL = process.env.BASE_URL || "";
-/** Public-facing frontend URL used in email links (e.g. https://trailtribe.app) */
+/** Public-facing frontend URL used in email links (e.g. https://trailtribemtb.com) */
 const APP_URL = process.env.APP_URL || BASE_URL;
 
 router.get("/team-documents", async (_req, res) => {
@@ -396,12 +396,12 @@ async function notifyUnsignedFamilies(
     ``,
     `Your team has updated the ${docLabel} and your signature is required.`,
     ``,
-    `Please log in to TrailTribe and go to Profile → My Family → Season Documents to review and sign the document.`,
+    `Please log in to TrailTeam and go to Profile → My Family → Season Documents to review and sign the document.`,
     ...(APP_URL ? [``, `Sign now: ${profileUrl}`] : []),
     ``,
     `If you have already signed this document, no further action is needed.`,
     ``,
-    `— The TrailTribe Team`,
+    `— The TrailTeam`,
   ].join("\n");
 
   // Send individually so each recipient sees their own To: address

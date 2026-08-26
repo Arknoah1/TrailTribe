@@ -99,7 +99,7 @@ const emailState = vi.hoisted(() => ({ healthy: false }));
 
 vi.mock("../lib/email", () => ({
   get emailHealthy() { return emailState.healthy; },
-  FROM_ADDRESS: "TrailTribe <noreply@trailtribe.app>",
+  FROM_ADDRESS: "TrailTeam <noreply@trailtribe.app>",
   sendEmail: vi.fn(),
 }));
 

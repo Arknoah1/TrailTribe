@@ -6,7 +6,7 @@ export default function Slide4Season() {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "5vh" }}>
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#C49A6C", fontSize: "0.8vw", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          TrailTribe &gt; Season Flow
+          TrailTeam &gt; Season Flow
         </div>
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw" }}>
           04
@@ -20,7 +20,7 @@ export default function Slide4Season() {
             How your season runs
           </h2>
           <p style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#A8A096", fontSize: "1.15vw", lineHeight: 1.6, margin: 0, textWrap: "pretty" }}>
-            From the first invite link to the final race, TrailTribe keeps every part of the season organized and on track.
+            From the first invite link to the final race, TrailTeam keeps every part of the season organized and on track.
           </p>
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
             <div style={{ width: "1px", height: "3vh", background: "#C49A6C", marginBottom: "1vh" }} />
@@ -68,7 +68,7 @@ export default function Slide4Season() {
 
       <div style={{ marginTop: "3vh", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-          trailtribe.app
+          trailtribemtb.com
         </div>
       </div>
     </div>

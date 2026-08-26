@@ -187,8 +187,8 @@ router.post("/carpools/:offerId/claims", requireAuth, async (req, res) => {
           ``,
           `${riderName} just claimed a spot in your carpool for ${eventName}.`,
           ``,
-          `Head to TrailTribe to view the full carpool board.`,
-          `— TrailTribe`,
+          `Head to TrailTeam to view the full carpool board.`,
+          `— TrailTeam`,
         ].join("\n"),
       });
     } catch (err) {

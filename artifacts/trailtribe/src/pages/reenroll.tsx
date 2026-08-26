@@ -108,7 +108,7 @@ export default function Reenroll() {
       {/* Header */}
       <div className="border-b bg-card px-6 py-4 flex items-center gap-3">
         <Mountain className="h-6 w-6 text-primary" />
-        <span className="font-display text-2xl tracking-widest text-primary">TrailTribe</span>
+        <span className="font-display text-2xl tracking-widest text-primary">TrailTeam</span>
       </div>
 
       <div className="flex-1 flex items-start justify-center px-4 py-8">

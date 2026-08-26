@@ -152,7 +152,7 @@ export default function Join() {
     <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background p-6">
       <div className="text-center mb-8">
         <Mountain className="h-12 w-12 mx-auto text-primary mb-4" />
-        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTribe</h1>
+        <h1 className="text-4xl font-bold text-foreground tracking-tight">TrailTeam</h1>
         <p className="text-muted-foreground mt-1">Mountain bike team hub</p>
       </div>
 
@@ -160,16 +160,16 @@ export default function Join() {
         <CardHeader className="text-center pb-4">
           <CardTitle className="text-2xl">You've been invited!</CardTitle>
           <CardDescription className="text-base mt-2">
-            Join the <span className="font-semibold text-foreground">{household?.name}</span> household on TrailTribe
+            Join the <span className="font-semibold text-foreground">{household?.name}</span> household on TrailTeam
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="bg-muted p-4 rounded-lg flex items-start gap-3">
             <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
             <div className="text-sm">
-              <p className="font-medium text-foreground">What is TrailTribe?</p>
+              <p className="font-medium text-foreground">What is TrailTeam?</p>
               <p className="text-muted-foreground mt-1">
-                TrailTribe is your team's hub for schedules, RSVPs, carpools, and team communication — built for mountain bike families.
+                TrailTeam is your team's hub for schedules, RSVPs, carpools, and team communication — built for mountain bike families.
               </p>
             </div>
           </div>

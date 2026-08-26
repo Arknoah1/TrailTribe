@@ -53,6 +53,6 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>"
+EMAIL_FROM = "TrailTeam <coaches@methowcyclingteam.com>"
 SMTP_USER = "admin@methowcyclingteam.com"
 APP_BASE_URL = "https://trailtribemtb.com"

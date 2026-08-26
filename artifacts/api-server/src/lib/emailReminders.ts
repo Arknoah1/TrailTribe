@@ -100,7 +100,7 @@ async function sendEventReminders(): Promise<void> {
           ...(mapsUrl ? [`  Map: ${mapsUrl}`] : []),
           ``,
           `See you on the trail!`,
-          `— TrailTribe`,
+          `— TrailTeam`,
         ];
 
         const orgPrefix = await getShortNamePrefix();

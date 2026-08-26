@@ -1,12 +1,13 @@
-# TrailTribe mobile release checklist
+# TrailTeam mobile release checklist
 
 This workspace produces the iOS and Android shells from the same Vite build. The
 native package identifiers are permanent:
 
 - iOS: `com.trailtribemtb.trailtribe`
 - Android: `com.trailtribemtb.trailtribe`
-- Store/developer name: TrailTribe MTB
+- Store listing name: TrailTeam
 - Support: support@trailtribemtb.com / https://trailtribemtb.com
+- Current public domain: https://trailtribemtb.com (retained for link compatibility)
 
 ## Local development
 

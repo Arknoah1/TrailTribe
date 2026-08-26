@@ -389,7 +389,7 @@ router.post("/events/:id/rsvp", requireAuth, async (req, res) => {
             `  ${locationLine}`,
             ``,
             `See you on the trail!`,
-            `— TrailTribe`,
+            `— TrailTeam`,
           ].join("\n"),
         });
       } catch (err) {

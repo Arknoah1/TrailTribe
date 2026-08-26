@@ -25,7 +25,7 @@ export default function Slide2Coaches() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "5vh" }}>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#C49A6C", fontSize: "0.8vw", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            TrailTribe &gt; For Coaches
+            TrailTeam &gt; For Coaches
           </div>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw" }}>
             02
@@ -81,7 +81,7 @@ export default function Slide2Coaches() {
 
         <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#7A736A", fontSize: "0.8vw", letterSpacing: "0.1em" }}>
-            trailtribe.app
+            trailtribemtb.com
           </div>
           <div style={{ fontFamily: "'DM Mono', monospace", color: "#C49A6C", fontSize: "0.8vw", letterSpacing: "0.2em", textTransform: "uppercase" }}>
             Coaches / 2025–26

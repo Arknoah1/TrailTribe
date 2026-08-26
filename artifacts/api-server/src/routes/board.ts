@@ -644,7 +644,7 @@ function fetchWithPinnedIP(
       method: "GET",
       headers: {
         "Host": parsedUrl.hostname,
-        "User-Agent": "TrailTribeBot/1.0 (link preview)",
+        "User-Agent": "TrailTeamBot/1.0 (link preview)",
       },
       // For HTTPS, SNI must use the original hostname, not the IP
       ...(isHttps ? { servername: parsedUrl.hostname } : {}),

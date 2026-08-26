@@ -61,7 +61,7 @@ test("mobile requests have a bounded deadline instead of loading forever", () =>
   assert.match(clientFetch, /export async function fetchWithTimeout/);
   assert.match(clientFetch, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
   assert.match(clientFetch, /API_REQUEST_SLOW_MS = 1_000/);
-  assert.match(clientFetch, /\[TrailTribe API\]/);
+  assert.match(clientFetch, /\[TrailTeam API\]/);
   assert.match(clientFetch, /path: performancePath\(resolveUrl\(input\)\)/);
 });
 

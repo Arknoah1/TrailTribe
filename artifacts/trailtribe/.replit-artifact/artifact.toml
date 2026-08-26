@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "TrailTribe"
+title = "TrailTeam"
 version = "1.0.0"
 id = "artifacts/trailtribe"
 router = "path"

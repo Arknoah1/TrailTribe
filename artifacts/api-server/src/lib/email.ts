@@ -73,7 +73,7 @@ export function stopEmailHealthCheck(): void {
 }
 
 export const FROM_ADDRESS =
-  process.env.EMAIL_FROM ?? "TrailTribe <noreply@trailtribe.app>";
+  process.env.EMAIL_FROM ?? "TrailTeam <noreply@trailtribe.app>";
 
 export interface SendEmailOptions {
   to: string | string[];
