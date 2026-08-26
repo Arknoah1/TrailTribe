@@ -1,0 +1,156 @@
+Do three things in this repo. Work through them in order, and run the repo's
+own typecheck/test scripts after each section before moving to the next.
+
+============================================================
+1. ACCESS-CONTROL AUDIT (do not blindly trust threat_model.md)
+============================================================
+threat_model.md documents access-control gaps from an earlier snapshot of
+this codebase. Some are already fixed — for example, `PATCH /households/:id`
+in artifacts/api-server/src/routes/households.ts already has this guard:
+
+    const requester = await getRequester(req);
+    if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+      res.status(403).json({ error: "Forbidden: you are not a member of this household" });
+      return;
+    }
+
+Treat that as the reference pattern, and treat every claim in threat_model.md
+as something to re-verify against current code, not something to assume is
+still true.
+
+a) Confirm `POST /admin/clear-seed-data` (or any clearSeedData route) is
+   fully removed — it appears to already be gone. If any trace remains
+   (route registration, import, test), remove it.
+
+b) In artifacts/api-server/src/middlewares/requireAuth.ts, `requireApproved`
+   already exists and correctly checks the `approved` flag (with a
+   `hasStudentAccess` bypass for linked students). Don't change this
+   middleware itself unless you find an actual bug in it.
+
+c) Go through every route currently gated only by `requireAuth` (not
+   `requireApproved` or `requireCoachOrAdmin`) in
+   artifacts/api-server/src/routes/*.ts. For each one, decide:
+     - If it exposes team-wide or other-users' data (roster entries besides
+       the caller's own, messages, board posts, events, carpools, other
+       households' compliance status, etc.) → it needs either
+       `requireApproved` (if any approved user may see it) or an ownership
+       check like the one above (if only the owning household/coach/admin
+       may act on it) — apply whichever fits the existing pattern for that
+       route file.
+     - If it only ever reads/writes the caller's own record, or is a
+       necessary step in onboarding before approval exists (e.g. creating
+       your own household), leave it on `requireAuth` and add a one-line
+       comment explaining why it's intentionally not gated further.
+
+   Specifically re-check these endpoints in
+   artifacts/api-server/src/routes/households.ts, all currently on
+   `requireAuth` with no visible ownership check in the handler body — fix
+   any that are still open, using the `PATCH /households/:id` pattern above:
+     - POST /households/:id/co-parent-invites
+     - POST /households/:id/compliance/consent
+     - GET  /households/:id/compliance/status
+     - GET  /households/:id/compliance/consents
+     - GET  /households/:id/riders
+     - POST /households/:id/riders
+     - PATCH /households/:id/riders/:riderId
+     - DELETE /households/:id/members/:userId
+     - DELETE /households/:id/riders/:riderId
+
+   Also re-check `PATCH /invites/:id/deactivate` in
+   artifacts/api-server/src/routes/invites.ts — it's now `requireCoachOrAdmin`
+   (role-gated). Since this is a single-team app, that's probably sufficient;
+   flag it only if you find a reason a coach/admin scope check is still
+   needed.
+
+d) After fixing what's actually still open, update threat_model.md's
+   Tampering / Information Disclosure / Elevation of Privilege sections and
+   the "Highest-risk areas" list to reflect the real, current state — remove
+   claims that are now fixed, keep any that are genuinely still open, and
+   don't mark anything fixed that you didn't actually verify.
+
+============================================================
+2. BUNDLE ID + DOMAIN MIGRATION (trailteam.app is now live)
+============================================================
+Old bundle/package ID: com.trailtribemtb.trailtribe
+New bundle/package ID: app.trailteam.trailteam
+Old domain: trailtribemtb.com
+New domain: trailteam.app
+
+Update, in artifacts/trailtribe/:
+  - capacitor.config.ts: `appId` → "app.trailteam.trailteam"; `allowNavigation`
+    entry "trailtribemtb.com" → "trailteam.app"
+  - ios/App/App.xcodeproj/project.pbxproj: both
+    `PRODUCT_BUNDLE_IDENTIFIER = com.trailtribemtb.trailtribe;` lines →
+    `app.trailteam.trailteam`
+  - ios/App/App/App.entitlements: `applinks:trailtribemtb.com` →
+    `applinks:trailteam.app`
+  - android/app/build.gradle: `namespace` and `applicationId` →
+    "app.trailteam.trailteam"
+  - Move android/app/src/main/java/com/trailtribemtb/trailtribe/MainActivity.java
+    to android/app/src/main/java/app/trailteam/trailteam/MainActivity.java and
+    change its `package com.trailtribemtb.trailtribe;` line to
+    `package app.trailteam.trailteam;` (delete the now-empty old folders)
+  - android/app/src/main/res/values/strings.xml: `package_name` and
+    `custom_url_scheme` → "app.trailteam.trailteam"
+  - android/app/src/main/AndroidManifest.xml: intent-filter
+    `android:host="trailtribemtb.com"` → `android:host="trailteam.app"`
+  - public/.well-known/apple-app-site-association: `appIDs` entry
+    `"REPLACE_WITH_APPLE_TEAM_ID.com.trailtribemtb.trailtribe"` →
+    `"REPLACE_WITH_APPLE_TEAM_ID.app.trailteam.trailteam"` (leave the team ID
+    placeholder — that gets filled in from the Apple Developer portal)
+  - public/.well-known/assetlinks.json: `package_name` →
+    "app.trailteam.trailteam" (leave the SHA-256 placeholder — that comes
+    from Play App Signing)
+  - package.json's `mobile:build` script: `VITE_API_ORIGIN=https://trailtribemtb.com`
+    → `https://trailteam.app` (only if the API is actually being served from
+    trailteam.app now — otherwise leave it and tell me)
+  - MOBILE_RELEASE.md: update the bundle ID, domain, and support-email
+    references to match
+
+Also check the repo root `.replit` file: `APP_BASE_URL = "https://trailtribemtb.com"`
+→ `"https://trailteam.app"` (again, only if that's where the API now lives).
+
+After this section, grep the whole repo for `com.trailtribemtb.trailtribe`
+and confirm zero results outside of git history.
+
+============================================================
+3. SENTINEL PLACEHOLDER EMAIL DOMAINS
+============================================================
+These are not real mailboxes — they're string-matched sentinel values used
+to detect "no real email on file" vs "a pending co-parent invite." There are
+two distinct patterns; keep them distinct, just move both to the new brand:
+
+  @trailtribe.internal      →  @trailteam.internal
+  @trailtribe.app           →  @trailteam.app
+  @pending.trailtribe.app   →  @pending.trailteam.app
+
+Every one of these must change together, because they're both written and
+compared by exact string match — a partial rename breaks the "hide
+placeholder emails from parents" logic silently. Update all of:
+
+  - artifacts/api-server/src/lib/email.ts:76 (EMAIL_FROM default) — this one
+    is a REAL send-from address once changed, not a sentinel. Note for me
+    (don't try to fix this in code): trailteam.app needs to be a verified
+    sending domain in Resend with SPF/DKIM records before noreply@trailteam.app
+    will actually deliver — flag this back to me rather than assuming it's
+    already configured.
+  - artifacts/api-server/src/lib/email.ts:100-101
+  - artifacts/api-server/src/routes/users.ts:127, 533
+  - artifacts/api-server/src/routes/team-documents.ts:379-380
+  - artifacts/api-server/src/routes/rider-invites.ts:51
+  - artifacts/api-server/src/routes/family-invites.ts:293
+  - artifacts/api-server/src/routes/households.ts:644, 679
+  - artifacts/api-server/src/routes/dashboard.test.ts:102 (test fixture —
+    update so the test still matches the real default)
+  - lib/db/src/seed.ts — all the demo `rider-...@trailtribe.internal` seed
+    rows (cosmetic, but do them for consistency)
+
+After this section, grep the whole repo (excluding node_modules, .git, and
+attached_assets/) for `trailtribe.internal`, `trailtribe.app`, and
+`pending.trailtribe.app` and confirm zero results.
+
+============================================================
+When you're done, tell me: which items in section 1 you found already fixed
+vs. actually changed, and whether the EMAIL_FROM domain in Resend still
+needs to be verified.
