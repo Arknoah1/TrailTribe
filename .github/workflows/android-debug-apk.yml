@@ -1,0 +1,130 @@
+name: Build Android Debug APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub prerelease tag, for example sideload-v1.0.0-1"
+        required: true
+        type: string
+  push:
+    tags:
+      - "sideload-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-debug-apk:
+    name: Build and publish debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify web app
+        run: |
+          pnpm --filter @workspace/trailtribe run typecheck
+          pnpm --filter @workspace/trailtribe run test
+
+      - name: Build debug APK
+        run: pnpm --filter @workspace/trailtribe run mobile:debug:android
+
+      - name: Verify APK contents and create checksum
+        id: apk
+        run: |
+          set -euo pipefail
+          source_apk="artifacts/trailtribe/android/app/build/outputs/apk/debug/app-debug.apk"
+          release_dir="release-assets"
+          test -s "$source_apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$source_apk" | grep -F "package: name='app.trailteam.trailteam'"
+          if unzip -p "$source_apk" | grep -a -q "trailtribemtb.com"; then
+            echo "Deprecated public domain found in APK"
+            exit 1
+          fi
+          if unzip -p "$source_apk" | grep -a -q "com.trailtribemtb.trailtribe"; then
+            echo "Deprecated package identifier found in APK"
+            exit 1
+          fi
+          mkdir -p "$release_dir"
+          cp "$source_apk" "$release_dir/trailteam-debug.apk"
+          sha256sum "$release_dir/trailteam-debug.apk" > "$release_dir/trailteam-debug.apk.sha256"
+          echo "path=$release_dir/trailteam-debug.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trailteam-debug-apk
+          path: release-assets/
+          if-no-files-found: error
+
+      - name: Resolve release tag
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="${INPUT_TAG}"
+          fi
+          case "$tag" in
+            sideload-v*) ;;
+            *)
+              echo "Release tag must begin with sideload-v"
+              exit 1
+              ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            ## TrailTeam Android debug APK
+
+            This is a pre-store debug build for direct Android sideload testing.
+            It is **not** a signed Google Play release.
+
+            1. Download `trailteam-debug.apk`.
+            2. Verify it with `trailteam-debug.apk.sha256`.
+            3. On your device, allow the browser or file manager to install unknown apps when Android prompts.
+            4. Install the APK and open TrailTeam.
+
+            The app connects to `https://trailteam.app`.
+          files: |
+            release-assets/trailteam-debug.apk
+            release-assets/trailteam-debug.apk.sha256
