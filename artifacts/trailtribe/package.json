@@ -14,6 +14,7 @@
     "mobile:sync": "pnpm run mobile:build && cap sync",
     "mobile:android": "pnpm run mobile:sync && cap open android",
     "mobile:ios": "pnpm run mobile:sync && cap open ios",
+    "mobile:debug:android": "pnpm run mobile:sync && (cd android && ./gradlew assembleDebug)",
     "mobile:release:android": "pnpm run mobile:sync && cap build android",
     "mobile:release:ios": "pnpm run mobile:sync && cap build ios"
   },
