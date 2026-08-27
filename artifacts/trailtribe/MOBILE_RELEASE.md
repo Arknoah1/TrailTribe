@@ -71,6 +71,24 @@ the APK and a SHA-256 checksum to a prerelease.
   from the authenticated account; the API also removes tokens with the owning
   user on account deletion.
 
+## In-app account deletion review path
+
+Both store builds use the same signed-in TrailTeam experience. A reviewer can
+delete an account without leaving the installed app:
+
+1. Sign in with an ordinary parent, rider, coach, or administrator account.
+2. Open the top actions menu on a phone and choose **Profile** (or use
+   **Profile** in the desktop/tablet navigation).
+3. Keep **My Account** selected, scroll to **Delete Account**, and tap
+   **Permanently delete my account**.
+4. Type `DELETE MY ACCOUNT` and choose **Delete my account permanently**.
+
+The app sends the authenticated request directly to TrailTeam, clears local
+account data, and returns to the in-app sign-in screen. If the request cannot
+finish, the account remains available and the dialog stays open so the person
+can retry. This is the same flow on iOS and Android; it does not require email,
+an external browser, or contacting support.
+
 ## Test tracks and rollback
 
 - Web: `pnpm --filter @workspace/trailtribe run typecheck`, `test`, and `build`.
@@ -78,7 +96,7 @@ the APK and a SHA-256 checksum to a prerelease.
   `mobile:release:android` with the upload key.
 - Test cold start, warm start, invite links while signed out, notification
   taps after sign-in, back navigation, keyboard forms, safe-area devices,
-  offline retry, account switching, and logout on iPhone 12 mini, Pixel 8,
+  offline retry, account switching, logout, and in-app account deletion on iPhone 12 mini, Pixel 8,
   Pixel 4a, and Galaxy Z Flip 6.
 - Upload iOS to TestFlight and Android to Play internal testing first. Store
   records still need privacy policy/terms URLs, screenshots, age/content

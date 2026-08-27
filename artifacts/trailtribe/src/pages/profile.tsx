@@ -1286,11 +1286,12 @@ export default function Profile() {
       queryClient.clear();
       setDeleteAccountConfirmOpen(false);
       try {
-        await signOut({ redirectUrl: "/" });
+        await signOut({ redirectUrl: `${BASE_URL}/sign-in` });
       } catch {
         // The account has already been permanently removed. A plain navigation
-        // lets Clerk clear any remaining local session on the signed-out page.
-        window.location.assign("/");
+        // keeps the user inside the installed app and lets Clerk clear any
+        // remaining local session on its signed-out entry point.
+        window.location.replace(`${BASE_URL}/sign-in`);
       }
     } catch {
       toast({ title: "Could not delete account. Please try again.", variant: "destructive" });
@@ -1396,6 +1397,40 @@ export default function Profile() {
               </div>
             </form>
           </Form>
+
+          <Card className="mt-4 border-destructive/40" data-testid="account-deletion">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" /> Delete Account
+              </CardTitle>
+              <CardDescription>
+                Permanently remove your TrailTeam profile, sign-in account, and personal activity. This cannot be undone.
+                {user?.householdId
+                  ? " If you are the final member of your household, its household-only information will also be removed."
+                  : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isCoachOrAdmin && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Team staff: make sure another administrator can manage the team before deleting your account.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Shared events and discussions remain available to the team without your account attached. You can complete
+                this request directly in the TrailTeam app—no email or support request is needed.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                onClick={() => setDeleteAccountConfirmOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Permanently delete my account
+              </Button>
+            </CardContent>
+          </Card>
 
           <Card className="mt-4">
             <CardHeader>
@@ -1511,39 +1546,6 @@ export default function Profile() {
             </Card>
           )}
 
-          <Card className="mt-4 border-destructive/40">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-destructive">
-                <AlertTriangle className="h-5 w-5" /> Delete Account
-              </CardTitle>
-              <CardDescription>
-                Permanently remove your TrailTeam profile, sign-in account, and personal activity. This cannot be undone.
-                {user?.householdId
-                  ? " If you are the final member of your household, its household-only information will also be removed."
-                  : ""}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isCoachOrAdmin && (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Team staff: make sure another administrator can manage the team before deleting your account.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Shared events and discussions remain available to the team without your account attached.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setDeleteAccountConfirmOpen(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Permanently delete my account
-              </Button>
-            </CardContent>
-          </Card>
-
           <div className="pt-4 border-t mt-4">
             <Button
               variant="ghost"
@@ -1588,7 +1590,7 @@ export default function Profile() {
       </Tabs>
 
       <AlertDialog open={regenConfirmOpen} onOpenChange={setRegenConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <AlertDialogHeader>
             <AlertDialogTitle>Regenerate calendar link?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1627,6 +1629,8 @@ export default function Profile() {
               onChange={(event) => setDeleteAccountConfirmation(event.target.value)}
               placeholder="DELETE MY ACCOUNT"
               autoComplete="off"
+              inputMode="text"
+              enterKeyHint="done"
               disabled={deletingAccount}
             />
           </div>
