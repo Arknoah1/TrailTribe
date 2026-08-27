@@ -1613,7 +1613,10 @@ export default function Profile() {
           if (!open) setDeleteAccountConfirmation("");
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          className="max-h-[calc(100dvh-2rem)] overflow-y-auto pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+          data-testid="account-deletion-dialog"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Permanently delete your account?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1625,6 +1628,7 @@ export default function Profile() {
             <Label htmlFor="delete-my-account-confirmation">Confirmation</Label>
             <Input
               id="delete-my-account-confirmation"
+              data-testid="account-deletion-confirmation"
               value={deleteAccountConfirmation}
               onChange={(event) => setDeleteAccountConfirmation(event.target.value)}
               placeholder="DELETE MY ACCOUNT"
@@ -1639,6 +1643,7 @@ export default function Profile() {
             <Button
               type="button"
               variant="destructive"
+              data-testid="account-deletion-submit"
               disabled={deletingAccount || deleteAccountConfirmation !== "DELETE MY ACCOUNT"}
               onClick={permanentlyDeleteMyAccount}
             >

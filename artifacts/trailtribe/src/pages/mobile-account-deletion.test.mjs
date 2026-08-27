@@ -20,8 +20,12 @@ test("account deletion is reachable in the shared mobile Profile experience", ()
 test("mobile account deletion keeps confirmation and recovery inside the app", () => {
   assert.match(profile, /DELETE MY ACCOUNT/);
   assert.match(profile, /max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/);
+  assert.match(profile, /pb-\[calc\(1\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(profile, /data-testid="account-deletion-confirmation"/);
+  assert.match(profile, /data-testid="account-deletion-submit"/);
   assert.match(profile, /redirectUrl: `\$\{BASE_URL\}\/sign-in`/);
   assert.match(profile, /window\.location\.replace\(`\$\{BASE_URL\}\/sign-in`\)/);
+  assert.match(profile, /Could not delete account\. Please try again\./);
   assert.match(profile, /no email or support request is needed/);
 });
 

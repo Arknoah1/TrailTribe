@@ -89,6 +89,39 @@ finish, the account remains available and the dialog stays open so the person
 can retry. This is the same flow on iOS and Android; it does not require email,
 an external browser, or contacting support.
 
+### Real-device deletion sign-off
+
+Run this against the exact builds uploaded to TestFlight and Play internal
+testing. Use disposable parent and rider accounts; never use a real family's
+account. Record the build number and the result for each installed app before
+production submission.
+
+| Installed app | Device / OS | Parent deletion | Rider deletion | Keyboard + safe area | Offline retry | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| TestFlight | iPhone 12 mini (iOS) | ☐ | ☐ | ☐ | ☐ | Build: ______ |
+| Play internal testing | Pixel 8 (Android) | ☐ | ☐ | ☐ | ☐ | Build: ______ |
+
+For each platform:
+
+1. Sign in with a disposable parent account and repeat with a disposable rider
+   account. Open **Profile > My Account**, scroll to **Delete Account**, and tap
+   **Permanently delete my account**.
+2. Tap the confirmation field, type `DELETE MY ACCOUNT` with the on-screen
+   keyboard, and verify the field and destructive action remain visible and
+   tappable above the keyboard and device safe areas. Dismiss and reopen the
+   dialog once; the field should be empty after reopening.
+3. Before submitting, enable Airplane Mode (or otherwise block the app's
+   network), tap **Delete my account permanently**, and verify an error appears,
+   the dialog stays open, and the account is still usable. Restore connectivity,
+   tap the action again, and verify deletion succeeds.
+4. Verify the app returns to its in-app **Sign in** screen without opening a
+   browser. Sign up again with the same disposable email to prove the deleted
+   email can be used for a fresh test account.
+
+Mark a platform pass only when all four steps work for both account roles. Keep
+the device model, OS version, app build, and any failure details with the store
+test evidence.
+
 ## Test tracks and rollback
 
 - Web: `pnpm --filter @workspace/trailtribe run typecheck`, `test`, and `build`.
