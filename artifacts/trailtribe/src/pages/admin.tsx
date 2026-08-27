@@ -3206,8 +3206,9 @@ export default function Admin() {
                 Account Cleanup
               </CardTitle>
               <CardDescription>
-                Use this only when an email address still shows as "taken" after a family was permanently deleted.
-                This removes the sign-in account from the authentication system so the person can re-register.
+                Use this when an email address still shows as "taken" after a family was permanently deleted,
+                or after an invited parent signed in but never joined a family. This removes the sign-in account
+                from the authentication system so the person can re-register.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -3264,7 +3265,8 @@ export default function Admin() {
             <AlertDialogTitle>Remove sign-in account for {cleanupEmail}?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete their sign-in credentials from the authentication system.
-              Only do this for email addresses belonging to families that have already been deleted from TrailTeam.
+              Only do this for email addresses belonging to families that have already been deleted from TrailTeam,
+              or for an unfinished invited sign-in that never joined a family.
               The person will be able to create a new account with this email afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -73,8 +73,8 @@ router.put("/settings", requireCoachOrAdmin, async (req, res) => {
 });
 
 // DELETE /admin/cleanup/clerk-by-email — remove a Clerk account by email address.
-// Safety valve for when automated Clerk deletion silently fails during household deletion.
-// Refuses to delete if an active DB user row is still linked to that Clerk account.
+// Safety valve for when automated Clerk deletion silently fails during household deletion,
+// or an invited parent signed in but never created or joined a household.
 router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, async (req, res) => {
   const bodySchema = z.object({ email: z.string().email("A valid email address is required") });
   const parsed = bodySchema.safeParse(req.body);
@@ -101,22 +101,44 @@ router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, async (req, 
     return;
   }
 
-  // Safety guard — refuse if an active DB user is still linked to this Clerk account
+  // Safety guard — an unapproved parent with no household is a stranded, unfinished
+  // sign-up rather than an active family member. It is safe to remove that placeholder
+  // row so a deleted invite does not leave the email permanently unavailable.
   const activeUser = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
   });
-  if (activeUser) {
+  const isOrphanedPendingParent = activeUser?.role === "parent"
+    && activeUser.approved === false
+    && activeUser.householdId === null;
+
+  if (activeUser && !isOrphanedPendingParent) {
     res.status(409).json({
       error: `This account belongs to an active TrailTeam user (${activeUser.firstName} ${activeUser.lastName}). Remove or archive the family first before clearing their sign-in account.`,
     });
     return;
   }
 
+  if (isOrphanedPendingParent) {
+    try {
+      await db.delete(usersTable).where(eq(usersTable.id, activeUser.id));
+      logger.info({ email, clerkUserId }, "[cleanup] removed orphaned pending user record");
+    } catch (err) {
+      logger.error({ err, email, clerkUserId }, "[cleanup] orphaned user record deletion failed");
+      res.status(500).json({ error: "Could not remove the unfinished TrailTeam account. Please try again." });
+      return;
+    }
+  }
+
   // Delete the Clerk account
   try {
     await clerkClient.users.deleteUser(clerkUserId);
     logger.info({ email, clerkUserId }, "[cleanup] Clerk account manually deleted by admin");
-    res.json({ ok: true, message: `Sign-in account for ${email} has been removed. They can now re-register.` });
+    res.json({
+      ok: true,
+      message: isOrphanedPendingParent
+        ? `Unfinished sign-in account for ${email} has been removed. They can now re-register.`
+        : `Sign-in account for ${email} has been removed. They can now re-register.`,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error({ err, email, clerkUserId }, "[cleanup] Clerk user deletion failed");
