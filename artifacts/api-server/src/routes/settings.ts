@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { z } from "zod";
+import { deleteClerkUserId, permanentlyDeleteLocalAccount } from "../lib/account-deletion";
 
 const router = Router();
 
@@ -72,79 +73,108 @@ router.put("/settings", requireCoachOrAdmin, async (req, res) => {
   });
 });
 
-// DELETE /admin/cleanup/clerk-by-email — remove a Clerk account by email address.
-// Safety valve for when automated Clerk deletion silently fails during household deletion,
-// or an invited parent signed in but never created or joined a household.
-router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, async (req, res) => {
-  const bodySchema = z.object({ email: z.string().email("A valid email address is required") });
-  const parsed = bodySchema.safeParse(req.body);
+const deleteAccountByEmailSchema = z.object({
+  email: z.string().trim().email("A valid email address is required"),
+  confirmation: z.literal("DELETE"),
+}).strict();
+
+async function permanentlyDeleteAccountByEmail(req: any, res: any): Promise<void> {
+  const parsed = deleteAccountByEmailSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid request body" });
+    res.status(400).json({ error: "Enter a valid email address and type DELETE to confirm permanent deletion." });
     return;
   }
-  const { email } = parsed.data;
 
+  const email = parsed.data.email.toLowerCase();
+  const activeUser = await db.query.usersTable.findFirst({
+    where: eq(usersTable.email, email),
+  });
+
+  if (activeUser) {
+    // Coaches may manage member accounts, but only an administrator can delete
+    // another administrator. A signed-in administrator must use their own
+    // Profile deletion control so the stronger self-service confirmation is
+    // always shown.
+    if (activeUser.role === "admin") {
+      const requester = await db.query.usersTable.findFirst({
+        where: eq(usersTable.clerkUserId, req.clerkUserId),
+      });
+      if (requester?.id === activeUser.id) {
+        res.status(403).json({ error: "Use your Profile page to permanently delete your own administrator account." });
+        return;
+      }
+      if (requester?.role !== "admin") {
+        res.status(403).json({ error: "Only an administrator can permanently delete another administrator account." });
+        return;
+      }
+
+      const administrators = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.role, "admin"));
+      if (administrators.length <= 1) {
+        res.status(409).json({ error: "The last administrator cannot be removed from the admin tool. They can delete their own account from Profile after arranging team ownership." });
+        return;
+      }
+    }
+
+    const result = await permanentlyDeleteLocalAccount(activeUser);
+    if (!result.ok) {
+      if (result.stage === "clerk") {
+        res.status(502).json({ error: "The sign-in service could not be reached. No TrailTeam data was deleted; please try again." });
+        return;
+      }
+      res.status(500).json({ error: "The sign-in account was removed, but TrailTeam data could not be deleted. Run this deletion again to finish safely." });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      deletedHousehold: result.deletedHousehold,
+      message: `Account for ${email} was permanently deleted. This email can now register again.`,
+    });
+    return;
+  }
+
+  // Keep support for an account that reached Clerk but never created a local
+  // TrailTeam profile. This is also useful for completing a partial deletion.
   const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-
-  // Look up the Clerk user by email
   let clerkUserId: string | null = null;
   try {
     const { data: users } = await clerkClient.users.getUserList({ emailAddress: [email] });
-    if (!users || users.length === 0) {
-      res.status(404).json({ error: `No sign-in account found for ${email}. The email may already be available, or it may belong to a social login (Google). Check your Clerk dashboard if you need to verify.` });
-      return;
-    }
-    clerkUserId = users[0].id;
-  } catch (err) {
-    logger.error({ err, email }, "[cleanup] Clerk user lookup failed");
-    res.status(502).json({ error: "Could not reach the authentication service. Please try again." });
+    clerkUserId = users?.[0]?.id ?? null;
+  } catch (error) {
+    logger.error({ err: error, email }, "Clerk user lookup failed during permanent account deletion");
+    res.status(502).json({ error: "Could not reach the sign-in service. Please try again." });
     return;
   }
 
-  // Safety guard — an unapproved parent with no household is a stranded, unfinished
-  // sign-up rather than an active family member. It is safe to remove that placeholder
-  // row so a deleted invite does not leave the email permanently unavailable.
-  const activeUser = await db.query.usersTable.findFirst({
-    where: eq(usersTable.clerkUserId, clerkUserId),
+  if (!clerkUserId) {
+    res.status(404).json({ error: `No TrailTeam account was found for ${email}. The email may already be available.` });
+    return;
+  }
+
+  const clerkDeleted = await deleteClerkUserId(clerkUserId);
+  if (!clerkDeleted) {
+    res.status(502).json({ error: "The sign-in service could not remove this account. No TrailTeam data was deleted; please try again." });
+    return;
+  }
+
+  logger.info({ email, clerkUserId }, "Permanently deleted orphaned Clerk account");
+  res.json({
+    ok: true,
+    deletedHousehold: false,
+    message: `Sign-in account for ${email} was permanently deleted. This email can now register again.`,
   });
-  const isOrphanedPendingParent = activeUser?.role === "parent"
-    && activeUser.approved === false
-    && activeUser.householdId === null;
+}
 
-  if (activeUser && !isOrphanedPendingParent) {
-    res.status(409).json({
-      error: `This account belongs to an active TrailTeam user (${activeUser.firstName} ${activeUser.lastName}). Remove or archive the family first before clearing their sign-in account.`,
-    });
-    return;
-  }
+// DELETE /admin/accounts/by-email — permanently delete an active TrailTeam
+// account or an orphaned authentication account selected by its email.
+router.delete("/admin/accounts/by-email", requireCoachOrAdmin, permanentlyDeleteAccountByEmail);
 
-  if (isOrphanedPendingParent) {
-    try {
-      await db.delete(usersTable).where(eq(usersTable.id, activeUser.id));
-      logger.info({ email, clerkUserId }, "[cleanup] removed orphaned pending user record");
-    } catch (err) {
-      logger.error({ err, email, clerkUserId }, "[cleanup] orphaned user record deletion failed");
-      res.status(500).json({ error: "Could not remove the unfinished TrailTeam account. Please try again." });
-      return;
-    }
-  }
-
-  // Delete the Clerk account
-  try {
-    await clerkClient.users.deleteUser(clerkUserId);
-    logger.info({ email, clerkUserId }, "[cleanup] Clerk account manually deleted by admin");
-    res.json({
-      ok: true,
-      message: isOrphanedPendingParent
-        ? `Unfinished sign-in account for ${email} has been removed. They can now re-register.`
-        : `Sign-in account for ${email} has been removed. They can now re-register.`,
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error({ err, email, clerkUserId }, "[cleanup] Clerk user deletion failed");
-    res.status(502).json({ error: `Deletion failed: ${msg}` });
-  }
-});
+// Backwards-compatible endpoint for prior recovery links. It now performs the
+// complete permanent deletion flow rather than refusing active accounts.
+router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, permanentlyDeleteAccountByEmail);
 
 export { getOrCreateSettings, getShortNamePrefix };
 export default router;

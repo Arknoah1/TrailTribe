@@ -1191,6 +1191,9 @@ export default function Profile() {
 
   const [calCopied, setCalCopied] = useState<"webcal" | "https" | null>(null);
   const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
+  const [deleteAccountConfirmOpen, setDeleteAccountConfirmOpen] = useState(false);
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const { data: calSubscribeData, isLoading: calSubscribeLoading } = useGetCalendarSubscribeUrl({
     query: {
       enabled: !!user && activeTab === "account" && loadCalendarFeed,
@@ -1263,6 +1266,38 @@ export default function Profile() {
   const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
   const isStudent = user?.role === "student";
   useRoutePerformance("profile", user !== undefined, user !== undefined && !isLoading);
+
+  const permanentlyDeleteMyAccount = async () => {
+    if (deleteAccountConfirmation !== "DELETE MY ACCOUNT") return;
+
+    setDeletingAccount(true);
+    try {
+      const response = await authedFetch(`${BASE_URL}/api/users/me`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteAccountConfirmation }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast({ title: data.error ?? "Could not delete account", variant: "destructive" });
+        return;
+      }
+
+      queryClient.clear();
+      setDeleteAccountConfirmOpen(false);
+      try {
+        await signOut({ redirectUrl: "/" });
+      } catch {
+        // The account has already been permanently removed. A plain navigation
+        // lets Clerk clear any remaining local session on the signed-out page.
+        window.location.assign("/");
+      }
+    } catch {
+      toast({ title: "Could not delete account. Please try again.", variant: "destructive" });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
 
   if (isLoading) return <ProfileSkeleton />;
 
@@ -1476,6 +1511,39 @@ export default function Profile() {
             </Card>
           )}
 
+          <Card className="mt-4 border-destructive/40">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" /> Delete Account
+              </CardTitle>
+              <CardDescription>
+                Permanently remove your TrailTeam profile, sign-in account, and personal activity. This cannot be undone.
+                {user?.householdId
+                  ? " If you are the final member of your household, its household-only information will also be removed."
+                  : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isCoachOrAdmin && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Team staff: make sure another administrator can manage the team before deleting your account.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Shared events and discussions remain available to the team without your account attached.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setDeleteAccountConfirmOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Permanently delete my account
+              </Button>
+            </CardContent>
+          </Card>
+
           <div className="pt-4 border-t mt-4">
             <Button
               variant="ghost"
@@ -1532,6 +1600,46 @@ export default function Profile() {
             <AlertDialogAction onClick={handleRegenerate} disabled={regenMutation.isPending}>
               {regenMutation.isPending ? "Regenerating..." : "Yes, regenerate"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteAccountConfirmOpen}
+        onOpenChange={(open) => {
+          setDeleteAccountConfirmOpen(open);
+          if (!open) setDeleteAccountConfirmation("");
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently delete your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes your sign-in, profile, and personal TrailTeam activity. It cannot be undone. Type
+              {" "}DELETE MY ACCOUNT{" "}to continue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-my-account-confirmation">Confirmation</Label>
+            <Input
+              id="delete-my-account-confirmation"
+              value={deleteAccountConfirmation}
+              onChange={(event) => setDeleteAccountConfirmation(event.target.value)}
+              placeholder="DELETE MY ACCOUNT"
+              autoComplete="off"
+              disabled={deletingAccount}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingAccount}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletingAccount || deleteAccountConfirmation !== "DELETE MY ACCOUNT"}
+              onClick={permanentlyDeleteMyAccount}
+            >
+              {deletingAccount ? "Deleting account…" : "Delete my account permanently"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

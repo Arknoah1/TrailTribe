@@ -86,6 +86,7 @@ const clerkDeleteCalls: string[] = [];
 const MOCK_HOUSEHOLDS_TABLE          = { __table: "householdsTable" };
 const MOCK_USERS_TABLE               = { __table: "usersTable" };
 const MOCK_DOCUMENT_CONSENTS_TABLE   = { __table: "documentConsentsTable" };
+const MOCK_FAMILY_INVITES_TABLE      = { __table: "familyInvitesTable" };
 const MOCK_ROSTER_SNAPSHOTS_TABLE    = { __table: "seasonRosterSnapshotsTable" };
 const MOCK_TEAM_DOCUMENTS_TABLE      = { __table: "teamDocumentsTable" };
 const MOCK_SEASONS_TABLE             = { __table: "seasonsTable" };
@@ -183,6 +184,7 @@ vi.mock("@workspace/db", () => {
     householdsTable:             MOCK_HOUSEHOLDS_TABLE,
     usersTable:                  MOCK_USERS_TABLE,
     documentConsentsTable:       MOCK_DOCUMENT_CONSENTS_TABLE,
+    familyInvitesTable:          MOCK_FAMILY_INVITES_TABLE,
     seasonRosterSnapshotsTable:  MOCK_ROSTER_SNAPSHOTS_TABLE,
     teamDocumentsTable:          MOCK_TEAM_DOCUMENTS_TABLE,
     seasonsTable:                MOCK_SEASONS_TABLE,

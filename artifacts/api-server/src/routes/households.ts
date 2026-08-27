@@ -25,6 +25,7 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import { sendEmail } from "../lib/email";
 import { getAppBase } from "../lib/config";
+import { permanentlyDeleteLocalAccount } from "../lib/account-deletion";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -749,7 +750,7 @@ router.delete("/households/:id/members/:userId", requireAuth, async (req, res) =
   res.status(204).send();
 });
 
-router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res) => {
+router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res): Promise<void> => {
   const householdId = parseInt(str(req.params.id));
   const riderId = parseInt(str(req.params.riderId));
 
@@ -761,8 +762,24 @@ router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res) =
     return;
   }
 
-  await db.delete(usersTable)
-    .where(and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId), eq(usersTable.role, "student")));
+  const rider = await db.query.usersTable.findFirst({
+    where: and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId), eq(usersTable.role, "student")),
+  });
+  if (!rider) {
+    res.status(404).json({ error: "Rider not found in this household" });
+    return;
+  }
+
+  const result = await permanentlyDeleteLocalAccount(rider);
+  if (!result.ok) {
+    if (result.stage === "clerk") {
+      res.status(502).json({ error: "The sign-in service could not be reached. The rider was not removed; please try again." });
+      return;
+    }
+    res.status(500).json({ error: "The rider sign-in was removed, but TrailTeam could not finish deleting their data. Use the account deletion tool to retry." });
+    return;
+  }
+
   res.status(204).send();
 });
 

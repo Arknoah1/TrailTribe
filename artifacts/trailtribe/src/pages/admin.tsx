@@ -330,6 +330,7 @@ export default function Admin() {
   const [cleanupEmail, setCleanupEmail] = useState("");
   const [cleanupQueue, setCleanupQueue] = useState<string[]>([]);
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
+  const [cleanupConfirmation, setCleanupConfirmation] = useState("");
   const [cleanupRunning, setCleanupRunning] = useState(false);
 
   const fetchPendingInvites = useCallback(async () => {
@@ -809,23 +810,25 @@ export default function Admin() {
 
   const handleCleanupEmail = async () => {
     const email = cleanupEmail.trim();
-    if (!email) return;
+    if (!email || cleanupConfirmation !== "DELETE") return;
     setCleanupRunning(true);
-    setCleanupConfirmOpen(false);
     try {
-      const res = await authedFetch(`${BASE_URL}/api/admin/cleanup/clerk-by-email`, {
+      const res = await authedFetch(`${BASE_URL}/api/admin/accounts/by-email`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, confirmation: cleanupConfirmation }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        toast({ title: data.message ?? `Sign-in account for ${email} removed` });
+        toast({ title: data.message ?? `Account for ${email} permanently deleted` });
         setCleanupQueue((prev) => {
           const remaining = prev.filter((e) => e !== email);
           setCleanupEmail(remaining[0] ?? "");
           return remaining;
         });
+        setCleanupConfirmOpen(false);
+        setCleanupConfirmation("");
+        fetchRoster();
       } else {
         toast({ title: data.error ?? "Failed to remove account", variant: "destructive" });
       }
@@ -3202,13 +3205,13 @@ export default function Admin() {
           <Card id="account-cleanup">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Account Cleanup
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Permanently Delete an Account
               </CardTitle>
               <CardDescription>
-                Use this when an email address still shows as "taken" after a family was permanently deleted,
-                or after an invited parent signed in but never joined a family. This removes the sign-in account
-                from the authentication system so the person can re-register.
+                Use this for account support or test cleanup. This permanently removes the selected person’s
+                TrailTeam profile and sign-in account so their email can register again. It does not remove other
+                household members; an empty household is deleted automatically.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -3235,7 +3238,7 @@ export default function Admin() {
                 </div>
               )}
               <div className="space-y-1.5 max-w-sm">
-                <Label htmlFor="cleanup-email-input">Email address to free up</Label>
+                <Label htmlFor="cleanup-email-input">Account email address</Label>
                 <Input
                   id="cleanup-email-input"
                   type="email"
@@ -3252,32 +3255,46 @@ export default function Admin() {
                 disabled={!cleanupEmail.trim() || cleanupRunning}
                 onClick={() => setCleanupConfirmOpen(true)}
               >
-                {cleanupRunning ? "Removing…" : "Remove account"}
+                {cleanupRunning ? "Deleting…" : "Permanently delete account"}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={cleanupConfirmOpen} onOpenChange={setCleanupConfirmOpen}>
+      <AlertDialog open={cleanupConfirmOpen} onOpenChange={(open) => {
+        setCleanupConfirmOpen(open);
+        if (!open) setCleanupConfirmation("");
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove sign-in account for {cleanupEmail}?</AlertDialogTitle>
+            <AlertDialogTitle>Permanently delete {cleanupEmail}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete their sign-in credentials from the authentication system.
-              Only do this for email addresses belonging to families that have already been deleted from TrailTeam,
-              or for an unfinished invited sign-in that never joined a family.
-              The person will be able to create a new account with this email afterwards.
+              This permanently removes their TrailTeam profile, sign-in account, and personal activity.
+              It cannot be undone. Type DELETE to confirm. The email can be used to register again afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="admin-account-delete-confirmation">Confirmation</Label>
+            <Input
+              id="admin-account-delete-confirmation"
+              value={cleanupConfirmation}
+              onChange={(event) => setCleanupConfirmation(event.target.value)}
+              placeholder="DELETE"
+              autoComplete="off"
+              disabled={cleanupRunning}
+            />
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <AlertDialogCancel disabled={cleanupRunning}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cleanupRunning || cleanupConfirmation !== "DELETE"}
               onClick={handleCleanupEmail}
             >
-              Remove account
-            </AlertDialogAction>
+              {cleanupRunning ? "Deleting…" : "Delete permanently"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

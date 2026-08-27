@@ -2,50 +2,71 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import express from "express";
 import { createServer, type Server } from "node:http";
 
-const orphanedEmail = "suznoahperin@gmail.com";
-const clerkDeleteCalls: string[] = [];
-const databaseDeleteCalls: unknown[] = [];
+const email = "member@example.com";
 let databaseUser: Record<string, unknown> | null = null;
+let requester: Record<string, unknown> | null = { id: 1, role: "admin" };
+let administratorIds: number[] = [1, 2];
+let clerkLookupResult: Array<{ id: string }> = [];
+const deletionCalls: Array<Record<string, unknown>> = [];
+const clerkDeletionCalls: string[] = [];
+let deletionResult: { ok: boolean; stage?: "clerk" | "database"; deletedHousehold?: boolean } = {
+  ok: true,
+  deletedHousehold: false,
+};
 
-const usersTable = new Proxy({ __table: "usersTable" }, { get: (target, key) => target[key as keyof typeof target] ?? {} });
+const usersTable = new Proxy(
+  { __table: "usersTable" },
+  { get: (target, key) => target[key as keyof typeof target] ?? { column: String(key) } },
+);
 
 vi.mock("@clerk/express", () => ({
   createClerkClient: vi.fn(() => ({
     users: {
-      getUserList: vi.fn().mockResolvedValue({ data: [{ id: "clerk_orphaned_parent" }] }),
-      deleteUser: vi.fn(async (clerkUserId: string) => {
-        clerkDeleteCalls.push(clerkUserId);
-      }),
+      getUserList: vi.fn(async () => ({ data: clerkLookupResult })),
     },
   })),
 }));
 
-vi.mock("@workspace/db", () => {
-  const deleteChain = {
-    where: vi.fn().mockResolvedValue(undefined),
-  };
-
-  return {
-    db: {
-      query: {
-        teamSettingsTable: { findFirst: vi.fn() },
-        usersTable: {
-          findFirst: vi.fn(() => Promise.resolve(databaseUser)),
-        },
+vi.mock("@workspace/db", () => ({
+  db: {
+    query: {
+      teamSettingsTable: { findFirst: vi.fn() },
+      usersTable: {
+        findFirst: vi.fn(async () => {
+          const value = databaseUser;
+          databaseUser = requester;
+          requester = value;
+          return value;
+        }),
       },
-      delete: vi.fn((table: unknown) => {
-        databaseDeleteCalls.push(table);
-        return deleteChain;
-      }),
-      insert: vi.fn(),
     },
-    teamSettingsTable: new Proxy({}, { get: () => ({}) }),
-    usersTable,
-  };
-});
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => administratorIds.map((id) => ({ id }))),
+      })),
+    })),
+    insert: vi.fn(),
+  },
+  teamSettingsTable: new Proxy({}, { get: () => ({}) }),
+  usersTable,
+}));
 
 vi.mock("../middlewares/requireAuth", () => ({
-  requireCoachOrAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireCoachOrAdmin: (req: any, _res: unknown, next: () => void) => {
+    req.clerkUserId = "clerk_requester";
+    next();
+  },
+}));
+
+vi.mock("../lib/account-deletion", () => ({
+  permanentlyDeleteLocalAccount: vi.fn(async (user: Record<string, unknown>) => {
+    deletionCalls.push(user);
+    return deletionResult;
+  }),
+  deleteClerkUserId: vi.fn(async (clerkUserId: string) => {
+    clerkDeletionCalls.push(clerkUserId);
+    return true;
+  }),
 }));
 
 vi.mock("../lib/logger", () => ({
@@ -79,85 +100,83 @@ afterAll(async () => {
 
 beforeEach(() => {
   databaseUser = null;
-  clerkDeleteCalls.length = 0;
-  databaseDeleteCalls.length = 0;
+  requester = { id: 1, role: "admin" };
+  administratorIds = [1, 2];
+  clerkLookupResult = [];
+  deletionCalls.length = 0;
+  clerkDeletionCalls.length = 0;
+  deletionResult = { ok: true, deletedHousehold: false };
 });
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
-async function cleanup(email = orphanedEmail) {
-  return fetch(`${baseUrl}/admin/cleanup/clerk-by-email`, {
+async function deleteAccount(body: Record<string, unknown>) {
+  return fetch(`${baseUrl}/admin/accounts/by-email`, {
     method: "DELETE",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(body),
   });
 }
 
-describe("DELETE /admin/cleanup/clerk-by-email", () => {
-  it("removes an unapproved parent account that never joined a household", async () => {
-    databaseUser = {
-      id: 14,
-      firstName: "New",
-      lastName: "User",
-      email: orphanedEmail,
-      clerkUserId: "clerk_orphaned_parent",
-      role: "parent",
-      approved: false,
-      householdId: null,
-    };
+describe("DELETE /admin/accounts/by-email", () => {
+  it("permanently deletes an active account when confirmation is explicit", async () => {
+    databaseUser = { id: 14, email, role: "parent", clerkUserId: "clerk_member", householdId: 22 };
+    deletionResult = { ok: true, deletedHousehold: true };
 
-    const response = await cleanup();
+    const response = await deleteAccount({ email, confirmation: "DELETE" });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true,
-      message: expect.stringMatching(/unfinished sign-in account/i),
-    });
-    expect(databaseDeleteCalls).toHaveLength(1);
-    expect((databaseDeleteCalls[0] as { __table?: string }).__table).toBe("usersTable");
-    expect(clerkDeleteCalls).toEqual(["clerk_orphaned_parent"]);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, deletedHousehold: true });
+    expect(deletionCalls).toEqual([expect.objectContaining({ id: 14, clerkUserId: "clerk_member" })]);
   });
 
-  it("continues to protect a user attached to an active household", async () => {
-    databaseUser = {
-      id: 15,
-      firstName: "Active",
-      lastName: "Parent",
-      email: orphanedEmail,
-      clerkUserId: "clerk_orphaned_parent",
-      role: "parent",
-      approved: false,
-      householdId: 42,
-    };
+  it("rejects deletion without the explicit confirmation", async () => {
+    const response = await deleteAccount({ email });
 
-    const response = await cleanup();
-
-    expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toMatchObject({
-      error: expect.stringMatching(/active TrailTeam user/i),
-    });
-    expect(databaseDeleteCalls).toEqual([]);
-    expect(clerkDeleteCalls).toEqual([]);
+    expect(response.status).toBe(400);
+    expect(deletionCalls).toEqual([]);
   });
 
-  it("continues to protect approved and team-role accounts without households", async () => {
-    databaseUser = {
-      id: 16,
-      firstName: "Team",
-      lastName: "Coach",
-      email: orphanedEmail,
-      clerkUserId: "clerk_orphaned_parent",
-      role: "coach",
-      approved: true,
-      householdId: null,
-    };
+  it("does not remove TrailTeam data when Clerk deletion fails", async () => {
+    databaseUser = { id: 14, email, role: "parent", clerkUserId: "clerk_member", householdId: null };
+    deletionResult = { ok: false, stage: "clerk" };
 
-    const response = await cleanup();
+    const response = await deleteAccount({ email, confirmation: "DELETE" });
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringMatching(/no TrailTeam data was deleted/i) });
+  });
+
+  it("protects an administrator from a coach", async () => {
+    databaseUser = { id: 7, email, role: "admin", clerkUserId: "clerk_admin", householdId: null };
+    requester = { id: 1, role: "coach" };
+
+    const response = await deleteAccount({ email, confirmation: "DELETE" });
+
+    expect(response.status).toBe(403);
+    expect(deletionCalls).toEqual([]);
+  });
+
+  it("protects the last administrator from the admin support tool", async () => {
+    databaseUser = { id: 7, email, role: "admin", clerkUserId: "clerk_admin", householdId: null };
+    requester = { id: 1, role: "admin" };
+    administratorIds = [7];
+
+    const response = await deleteAccount({ email, confirmation: "DELETE" });
 
     expect(response.status).toBe(409);
-    expect(databaseDeleteCalls).toEqual([]);
-    expect(clerkDeleteCalls).toEqual([]);
+    expect(deletionCalls).toEqual([]);
+  });
+
+  it("still frees an orphaned Clerk-only account", async () => {
+    clerkLookupResult = [{ id: "clerk_orphan" }];
+
+    const response = await deleteAccount({ email, confirmation: "DELETE" });
+
+    expect(response.status).toBe(200);
+    expect(clerkDeletionCalls).toEqual(["clerk_orphan"]);
+    expect(deletionCalls).toEqual([]);
   });
 });

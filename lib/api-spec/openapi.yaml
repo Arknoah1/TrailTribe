@@ -133,6 +133,78 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteMyAccount
+      tags: [users]
+      summary: Permanently delete the current user's account and sign-in identity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountDeletionInput"
+      responses:
+        "200":
+          description: Account permanently deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResult"
+        "400":
+          description: Deletion confirmation was not accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: Sign-in service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/accounts/by-email:
+    delete:
+      operationId: deleteAccountByEmail
+      tags: [users]
+      summary: Permanently delete a selected account (coach or admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminAccountDeletionInput"
+      responses:
+        "200":
+          description: Account permanently deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountDeletionResult"
+        "400":
+          description: Deletion confirmation was not accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not allowed to remove this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Last administrator protection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /users:
     get:
@@ -2094,6 +2166,38 @@ components:
       required: [success]
 
     # ─── USER ─────────────────────────────────────────────────────────────────
+
+    AccountDeletionInput:
+      type: object
+      additionalProperties: false
+      required: [confirmation]
+      properties:
+        confirmation:
+          type: string
+          const: DELETE MY ACCOUNT
+
+    AdminAccountDeletionInput:
+      type: object
+      additionalProperties: false
+      required: [email, confirmation]
+      properties:
+        email:
+          type: string
+          format: email
+        confirmation:
+          type: string
+          const: DELETE
+
+    AccountDeletionResult:
+      type: object
+      required: [ok, deletedHousehold]
+      properties:
+        ok:
+          type: boolean
+        deletedHousehold:
+          type: boolean
+        message:
+          type: string
 
     UserNotificationPreferences:
       type: object

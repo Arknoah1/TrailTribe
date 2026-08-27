@@ -6,7 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./accountDeletionInput";
+export * from "./accountDeletionResult";
 export * from "./addAttachmentBody";
+export * from "./adminAccountDeletionInput";
 export * from "./approveUserBody";
 export * from "./approveUserBodyRole";
 export * from "./batchCreateEventsBody";

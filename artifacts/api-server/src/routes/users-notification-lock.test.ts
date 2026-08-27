@@ -22,6 +22,11 @@ let mockUser: Record<string, unknown> | null = null;
 
 /** Arguments passed to each db.update().set() call, captured for assertions. */
 const updateSetCalls: Array<Record<string, unknown>> = [];
+const permanentDeletionCalls: Array<Record<string, unknown>> = [];
+let permanentDeletionResult: { ok: boolean; stage?: "clerk" | "database"; deletedHousehold?: boolean } = {
+  ok: true,
+  deletedHousehold: false,
+};
 
 /* ─── module mocks ───────────────────────────────────────────────────── */
 
@@ -72,8 +77,10 @@ vi.mock("@workspace/db", () => {
     db: mockDb,
     usersTable: new Proxy({}, { get: () => ({}) }),
     householdsTable: new Proxy({}, { get: () => ({}) }),
+    familyInvitesTable: new Proxy({}, { get: () => ({}) }),
     inviteLinksTable: new Proxy({}, { get: () => ({}) }),
     seasonsTable: new Proxy({}, { get: () => ({}) }),
+    seasonRosterSnapshotsTable: new Proxy({}, { get: () => ({}) }),
     teamDocumentsTable: new Proxy({}, { get: () => ({}) }),
     documentConsentsTable: new Proxy({}, { get: () => ({}) }),
   };
@@ -114,6 +121,14 @@ vi.mock("../lib/notifications", () => ({
 
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock("../lib/account-deletion", () => ({
+  permanentlyDeleteLocalAccount: vi.fn(async (user: Record<string, unknown>) => {
+    permanentDeletionCalls.push(user);
+    return permanentDeletionResult;
+  }),
+  deleteClerkUserId: vi.fn(async () => true),
 }));
 
 /* ─── import router after mocks are registered ───────────────────────── */
@@ -178,8 +193,51 @@ beforeEach(() => {
   // set in the factory (closures over mutable refs) remain in place.
   vi.clearAllMocks();
   updateSetCalls.length = 0;
+  permanentDeletionCalls.length = 0;
+  permanentDeletionResult = { ok: true, deletedHousehold: false };
   // Default: locked student.
   mockUser = { ...LOCKED_STUDENT };
+});
+
+/* ─── DELETE /users/me — permanent self-service deletion ─────────────── */
+
+describe("DELETE /users/me — permanent self-service deletion", () => {
+  it("only deletes the account associated with the current Clerk session", async () => {
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "DELETE MY ACCOUNT" }),
+    });
+
+    expect(resp.status).toBe(200);
+    expect(permanentDeletionCalls).toEqual([
+      expect.objectContaining({ id: LOCKED_STUDENT.id, clerkUserId: "clerk_test_student" }),
+    ]);
+  });
+
+  it("requires the explicit self-service confirmation before deleting", async () => {
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "DELETE" }),
+    });
+
+    expect(resp.status).toBe(400);
+    expect(permanentDeletionCalls).toEqual([]);
+  });
+
+  it("keeps the local account when the sign-in service cannot be reached", async () => {
+    permanentDeletionResult = { ok: false, stage: "clerk" };
+
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmation: "DELETE MY ACCOUNT" }),
+    });
+
+    expect(resp.status).toBe(502);
+    expect(permanentDeletionCalls).toHaveLength(1);
+  });
 });
 
 /* ─── PATCH /users/me — notification lock guard ──────────────────────── */

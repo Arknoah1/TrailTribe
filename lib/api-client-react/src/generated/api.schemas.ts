@@ -26,6 +26,22 @@ export interface SuccessResponse {
   message?: string;
 }
 
+export const AccountDeletionInputValue = {
+  confirmation: "DELETE MY ACCOUNT",
+} as const;
+export type AccountDeletionInput = typeof AccountDeletionInputValue;
+
+export interface AdminAccountDeletionInput {
+  email: string;
+  confirmation: "DELETE";
+}
+
+export interface AccountDeletionResult {
+  ok: boolean;
+  deletedHousehold: boolean;
+  message?: string;
+}
+
 export interface UserNotificationPreferences {
   practiceReminders: boolean;
   coachMessages: boolean;

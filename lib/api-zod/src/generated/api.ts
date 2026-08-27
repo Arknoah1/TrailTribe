@@ -353,6 +353,33 @@ export const UpdateMeResponse = zod.object({
 });
 
 /**
+ * @summary Permanently delete the current user's account and sign-in identity
+ */
+export const DeleteMyAccountBody = zod.object({
+  confirmation: zod.literal("DELETE MY ACCOUNT"),
+});
+
+export const DeleteMyAccountResponse = zod.object({
+  ok: zod.boolean(),
+  deletedHousehold: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Permanently delete a selected account (coach or admin only)
+ */
+export const DeleteAccountByEmailBody = zod.object({
+  email: zod.string().email(),
+  confirmation: zod.literal("DELETE"),
+});
+
+export const DeleteAccountByEmailResponse = zod.object({
+  ok: zod.boolean(),
+  deletedHousehold: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
  * @summary List all users (admin/coach only)
  */
 export const ListUsersQueryParams = zod.object({

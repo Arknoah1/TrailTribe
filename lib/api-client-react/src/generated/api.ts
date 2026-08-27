@@ -17,7 +17,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AccountDeletionInput,
+  AccountDeletionResult,
   AddAttachmentBody,
+  AdminAccountDeletionInput,
   ApproveUserBody,
   BatchCreateEventsBody,
   BatchCreateEventsResult,
@@ -564,6 +567,179 @@ export const useUpdateMe = <
   TContext
 > => {
   return useMutation(getUpdateMeMutationOptions(options));
+};
+
+/**
+ * @summary Permanently delete the current user's account and sign-in identity
+ */
+export const getDeleteMyAccountUrl = () => {
+  return `/api/users/me`;
+};
+
+export const deleteMyAccount = async (
+  accountDeletionInput: AccountDeletionInput,
+  options?: RequestInit,
+): Promise<AccountDeletionResult> => {
+  return customFetch<AccountDeletionResult>(getDeleteMyAccountUrl(), {
+    ...options,
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(accountDeletionInput),
+  });
+};
+
+export const getDeleteMyAccountMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyAccount>>,
+    TError,
+    { data: BodyType<AccountDeletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteMyAccount>>,
+  TError,
+  { data: BodyType<AccountDeletionInput> },
+  TContext
+> => {
+  const mutationKey = ["deleteMyAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteMyAccount>>,
+    { data: BodyType<AccountDeletionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deleteMyAccount(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteMyAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteMyAccount>>
+>;
+export type DeleteMyAccountMutationBody = BodyType<AccountDeletionInput>;
+export type DeleteMyAccountMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Permanently delete the current user's account and sign-in identity
+ */
+export const useDeleteMyAccount = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteMyAccount>>,
+    TError,
+    { data: BodyType<AccountDeletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteMyAccount>>,
+  TError,
+  { data: BodyType<AccountDeletionInput> },
+  TContext
+> => {
+  return useMutation(getDeleteMyAccountMutationOptions(options));
+};
+
+/**
+ * @summary Permanently delete a selected account (coach or admin only)
+ */
+export const getDeleteAccountByEmailUrl = () => {
+  return `/api/admin/accounts/by-email`;
+};
+
+export const deleteAccountByEmail = async (
+  adminAccountDeletionInput: AdminAccountDeletionInput,
+  options?: RequestInit,
+): Promise<AccountDeletionResult> => {
+  return customFetch<AccountDeletionResult>(getDeleteAccountByEmailUrl(), {
+    ...options,
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(adminAccountDeletionInput),
+  });
+};
+
+export const getDeleteAccountByEmailMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAccountByEmail>>,
+    TError,
+    { data: BodyType<AdminAccountDeletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAccountByEmail>>,
+  TError,
+  { data: BodyType<AdminAccountDeletionInput> },
+  TContext
+> => {
+  const mutationKey = ["deleteAccountByEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAccountByEmail>>,
+    { data: BodyType<AdminAccountDeletionInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deleteAccountByEmail(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAccountByEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAccountByEmail>>
+>;
+export type DeleteAccountByEmailMutationBody =
+  BodyType<AdminAccountDeletionInput>;
+export type DeleteAccountByEmailMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Permanently delete a selected account (coach or admin only)
+ */
+export const useDeleteAccountByEmail = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAccountByEmail>>,
+    TError,
+    { data: BodyType<AdminAccountDeletionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAccountByEmail>>,
+  TError,
+  { data: BodyType<AdminAccountDeletionInput> },
+  TContext
+> => {
+  return useMutation(getDeleteAccountByEmailMutationOptions(options));
 };
 
 /**

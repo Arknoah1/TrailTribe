@@ -15,6 +15,7 @@ import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
 import { createClerkClient } from "@clerk/express";
 import { z } from "zod";
+import { deleteClerkUserId, permanentlyDeleteLocalAccount } from "../lib/account-deletion";
 
 const notificationPreferencesSchema = z.object({
   practiceReminders: z.boolean(),
@@ -62,6 +63,10 @@ const putUsersMeSchema = z.object({
   smsNotifications: z.boolean().optional(),
   pushNotifications: z.boolean().optional(),
   notificationPreferences: notificationPreferencesSchema.optional(),
+}).strict();
+
+const deleteMyAccountSchema = z.object({
+  confirmation: z.literal("DELETE MY ACCOUNT"),
 }).strict();
 
 const router = Router();
@@ -283,6 +288,47 @@ router.put("/users/me", requireAuth, async (req, res) => {
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);
+});
+
+// DELETE /users/me — permanently remove the signed-in account and its
+// authentication identity. The account target is always derived from the
+// current Clerk session; callers cannot nominate another user.
+router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
+  const parsed = deleteMyAccountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Type DELETE MY ACCOUNT to confirm permanent deletion." });
+    return;
+  }
+
+  const clerkUserId = (req as any).clerkUserId as string;
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+
+  if (!user) {
+    // A signed-in account can occasionally exist before the app has created a
+    // local profile. Removing that identity still fulfills the self-service
+    // deletion request.
+    const clerkDeleted = await deleteClerkUserId(clerkUserId);
+    if (!clerkDeleted) {
+      res.status(502).json({ error: "We could not reach the sign-in service. Your TrailTeam account has not been deleted; please try again." });
+      return;
+    }
+    res.json({ ok: true, deletedHousehold: false });
+    return;
+  }
+
+  const result = await permanentlyDeleteLocalAccount(user);
+  if (!result.ok) {
+    if (result.stage === "clerk") {
+      res.status(502).json({ error: "We could not reach the sign-in service. Your TrailTeam account has not been deleted; please try again." });
+      return;
+    }
+    res.status(500).json({ error: "Your sign-in account was removed, but TrailTeam could not finish deleting your data. Please contact a team administrator so they can retry the deletion." });
+    return;
+  }
+
+  res.json({ ok: true, deletedHousehold: result.deletedHousehold });
 });
 
 // PATCH /api/users/me — partial update (used by notification toggles auto-save)
