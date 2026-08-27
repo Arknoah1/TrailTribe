@@ -69,7 +69,19 @@ overrides:
   brace-expansion: ^2.1.4
   js-yaml: ^4.3.0
   nanoid: ^3.3.17
-  esbuild: 0.27.3
+  '@babel/core': ^7.29.6
+  '@tootallnate/once': ^2.0.1
+  body-parser: ^2.3.0
+  fast-xml-parser: ^5.7.0
+  follow-redirects: ^1.16.0
+  linkify-it: ^5.0.2
+  lodash: ^4.18.0
+  markdown-it: ^14.2.0
+  postcss: ^8.5.23
+  qs: ^6.15.2
+  uuid: ^11.1.1
+  yaml: ^2.8.3
+  esbuild: 0.28.1
   esbuild>@esbuild/aix-ppc64: '-'
   esbuild>@esbuild/android-arm: '-'
   esbuild>@esbuild/android-arm64: '-'
