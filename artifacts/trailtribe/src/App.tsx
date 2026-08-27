@@ -20,6 +20,7 @@ const FamilyInvite = lazy(() => import("./pages/family-invite"));
 const RiderInvite = lazy(() => import("./pages/rider-invite"));
 const Onboarding = lazy(() => import("./pages/onboarding"));
 const Reenroll = lazy(() => import("./pages/reenroll"));
+const LegalPage = lazy(() => import("./pages/legal"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { useGetMe } from "@workspace/api-client-react";
@@ -96,6 +97,7 @@ function SignInPage() {
             <p className="text-muted-foreground text-sm font-medium">Welcome back, rider.</p>
           </div>
           <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+          <PolicyLinks />
         </div>
       </div>
     </div>
@@ -112,9 +114,32 @@ function SignUpPage() {
             <p className="text-muted-foreground text-sm font-medium">Join the crew.</p>
           </div>
           <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+          <PolicyLinks />
         </div>
       </div>
     </div>
+  );
+}
+
+function PolicyLinks() {
+  return (
+    <p className="text-center text-xs leading-5 text-muted-foreground">
+      By continuing, you acknowledge our{" "}
+      <a
+        href={`${basePath}/privacy`}
+        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        Privacy Policy
+      </a>{" "}
+      and{" "}
+      <a
+        href={`${basePath}/terms`}
+        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        Terms of Service
+      </a>
+      .
+    </p>
   );
 }
 
@@ -198,6 +223,9 @@ function Home() {
             >
               Sign In
             </a>
+          </div>
+          <div className="mt-8">
+            <PolicyLinks />
           </div>
         </div>
       </div>
@@ -347,6 +375,8 @@ function ClerkProviderWithRoutes() {
             <Route path="/" component={HomeRedirect} />
             <Route path="/sign-in/*?" component={SignInPage} />
             <Route path="/sign-up/*?" component={SignUpPage} />
+            <Route path="/privacy" component={() => <LegalPage page="privacy" />} />
+            <Route path="/terms" component={() => <LegalPage page="terms" />} />
             <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
             <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
             <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
