@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "0O4F5mT8xuRA_ZUseLmtp"
+uri = "file://artifacts/trailtribe/resources/trailtribe-icon.svg"
+type = "image"
+title = "TrailTeam app icon source"
+description = "The editable SVG source used for the TrailTeam native app icon."
