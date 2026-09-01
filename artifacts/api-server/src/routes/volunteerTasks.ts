@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import {
+  volunteerTemplateCategoriesTable,
   volunteerTemplateTasksTable,
   volunteerTaskPacksTable,
   volunteerTaskPackTasksTable,
@@ -10,60 +11,298 @@ import {
   usersTable,
   notificationsTable,
 } from "@workspace/db";
-import { eq, and, inArray, count, gte } from "drizzle-orm";
+import { eq, and, inArray, count, gte, max } from "drizzle-orm";
 import { requireAuth, requireApproved, requireAdmin, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
-// ─── TEMPLATE TASKS (admin only) ─────────────────────────────────────────────
+function normalizeCategoryName(value: unknown): { name: string; nameKey: string } | null {
+  if (typeof value !== "string") return null;
+  const name = value.trim().replace(/\s+/g, " ");
+  if (!name || name.length > 120) return null;
+  return { name, nameKey: name.toLocaleLowerCase() };
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { code?: string; cause?: { code?: string } };
+  return candidate.code === "23505" || candidate.cause?.code === "23505";
+}
+
+async function listTemplateTaskRows(taskIds?: number[]) {
+  const selection = db
+    .select({ task: volunteerTemplateTasksTable, category: volunteerTemplateCategoriesTable })
+    .from(volunteerTemplateTasksTable)
+    .innerJoin(
+      volunteerTemplateCategoriesTable,
+      eq(volunteerTemplateTasksTable.categoryId, volunteerTemplateCategoriesTable.id),
+    );
+
+  const rows = taskIds
+    ? await selection
+        .where(inArray(volunteerTemplateTasksTable.id, taskIds))
+        .orderBy(
+          volunteerTemplateCategoriesTable.sortOrder,
+          volunteerTemplateTasksTable.sortOrder,
+          volunteerTemplateTasksTable.id,
+        )
+    : await selection.orderBy(
+        volunteerTemplateCategoriesTable.sortOrder,
+        volunteerTemplateTasksTable.sortOrder,
+        volunteerTemplateTasksTable.id,
+      );
+
+  return rows;
+}
+
+function serializeTemplateTask(row: Awaited<ReturnType<typeof listTemplateTaskRows>>[number]) {
+  return {
+    ...row.task,
+    categoryId: row.category.id,
+    category: row.category.name,
+  };
+}
+
+async function nextTemplateTaskSortOrder(categoryId: number): Promise<number> {
+  const [{ maxSortOrder }] = await db
+    .select({ maxSortOrder: max(volunteerTemplateTasksTable.sortOrder) })
+    .from(volunteerTemplateTasksTable)
+    .where(eq(volunteerTemplateTasksTable.categoryId, categoryId));
+  return Number(maxSortOrder ?? 0) + 10;
+}
+
+// ─── TEMPLATE CATEGORIES (coach/admin only) ─────────────────────────────────
+
+router.get("/volunteer-tasks/categories", requireCoachOrAdmin, async (_req, res) => {
+  const categories = await db
+    .select()
+    .from(volunteerTemplateCategoriesTable)
+    .orderBy(volunteerTemplateCategoriesTable.sortOrder, volunteerTemplateCategoriesTable.id);
+  res.json(categories);
+});
+
+router.post("/volunteer-tasks/categories", requireCoachOrAdmin, async (req, res) => {
+  const parsed = normalizeCategoryName(req.body?.name);
+  if (!parsed) {
+    res.status(400).json({ error: "Category name is required and must be 120 characters or fewer" });
+    return;
+  }
+
+  const [{ maxSortOrder }] = await db
+    .select({ maxSortOrder: max(volunteerTemplateCategoriesTable.sortOrder) })
+    .from(volunteerTemplateCategoriesTable);
+
+  try {
+    const [category] = await db
+      .insert(volunteerTemplateCategoriesTable)
+      .values({
+        ...parsed,
+        sortOrder: Number(maxSortOrder ?? 0) + 10,
+      })
+      .returning();
+    res.status(201).json(category);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      res.status(409).json({ error: "A category with this name already exists" });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.patch("/volunteer-tasks/categories/reorder", requireCoachOrAdmin, async (req, res) => {
+  const orderedIds = req.body?.orderedIds;
+  if (
+    !Array.isArray(orderedIds)
+    || orderedIds.length === 0
+    || orderedIds.some((id: unknown) => !Number.isInteger(id))
+    || new Set(orderedIds).size !== orderedIds.length
+  ) {
+    res.status(400).json({ error: "orderedIds must be a list of unique category IDs" });
+    return;
+  }
+
+  const categories = await db.select({ id: volunteerTemplateCategoriesTable.id }).from(volunteerTemplateCategoriesTable);
+  const categoryIds = new Set(categories.map((category) => category.id));
+  if (orderedIds.length !== categoryIds.size || orderedIds.some((id: number) => !categoryIds.has(id))) {
+    res.status(400).json({ error: "orderedIds must include every category exactly once" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    for (const [index, id] of orderedIds.entries()) {
+      await tx
+        .update(volunteerTemplateCategoriesTable)
+        .set({ sortOrder: (index + 1) * 10 })
+        .where(eq(volunteerTemplateCategoriesTable.id, id));
+    }
+  });
+  res.json({ ok: true });
+});
+
+router.patch("/volunteer-tasks/categories/:id", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const parsed = req.body?.name === undefined ? null : normalizeCategoryName(req.body.name);
+  if (req.body?.name !== undefined && !parsed) {
+    res.status(400).json({ error: "Category name is required and must be 120 characters or fewer" });
+    return;
+  }
+  if (!parsed) {
+    res.status(400).json({ error: "Category name is required" });
+    return;
+  }
+
+  try {
+    const [updated] = await db
+      .update(volunteerTemplateCategoriesTable)
+      .set(parsed)
+      .where(eq(volunteerTemplateCategoriesTable.id, id))
+      .returning();
+    if (!updated) {
+      res.status(404).json({ error: "Category not found" });
+      return;
+    }
+    res.json(updated);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      res.status(409).json({ error: "A category with this name already exists" });
+      return;
+    }
+    throw error;
+  }
+});
+
+router.delete("/volunteer-tasks/categories/:id", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const [assignedTask] = await db
+    .select({ id: volunteerTemplateTasksTable.id })
+    .from(volunteerTemplateTasksTable)
+    .where(eq(volunteerTemplateTasksTable.categoryId, id))
+    .limit(1);
+  if (assignedTask) {
+    res.status(409).json({ error: "Reassign all tasks before deleting this category" });
+    return;
+  }
+
+  const deleted = await db
+    .delete(volunteerTemplateCategoriesTable)
+    .where(eq(volunteerTemplateCategoriesTable.id, id))
+    .returning({ id: volunteerTemplateCategoriesTable.id });
+  if (deleted.length === 0) {
+    res.status(404).json({ error: "Category not found" });
+    return;
+  }
+  res.status(204).send();
+});
+
+// ─── TEMPLATE TASKS (coach/admin only) ──────────────────────────────────────
 
 router.get("/volunteer-tasks/templates", requireCoachOrAdmin, async (req, res) => {
-  const templates = await db
-    .select()
-    .from(volunteerTemplateTasksTable)
-    .orderBy(volunteerTemplateTasksTable.sortOrder, volunteerTemplateTasksTable.category);
-  res.json(templates);
+  const templates = await listTemplateTaskRows();
+  res.json(templates.map(serializeTemplateTask));
 });
 
 router.post("/volunteer-tasks/templates", requireCoachOrAdmin, async (req, res) => {
-  const { category, title, description, slotsDefault, sortOrder } = req.body;
-  if (!category || !title) {
-    res.status(400).json({ error: "category and title required" });
+  const { categoryId, title, description, slotsDefault, sortOrder } = req.body ?? {};
+  if (!Number.isInteger(categoryId) || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "categoryId and title are required" });
+    return;
+  }
+  const category = await db.query.volunteerTemplateCategoriesTable.findFirst({
+    where: eq(volunteerTemplateCategoriesTable.id, categoryId),
+  });
+  if (!category) {
+    res.status(400).json({ error: "Unknown category" });
     return;
   }
   const [task] = await db.insert(volunteerTemplateTasksTable).values({
-    category,
-    title,
+    categoryId,
+    title: title.trim(),
     description: description ?? null,
     slotsDefault: slotsDefault ?? 1,
-    sortOrder: sortOrder ?? 0,
+    sortOrder: sortOrder ?? await nextTemplateTaskSortOrder(categoryId),
   }).returning();
-  res.status(201).json(task);
+  res.status(201).json(serializeTemplateTask({ task, category }));
 });
 
 router.put("/volunteer-tasks/templates/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  const { category, title, description, slotsDefault, sortOrder } = req.body;
+  const { categoryId, title, description, slotsDefault, sortOrder } = req.body ?? {};
+  if (!Number.isInteger(categoryId) || typeof title !== "string" || !title.trim()) {
+    res.status(400).json({ error: "categoryId and title are required" });
+    return;
+  }
+  const category = await db.query.volunteerTemplateCategoriesTable.findFirst({
+    where: eq(volunteerTemplateCategoriesTable.id, categoryId),
+  });
+  if (!category) {
+    res.status(400).json({ error: "Unknown category" });
+    return;
+  }
+  const existingTask = await db.query.volunteerTemplateTasksTable.findFirst({
+    where: eq(volunteerTemplateTasksTable.id, id),
+  });
+  if (!existingTask) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const movedToAnotherCategory = existingTask.categoryId !== categoryId;
+  const nextSortOrder = movedToAnotherCategory && sortOrder === undefined
+    ? await nextTemplateTaskSortOrder(categoryId)
+    : sortOrder;
   const [updated] = await db.update(volunteerTemplateTasksTable)
     .set({
-      ...(category && { category }),
-      ...(title && { title }),
+      categoryId,
+      title: title.trim(),
       description: description ?? null,
       ...(slotsDefault !== undefined && { slotsDefault }),
-      ...(sortOrder !== undefined && { sortOrder }),
+      ...(nextSortOrder !== undefined && { sortOrder: nextSortOrder }),
     })
     .where(eq(volunteerTemplateTasksTable.id, id))
     .returning();
-  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(updated);
+  res.json(serializeTemplateTask({ task: updated, category }));
 });
 
 router.delete("/volunteer-tasks/templates/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   await db.delete(volunteerTemplateTasksTable).where(eq(volunteerTemplateTasksTable.id, id));
   res.status(204).send();
+});
+
+router.patch("/volunteer-tasks/templates/reorder", requireCoachOrAdmin, async (req, res) => {
+  const { categoryId, orderedTaskIds } = req.body ?? {};
+  if (
+    !Number.isInteger(categoryId)
+    || !Array.isArray(orderedTaskIds)
+    || orderedTaskIds.length === 0
+    || orderedTaskIds.some((id: unknown) => !Number.isInteger(id))
+    || new Set(orderedTaskIds).size !== orderedTaskIds.length
+  ) {
+    res.status(400).json({ error: "categoryId and unique orderedTaskIds are required" });
+    return;
+  }
+
+  const tasks = await db
+    .select({ id: volunteerTemplateTasksTable.id })
+    .from(volunteerTemplateTasksTable)
+    .where(eq(volunteerTemplateTasksTable.categoryId, categoryId));
+  const taskIds = new Set(tasks.map((task) => task.id));
+  if (orderedTaskIds.length !== taskIds.size || orderedTaskIds.some((id: number) => !taskIds.has(id))) {
+    res.status(400).json({ error: "orderedTaskIds must include every task in this category exactly once" });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    for (const [index, id] of orderedTaskIds.entries()) {
+      await tx
+        .update(volunteerTemplateTasksTable)
+        .set({ sortOrder: (index + 1) * 10 })
+        .where(eq(volunteerTemplateTasksTable.id, id));
+    }
+  });
+  res.json({ ok: true });
 });
 
 // ─── VOLUNTEER TASKS ENABLED TOGGLE ──────────────────────────────────────────
@@ -219,18 +458,9 @@ router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req,
   const eventId = parseInt(str(req.params.id));
   const { templateTaskIds } = req.body as { templateTaskIds?: number[] };
 
-  let templates;
-  if (!templateTaskIds || templateTaskIds.length === 0) {
-    templates = await db
-      .select()
-      .from(volunteerTemplateTasksTable)
-      .orderBy(volunteerTemplateTasksTable.sortOrder, volunteerTemplateTasksTable.category);
-  } else {
-    templates = await db
-      .select()
-      .from(volunteerTemplateTasksTable)
-      .where(inArray(volunteerTemplateTasksTable.id, templateTaskIds));
-  }
+  const templates = await listTemplateTaskRows(
+    templateTaskIds && templateTaskIds.length > 0 ? templateTaskIds : undefined,
+  );
 
   if (templates.length === 0) {
     res.status(404).json({ error: "No templates found" });
@@ -238,14 +468,14 @@ router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req,
   }
 
   await db.insert(eventTasksTable).values(
-    templates.map((t) => ({
+    templates.map(({ task, category }) => ({
       eventId,
-      templateTaskId: t.id,
-      category: t.category,
-      title: t.title,
-      description: t.description ?? null,
-      slotsNeeded: t.slotsDefault,
-      sortOrder: t.sortOrder,
+      templateTaskId: task.id,
+      category: category.name,
+      title: task.title,
+      description: task.description ?? null,
+      slotsNeeded: task.slotsDefault,
+      sortOrder: task.sortOrder,
     }))
   );
 
@@ -469,12 +699,23 @@ router.delete("/events/:id/tasks/:taskId/signups/:signupId", requireCoachOrAdmin
 router.get("/volunteer-tasks/packs", requireCoachOrAdmin, async (req, res) => {
   const packs = await db.select().from(volunteerTaskPacksTable).orderBy(volunteerTaskPacksTable.createdAt);
   const packTaskRows = await db
-    .select({ packId: volunteerTaskPackTasksTable.packId, task: volunteerTemplateTasksTable })
+    .select({
+      packId: volunteerTaskPackTasksTable.packId,
+      task: volunteerTemplateTasksTable,
+      category: volunteerTemplateCategoriesTable,
+    })
     .from(volunteerTaskPackTasksTable)
-    .innerJoin(volunteerTemplateTasksTable, eq(volunteerTaskPackTasksTable.templateTaskId, volunteerTemplateTasksTable.id));
+    .innerJoin(volunteerTemplateTasksTable, eq(volunteerTaskPackTasksTable.templateTaskId, volunteerTemplateTasksTable.id))
+    .innerJoin(
+      volunteerTemplateCategoriesTable,
+      eq(volunteerTemplateTasksTable.categoryId, volunteerTemplateCategoriesTable.id),
+    );
   const result = packs.map(pack => ({
     ...pack,
-    tasks: packTaskRows.filter(r => r.packId === pack.id).map(r => r.task),
+    tasks: packTaskRows
+      .filter(r => r.packId === pack.id)
+      .sort((a, b) => a.category.sortOrder - b.category.sortOrder || a.task.sortOrder - b.task.sortOrder)
+      .map(r => serializeTemplateTask(r)),
   }));
   res.json(result);
 });
@@ -533,24 +774,33 @@ router.post("/events/:id/tasks/clone-pack", requireCoachOrAdmin, async (req, res
   const { packId } = req.body;
   if (!packId) { res.status(400).json({ error: "packId required" }); return; }
   const packTasks = await db
-    .select({ template: volunteerTemplateTasksTable })
+    .select({
+      template: volunteerTemplateTasksTable,
+      category: volunteerTemplateCategoriesTable,
+    })
     .from(volunteerTaskPackTasksTable)
     .innerJoin(volunteerTemplateTasksTable, eq(volunteerTaskPackTasksTable.templateTaskId, volunteerTemplateTasksTable.id))
+    .innerJoin(
+      volunteerTemplateCategoriesTable,
+      eq(volunteerTemplateTasksTable.categoryId, volunteerTemplateCategoriesTable.id),
+    )
     .where(eq(volunteerTaskPackTasksTable.packId, packId));
   if (packTasks.length === 0) {
     res.status(404).json({ error: "Pack not found or has no tasks" });
     return;
   }
   await db.insert(eventTasksTable).values(
-    packTasks.map(pt => ({
+    packTasks
+      .sort((a, b) => a.category.sortOrder - b.category.sortOrder || a.template.sortOrder - b.template.sortOrder)
+      .map(pt => ({
       eventId,
       templateTaskId: pt.template.id,
-      category: pt.template.category,
+      category: pt.category.name,
       title: pt.template.title,
       description: pt.template.description ?? null,
       slotsNeeded: pt.template.slotsDefault,
       sortOrder: pt.template.sortOrder,
-    }))
+      }))
   );
   res.status(201).json({ added: packTasks.length });
 });

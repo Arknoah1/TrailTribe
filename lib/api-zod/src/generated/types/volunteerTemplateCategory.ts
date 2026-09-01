@@ -6,13 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VolunteerTemplateTask {
+export interface VolunteerTemplateCategory {
   id: number;
-  categoryId: number;
-  category: string;
-  title: string;
-  description?: string | null;
-  slotsDefault: number;
+  name: string;
   sortOrder: number;
   createdAt: Date;
 }

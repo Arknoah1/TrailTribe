@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
 import { usersTable } from "./users";
+import { volunteerTemplateCategoriesTable } from "./volunteer";
 
 export const eventTypeEnum = ["practice", "race", "social", "volunteer", "other"] as const;
 export type EventType = (typeof eventTypeEnum)[number];
@@ -65,7 +66,7 @@ export type EventRsvp = typeof eventRsvpsTable.$inferSelect;
 
 export const volunteerTemplateTasksTable = pgTable("volunteer_template_tasks", {
   id: serial("id").primaryKey(),
-  category: text("category").notNull(),
+  categoryId: integer("category_id").notNull().references(() => volunteerTemplateCategoriesTable.id, { onDelete: "restrict" }),
   title: text("title").notNull(),
   description: text("description"),
   slotsDefault: integer("slots_default").notNull().default(1),

@@ -85,6 +85,8 @@ import type {
   PodWithMembers,
   PodWithStats,
   ReorderPodsBody,
+  ReorderVolunteerTemplateCategories200,
+  ReorderVolunteerTemplateTasks200,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   RescheduleSeries200,
@@ -107,8 +109,12 @@ import type {
   VolunteerSignup,
   VolunteerSignupBody,
   VolunteerSignupWithUser,
+  VolunteerTemplateCategory,
+  VolunteerTemplateCategoryInput,
+  VolunteerTemplateCategoryReorderInput,
   VolunteerTemplateTask,
-  VolunteerTemplateTaskBody,
+  VolunteerTemplateTaskInput,
+  VolunteerTemplateTaskReorderInput,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -4038,6 +4044,419 @@ export const useRemoveEventTaskSignup = <
   return useMutation(getRemoveEventTaskSignupMutationOptions(options));
 };
 
+export const getListVolunteerTemplateCategoriesUrl = () => {
+  return `/api/volunteer-tasks/categories`;
+};
+
+export const listVolunteerTemplateCategories = async (
+  options?: RequestInit,
+): Promise<VolunteerTemplateCategory[]> => {
+  return customFetch<VolunteerTemplateCategory[]>(
+    getListVolunteerTemplateCategoriesUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListVolunteerTemplateCategoriesQueryKey = () => {
+  return [`/api/volunteer-tasks/categories`] as const;
+};
+
+export const getListVolunteerTemplateCategoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listVolunteerTemplateCategories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateCategories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListVolunteerTemplateCategoriesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listVolunteerTemplateCategories>>
+  > = ({ signal }) =>
+    listVolunteerTemplateCategories({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateCategories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListVolunteerTemplateCategoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listVolunteerTemplateCategories>>
+>;
+export type ListVolunteerTemplateCategoriesQueryError = ErrorType<unknown>;
+
+export function useListVolunteerTemplateCategories<
+  TData = Awaited<ReturnType<typeof listVolunteerTemplateCategories>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listVolunteerTemplateCategories>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListVolunteerTemplateCategoriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateVolunteerTemplateCategoryUrl = () => {
+  return `/api/volunteer-tasks/categories`;
+};
+
+export const createVolunteerTemplateCategory = async (
+  volunteerTemplateCategoryInput: VolunteerTemplateCategoryInput,
+  options?: RequestInit,
+): Promise<VolunteerTemplateCategory> => {
+  return customFetch<VolunteerTemplateCategory>(
+    getCreateVolunteerTemplateCategoryUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateCategoryInput),
+    },
+  );
+};
+
+export const getCreateVolunteerTemplateCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVolunteerTemplateCategory>>,
+    TError,
+    { data: BodyType<VolunteerTemplateCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createVolunteerTemplateCategory>>,
+  TError,
+  { data: BodyType<VolunteerTemplateCategoryInput> },
+  TContext
+> => {
+  const mutationKey = ["createVolunteerTemplateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createVolunteerTemplateCategory>>,
+    { data: BodyType<VolunteerTemplateCategoryInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createVolunteerTemplateCategory(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateVolunteerTemplateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createVolunteerTemplateCategory>>
+>;
+export type CreateVolunteerTemplateCategoryMutationBody =
+  BodyType<VolunteerTemplateCategoryInput>;
+export type CreateVolunteerTemplateCategoryMutationError = ErrorType<unknown>;
+
+export const useCreateVolunteerTemplateCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createVolunteerTemplateCategory>>,
+    TError,
+    { data: BodyType<VolunteerTemplateCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createVolunteerTemplateCategory>>,
+  TError,
+  { data: BodyType<VolunteerTemplateCategoryInput> },
+  TContext
+> => {
+  return useMutation(
+    getCreateVolunteerTemplateCategoryMutationOptions(options),
+  );
+};
+
+export const getReorderVolunteerTemplateCategoriesUrl = () => {
+  return `/api/volunteer-tasks/categories/reorder`;
+};
+
+export const reorderVolunteerTemplateCategories = async (
+  volunteerTemplateCategoryReorderInput: VolunteerTemplateCategoryReorderInput,
+  options?: RequestInit,
+): Promise<ReorderVolunteerTemplateCategories200> => {
+  return customFetch<ReorderVolunteerTemplateCategories200>(
+    getReorderVolunteerTemplateCategoriesUrl(),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateCategoryReorderInput),
+    },
+  );
+};
+
+export const getReorderVolunteerTemplateCategoriesMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>,
+    TError,
+    { data: BodyType<VolunteerTemplateCategoryReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>,
+  TError,
+  { data: BodyType<VolunteerTemplateCategoryReorderInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderVolunteerTemplateCategories"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>,
+    { data: BodyType<VolunteerTemplateCategoryReorderInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderVolunteerTemplateCategories(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderVolunteerTemplateCategoriesMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>
+>;
+export type ReorderVolunteerTemplateCategoriesMutationBody =
+  BodyType<VolunteerTemplateCategoryReorderInput>;
+export type ReorderVolunteerTemplateCategoriesMutationError =
+  ErrorType<unknown>;
+
+export const useReorderVolunteerTemplateCategories = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>,
+    TError,
+    { data: BodyType<VolunteerTemplateCategoryReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateCategories>>,
+  TError,
+  { data: BodyType<VolunteerTemplateCategoryReorderInput> },
+  TContext
+> => {
+  return useMutation(
+    getReorderVolunteerTemplateCategoriesMutationOptions(options),
+  );
+};
+
+export const getUpdateVolunteerTemplateCategoryUrl = (id: number) => {
+  return `/api/volunteer-tasks/categories/${id}`;
+};
+
+export const updateVolunteerTemplateCategory = async (
+  id: number,
+  volunteerTemplateCategoryInput: VolunteerTemplateCategoryInput,
+  options?: RequestInit,
+): Promise<VolunteerTemplateCategory> => {
+  return customFetch<VolunteerTemplateCategory>(
+    getUpdateVolunteerTemplateCategoryUrl(id),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateCategoryInput),
+    },
+  );
+};
+
+export const getUpdateVolunteerTemplateCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>,
+    TError,
+    { id: number; data: BodyType<VolunteerTemplateCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>,
+  TError,
+  { id: number; data: BodyType<VolunteerTemplateCategoryInput> },
+  TContext
+> => {
+  const mutationKey = ["updateVolunteerTemplateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>,
+    { id: number; data: BodyType<VolunteerTemplateCategoryInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateVolunteerTemplateCategory(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateVolunteerTemplateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>
+>;
+export type UpdateVolunteerTemplateCategoryMutationBody =
+  BodyType<VolunteerTemplateCategoryInput>;
+export type UpdateVolunteerTemplateCategoryMutationError = ErrorType<unknown>;
+
+export const useUpdateVolunteerTemplateCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>,
+    TError,
+    { id: number; data: BodyType<VolunteerTemplateCategoryInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateVolunteerTemplateCategory>>,
+  TError,
+  { id: number; data: BodyType<VolunteerTemplateCategoryInput> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateVolunteerTemplateCategoryMutationOptions(options),
+  );
+};
+
+export const getDeleteVolunteerTemplateCategoryUrl = (id: number) => {
+  return `/api/volunteer-tasks/categories/${id}`;
+};
+
+export const deleteVolunteerTemplateCategory = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteVolunteerTemplateCategoryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteVolunteerTemplateCategoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteVolunteerTemplateCategory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteVolunteerTemplateCategory(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteVolunteerTemplateCategoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>
+>;
+
+export type DeleteVolunteerTemplateCategoryMutationError = ErrorType<unknown>;
+
+export const useDeleteVolunteerTemplateCategory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteVolunteerTemplateCategory>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(
+    getDeleteVolunteerTemplateCategoryMutationOptions(options),
+  );
+};
+
 export const getListVolunteerTemplateTasksUrl = () => {
   return `/api/volunteer-tasks/templates`;
 };
@@ -4115,7 +4534,7 @@ export const getCreateVolunteerTemplateTaskUrl = () => {
 };
 
 export const createVolunteerTemplateTask = async (
-  volunteerTemplateTaskBody: VolunteerTemplateTaskBody,
+  volunteerTemplateTaskInput: VolunteerTemplateTaskInput,
   options?: RequestInit,
 ): Promise<VolunteerTemplateTask> => {
   return customFetch<VolunteerTemplateTask>(
@@ -4124,7 +4543,7 @@ export const createVolunteerTemplateTask = async (
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(volunteerTemplateTaskBody),
+      body: JSON.stringify(volunteerTemplateTaskInput),
     },
   );
 };
@@ -4136,14 +4555,14 @@ export const getCreateVolunteerTemplateTaskMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
     TError,
-    { data: BodyType<VolunteerTemplateTaskBody> },
+    { data: BodyType<VolunteerTemplateTaskInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
   TError,
-  { data: BodyType<VolunteerTemplateTaskBody> },
+  { data: BodyType<VolunteerTemplateTaskInput> },
   TContext
 > => {
   const mutationKey = ["createVolunteerTemplateTask"];
@@ -4157,7 +4576,7 @@ export const getCreateVolunteerTemplateTaskMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
-    { data: BodyType<VolunteerTemplateTaskBody> }
+    { data: BodyType<VolunteerTemplateTaskInput> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -4171,7 +4590,7 @@ export type CreateVolunteerTemplateTaskMutationResult = NonNullable<
   Awaited<ReturnType<typeof createVolunteerTemplateTask>>
 >;
 export type CreateVolunteerTemplateTaskMutationBody =
-  BodyType<VolunteerTemplateTaskBody>;
+  BodyType<VolunteerTemplateTaskInput>;
 export type CreateVolunteerTemplateTaskMutationError = ErrorType<unknown>;
 
 export const useCreateVolunteerTemplateTask = <
@@ -4181,17 +4600,101 @@ export const useCreateVolunteerTemplateTask = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
     TError,
-    { data: BodyType<VolunteerTemplateTaskBody> },
+    { data: BodyType<VolunteerTemplateTaskInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createVolunteerTemplateTask>>,
   TError,
-  { data: BodyType<VolunteerTemplateTaskBody> },
+  { data: BodyType<VolunteerTemplateTaskInput> },
   TContext
 > => {
   return useMutation(getCreateVolunteerTemplateTaskMutationOptions(options));
+};
+
+export const getReorderVolunteerTemplateTasksUrl = () => {
+  return `/api/volunteer-tasks/templates/reorder`;
+};
+
+export const reorderVolunteerTemplateTasks = async (
+  volunteerTemplateTaskReorderInput: VolunteerTemplateTaskReorderInput,
+  options?: RequestInit,
+): Promise<ReorderVolunteerTemplateTasks200> => {
+  return customFetch<ReorderVolunteerTemplateTasks200>(
+    getReorderVolunteerTemplateTasksUrl(),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(volunteerTemplateTaskReorderInput),
+    },
+  );
+};
+
+export const getReorderVolunteerTemplateTasksMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>,
+    TError,
+    { data: BodyType<VolunteerTemplateTaskReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>,
+  TError,
+  { data: BodyType<VolunteerTemplateTaskReorderInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderVolunteerTemplateTasks"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>,
+    { data: BodyType<VolunteerTemplateTaskReorderInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderVolunteerTemplateTasks(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderVolunteerTemplateTasksMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>
+>;
+export type ReorderVolunteerTemplateTasksMutationBody =
+  BodyType<VolunteerTemplateTaskReorderInput>;
+export type ReorderVolunteerTemplateTasksMutationError = ErrorType<unknown>;
+
+export const useReorderVolunteerTemplateTasks = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>,
+    TError,
+    { data: BodyType<VolunteerTemplateTaskReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderVolunteerTemplateTasks>>,
+  TError,
+  { data: BodyType<VolunteerTemplateTaskReorderInput> },
+  TContext
+> => {
+  return useMutation(getReorderVolunteerTemplateTasksMutationOptions(options));
 };
 
 export const getUpdateVolunteerTemplateTaskUrl = (id: number) => {
@@ -4200,7 +4703,7 @@ export const getUpdateVolunteerTemplateTaskUrl = (id: number) => {
 
 export const updateVolunteerTemplateTask = async (
   id: number,
-  volunteerTemplateTaskBody: VolunteerTemplateTaskBody,
+  volunteerTemplateTaskInput: VolunteerTemplateTaskInput,
   options?: RequestInit,
 ): Promise<VolunteerTemplateTask> => {
   return customFetch<VolunteerTemplateTask>(
@@ -4209,7 +4712,7 @@ export const updateVolunteerTemplateTask = async (
       ...options,
       method: "PUT",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(volunteerTemplateTaskBody),
+      body: JSON.stringify(volunteerTemplateTaskInput),
     },
   );
 };
@@ -4221,14 +4724,14 @@ export const getUpdateVolunteerTemplateTaskMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
     TError,
-    { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+    { id: number; data: BodyType<VolunteerTemplateTaskInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
   TError,
-  { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+  { id: number; data: BodyType<VolunteerTemplateTaskInput> },
   TContext
 > => {
   const mutationKey = ["updateVolunteerTemplateTask"];
@@ -4242,7 +4745,7 @@ export const getUpdateVolunteerTemplateTaskMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
-    { id: number; data: BodyType<VolunteerTemplateTaskBody> }
+    { id: number; data: BodyType<VolunteerTemplateTaskInput> }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -4256,7 +4759,7 @@ export type UpdateVolunteerTemplateTaskMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateVolunteerTemplateTask>>
 >;
 export type UpdateVolunteerTemplateTaskMutationBody =
-  BodyType<VolunteerTemplateTaskBody>;
+  BodyType<VolunteerTemplateTaskInput>;
 export type UpdateVolunteerTemplateTaskMutationError = ErrorType<unknown>;
 
 export const useUpdateVolunteerTemplateTask = <
@@ -4266,14 +4769,14 @@ export const useUpdateVolunteerTemplateTask = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
     TError,
-    { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+    { id: number; data: BodyType<VolunteerTemplateTaskInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof updateVolunteerTemplateTask>>,
   TError,
-  { id: number; data: BodyType<VolunteerTemplateTaskBody> },
+  { id: number; data: BodyType<VolunteerTemplateTaskInput> },
   TContext
 > => {
   return useMutation(getUpdateVolunteerTemplateTaskMutationOptions(options));

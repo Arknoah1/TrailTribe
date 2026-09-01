@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VolunteerTemplateTaskBody {
-  category: string;
+export interface VolunteerTemplateTaskInput {
+  categoryId: number;
+  /** @minLength 1 */
   title: string;
-  description?: string;
+  description?: string | null;
   slotsDefault?: number;
   sortOrder?: number;
 }

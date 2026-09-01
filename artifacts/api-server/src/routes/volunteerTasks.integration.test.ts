@@ -10,6 +10,8 @@ import {
   eventsTable,
   householdsTable,
   notificationsTable,
+  volunteerTemplateCategoriesTable,
+  volunteerTemplateTasksTable,
   usersTable,
 } from "@workspace/db";
 
@@ -35,6 +37,8 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
   let onboardingClerkUserId: string;
   let householdId: number;
   let userIds: number[] = [];
+  const createdTemplateCategoryIds: number[] = [];
+  const createdTemplateTaskIds: number[] = [];
 
   beforeAll(async () => {
     const [{ default: volunteerTasksRouter }, [existingUsers, firstUsers, secondUsers]] =
@@ -133,6 +137,12 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
   });
 
   afterAll(async () => {
+    if (createdTemplateTaskIds.length > 0) {
+      await db.delete(volunteerTemplateTasksTable).where(inArray(volunteerTemplateTasksTable.id, createdTemplateTaskIds));
+    }
+    if (createdTemplateCategoryIds.length > 0) {
+      await db.delete(volunteerTemplateCategoriesTable).where(inArray(volunteerTemplateCategoriesTable.id, createdTemplateCategoryIds));
+    }
     if (eventId) {
       await db.delete(eventsTable).where(eq(eventsTable.id, eventId));
     }
@@ -243,5 +253,126 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
     expect(task.signupCount).toBeGreaterThan(0);
     expect(task).not.toHaveProperty("signups");
     expect(JSON.stringify(task)).not.toContain("Existing Volunteer");
+  });
+
+  it("manages canonical categories and preserves ordering when cloning templates", async () => {
+    const suffix = `${process.pid}-${Date.now()}`;
+    const supportCategoryName = `Support Crew ${suffix}`;
+    const finishCategoryName = `Finish Line ${suffix}`;
+    const request = (path: string, init?: RequestInit) => fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+    });
+    const createCategory = async (name: string) => {
+      const response = await request("/volunteer-tasks/categories", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      expect(response.status).toBe(201);
+      const category = await response.json();
+      createdTemplateCategoryIds.push(category.id);
+      return category;
+    };
+    const createTask = async (categoryId: number, title: string) => {
+      const response = await request("/volunteer-tasks/templates", {
+        method: "POST",
+        body: JSON.stringify({ categoryId, title, slotsDefault: 1 }),
+      });
+      expect(response.status).toBe(201);
+      const task = await response.json();
+      createdTemplateTaskIds.push(task.id);
+      return task;
+    };
+
+    const firstCategory = await createCategory(`  Support   Crew ${suffix} `);
+    const duplicateResponse = await request("/volunteer-tasks/categories", {
+      method: "POST",
+      body: JSON.stringify({ name: supportCategoryName.toLowerCase() }),
+    });
+    expect(duplicateResponse.status).toBe(409);
+
+    const secondCategory = await createCategory(finishCategoryName);
+    const firstTask = await createTask(firstCategory.id, "First role");
+    const secondTask = await createTask(firstCategory.id, "Second role");
+    const thirdTask = await createTask(secondCategory.id, "Finish role");
+
+    const allCategories = await (await request("/volunteer-tasks/categories")).json();
+    const orderedCategoryIds = [
+      secondCategory.id,
+      firstCategory.id,
+      ...allCategories
+        .map((category: any) => category.id)
+        .filter((id: number) => id !== firstCategory.id && id !== secondCategory.id),
+    ];
+    const categoryReorderResponse = await request("/volunteer-tasks/categories/reorder", {
+      method: "PATCH",
+      body: JSON.stringify({ orderedIds: orderedCategoryIds }),
+    });
+    expect(categoryReorderResponse.status).toBe(200);
+
+    const taskReorderResponse = await request("/volunteer-tasks/templates/reorder", {
+      method: "PATCH",
+      body: JSON.stringify({
+        categoryId: firstCategory.id,
+        orderedTaskIds: [secondTask.id, firstTask.id],
+      }),
+    });
+    expect(taskReorderResponse.status).toBe(200);
+
+    const listedTasks = await (await request("/volunteer-tasks/templates")).json();
+    const createdTasksInOrder = listedTasks
+      .filter((task: any) => createdTemplateTaskIds.includes(task.id))
+      .map((task: any) => task.id);
+    expect(createdTasksInOrder).toEqual([thirdTask.id, secondTask.id, firstTask.id]);
+    expect(listedTasks.find((task: any) => task.id === firstTask.id)).toMatchObject({
+      categoryId: firstCategory.id,
+      category: supportCategoryName,
+    });
+
+    const cloneResponse = await request(`/events/${eventId}/tasks/clone-template`, {
+      method: "POST",
+      body: JSON.stringify({ templateTaskIds: createdTemplateTaskIds }),
+    });
+    expect(cloneResponse.status).toBe(201);
+    const clonedTasks = await db
+      .select()
+      .from(eventTasksTable)
+      .where(eq(eventTasksTable.eventId, eventId));
+    const clonedCreatedTasks = clonedTasks
+      .filter((task) => createdTemplateTaskIds.includes(task.templateTaskId ?? -1))
+      .sort((a, b) => a.id - b.id);
+    expect(clonedCreatedTasks.map((task) => task.title)).toEqual([
+      "Finish role",
+      "Second role",
+      "First role",
+    ]);
+    expect(clonedCreatedTasks.map((task) => task.category)).toEqual([
+      finishCategoryName,
+      supportCategoryName,
+      supportCategoryName,
+    ]);
+
+    const moveTaskResponse = await request(`/volunteer-tasks/templates/${firstTask.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ categoryId: secondCategory.id, title: "First role", slotsDefault: 1 }),
+    });
+    expect(moveTaskResponse.status).toBe(200);
+
+    const deleteInUseResponse = await request(`/volunteer-tasks/categories/${firstCategory.id}`, {
+      method: "DELETE",
+    });
+    expect(deleteInUseResponse.status).toBe(409);
+
+    const moveRemainingTaskResponse = await request(`/volunteer-tasks/templates/${secondTask.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ categoryId: secondCategory.id, title: "Second role", slotsDefault: 1 }),
+    });
+    expect(moveRemainingTaskResponse.status).toBe(200);
+
+    const deleteEmptyCategoryResponse = await request(`/volunteer-tasks/categories/${firstCategory.id}`, {
+      method: "DELETE",
+    });
+    expect(deleteEmptyCategoryResponse.status).toBe(204);
+    createdTemplateCategoryIds.splice(createdTemplateCategoryIds.indexOf(firstCategory.id), 1);
   });
 });

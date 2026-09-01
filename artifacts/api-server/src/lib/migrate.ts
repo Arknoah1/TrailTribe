@@ -46,6 +46,107 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "create_volunteer_template_categories_and_backfill",
+    sql: `
+      CREATE TABLE IF NOT EXISTS volunteer_template_categories (
+        id serial PRIMARY KEY,
+        name text NOT NULL,
+        name_key text NOT NULL UNIQUE,
+        sort_order integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS volunteer_template_categories_sort_order_idx
+        ON volunteer_template_categories(sort_order);
+
+      ALTER TABLE volunteer_template_tasks
+        ADD COLUMN IF NOT EXISTS category_id integer;
+
+      DO $$
+      BEGIN
+        -- The legacy category column exists only until this backfill has run.
+        -- Keeping the conversion guarded makes this migration safe on every
+        -- subsequent startup, since this project reruns idempotent migrations.
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'volunteer_template_tasks'
+            AND column_name = 'category'
+        ) THEN
+          INSERT INTO volunteer_template_categories (name, name_key, sort_order)
+          SELECT
+            MIN(display_name),
+            name_key,
+            ROW_NUMBER() OVER (ORDER BY MIN(first_sort_order), name_key)::integer * 10
+          FROM (
+            SELECT
+              CASE
+                WHEN btrim(category) = '' THEN 'Uncategorized'
+                ELSE regexp_replace(btrim(category), '\\s+', ' ', 'g')
+              END AS display_name,
+              lower(
+                CASE
+                  WHEN btrim(category) = '' THEN 'Uncategorized'
+                  ELSE regexp_replace(btrim(category), '\\s+', ' ', 'g')
+                END
+              ) AS name_key,
+              sort_order AS first_sort_order
+            FROM volunteer_template_tasks
+          ) AS legacy_categories
+          GROUP BY name_key
+          ON CONFLICT (name_key) DO NOTHING;
+
+          UPDATE volunteer_template_tasks AS task
+          SET category_id = category.id
+          FROM volunteer_template_categories AS category
+          WHERE task.category_id IS NULL
+            AND category.name_key = lower(
+              CASE
+                WHEN btrim(task.category) = '' THEN 'Uncategorized'
+                ELSE regexp_replace(btrim(task.category), '\\s+', ' ', 'g')
+              END
+            );
+
+          WITH ranked_tasks AS (
+            SELECT
+              id,
+              ROW_NUMBER() OVER (
+                PARTITION BY category_id
+                ORDER BY sort_order, id
+              )::integer * 10 AS new_sort_order
+            FROM volunteer_template_tasks
+          )
+          UPDATE volunteer_template_tasks AS task
+          SET sort_order = ranked_tasks.new_sort_order
+          FROM ranked_tasks
+          WHERE task.id = ranked_tasks.id;
+
+          ALTER TABLE volunteer_template_tasks
+            ALTER COLUMN category_id SET NOT NULL;
+
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conname = 'volunteer_template_tasks_category_id_fk'
+          ) THEN
+            ALTER TABLE volunteer_template_tasks
+              ADD CONSTRAINT volunteer_template_tasks_category_id_fk
+              FOREIGN KEY (category_id)
+              REFERENCES volunteer_template_categories(id)
+              ON DELETE RESTRICT;
+          END IF;
+
+          ALTER TABLE volunteer_template_tasks
+            DROP COLUMN category;
+        END IF;
+      END $$;
+
+      ALTER TABLE volunteer_template_tasks
+        ALTER COLUMN category_id SET NOT NULL;
+      CREATE INDEX IF NOT EXISTS volunteer_template_tasks_category_sort_idx
+        ON volunteer_template_tasks(category_id, sort_order);
+    `,
+  },
+  {
     name: "create_event_tasks_table",
     sql: `
       CREATE TABLE IF NOT EXISTS event_tasks (
@@ -84,8 +185,9 @@ const migrations: { name: string; sql: string }[] = [
   {
     name: "seed_volunteer_template_tasks",
     sql: `
-      INSERT INTO volunteer_template_tasks (category, title, slots_default, sort_order)
-      SELECT category, title, slots_default, sort_order FROM (VALUES
+      INSERT INTO volunteer_template_tasks (category_id, title, slots_default, sort_order)
+      SELECT categories.id, seed.title, seed.slots_default, seed.sort_order
+      FROM (VALUES
         ('Race Day',                          'Head Coach',              1, 10),
         ('Race Day',                          'Mechanic',                1, 20),
         ('Race Day',                          'Warm Ups',                2, 30),
@@ -107,7 +209,9 @@ const migrations: { name: string; sql: string }[] = [
         ('Bike Village – Sunday',             'Garbage & Recycle',       1, 50),
         ('Bike Village – Sunday',             'Lost and Found',          1, 60),
         ('Bike Village – Sunday',             'Photographer (Optional)', 1, 70)
-      ) AS t(category, title, slots_default, sort_order)
+      ) AS seed(category, title, slots_default, sort_order)
+      INNER JOIN volunteer_template_categories AS categories
+        ON categories.name_key = lower(seed.category)
       WHERE NOT EXISTS (SELECT 1 FROM volunteer_template_tasks LIMIT 1);
     `,
   },

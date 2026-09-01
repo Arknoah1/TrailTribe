@@ -1554,8 +1554,54 @@ export const RemoveEventTaskSignupParams = zod.object({
   signupId: zod.coerce.number(),
 });
 
+export const ListVolunteerTemplateCategoriesResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const ListVolunteerTemplateCategoriesResponse = zod.array(
+  ListVolunteerTemplateCategoriesResponseItem,
+);
+
+export const createVolunteerTemplateCategoryBodyNameMax = 120;
+
+export const CreateVolunteerTemplateCategoryBody = zod.object({
+  name: zod.string().min(1).max(createVolunteerTemplateCategoryBodyNameMax),
+});
+
+export const ReorderVolunteerTemplateCategoriesBody = zod.object({
+  orderedIds: zod.array(zod.number()).min(1),
+});
+
+export const ReorderVolunteerTemplateCategoriesResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+export const UpdateVolunteerTemplateCategoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const updateVolunteerTemplateCategoryBodyNameMax = 120;
+
+export const UpdateVolunteerTemplateCategoryBody = zod.object({
+  name: zod.string().min(1).max(updateVolunteerTemplateCategoryBodyNameMax),
+});
+
+export const UpdateVolunteerTemplateCategoryResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  sortOrder: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+
+export const DeleteVolunteerTemplateCategoryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
 export const ListVolunteerTemplateTasksResponseItem = zod.object({
   id: zod.number(),
+  categoryId: zod.number(),
   category: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),
@@ -1568,11 +1614,20 @@ export const ListVolunteerTemplateTasksResponse = zod.array(
 );
 
 export const CreateVolunteerTemplateTaskBody = zod.object({
-  category: zod.string(),
-  title: zod.string(),
-  description: zod.string().optional(),
+  categoryId: zod.number(),
+  title: zod.string().min(1),
+  description: zod.string().nullish(),
   slotsDefault: zod.number().optional(),
   sortOrder: zod.number().optional(),
+});
+
+export const ReorderVolunteerTemplateTasksBody = zod.object({
+  categoryId: zod.number(),
+  orderedTaskIds: zod.array(zod.number()).min(1),
+});
+
+export const ReorderVolunteerTemplateTasksResponse = zod.object({
+  ok: zod.boolean(),
 });
 
 export const UpdateVolunteerTemplateTaskParams = zod.object({
@@ -1580,15 +1635,16 @@ export const UpdateVolunteerTemplateTaskParams = zod.object({
 });
 
 export const UpdateVolunteerTemplateTaskBody = zod.object({
-  category: zod.string(),
-  title: zod.string(),
-  description: zod.string().optional(),
+  categoryId: zod.number(),
+  title: zod.string().min(1),
+  description: zod.string().nullish(),
   slotsDefault: zod.number().optional(),
   sortOrder: zod.number().optional(),
 });
 
 export const UpdateVolunteerTemplateTaskResponse = zod.object({
   id: zod.number(),
+  categoryId: zod.number(),
   category: zod.string(),
   title: zod.string(),
   description: zod.string().nullish(),

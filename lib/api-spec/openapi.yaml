@@ -1127,6 +1127,94 @@ paths:
         "204":
           description: Removed
 
+  /volunteer-tasks/categories:
+    get:
+      operationId: listVolunteerTemplateCategories
+      tags: [events]
+      responses:
+        "200":
+          description: List of volunteer template categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VolunteerTemplateCategory"
+    post:
+      operationId: createVolunteerTemplateCategory
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateCategoryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerTemplateCategory"
+
+  /volunteer-tasks/categories/reorder:
+    patch:
+      operationId: reorderVolunteerTemplateCategories
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateCategoryReorderInput"
+      responses:
+        "200":
+          description: Categories reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /volunteer-tasks/categories/{id}:
+    patch:
+      operationId: updateVolunteerTemplateCategory
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateCategoryInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolunteerTemplateCategory"
+    delete:
+      operationId: deleteVolunteerTemplateCategory
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /volunteer-tasks/templates:
     get:
       operationId: listVolunteerTemplateTasks
@@ -1148,7 +1236,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VolunteerTemplateTaskBody"
+              $ref: "#/components/schemas/VolunteerTemplateTaskInput"
       responses:
         "201":
           description: Created
@@ -1156,6 +1244,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VolunteerTemplateTask"
+
+  /volunteer-tasks/templates/reorder:
+    patch:
+      operationId: reorderVolunteerTemplateTasks
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VolunteerTemplateTaskReorderInput"
+      responses:
+        "200":
+          description: Tasks reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
 
   /volunteer-tasks/templates/{id}:
     put:
@@ -1172,7 +1282,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VolunteerTemplateTaskBody"
+              $ref: "#/components/schemas/VolunteerTemplateTaskInput"
       responses:
         "200":
           description: Updated
@@ -2902,10 +3012,45 @@ components:
 
     # ─── VOLUNTEER TASK SYSTEM ────────────────────────────────────────────────
 
+    VolunteerTemplateCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sortOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, sortOrder, createdAt]
+
+    VolunteerTemplateCategoryInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [name]
+
+    VolunteerTemplateCategoryReorderInput:
+      type: object
+      properties:
+        orderedIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+      required: [orderedIds]
+
     VolunteerTemplateTask:
       type: object
       properties:
         id:
+          type: integer
+        categoryId:
           type: integer
         category:
           type: string
@@ -2921,22 +3066,36 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, category, title, slotsDefault, sortOrder, createdAt]
+      required: [id, categoryId, category, title, slotsDefault, sortOrder, createdAt]
 
-    VolunteerTemplateTaskBody:
+    VolunteerTemplateTaskInput:
       type: object
       properties:
-        category:
-          type: string
+        categoryId:
+          type: integer
         title:
           type: string
+          minLength: 1
         description:
           type: string
+          nullable: true
         slotsDefault:
           type: integer
         sortOrder:
           type: integer
-      required: [category, title]
+      required: [categoryId, title]
+
+    VolunteerTemplateTaskReorderInput:
+      type: object
+      properties:
+        categoryId:
+          type: integer
+        orderedTaskIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+      required: [categoryId, orderedTaskIds]
 
     EventTask:
       type: object

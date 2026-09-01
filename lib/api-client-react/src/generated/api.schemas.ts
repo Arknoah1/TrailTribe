@@ -449,8 +449,29 @@ export interface VolunteerSignupBody {
   notes?: string;
 }
 
+export interface VolunteerTemplateCategory {
+  id: number;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface VolunteerTemplateCategoryInput {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+}
+
+export interface VolunteerTemplateCategoryReorderInput {
+  /** @minItems 1 */
+  orderedIds: number[];
+}
+
 export interface VolunteerTemplateTask {
   id: number;
+  categoryId: number;
   category: string;
   title: string;
   description?: string | null;
@@ -459,12 +480,19 @@ export interface VolunteerTemplateTask {
   createdAt: string;
 }
 
-export interface VolunteerTemplateTaskBody {
-  category: string;
+export interface VolunteerTemplateTaskInput {
+  categoryId: number;
+  /** @minLength 1 */
   title: string;
-  description?: string;
+  description?: string | null;
   slotsDefault?: number;
   sortOrder?: number;
+}
+
+export interface VolunteerTemplateTaskReorderInput {
+  categoryId: number;
+  /** @minItems 1 */
+  orderedTaskIds: number[];
 }
 
 export interface EventTask {
@@ -990,6 +1018,14 @@ export type BulkSignupForEventTasks201 = {
 
 export type SignUpForEventTaskBody = {
   notes?: string;
+};
+
+export type ReorderVolunteerTemplateCategories200 = {
+  ok: boolean;
+};
+
+export type ReorderVolunteerTemplateTasks200 = {
+  ok: boolean;
 };
 
 export type ListBroadcastsParams = {

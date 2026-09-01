@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType, useListVolunteerTemplateTasks, useCreateVolunteerTemplateTask, useUpdateVolunteerTemplateTask, useDeleteVolunteerTemplateTask, getListVolunteerTemplateTasksQueryKey } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType, useListVolunteerTemplateTasks, useCreateVolunteerTemplateTask, useUpdateVolunteerTemplateTask, useDeleteVolunteerTemplateTask, getListVolunteerTemplateTasksQueryKey, useListVolunteerTemplateCategories, useCreateVolunteerTemplateCategory, useUpdateVolunteerTemplateCategory, useDeleteVolunteerTemplateCategory, useReorderVolunteerTemplateCategories, useReorderVolunteerTemplateTasks, getListVolunteerTemplateCategoriesQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -486,14 +486,25 @@ export default function Admin() {
   const { data: templateTasks } = useListVolunteerTemplateTasks({
     query: { queryKey: getListVolunteerTemplateTasksQueryKey() }
   });
+  const { data: templateCategories } = useListVolunteerTemplateCategories({
+    query: { queryKey: getListVolunteerTemplateCategoriesQueryKey() }
+  });
   const createTemplateMut = useCreateVolunteerTemplateTask();
   const updateTemplateMut = useUpdateVolunteerTemplateTask();
   const deleteTemplateMut = useDeleteVolunteerTemplateTask();
-  const emptyTemplate = { category: "", title: "", description: "", slotsDefault: 1 };
+  const createCategoryMut = useCreateVolunteerTemplateCategory();
+  const updateCategoryMut = useUpdateVolunteerTemplateCategory();
+  const deleteCategoryMut = useDeleteVolunteerTemplateCategory();
+  const reorderCategoriesMut = useReorderVolunteerTemplateCategories();
+  const reorderTasksMut = useReorderVolunteerTemplateTasks();
+  const emptyTemplate = { categoryId: "", title: "", description: "", slotsDefault: 1 };
   const [newTemplate, setNewTemplate] = useState(emptyTemplate);
   const [showAddTemplate, setShowAddTemplate] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
   const [editingTemplateData, setEditingTemplateData] = useState(emptyTemplate);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState("");
 
   // Volunteer task pack state
   const [packs, setPacks] = useState<any[]>([]);
@@ -650,6 +661,100 @@ export default function Admin() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: current }),
     });
+  };
+
+  const categoryList = (templateCategories as any[]) ?? [];
+  const templateTaskList = (templateTasks as any[]) ?? [];
+
+  const invalidateVolunteerTemplates = () => {
+    queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateCategoriesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
+  };
+
+  const createCategory = () => {
+    if (!newCategoryName.trim() || createCategoryMut.isPending) return;
+    createCategoryMut.mutate(
+      { data: { name: newCategoryName.trim() } },
+      {
+        onSuccess: (category) => {
+          setNewCategoryName("");
+          invalidateVolunteerTemplates();
+          if (!newTemplate.categoryId) {
+            setNewTemplate((current) => ({ ...current, categoryId: String(category.id) }));
+          }
+          toast({ title: "Category added" });
+        },
+        onError: (error: any) => toast({
+          title: error?.data?.error ?? "Failed to add category",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
+  const renameCategory = (id: number) => {
+    if (!editingCategoryName.trim() || updateCategoryMut.isPending) return;
+    updateCategoryMut.mutate(
+      { id, data: { name: editingCategoryName.trim() } },
+      {
+        onSuccess: () => {
+          setEditingCategoryId(null);
+          invalidateVolunteerTemplates();
+          toast({ title: "Category renamed" });
+        },
+        onError: (error: any) => toast({
+          title: error?.data?.error ?? "Failed to rename category",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
+  const removeCategory = (id: number) => {
+    deleteCategoryMut.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          invalidateVolunteerTemplates();
+          toast({ title: "Category deleted" });
+        },
+        onError: (error: any) => toast({
+          title: error?.data?.error ?? "Move its tasks before deleting the category",
+          variant: "destructive",
+        }),
+      },
+    );
+  };
+
+  const moveCategory = (id: number, direction: "up" | "down") => {
+    const index = categoryList.findIndex((category: any) => category.id === id);
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || swapIndex < 0 || swapIndex >= categoryList.length || reorderCategoriesMut.isPending) return;
+    const ids = categoryList.map((category: any) => category.id);
+    [ids[index], ids[swapIndex]] = [ids[swapIndex], ids[index]];
+    reorderCategoriesMut.mutate(
+      { data: { orderedIds: ids } },
+      {
+        onSuccess: () => invalidateVolunteerTemplates(),
+        onError: () => toast({ title: "Failed to reorder categories", variant: "destructive" }),
+      },
+    );
+  };
+
+  const moveTemplateTask = (categoryId: number, taskId: number, direction: "up" | "down") => {
+    const categoryTasks = templateTaskList.filter((task: any) => task.categoryId === categoryId);
+    const index = categoryTasks.findIndex((task: any) => task.id === taskId);
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (index < 0 || swapIndex < 0 || swapIndex >= categoryTasks.length || reorderTasksMut.isPending) return;
+    const ids = categoryTasks.map((task: any) => task.id);
+    [ids[index], ids[swapIndex]] = [ids[swapIndex], ids[index]];
+    reorderTasksMut.mutate(
+      { data: { categoryId, orderedTaskIds: ids } },
+      {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() }),
+        onError: () => toast({ title: "Failed to reorder tasks", variant: "destructive" }),
+      },
+    );
   };
 
   const sendRiderInvite = async (householdId: number, rider: any) => {
@@ -2831,193 +2936,222 @@ export default function Admin() {
             <p className="text-sm text-muted-foreground mt-1">Master library of reusable volunteer tasks. Coaches can add these to any event with one click.</p>
           </div>
 
-          <Card className="bg-card border-border">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">{(templateTasks as any[])?.length ?? 0} template{((templateTasks as any[])?.length ?? 0) !== 1 ? "s" : ""}</span>
-                <Button size="sm" onClick={() => setShowAddTemplate(true)} disabled={showAddTemplate}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Template
-                </Button>
-              </div>
+           <Card className="bg-card border-border">
+             <CardContent className="p-4 space-y-4">
+               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                 <div>
+                   <h3 className="text-sm font-semibold">Categories</h3>
+                   <p className="text-xs text-muted-foreground mt-0.5">Create the reusable groups that organize your volunteer roles.</p>
+                 </div>
+                 <div className="flex gap-2 w-full sm:w-auto">
+                   <Input
+                     placeholder="e.g. Race Day"
+                     value={newCategoryName}
+                     onChange={(e) => setNewCategoryName(e.target.value)}
+                     onKeyDown={(e) => { if (e.key === "Enter") createCategory(); }}
+                     className="h-8 text-sm sm:w-52"
+                     aria-label="New category name"
+                   />
+                   <Button size="sm" onClick={createCategory} disabled={!newCategoryName.trim() || createCategoryMut.isPending}>
+                     <Plus className="h-4 w-4 mr-1" /> Add
+                   </Button>
+                 </div>
+               </div>
+               {categoryList.length === 0 ? (
+                 <p className="text-sm text-muted-foreground rounded-md border border-dashed p-4 text-center">
+                   Add a category before creating your first task template.
+                 </p>
+               ) : (
+                 <div className="space-y-1">
+                   {categoryList.map((category: any, index: number) => {
+                     const taskCount = templateTaskList.filter((task: any) => task.categoryId === category.id).length;
+                     return (
+                       <div key={category.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1.5">
+                         {editingCategoryId === category.id ? (
+                           <Input
+                             value={editingCategoryName}
+                             onChange={(e) => setEditingCategoryName(e.target.value)}
+                             onKeyDown={(e) => { if (e.key === "Enter") renameCategory(category.id); }}
+                             className="h-7 text-sm flex-1"
+                             autoFocus
+                             aria-label={`Rename ${category.name}`}
+                           />
+                         ) : (
+                           <span className="text-sm font-medium flex-1 min-w-0 truncate">{category.name}</span>
+                         )}
+                         <span className="text-xs text-muted-foreground whitespace-nowrap">
+                           {taskCount} task{taskCount !== 1 ? "s" : ""}
+                         </span>
+                         {editingCategoryId === category.id ? (
+                           <>
+                             <Button size="sm" className="h-7 text-xs" onClick={() => renameCategory(category.id)} disabled={!editingCategoryName.trim() || updateCategoryMut.isPending}>Save</Button>
+                             <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingCategoryId(null)}>Cancel</Button>
+                           </>
+                         ) : (
+                           <>
+                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveCategory(category.id, "up")} disabled={index === 0 || reorderCategoriesMut.isPending} aria-label={`Move ${category.name} up`} title="Move up">
+                               <ChevronUp className="h-4 w-4" />
+                             </Button>
+                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveCategory(category.id, "down")} disabled={index === categoryList.length - 1 || reorderCategoriesMut.isPending} aria-label={`Move ${category.name} down`} title="Move down">
+                               <ChevronDown className="h-4 w-4" />
+                             </Button>
+                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingCategoryId(category.id); setEditingCategoryName(category.name); }} aria-label={`Rename ${category.name}`} title="Rename">
+                               <Pencil className="h-3 w-3" />
+                             </Button>
+                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeCategory(category.id)} disabled={taskCount > 0 || deleteCategoryMut.isPending} aria-label={`Delete ${category.name}`} title={taskCount > 0 ? "Move tasks before deleting" : "Delete"}>
+                               <Trash2 className="h-3 w-3" />
+                             </Button>
+                           </>
+                         )}
+                       </div>
+                     );
+                   })}
+                 </div>
+               )}
+             </CardContent>
+           </Card>
 
-              {showAddTemplate && (
-                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-                  <p className="text-sm font-medium">New Template</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Category</label>
-                      <Input
-                        placeholder="e.g. Course Marshal"
-                        value={newTemplate.category}
-                        onChange={e => setNewTemplate(p => ({ ...p, category: e.target.value }))}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Title</label>
-                      <Input
-                        placeholder="e.g. Start Line Marshal"
-                        value={newTemplate.title}
-                        onChange={e => setNewTemplate(p => ({ ...p, title: e.target.value }))}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs text-muted-foreground">Description (optional)</label>
-                      <Input
-                        placeholder="Brief description of the role"
-                        value={newTemplate.description}
-                        onChange={e => setNewTemplate(p => ({ ...p, description: e.target.value }))}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Default slots</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={newTemplate.slotsDefault}
-                        onChange={e => setNewTemplate(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))}
-                        className="h-8 text-sm w-24"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={!newTemplate.category.trim() || !newTemplate.title.trim() || createTemplateMut.isPending}
-                      onClick={() => {
-                        createTemplateMut.mutate(
-                          { data: { category: newTemplate.category.trim(), title: newTemplate.title.trim(), description: newTemplate.description.trim() || undefined, slotsDefault: newTemplate.slotsDefault } },
-                          {
-                            onSuccess: () => {
-                              queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
-                              setNewTemplate(emptyTemplate);
-                              setShowAddTemplate(false);
-                              toast({ title: "Template added" });
-                            },
-                            onError: () => toast({ title: "Failed to add template", variant: "destructive" }),
-                          }
-                        );
-                      }}
-                    >
-                      Save Template
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { setShowAddTemplate(false); setNewTemplate(emptyTemplate); }}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
+           <Card className="bg-card border-border">
+             <CardContent className="p-4 space-y-4">
+               <div className="flex justify-between items-center">
+                 <span className="text-sm text-muted-foreground">{templateTaskList.length} template{templateTaskList.length !== 1 ? "s" : ""}</span>
+                 <Button size="sm" onClick={() => {
+                   setNewTemplate((current) => ({ ...current, categoryId: current.categoryId || (categoryList[0] ? String(categoryList[0].id) : "") }));
+                   setShowAddTemplate(true);
+                 }} disabled={showAddTemplate || categoryList.length === 0}>
+                   <Plus className="h-4 w-4 mr-1" /> Add Template
+                 </Button>
+               </div>
 
-              {/* Group templates by category */}
-              {(() => {
-                const tasks = (templateTasks as any[]) ?? [];
-                const categories = Array.from(new Set(tasks.map((t: any) => t.category))).sort() as string[];
-                if (tasks.length === 0) {
-                  return <p className="text-sm text-muted-foreground text-center py-8">No templates yet. Add one above to get started.</p>;
-                }
-                return categories.map((cat: string) => (
-                  <div key={cat} className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
-                    <div className="space-y-2">
-                      {tasks.filter((t: any) => t.category === cat).map((task: any) => (
-                        <div key={task.id} className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
-                          {editingTemplateId === task.id ? (
-                            <div className="flex-1 space-y-2">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <label className="text-xs text-muted-foreground">Category</label>
-                                  <Input value={editingTemplateData.category} onChange={e => setEditingTemplateData(p => ({ ...p, category: e.target.value }))} className="h-7 text-xs" />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-xs text-muted-foreground">Title</label>
-                                  <Input value={editingTemplateData.title} onChange={e => setEditingTemplateData(p => ({ ...p, title: e.target.value }))} className="h-7 text-xs" />
-                                </div>
-                                <div className="space-y-1 sm:col-span-2">
-                                  <label className="text-xs text-muted-foreground">Description</label>
-                                  <Input value={editingTemplateData.description} onChange={e => setEditingTemplateData(p => ({ ...p, description: e.target.value }))} className="h-7 text-xs" />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-xs text-muted-foreground">Default slots</label>
-                                  <Input type="number" min={1} max={99} value={editingTemplateData.slotsDefault} onChange={e => setEditingTemplateData(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))} className="h-7 text-xs w-20" />
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  disabled={updateTemplateMut.isPending}
-                                  onClick={() => {
-                                    updateTemplateMut.mutate(
-                                      { id: task.id, data: { category: editingTemplateData.category.trim(), title: editingTemplateData.title.trim(), description: editingTemplateData.description.trim() || undefined, slotsDefault: editingTemplateData.slotsDefault } },
-                                      {
-                                        onSuccess: () => {
-                                          queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
-                                          setEditingTemplateId(null);
-                                          toast({ title: "Template updated" });
-                                        },
-                                        onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-                                      }
-                                    );
-                                  }}
-                                >
-                                  Save
-                                </Button>
-                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTemplateId(null)}>Cancel</Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium leading-tight">{task.title}</p>
-                              {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>}
-                              <p className="text-xs text-muted-foreground mt-1">{task.slotsDefault} slot{task.slotsDefault !== 1 ? "s" : ""} by default</p>
-                            </div>
-                          )}
-                          {editingTemplateId !== task.id && (
-                            <div className="flex gap-1 shrink-0">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => {
-                                  setEditingTemplateId(task.id);
-                                  setEditingTemplateData({ category: task.category, title: task.title, description: task.description ?? "", slotsDefault: task.slotsDefault });
-                                }}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                disabled={deleteTemplateMut.isPending}
-                                onClick={() => {
-                                  deleteTemplateMut.mutate(
-                                    { id: task.id },
-                                    {
-                                      onSuccess: () => {
-                                        queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
-                                        toast({ title: "Template deleted" });
-                                      },
-                                      onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
-                                    }
-                                  );
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ));
-              })()}
-            </CardContent>
-          </Card>
+               {showAddTemplate && (
+                 <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                   <p className="text-sm font-medium">New Template</p>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                     <div className="space-y-1">
+                       <label className="text-xs text-muted-foreground">Category</label>
+                       <Select value={newTemplate.categoryId} onValueChange={(value) => setNewTemplate((p) => ({ ...p, categoryId: value }))}>
+                         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Choose a category" /></SelectTrigger>
+                         <SelectContent>{categoryList.map((category: any) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent>
+                       </Select>
+                     </div>
+                     <div className="space-y-1">
+                       <label className="text-xs text-muted-foreground">Title</label>
+                       <Input placeholder="e.g. Start Line Marshal" value={newTemplate.title} onChange={e => setNewTemplate(p => ({ ...p, title: e.target.value }))} className="h-8 text-sm" />
+                     </div>
+                     <div className="space-y-1 sm:col-span-2">
+                       <label className="text-xs text-muted-foreground">Description (optional)</label>
+                       <Input placeholder="Brief description of the role" value={newTemplate.description} onChange={e => setNewTemplate(p => ({ ...p, description: e.target.value }))} className="h-8 text-sm" />
+                     </div>
+                     <div className="space-y-1">
+                       <label className="text-xs text-muted-foreground">Default slots</label>
+                       <Input type="number" min={1} max={99} value={newTemplate.slotsDefault} onChange={e => setNewTemplate(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))} className="h-8 text-sm w-24" />
+                     </div>
+                   </div>
+                   <div className="flex gap-2">
+                     <Button
+                       size="sm"
+                       disabled={!newTemplate.categoryId || !newTemplate.title.trim() || createTemplateMut.isPending}
+                       onClick={() => {
+                         createTemplateMut.mutate(
+                           { data: { categoryId: Number(newTemplate.categoryId), title: newTemplate.title.trim(), description: newTemplate.description.trim() || null, slotsDefault: newTemplate.slotsDefault } },
+                           {
+                             onSuccess: () => {
+                               queryClient.invalidateQueries({ queryKey: getListVolunteerTemplateTasksQueryKey() });
+                               setNewTemplate(emptyTemplate);
+                               setShowAddTemplate(false);
+                               toast({ title: "Template added" });
+                             },
+                             onError: (error: any) => toast({ title: error?.data?.error ?? "Failed to add template", variant: "destructive" }),
+                           }
+                         );
+                       }}
+                     >
+                       Save Template
+                     </Button>
+                     <Button size="sm" variant="ghost" onClick={() => { setShowAddTemplate(false); setNewTemplate(emptyTemplate); }}>Cancel</Button>
+                   </div>
+                 </div>
+               )}
+
+               {templateTaskList.length === 0 ? (
+                 <p className="text-sm text-muted-foreground text-center py-8">No templates yet. Add one above to get started.</p>
+               ) : (
+                 categoryList.map((category: any) => {
+                   const categoryTasks = templateTaskList.filter((task: any) => task.categoryId === category.id);
+                   return (
+                     <div key={category.id} className="space-y-2">
+                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{category.name}</p>
+                       <div className="space-y-2">
+                         {categoryTasks.map((task: any, taskIndex: number) => (
+                           <div key={task.id} className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
+                             {editingTemplateId === task.id ? (
+                               <div className="flex-1 space-y-2 min-w-0">
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                   <div className="space-y-1">
+                                     <label className="text-xs text-muted-foreground">Category</label>
+                                     <Select value={editingTemplateData.categoryId} onValueChange={(value) => setEditingTemplateData((p) => ({ ...p, categoryId: value }))}>
+                                       <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                                       <SelectContent>{categoryList.map((item: any) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent>
+                                     </Select>
+                                   </div>
+                                   <div className="space-y-1">
+                                     <label className="text-xs text-muted-foreground">Title</label>
+                                     <Input value={editingTemplateData.title} onChange={e => setEditingTemplateData(p => ({ ...p, title: e.target.value }))} className="h-7 text-xs" />
+                                   </div>
+                                   <div className="space-y-1 sm:col-span-2">
+                                     <label className="text-xs text-muted-foreground">Description</label>
+                                     <Input value={editingTemplateData.description} onChange={e => setEditingTemplateData(p => ({ ...p, description: e.target.value }))} className="h-7 text-xs" />
+                                   </div>
+                                   <div className="space-y-1">
+                                     <label className="text-xs text-muted-foreground">Default slots</label>
+                                     <Input type="number" min={1} max={99} value={editingTemplateData.slotsDefault} onChange={e => setEditingTemplateData(p => ({ ...p, slotsDefault: parseInt(e.target.value) || 1 }))} className="h-7 text-xs w-20" />
+                                   </div>
+                                 </div>
+                                 <div className="flex gap-2">
+                                   <Button size="sm" className="h-7 text-xs" disabled={updateTemplateMut.isPending} onClick={() => {
+                                     updateTemplateMut.mutate(
+                                       { id: task.id, data: { categoryId: Number(editingTemplateData.categoryId), title: editingTemplateData.title.trim(), description: editingTemplateData.description.trim() || null, slotsDefault: editingTemplateData.slotsDefault } },
+                                       {
+                                         onSuccess: () => { invalidateVolunteerTemplates(); setEditingTemplateId(null); toast({ title: "Template updated" }); },
+                                         onError: (error: any) => toast({ title: error?.data?.error ?? "Failed to update", variant: "destructive" }),
+                                       },
+                                     );
+                                   }}>Save</Button>
+                                   <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingTemplateId(null)}>Cancel</Button>
+                                 </div>
+                               </div>
+                             ) : (
+                               <div className="flex-1 min-w-0">
+                                 <p className="text-sm font-medium leading-tight">{task.title}</p>
+                                 {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>}
+                                 <p className="text-xs text-muted-foreground mt-1">{task.slotsDefault} slot{task.slotsDefault !== 1 ? "s" : ""} by default</p>
+                               </div>
+                             )}
+                             {editingTemplateId !== task.id && (
+                               <div className="flex gap-1 shrink-0">
+                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTemplateTask(category.id, task.id, "up")} disabled={taskIndex === 0 || reorderTasksMut.isPending} aria-label={`Move ${task.title} up`} title="Move up"><ChevronUp className="h-4 w-4" /></Button>
+                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTemplateTask(category.id, task.id, "down")} disabled={taskIndex === categoryTasks.length - 1 || reorderTasksMut.isPending} aria-label={`Move ${task.title} down`} title="Move down"><ChevronDown className="h-4 w-4" /></Button>
+                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
+                                   setEditingTemplateId(task.id);
+                                   setEditingTemplateData({ categoryId: String(task.categoryId), title: task.title, description: task.description ?? "", slotsDefault: task.slotsDefault });
+                                 }} aria-label={`Edit ${task.title}`} title="Edit"><Pencil className="h-3 w-3" /></Button>
+                                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" disabled={deleteTemplateMut.isPending} onClick={() => {
+                                   deleteTemplateMut.mutate({ id: task.id }, {
+                                     onSuccess: () => { invalidateVolunteerTemplates(); toast({ title: "Template deleted" }); },
+                                     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+                                   });
+                                 }} aria-label={`Delete ${task.title}`} title="Delete"><Trash2 className="h-3 w-3" /></Button>
+                               </div>
+                             )}
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   );
+                 })
+               )}
+             </CardContent>
+           </Card>
 
           <div className="mt-2">
             <h2 className="text-lg font-semibold">Task Packs</h2>
@@ -3052,13 +3186,14 @@ export default function Admin() {
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground font-medium">Include tasks</p>
                     {(() => {
-                      const tasks = (templateTasks as any[]) ?? [];
-                      const categories = Array.from(new Set(tasks.map((t: any) => t.category))) as string[];
-                      return categories.map(cat => (
-                        <div key={cat} className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
+                       return categoryList.map((category: any) => {
+                         const tasksInCategory = templateTaskList.filter((task: any) => task.categoryId === category.id);
+                         if (tasksInCategory.length === 0) return null;
+                         return (
+                         <div key={category.id} className="space-y-1">
+                           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{category.name}</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
-                            {tasks.filter((t: any) => t.category === cat).map((task: any) => (
+                             {tasksInCategory.map((task: any) => (
                               <label key={task.id} className="flex items-center gap-2 cursor-pointer text-sm py-0.5">
                                 <input type="checkbox" checked={newPackTaskIds.has(task.id)} onChange={e => {
                                   setNewPackTaskIds(prev => { const n = new Set(prev); e.target.checked ? n.add(task.id) : n.delete(task.id); return n; });
@@ -3068,7 +3203,8 @@ export default function Admin() {
                             ))}
                           </div>
                         </div>
-                      ));
+                         );
+                       });
                     })()}
                   </div>
                   <div className="flex gap-2">
@@ -3099,13 +3235,14 @@ export default function Admin() {
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground font-medium">Included tasks</p>
                         {(() => {
-                          const tasks = (templateTasks as any[]) ?? [];
-                          const categories = Array.from(new Set(tasks.map((t: any) => t.category))) as string[];
-                          return categories.map(cat => (
-                            <div key={cat} className="space-y-1">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{cat}</p>
+                           return categoryList.map((category: any) => {
+                             const tasksInCategory = templateTaskList.filter((task: any) => task.categoryId === category.id);
+                             if (tasksInCategory.length === 0) return null;
+                             return (
+                             <div key={category.id} className="space-y-1">
+                               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{category.name}</p>
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
-                                {tasks.filter((t: any) => t.category === cat).map((task: any) => (
+                                 {tasksInCategory.map((task: any) => (
                                   <label key={task.id} className="flex items-center gap-2 cursor-pointer text-sm py-0.5">
                                     <input type="checkbox" checked={editPackTaskIds.has(task.id)} onChange={e => {
                                       setEditPackTaskIds(prev => { const n = new Set(prev); e.target.checked ? n.add(task.id) : n.delete(task.id); return n; });
@@ -3115,7 +3252,8 @@ export default function Admin() {
                                 ))}
                               </div>
                             </div>
-                          ));
+                             );
+                           });
                         })()}
                       </div>
                       <div className="flex gap-2">
