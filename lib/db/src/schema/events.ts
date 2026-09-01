@@ -66,7 +66,10 @@ export type EventRsvp = typeof eventRsvpsTable.$inferSelect;
 
 export const volunteerTemplateTasksTable = pgTable("volunteer_template_tasks", {
   id: serial("id").primaryKey(),
-  categoryId: integer("category_id").notNull().references(() => volunteerTemplateCategoriesTable.id, { onDelete: "restrict" }),
+  // Transitional dual-column migration: categoryId becomes required only after
+  // production has been backfilled and the legacy category column is removed.
+  categoryId: integer("category_id").references(() => volunteerTemplateCategoriesTable.id, { onDelete: "restrict" }),
+  category: text("category"),
   title: text("title").notNull(),
   description: text("description"),
   slotsDefault: integer("slots_default").notNull().default(1),

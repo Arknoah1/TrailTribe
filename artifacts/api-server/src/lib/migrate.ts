@@ -91,6 +91,7 @@ const migrations: { name: string; sql: string }[] = [
               ) AS name_key,
               sort_order AS first_sort_order
             FROM volunteer_template_tasks
+            WHERE category IS NOT NULL
           ) AS legacy_categories
           GROUP BY name_key
           ON CONFLICT (name_key) DO NOTHING;
@@ -120,9 +121,6 @@ const migrations: { name: string; sql: string }[] = [
           FROM ranked_tasks
           WHERE task.id = ranked_tasks.id;
 
-          ALTER TABLE volunteer_template_tasks
-            ALTER COLUMN category_id SET NOT NULL;
-
           IF NOT EXISTS (
             SELECT 1
             FROM pg_constraint
@@ -134,14 +132,9 @@ const migrations: { name: string; sql: string }[] = [
               REFERENCES volunteer_template_categories(id)
               ON DELETE RESTRICT;
           END IF;
-
-          ALTER TABLE volunteer_template_tasks
-            DROP COLUMN category;
         END IF;
       END $$;
 
-      ALTER TABLE volunteer_template_tasks
-        ALTER COLUMN category_id SET NOT NULL;
       CREATE INDEX IF NOT EXISTS volunteer_template_tasks_category_sort_idx
         ON volunteer_template_tasks(category_id, sort_order);
     `,
