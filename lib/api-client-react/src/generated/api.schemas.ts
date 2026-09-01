@@ -515,6 +515,11 @@ export interface EventTaskBody {
   sortOrder?: number;
 }
 
+export interface EventTaskReorderInput {
+  /** @minItems 1 */
+  orderedTaskIds: number[];
+}
+
 export interface EventTaskSignup {
   id: number;
   eventTaskId: number;
@@ -996,6 +1001,10 @@ export type RescheduleSeries200 = {
 
 export type SetEventVolunteerTasksEnabledBody = {
   enabled: boolean;
+};
+
+export type ReorderEventTasks200 = {
+  ok: boolean;
 };
 
 export type CloneEventTasksFromTemplateBody = {

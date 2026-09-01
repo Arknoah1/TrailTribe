@@ -1480,6 +1480,18 @@ export const CreateEventTaskBody = zod.object({
   sortOrder: zod.number().optional(),
 });
 
+export const ReorderEventTasksParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ReorderEventTasksBody = zod.object({
+  orderedTaskIds: zod.array(zod.number()).min(1),
+});
+
+export const ReorderEventTasksResponse = zod.object({
+  ok: zod.boolean(),
+});
+
 export const CloneEventTasksFromTemplateParams = zod.object({
   id: zod.coerce.number(),
 });

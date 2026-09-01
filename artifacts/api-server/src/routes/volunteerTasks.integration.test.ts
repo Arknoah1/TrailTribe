@@ -195,6 +195,34 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
     expect(Number(signupCount)).toBe(2);
   });
 
+  it("reorders event tasks without changing signup data", async () => {
+    const beforeSignups = await db
+      .select()
+      .from(eventTaskSignupsTable)
+      .where(inArray(eventTaskSignupsTable.eventTaskId, [taskId, bulkTaskId]));
+
+    const reorderResponse = await fetch(`${baseUrl}/events/${eventId}/tasks/reorder`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderedTaskIds: [taskId, bulkTaskId] }),
+    });
+    expect(reorderResponse.status).toBe(200);
+    expect(await reorderResponse.json()).toEqual({ ok: true });
+
+    const listedResponse = await fetch(`${baseUrl}/events/${eventId}/tasks`, {
+      headers: { "x-test-clerk-user-id": onboardingClerkUserId },
+    });
+    expect(listedResponse.status).toBe(200);
+    const listedTasks = await listedResponse.json();
+    expect(listedTasks.map((task: any) => task.id)).toEqual([taskId, bulkTaskId]);
+
+    const afterSignups = await db
+      .select()
+      .from(eventTaskSignupsTable)
+      .where(inArray(eventTaskSignupsTable.eventTaskId, [taskId, bulkTaskId]));
+    expect(afterSignups).toEqual(beforeSignups);
+  });
+
   it("does not overbook the final slot across concurrent bulk requests", async () => {
     const bulkSignup = (clerkUserId: string) => {
       return fetch(`${baseUrl}/events/${eventId}/tasks/bulk-signup`, {

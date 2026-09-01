@@ -3,6 +3,7 @@ import {
   useListEventTasks, useSignUpForEventTask, useCancelEventTaskSignup,
   useSetEventVolunteerTasksEnabled, useCreateEventTask, useDeleteEventTask, useUpdateEventTask,
   useCloneEventTasksFromTemplate, useListVolunteerTemplateTasks, useRemoveEventTaskSignup,
+  useReorderEventTasks,
   getListEventTasksQueryKey, getListVolunteerTemplateTasksQueryKey,
   useListBoardThreads, useListBoardPosts, useCreateBoardThread,
   getListBoardPostsQueryKey, getListBoardThreadsQueryKey,
@@ -241,6 +242,7 @@ export default function EventDetail() {
   const updateTaskMut = useUpdateEventTask();
   const addFromTemplatesMut = useCloneEventTasksFromTemplate();
   const removeSignupMut = useRemoveEventTaskSignup();
+  const reorderTasksMut = useReorderEventTasks();
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [selectedTplIds, setSelectedTplIds] = useState<Set<number>>(new Set());
@@ -352,6 +354,25 @@ export default function EventDetail() {
     );
   };
 
+  const handleMoveTask = (taskId: number, direction: "up" | "down") => {
+    const taskIndex = (tasks ?? []).findIndex(task => task.id === taskId);
+    const nextIndex = direction === "up" ? taskIndex - 1 : taskIndex + 1;
+    if (taskIndex < 0 || nextIndex < 0 || nextIndex >= (tasks ?? []).length || reorderTasksMut.isPending) return;
+
+    const orderedTaskIds = (tasks ?? []).map(task => task.id);
+    [orderedTaskIds[taskIndex], orderedTaskIds[nextIndex]] = [orderedTaskIds[nextIndex], orderedTaskIds[taskIndex]];
+    reorderTasksMut.mutate(
+      { id: eventId, data: { orderedTaskIds } },
+      {
+        onSuccess: () => {
+          invalidateTasks();
+          toast({ title: "Task order updated" });
+        },
+        onError: () => toast({ title: "Failed to reorder tasks", variant: "destructive" }),
+      },
+    );
+  };
+
   const handleAddFromTemplates = () => {
     if (addableSelectedTplIds.length === 0) return;
     addFromTemplatesMut.mutate(
@@ -438,7 +459,11 @@ export default function EventDetail() {
     acc[cat]!.push(t);
     return acc;
   }, {});
-  const categories = Object.keys(tasksByCategory).sort();
+  const categories = Object.keys(tasksByCategory).sort((a, b) => {
+    const firstTaskA = tasksByCategory[a]?.[0];
+    const firstTaskB = tasksByCategory[b]?.[0];
+    return (firstTaskA?.sortOrder ?? 0) - (firstTaskB?.sortOrder ?? 0) || a.localeCompare(b);
+  });
 
   const templatesByCategory = (templates ?? []).reduce<Record<string, typeof templates>>((acc, t) => {
     if (!acc[t.category]) acc[t.category] = [];
@@ -1179,6 +1204,7 @@ export default function EventDetail() {
                       {isExpanded && (
                         <div className="divide-y divide-border border-t">
                           {catTasks.map((task) => {
+                            const taskIndex = (tasks ?? []).findIndex(item => item.id === task.id);
                             const filled = task.signups?.length ?? 0;
                             const pct = task.slotsNeeded > 0 ? Math.min(100, Math.round((filled / task.slotsNeeded) * 100)) : 100;
                             const taskState = getVolunteerTaskState(task);
@@ -1230,6 +1256,34 @@ export default function EventDetail() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                                  {isCoach && (
+                                    <div className="flex items-center gap-0.5">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => handleMoveTask(task.id, "up")}
+                                        disabled={taskIndex === 0 || reorderTasksMut.isPending}
+                                        aria-label={`Move ${task.title} up`}
+                                        title="Move up"
+                                      >
+                                        <ChevronUp className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => handleMoveTask(task.id, "down")}
+                                        disabled={taskIndex === (tasks ?? []).length - 1 || reorderTasksMut.isPending}
+                                        aria-label={`Move ${task.title} down`}
+                                        title="Move down"
+                                      >
+                                        <ChevronDown className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  )}
                                   {mySignup ? (
                                     <>
                                       <Button

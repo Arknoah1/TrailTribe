@@ -493,6 +493,65 @@ router.post("/events/:id/tasks", requireCoachOrAdmin, async (req, res) => {
   res.status(201).json(task);
 });
 
+// Coach or admin: reorder tasks for this event without changing their signups
+router.patch("/events/:id/tasks/reorder", requireCoachOrAdmin, async (req, res) => {
+  const eventId = parseInt(str(req.params.id));
+  const orderedTaskIds = req.body?.orderedTaskIds;
+
+  if (
+    !Array.isArray(orderedTaskIds)
+    || orderedTaskIds.length === 0
+    || orderedTaskIds.some((id: unknown) => !Number.isInteger(id))
+  ) {
+    res.status(400).json({ error: "orderedTaskIds must be a list of unique task IDs" });
+    return;
+  }
+  if (new Set(orderedTaskIds).size !== orderedTaskIds.length) {
+    res.status(400).json({ error: "orderedTaskIds must be a list of unique task IDs" });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [event] = await tx
+      .select({ id: eventsTable.id })
+      .from(eventsTable)
+      .where(eq(eventsTable.id, eventId))
+      .for("update");
+    if (!event) return { status: 404 as const, error: "Event not found" };
+
+    const eventTasks = await tx
+      .select({ id: eventTasksTable.id })
+      .from(eventTasksTable)
+      .where(eq(eventTasksTable.eventId, eventId))
+      .for("update");
+    const taskIds = new Set(eventTasks.map((task) => task.id));
+    if (
+      orderedTaskIds.length !== taskIds.size
+      || orderedTaskIds.some((id: number) => !taskIds.has(id))
+    ) {
+      return {
+        status: 400 as const,
+        error: "orderedTaskIds must include every task in this event exactly once",
+      };
+    }
+
+    for (const [index, taskId] of orderedTaskIds.entries()) {
+      await tx
+        .update(eventTasksTable)
+        .set({ sortOrder: (index + 1) * 10 })
+        .where(eq(eventTasksTable.id, taskId));
+    }
+
+    return { status: 200 as const };
+  });
+
+  if (result.status !== 200) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  res.json({ ok: true });
+});
+
 // Coach or admin: clone all templates (or selected templates) to an event
 router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req, res) => {
   const eventId = parseInt(str(req.params.id));

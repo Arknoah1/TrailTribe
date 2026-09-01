@@ -937,6 +937,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventTask"
 
+  /events/{id}/tasks/reorder:
+    patch:
+      operationId: reorderEventTasks
+      tags: [events]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventTaskReorderInput"
+      responses:
+        "200":
+          description: Tasks reordered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
   /events/{id}/tasks/clone-template:
     post:
       operationId: cloneEventTasksFromTemplate
@@ -3137,6 +3165,16 @@ components:
         sortOrder:
           type: integer
       required: [category, title]
+
+    EventTaskReorderInput:
+      type: object
+      properties:
+        orderedTaskIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+      required: [orderedTaskIds]
 
     EventTaskSignup:
       type: object

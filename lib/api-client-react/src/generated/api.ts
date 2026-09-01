@@ -62,6 +62,7 @@ import type {
   EventRsvpWithUser,
   EventTask,
   EventTaskBody,
+  EventTaskReorderInput,
   EventTaskSignup,
   EventTaskWithSignups,
   EventWithDetails,
@@ -84,6 +85,7 @@ import type {
   Pod,
   PodWithMembers,
   PodWithStats,
+  ReorderEventTasks200,
   ReorderPodsBody,
   ReorderVolunteerTemplateCategories200,
   ReorderVolunteerTemplateTasks200,
@@ -3460,6 +3462,87 @@ export const useCreateEventTask = <
   TContext
 > => {
   return useMutation(getCreateEventTaskMutationOptions(options));
+};
+
+export const getReorderEventTasksUrl = (id: number) => {
+  return `/api/events/${id}/tasks/reorder`;
+};
+
+export const reorderEventTasks = async (
+  id: number,
+  eventTaskReorderInput: EventTaskReorderInput,
+  options?: RequestInit,
+): Promise<ReorderEventTasks200> => {
+  return customFetch<ReorderEventTasks200>(getReorderEventTasksUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eventTaskReorderInput),
+  });
+};
+
+export const getReorderEventTasksMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderEventTasks>>,
+    TError,
+    { id: number; data: BodyType<EventTaskReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderEventTasks>>,
+  TError,
+  { id: number; data: BodyType<EventTaskReorderInput> },
+  TContext
+> => {
+  const mutationKey = ["reorderEventTasks"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderEventTasks>>,
+    { id: number; data: BodyType<EventTaskReorderInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return reorderEventTasks(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderEventTasksMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderEventTasks>>
+>;
+export type ReorderEventTasksMutationBody = BodyType<EventTaskReorderInput>;
+export type ReorderEventTasksMutationError = ErrorType<unknown>;
+
+export const useReorderEventTasks = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderEventTasks>>,
+    TError,
+    { id: number; data: BodyType<EventTaskReorderInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderEventTasks>>,
+  TError,
+  { id: number; data: BodyType<EventTaskReorderInput> },
+  TContext
+> => {
+  return useMutation(getReorderEventTasksMutationOptions(options));
 };
 
 export const getCloneEventTasksFromTemplateUrl = (id: number) => {
