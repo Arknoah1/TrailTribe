@@ -231,6 +231,7 @@ export default function EventDetail() {
   const { data: templates } = useListVolunteerTemplateTasks({
     query: { enabled: isCoach, queryKey: getListVolunteerTemplateTasksQueryKey() }
   });
+  const authedFetch = useAuthedFetch();
 
   const setEnabledMut = useSetEventVolunteerTasksEnabled();
   const signUpMut = useSignUpForEventTask();
@@ -243,6 +244,10 @@ export default function EventDetail() {
 
   const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [selectedTplIds, setSelectedTplIds] = useState<Set<number>>(new Set());
+  const [packs, setPacks] = useState<any[]>([]);
+  const [packsLoading, setPacksLoading] = useState(false);
+  const [packsLoadError, setPacksLoadError] = useState(false);
+  const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
   const [showEditTasks, setShowEditTasks] = useState(false);
   const [editTasksChecked, setEditTasksChecked] = useState<Set<number>>(new Set());
   const [showAddTask, setShowAddTask] = useState(false);
@@ -259,6 +264,32 @@ export default function EventDetail() {
     try { sessionStorage.setItem(attendStorageKey, String(val)); } catch {}
     setIsAttendingState(val);
   };
+
+  useEffect(() => {
+    if (!isCoach) return;
+    let active = true;
+    setPacksLoading(true);
+    setPacksLoadError(false);
+    authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`)
+      .then(async response => {
+        if (response.status === 304) return null;
+        if (!response.ok) throw new Error("Failed to load volunteer task packs");
+        return response.json();
+      })
+      .then(data => {
+        if (active && data !== null) setPacks(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (active) {
+          setPacks([]);
+          setPacksLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setPacksLoading(false);
+      });
+    return () => { active = false; };
+  }, [authedFetch, isCoach]);
 
   const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: getListEventTasksQueryKey(eventId) });
   const invalidateEvent = () => {
@@ -329,12 +360,29 @@ export default function EventDetail() {
         onSuccess: (data) => {
           toast({ title: `${data.added} task${data.added !== 1 ? "s" : ""} added` });
           setShowTemplateSelector(false);
-          setSelectedTplIds(new Set());
+          resetTemplateSelection();
           invalidateTasks();
         },
         onError: () => toast({ title: "Failed to add tasks", variant: "destructive" }),
       }
     );
+  };
+
+  const resetTemplateSelection = () => {
+    setSelectedPackId(null);
+    setSelectedTplIds(new Set());
+  };
+
+  const handleTemplatePackChange = (value: string) => {
+    if (value === "_none") {
+      setSelectedPackId(null);
+      setSelectedTplIds(new Set());
+      return;
+    }
+    const packId = Number(value);
+    const pack = packs.find(p => p.id === packId);
+    setSelectedPackId(packId);
+    setSelectedTplIds(new Set((pack?.tasks ?? []).map((task: any) => task.id)));
   };
 
   const handleCreateTask = () => {
@@ -446,8 +494,6 @@ export default function EventDetail() {
       onError: () => toast({ title: "Failed to update event", variant: "destructive" }),
     });
   };
-
-  const authedFetch = useAuthedFetch();
 
   // ─── ATTENDEE LIST (coaches only) ──────────────────────────────────────────
   const { data: eventRsvps } = useListEventRsvps(eventId, {
@@ -988,7 +1034,10 @@ export default function EventDetail() {
                       <Pencil className="h-3.5 w-3.5" /> Edit Tasks
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowTemplateSelector(true)}>
+                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                     resetTemplateSelection();
+                     setShowTemplateSelector(true);
+                   }}>
                     <Plus className="h-3.5 w-3.5" /> Add from Templates
                   </Button>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAddTask(true)}>
@@ -1310,16 +1359,60 @@ export default function EventDetail() {
       </Dialog>
 
       {/* ─── ADD FROM TEMPLATES DIALOG ─────────────────────────────────────────── */}
-      <Dialog open={showTemplateSelector} onOpenChange={setShowTemplateSelector}>
+      <Dialog open={showTemplateSelector} onOpenChange={open => {
+        setShowTemplateSelector(open);
+        if (!open) resetTemplateSelection();
+      }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Tasks from Templates</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground -mt-1 mb-3">Select tasks to add to this event.</p>
+          <p className="text-sm text-muted-foreground -mt-1 mb-3">
+            Choose a pack to start with, then review the tasks before adding them to this event.
+          </p>
+          {packsLoading ? (
+            <p className="text-xs text-muted-foreground italic mb-3">Loading task packs…</p>
+          ) : packsLoadError ? (
+            <p className="text-xs text-destructive mb-3">
+              Task packs could not be loaded. You can still select individual templates below.
+            </p>
+          ) : (
+            <div className="space-y-1.5 mb-4">
+              <label htmlFor="event-template-pack" className="text-xs font-medium text-muted-foreground">
+                Start with a task pack
+              </label>
+              <Select
+                value={selectedPackId ? String(selectedPackId) : "_none"}
+                onValueChange={handleTemplatePackChange}
+              >
+                <SelectTrigger id="event-template-pack" className="h-9 text-sm">
+                  <SelectValue placeholder="— no pack —" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">— no pack, choose tasks manually —</SelectItem>
+                  {packs.map(pack => (
+                    <SelectItem key={pack.id} value={String(pack.id)}>
+                      {pack.name} ({pack.tasks?.length ?? 0} tasks)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {templateCategories.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No templates. Add them in Admin → Volunteer Templates.</p>
           ) : (
             <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">
+                  {selectedPackId
+                    ? `Tasks from ${packs.find(pack => pack.id === selectedPackId)?.name ?? "this pack"} are selected by default.`
+                    : "Select individual template tasks for this event."}
+                </span>
+                <span className="font-semibold whitespace-nowrap">
+                  {selectedTplIds.size} selected
+                </span>
+              </div>
               {templateCategories.map(cat => (
                 <div key={cat}>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{cat}</p>
@@ -1353,7 +1446,7 @@ export default function EventDetail() {
               disabled={selectedTplIds.size === 0 || addFromTemplatesMut.isPending}>
               {addFromTemplatesMut.isPending ? "Adding..." : `Add ${selectedTplIds.size > 0 ? selectedTplIds.size + " " : ""}Task${selectedTplIds.size !== 1 ? "s" : ""}`}
             </Button>
-            <Button variant="outline" onClick={() => { setShowTemplateSelector(false); setSelectedTplIds(new Set()); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowTemplateSelector(false); resetTemplateSelection(); }}>Cancel</Button>
           </div>
         </DialogContent>
       </Dialog>

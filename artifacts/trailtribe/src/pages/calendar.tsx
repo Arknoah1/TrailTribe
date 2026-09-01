@@ -82,9 +82,12 @@ export default function Calendar() {
   const regenMutation = useRegenerateCalendarToken();
   const authedFetch = useAuthedFetch();
   const [packs, setPacks] = useState<any[]>([]);
+  const [templateOptions, setTemplateOptions] = useState<any[]>([]);
   const [packsLoading, setPacksLoading] = useState(false);
+  const [packsLoadError, setPacksLoadError] = useState(false);
   const [volunteerEnabled, setVolunteerEnabled] = useState(false);
   const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<number>>(new Set());
 
   const handleRegenerate = () => {
     regenMutation.mutate(undefined, {
@@ -104,13 +107,68 @@ export default function Calendar() {
 
   useEffect(() => {
     if (!showAddEvent || !isCoach) return;
+    let active = true;
     setPacksLoading(true);
-    authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`)
-      .then(r => r.ok ? r.json() : [])
-      .then(setPacks)
-      .catch(() => {})
-      .finally(() => setPacksLoading(false));
-  }, [showAddEvent, isCoach]);
+    setPacksLoadError(false);
+    Promise.all([
+      authedFetch(`${BASE_URL}/api/volunteer-tasks/packs`),
+      authedFetch(`${BASE_URL}/api/volunteer-tasks/templates`),
+    ])
+      .then(async ([packsResponse, templatesResponse]) => {
+        if (
+          (packsResponse.status !== 304 && !packsResponse.ok) ||
+          (templatesResponse.status !== 304 && !templatesResponse.ok)
+        ) {
+          throw new Error("Failed to load volunteer task options");
+        }
+        const [packData, templateData] = await Promise.all([
+          packsResponse.status === 304 ? Promise.resolve(packs) : packsResponse.json(),
+          templatesResponse.status === 304 ? Promise.resolve(templateOptions) : templatesResponse.json(),
+        ]);
+        if (active) {
+          setPacks(Array.isArray(packData) ? packData : []);
+          setTemplateOptions(Array.isArray(templateData) ? templateData : []);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPacks([]);
+          setTemplateOptions([]);
+          setPacksLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (active) setPacksLoading(false);
+      });
+    return () => { active = false; };
+  }, [authedFetch, showAddEvent, isCoach]);
+
+  const templateOptionsByCategory = useMemo(() => (
+    templateOptions.reduce<Record<string, any[]>>((acc, template) => {
+      if (!acc[template.category]) acc[template.category] = [];
+      acc[template.category].push(template);
+      return acc;
+    }, {})
+  ), [templateOptions]);
+  const templateOptionCategories = Object.keys(templateOptionsByCategory).sort();
+
+  const handleVolunteerPackChange = (value: string) => {
+    if (value === "_none") {
+      setSelectedPackId(null);
+      setSelectedTemplateIds(new Set());
+      return;
+    }
+    const packId = Number(value);
+    const pack = packs.find(item => item.id === packId);
+    setSelectedPackId(packId);
+    setSelectedTemplateIds(new Set((pack?.tasks ?? []).map((task: any) => task.id)));
+  };
+
+  const resetVolunteerSetup = () => {
+    setVolunteerEnabled(false);
+    setSelectedPackId(null);
+    setSelectedTemplateIds(new Set());
+  };
 
   const handleSaveEvent = async () => {
     if (!newEvent.title.trim() || !newEvent.startDate || !newEvent.startTime) {
@@ -142,24 +200,33 @@ export default function Calendar() {
           ...(!newEvent.isAllTeam && newEvent.podId ? { podIds: [newEvent.podId] } : {}),
         },
       });
+      let volunteerSetupFailed = false;
       if (volunteerEnabled && created?.id) {
-        await authedFetch(`${BASE_URL}/api/events/${created.id}/volunteer-tasks-enabled`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled: true }),
-        });
-        if (selectedPackId) {
-          await authedFetch(`${BASE_URL}/api/events/${created.id}/tasks/clone-pack`, {
-            method: "POST",
+        try {
+          const enabledResponse = await authedFetch(`${BASE_URL}/api/events/${created.id}/volunteer-tasks-enabled`, {
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ packId: selectedPackId }),
+            body: JSON.stringify({ enabled: true }),
           });
+          if (!enabledResponse.ok) throw new Error("Failed to enable volunteer tasks");
+
+          if (selectedTemplateIds.size > 0) {
+            const tasksResponse = await authedFetch(`${BASE_URL}/api/events/${created.id}/tasks/clone-template`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ templateTaskIds: [...selectedTemplateIds] }),
+            });
+            if (!tasksResponse.ok) throw new Error("Failed to add volunteer tasks");
+          }
+        } catch {
+          volunteerSetupFailed = true;
         }
       }
-      toast({ title: `"${newEvent.title.trim()}" created` });
+      toast(volunteerSetupFailed
+        ? { title: "Event created, but volunteer setup failed", description: "Open the event to review and add its volunteer tasks.", variant: "destructive" }
+        : { title: `"${newEvent.title.trim()}" created` });
       setNewEvent(emptyNewEvent);
-      setVolunteerEnabled(false);
-      setSelectedPackId(null);
+      resetVolunteerSetup();
       setShowAddEvent(false);
       queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
     } catch {
@@ -436,7 +503,13 @@ export default function Calendar() {
         </div>
       )}
 
-      <Dialog open={showAddEvent} onOpenChange={open => { setShowAddEvent(open); if (!open) setNewEvent(emptyNewEvent); }}>
+      <Dialog open={showAddEvent} onOpenChange={open => {
+        setShowAddEvent(open);
+        if (!open) {
+          setNewEvent(emptyNewEvent);
+          resetVolunteerSetup();
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Event</DialogTitle>
@@ -505,7 +578,7 @@ export default function Calendar() {
                     checked={volunteerEnabled}
                     onChange={e => {
                       setVolunteerEnabled(e.target.checked);
-                      if (!e.target.checked) setSelectedPackId(null);
+                      if (!e.target.checked) resetVolunteerSetup();
                     }}
                     className="h-4 w-4 rounded border-input accent-primary"
                   />
@@ -515,17 +588,17 @@ export default function Calendar() {
                 </div>
                 {volunteerEnabled && (
                   <div className="space-y-1.5 pl-6">
-                    <label className="text-xs text-muted-foreground">Apply a task pack (optional)</label>
+                    <label htmlFor="cal-volunteer-pack" className="text-xs text-muted-foreground">Start with a task pack (optional)</label>
                     {packsLoading ? (
-                      <p className="text-xs text-muted-foreground italic">Loading packs…</p>
-                    ) : packs.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No task packs defined yet — you can add tasks manually after creating the event.</p>
+                      <p className="text-xs text-muted-foreground italic">Loading volunteer task options…</p>
+                    ) : packsLoadError ? (
+                      <p className="text-xs text-destructive">Volunteer task options could not be loaded. You can add tasks from the event page after creating it.</p>
                     ) : (
                       <Select
                         value={selectedPackId ? String(selectedPackId) : "_none"}
-                        onValueChange={v => setSelectedPackId(v === "_none" ? null : Number(v))}
+                        onValueChange={handleVolunteerPackChange}
                       >
-                        <SelectTrigger className="h-8 text-sm">
+                        <SelectTrigger id="cal-volunteer-pack" className="h-8 text-sm">
                           <SelectValue placeholder="— no pack —" />
                         </SelectTrigger>
                         <SelectContent>
@@ -538,16 +611,50 @@ export default function Calendar() {
                         </SelectContent>
                       </Select>
                     )}
-                    {selectedPackId && (() => {
-                      const pack = packs.find((p: any) => p.id === selectedPackId);
-                      return pack ? (
-                        <p className="text-xs text-muted-foreground">
-                          Will pre-populate {pack.tasks?.length} volunteer slot{pack.tasks?.length !== 1 ? "s" : ""} from the "{pack.name}" pack.
-                        </p>
-                      ) : null;
-                    })()}
-                    {!selectedPackId && (
-                      <p className="text-xs text-muted-foreground">Sign-ups enabled with an empty task list — add tasks from the event page.</p>
+                    {!packsLoading && !packsLoadError && (
+                      <>
+                        <div className="flex items-center justify-between gap-3 rounded-md bg-background/60 px-2.5 py-2 text-xs">
+                          <span className="text-muted-foreground">
+                            {selectedPackId
+                              ? `Tasks from ${packs.find(pack => pack.id === selectedPackId)?.name ?? "this pack"} are selected by default.`
+                              : "Choose individual template tasks, or start with a pack."}
+                          </span>
+                          <span className="font-semibold whitespace-nowrap">{selectedTemplateIds.size} selected</span>
+                        </div>
+                        {templateOptionCategories.length === 0 ? (
+                          <p className="text-xs text-muted-foreground italic">
+                            No template tasks defined yet. Create the event, then add a custom task from its volunteer section.
+                          </p>
+                        ) : (
+                          <div className="max-h-64 overflow-y-auto space-y-3 rounded-md border border-border p-2.5">
+                            {templateOptionCategories.map(category => (
+                              <div key={category} className="space-y-1.5">
+                                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{category}</p>
+                                {templateOptionsByCategory[category].map(template => (
+                                  <label key={template.id} className="flex items-start gap-2 rounded-md border border-border/70 bg-background px-2.5 py-2 cursor-pointer hover:bg-muted/50">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedTemplateIds.has(template.id)}
+                                      onChange={e => setSelectedTemplateIds(previous => {
+                                        const next = new Set(previous);
+                                        if (e.target.checked) next.add(template.id);
+                                        else next.delete(template.id);
+                                        return next;
+                                      })}
+                                      className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                                    />
+                                    <span className="min-w-0">
+                                      <span className="block text-sm font-medium">{template.title}</span>
+                                      {template.description && <span className="block text-xs text-muted-foreground">{template.description}</span>}
+                                      <span className="block text-xs text-muted-foreground">{template.slotsDefault} slot{template.slotsDefault !== 1 ? "s" : ""} needed</span>
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -605,7 +712,7 @@ export default function Calendar() {
             >
               {createEvent.isPending ? "Saving..." : "Save Event"}
             </Button>
-            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); setVolunteerEnabled(false); setSelectedPackId(null); }} disabled={createEvent.isPending}>
+            <Button variant="outline" onClick={() => { setShowAddEvent(false); setNewEvent(emptyNewEvent); resetVolunteerSetup(); }} disabled={createEvent.isPending}>
               Cancel
             </Button>
           </div>
