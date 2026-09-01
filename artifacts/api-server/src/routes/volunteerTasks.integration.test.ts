@@ -352,6 +352,30 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
       supportCategoryName,
     ]);
 
+    const protectedTask = clonedCreatedTasks[0];
+    await db.insert(eventTaskSignupsTable).values({
+      eventTaskId: protectedTask.id,
+      eventId,
+      userId: userIds[0],
+    });
+    const duplicateCloneResponse = await request(`/events/${eventId}/tasks/clone-template`, {
+      method: "POST",
+      body: JSON.stringify({ templateTaskIds: createdTemplateTaskIds }),
+    });
+    expect(duplicateCloneResponse.status).toBe(201);
+    expect(await duplicateCloneResponse.json()).toEqual({ added: 0 });
+
+    const tasksAfterDuplicateClone = await db
+      .select()
+      .from(eventTasksTable)
+      .where(eq(eventTasksTable.eventId, eventId));
+    expect(tasksAfterDuplicateClone.filter((task) => createdTemplateTaskIds.includes(task.templateTaskId ?? -1))).toHaveLength(3);
+    const protectedSignups = await db
+      .select()
+      .from(eventTaskSignupsTable)
+      .where(eq(eventTaskSignupsTable.eventTaskId, protectedTask.id));
+    expect(protectedSignups).toHaveLength(1);
+
     const moveTaskResponse = await request(`/volunteer-tasks/templates/${firstTask.id}`, {
       method: "PUT",
       body: JSON.stringify({ categoryId: secondCategory.id, title: "First role", slotsDefault: 1 }),

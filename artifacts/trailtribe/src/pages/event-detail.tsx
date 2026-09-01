@@ -353,9 +353,9 @@ export default function EventDetail() {
   };
 
   const handleAddFromTemplates = () => {
-    if (selectedTplIds.size === 0) return;
+    if (addableSelectedTplIds.length === 0) return;
     addFromTemplatesMut.mutate(
-      { id: eventId, data: { templateTaskIds: [...selectedTplIds] } },
+      { id: eventId, data: { templateTaskIds: addableSelectedTplIds } },
       {
         onSuccess: (data) => {
           toast({ title: `${data.added} task${data.added !== 1 ? "s" : ""} added` });
@@ -373,6 +373,13 @@ export default function EventDetail() {
     setSelectedTplIds(new Set());
   };
 
+  const existingTemplateIds = new Set(
+    (tasks ?? [])
+      .map(task => task.templateTaskId)
+      .filter((templateTaskId): templateTaskId is number => typeof templateTaskId === "number"),
+  );
+  const addableSelectedTplIds = [...selectedTplIds].filter(id => !existingTemplateIds.has(id));
+
   const handleTemplatePackChange = (value: string) => {
     if (value === "_none") {
       setSelectedPackId(null);
@@ -382,7 +389,11 @@ export default function EventDetail() {
     const packId = Number(value);
     const pack = packs.find(p => p.id === packId);
     setSelectedPackId(packId);
-    setSelectedTplIds(new Set((pack?.tasks ?? []).map((task: any) => task.id)));
+    setSelectedTplIds(new Set(
+      (pack?.tasks ?? [])
+        .map((task: any) => task.id)
+        .filter((id: number) => !existingTemplateIds.has(id)),
+    ));
   };
 
   const handleCreateTask = () => {
@@ -1406,21 +1417,36 @@ export default function EventDetail() {
               <div className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-xs">
                 <span className="text-muted-foreground">
                   {selectedPackId
-                    ? `Tasks from ${packs.find(pack => pack.id === selectedPackId)?.name ?? "this pack"} are selected by default.`
+                    ? `Available tasks from ${packs.find(pack => pack.id === selectedPackId)?.name ?? "this pack"} are selected by default.`
                     : "Select individual template tasks for this event."}
                 </span>
                 <span className="font-semibold whitespace-nowrap">
-                  {selectedTplIds.size} selected
+                  {addableSelectedTplIds.length} selected
                 </span>
               </div>
+              {existingTemplateIds.size > 0 && (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  Tasks already on this event are marked below and cannot be added again.
+                </p>
+              )}
               {templateCategories.map(cat => (
                 <div key={cat}>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{cat}</p>
                   <div className="space-y-1.5">
                     {(templatesByCategory[cat] ?? []).map(tpl => (
-                      <label key={tpl.id} className="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+                      <label
+                        key={tpl.id}
+                        className={cn(
+                          "flex items-start gap-3 p-2.5 rounded-lg border transition-colors",
+                          existingTemplateIds.has(tpl.id)
+                            ? "bg-muted/30 opacity-70 cursor-not-allowed"
+                            : "cursor-pointer hover:bg-muted/50",
+                        )}
+                      >
                         <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-primary"
                           checked={selectedTplIds.has(tpl.id)}
+                          disabled={existingTemplateIds.has(tpl.id)}
                           onChange={e => {
                             setSelectedTplIds(prev => {
                               const next = new Set(prev);
@@ -1430,7 +1456,14 @@ export default function EventDetail() {
                           }}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium">{tpl.title}</div>
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            <span>{tpl.title}</span>
+                            {existingTemplateIds.has(tpl.id) && (
+                              <Badge variant="secondary" className="text-[10px] py-0 px-1.5 whitespace-nowrap">
+                                Already on event
+                              </Badge>
+                            )}
+                          </div>
                           {tpl.description && <div className="text-xs text-muted-foreground">{tpl.description}</div>}
                           <div className="text-xs text-muted-foreground">{tpl.slotsDefault} slot{tpl.slotsDefault !== 1 ? "s" : ""} needed</div>
                         </div>
@@ -1443,8 +1476,8 @@ export default function EventDetail() {
           )}
           <div className="flex gap-2 pt-3 border-t mt-3">
             <Button className="flex-1" onClick={handleAddFromTemplates}
-              disabled={selectedTplIds.size === 0 || addFromTemplatesMut.isPending}>
-              {addFromTemplatesMut.isPending ? "Adding..." : `Add ${selectedTplIds.size > 0 ? selectedTplIds.size + " " : ""}Task${selectedTplIds.size !== 1 ? "s" : ""}`}
+              disabled={addableSelectedTplIds.length === 0 || addFromTemplatesMut.isPending}>
+              {addFromTemplatesMut.isPending ? "Adding..." : `Add ${addableSelectedTplIds.length > 0 ? addableSelectedTplIds.length + " " : ""}Task${addableSelectedTplIds.length !== 1 ? "s" : ""}`}
             </Button>
             <Button variant="outline" onClick={() => { setShowTemplateSelector(false); resetTemplateSelection(); }}>Cancel</Button>
           </div>

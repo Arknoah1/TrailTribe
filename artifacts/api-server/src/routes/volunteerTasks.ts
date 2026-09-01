@@ -65,6 +65,46 @@ function serializeTemplateTask(row: Awaited<ReturnType<typeof listTemplateTaskRo
   };
 }
 
+type TemplateTaskRow = Awaited<ReturnType<typeof listTemplateTaskRows>>[number];
+
+async function addNewTemplateTasksToEvent(eventId: number, templates: TemplateTaskRow[]) {
+  return db.transaction(async (tx) => {
+    const [event] = await tx
+      .select({ id: eventsTable.id })
+      .from(eventsTable)
+      .where(eq(eventsTable.id, eventId))
+      .for("update");
+    if (!event) return null;
+
+    const existingTasks = await tx
+      .select({ templateTaskId: eventTasksTable.templateTaskId })
+      .from(eventTasksTable)
+      .where(eq(eventTasksTable.eventId, eventId));
+    const existingTemplateIds = new Set(
+      existingTasks
+        .map((task) => task.templateTaskId)
+        .filter((templateTaskId): templateTaskId is number => templateTaskId !== null),
+    );
+    const newTemplates = templates.filter(({ task }) => !existingTemplateIds.has(task.id));
+
+    if (newTemplates.length > 0) {
+      await tx.insert(eventTasksTable).values(
+        newTemplates.map(({ task, category }) => ({
+          eventId,
+          templateTaskId: task.id,
+          category: category.name,
+          title: task.title,
+          description: task.description ?? null,
+          slotsNeeded: task.slotsDefault,
+          sortOrder: task.sortOrder,
+        })),
+      );
+    }
+
+    return newTemplates.length;
+  });
+}
+
 async function nextTemplateTaskSortOrder(categoryId: number): Promise<number> {
   const [{ maxSortOrder }] = await db
     .select({ maxSortOrder: max(volunteerTemplateTasksTable.sortOrder) })
@@ -467,19 +507,13 @@ router.post("/events/:id/tasks/clone-template", requireCoachOrAdmin, async (req,
     return;
   }
 
-  await db.insert(eventTasksTable).values(
-    templates.map(({ task, category }) => ({
-      eventId,
-      templateTaskId: task.id,
-      category: category.name,
-      title: task.title,
-      description: task.description ?? null,
-      slotsNeeded: task.slotsDefault,
-      sortOrder: task.sortOrder,
-    }))
-  );
+  const added = await addNewTemplateTasksToEvent(eventId, templates);
+  if (added === null) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
 
-  res.status(201).json({ added: templates.length });
+  res.status(201).json({ added });
 });
 
 // Bulk signup: sign the current user up for multiple tasks; skip silently if already signed up or at capacity
@@ -789,20 +823,14 @@ router.post("/events/:id/tasks/clone-pack", requireCoachOrAdmin, async (req, res
     res.status(404).json({ error: "Pack not found or has no tasks" });
     return;
   }
-  await db.insert(eventTasksTable).values(
-    packTasks
-      .sort((a, b) => a.category.sortOrder - b.category.sortOrder || a.template.sortOrder - b.template.sortOrder)
-      .map(pt => ({
-      eventId,
-      templateTaskId: pt.template.id,
-      category: pt.category.name,
-      title: pt.template.title,
-      description: pt.template.description ?? null,
-      slotsNeeded: pt.template.slotsDefault,
-      sortOrder: pt.template.sortOrder,
-      }))
-  );
-  res.status(201).json({ added: packTasks.length });
+  const added = await addNewTemplateTasksToEvent(eventId, packTasks
+    .sort((a, b) => a.category.sortOrder - b.category.sortOrder || a.template.sortOrder - b.template.sortOrder)
+    .map(({ template, category }) => ({ task: template, category })));
+  if (added === null) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
+  res.status(201).json({ added });
 });
 
 // ─── MY VOLUNTEER COMMITMENTS ─────────────────────────────────────────────────
