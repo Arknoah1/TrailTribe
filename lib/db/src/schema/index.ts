@@ -16,3 +16,4 @@ export * from "./team_settings";
 export * from "./document_consents";
 export * from "./rider_invites";
 export * from "./push-devices";
+export * from "./rsvp-email-batches";

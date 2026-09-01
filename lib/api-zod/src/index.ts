@@ -1,5 +1,9 @@
 export * from "./generated/api";
 export type * from "./generated/types";
+export {
+  RequestUploadUrlBody as RequestUploadUrlBodySchema,
+  RequestUploadUrlResponse as RequestUploadUrlResponseSchema,
+} from "./generated/api";
 export type {
   ApproveUserBody,
   BatchCreateEventsBody,

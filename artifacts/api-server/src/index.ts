@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startEmailReminderJob } from "./lib/emailReminders";
 import { startVolunteerReminderJob } from "./lib/volunteerReminders";
+import { startRsvpEmailBatchJob, stopRsvpEmailBatchJob } from "./lib/rsvpEmailBatches";
 import { runMigrations } from "./lib/migrate";
 import { getAppBase } from "./lib/config";
 import { stopEmailHealthCheck } from "./lib/email";
@@ -41,6 +42,7 @@ runMigrations()
 
       startEmailReminderJob();
       startVolunteerReminderJob();
+      startRsvpEmailBatchJob();
     });
   })
   .catch((err) => {
@@ -51,6 +53,7 @@ runMigrations()
 function gracefulShutdown(signal: string) {
   logger.info({ signal }, "Received shutdown signal — cleaning up");
   stopEmailHealthCheck();
+  stopRsvpEmailBatchJob();
   process.exit(0);
 }
 

@@ -458,6 +458,28 @@ const migrations: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS board_reactions_post_id_idx ON board_reactions(post_id);
     `,
   },
+  {
+    name: "create_event_rsvp_email_batches_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS event_rsvp_email_batches (
+        id serial PRIMARY KEY,
+        event_id integer NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        recipient_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        due_at timestamptz NOT NULL,
+        status text NOT NULL DEFAULT 'pending',
+        attempts integer NOT NULL DEFAULT 0,
+        locked_at timestamptz,
+        sent_at timestamptz,
+        last_error text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT event_rsvp_email_batches_event_recipient_unique
+          UNIQUE (event_id, recipient_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS event_rsvp_email_batches_due_idx
+        ON event_rsvp_email_batches(status, due_at);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

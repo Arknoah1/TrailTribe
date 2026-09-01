@@ -14,10 +14,10 @@ import {
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
-import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { createEventThread } from "./board";
-import { getShortNamePrefix } from "./settings";
+import { queueRsvpConfirmationBatch } from "../lib/rsvpEmailBatches";
+import { shouldQueueRsvpConfirmation } from "../lib/rsvpEmailContent";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -344,6 +344,7 @@ router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
   const now = new Date();
 
   let lastRsvp: any = null;
+  let shouldQueueConfirmation = false;
   await db.transaction(async (tx) => {
     for (const userId of targetIds) {
       const existing = await tx.query.eventRsvpsTable.findFirst({
@@ -355,47 +356,27 @@ router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
           .where(eq(eventRsvpsTable.id, existing.id))
           .returning();
         lastRsvp = updated;
+        if (shouldQueueRsvpConfirmation(existing.status, status)) {
+          shouldQueueConfirmation = true;
+        }
       } else {
         const [created] = await tx.insert(eventRsvpsTable).values({ eventId, userId, status, respondedAt: now }).returning();
         lastRsvp = created;
+        if (shouldQueueRsvpConfirmation(null, status)) {
+          shouldQueueConfirmation = true;
+        }
       }
     }
   });
 
-  if (status === "attending" && me.emailNotifications) {
-    (async () => {
-      try {
-        const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
-        if (!event) return;
-        const trailhead = event.trailheadId
-          ? await db.query.trailheadsTable.findFirst({ where: eq(trailheadsTable.id, event.trailheadId) })
-          : null;
-        const locationLine = event.locationOverride ?? trailhead?.name ?? "Location TBD";
-        const dateStr = event.startTime.toLocaleString("en-US", {
-          weekday: "long", month: "long", day: "numeric",
-          hour: "numeric", minute: "2-digit", timeZoneName: "short",
-        });
-        const orgPrefix = await getShortNamePrefix();
-        await sendEmail({
-          to: me.email,
-          subject: `${orgPrefix}You're set for ${event.title}`,
-          text: [
-            `Hi ${me.firstName},`,
-            ``,
-            `You're confirmed for:`,
-            ``,
-            `  ${event.title}`,
-            `  ${dateStr}`,
-            `  ${locationLine}`,
-            ``,
-            `See you on the trail!`,
-            `— TrailTeam`,
-          ].join("\n"),
-        });
-      } catch (err) {
-        logger.error({ err }, "[events] rsvp confirmation email error");
-      }
-    })();
+  if (status === "attending" && shouldQueueConfirmation && me.emailNotifications) {
+    try {
+      await queueRsvpConfirmationBatch(eventId, me.id, now);
+    } catch (err) {
+      // RSVP state remains successful even if the optional email queue is
+      // temporarily unavailable; the worker can only send queued batches.
+      logger.error({ err, eventId, recipientUserId: me.id }, "[events] failed to queue RSVP confirmation email");
+    }
   }
 
   res.json(lastRsvp);
