@@ -888,12 +888,12 @@ export default function EventDetail() {
               <CardContent className="space-y-4">
                 {["practice", "race"].includes(event.eventType) && (
                   <Link href={`/carpools/${event.id}`}>
-                    <Button variant="outline" className="w-full justify-between group">
-                      <div className="flex items-center">
-                        <Car className="h-4 w-4 mr-2 text-muted-foreground" />
-                        Carpools
+                    <Button variant="outline" className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 py-2 group">
+                      <div className="flex min-w-0 items-center text-left">
+                        <Car className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">Carpools</span>
                       </div>
-                      <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                      <span className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         {event.carpoolSpotsAvailable > 0 ? `${event.carpoolSpotsAvailable} spots` : 'View'}
                       </span>
                     </Button>
@@ -903,15 +903,15 @@ export default function EventDetail() {
                 {["race", "social"].includes(event.eventType) && showVolunteerSection && (
                   <Button
                     variant="outline"
-                    className="w-full justify-between group"
+                    className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 py-2 group"
                     onClick={() => document.getElementById("volunteer-tasks-section")?.scrollIntoView({ behavior: "smooth" })}
                   >
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Volunteers
+                    <div className="flex min-w-0 items-center text-left">
+                      <Users className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate">Volunteers</span>
                     </div>
                     {volunteerTasksEnabled ? (
-                      <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                      <span className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         {event.volunteerCount} signed up
                       </span>
                     ) : (
