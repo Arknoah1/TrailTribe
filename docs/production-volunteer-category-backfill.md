@@ -71,6 +71,24 @@ ORDER BY category_id;
 Every `category_id` must identify one existing category. Existing task counts
 may differ by category; duplicate task IDs must not be introduced.
 
+## Stop if Publish offers a category rename
+
+If the Publish review says the existing text `category` column was removed and
+asks whether it should be renamed to the integer `category_id` column, cancel
+the Publish attempt. Neither offered resolution is safe:
+
+- "Create new column" deletes the legacy category values before they can be
+  backfilled.
+- "Rename column" treats category names as integer foreign keys.
+
+First confirm that the development schema still contains both nullable columns
+and that production still contains the legacy `category` column. If those
+schemas are correct, the dialog is a stale or incorrect Publish schema
+comparison. Do not keep retrying or alter production directly. Ask Replit
+Support to reset or rebuild the Publish database-schema baseline, including the
+project URL, a screenshot of the rename dialog, and the development/production
+column checks.
+
 ## Stage 2: finalize the schema
 
 Only after the checks pass:

@@ -9,3 +9,4 @@
 - [Orphaned sign-in cleanup](orphaned-sign-in-cleanup.md) — unfinished invited parent accounts may be safely removed only when they have no household and are unapproved
 - [Idempotent startup migrations](idempotent-migrations.md) — migration and seed SQL must remain valid when the API replays the full list on every restart
 - [Drizzle push drift](drizzle-push-unrelated-drift.md) — unrelated unique-constraint drift can block non-interactive pushes; never bypass it with a truncating force-push
+- [Publish schema baseline mismatch](publish-schema-baseline-mismatch.md) — cancel rename prompts that contradict live schemas; neither mapping is safe
