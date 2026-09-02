@@ -17,13 +17,22 @@ describe("transactional email identity", () => {
   });
 
   it("keeps the effective configured sender on the verified mailbox with the current display name", () => {
-    expect(process.env.EMAIL_FROM).toBeDefined();
+    const configuredFromAddress = process.env.EMAIL_FROM;
+    process.env.EMAIL_FROM = EXPECTED_CONFIGURED_FROM_ADDRESS;
 
-    const effectiveFromAddress = resolveFromAddress(process.env.EMAIL_FROM);
+    try {
+      const effectiveFromAddress = resolveFromAddress(process.env.EMAIL_FROM);
 
-    expect(effectiveFromAddress).toBe(EXPECTED_CONFIGURED_FROM_ADDRESS);
-    expect(effectiveFromAddress).toContain("coaches@methowcyclingteam.com");
-    expect(effectiveFromAddress).not.toContain("TrailTeam");
+      expect(effectiveFromAddress).toBe(EXPECTED_CONFIGURED_FROM_ADDRESS);
+      expect(effectiveFromAddress).toContain("coaches@methowcyclingteam.com");
+      expect(effectiveFromAddress).not.toContain("TrailTeam");
+    } finally {
+      if (configuredFromAddress === undefined) {
+        delete process.env.EMAIL_FROM;
+      } else {
+        process.env.EMAIL_FROM = configuredFromAddress;
+      }
+    }
   });
 
   it("falls back when the configured sender is blank or missing", () => {

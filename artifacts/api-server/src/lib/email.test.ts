@@ -40,21 +40,33 @@ afterAll(() => {
 
 describe("transactional email headers", () => {
   it("sends the effective configured identity and preserves Reply-To", async () => {
-    const result = await email.sendEmail({
-      to: "family@example.com",
-      subject: "Sender verification",
-      text: "Verification message",
-      replyTo: "coach@example.com",
-    });
+    const configuredFromAddress = process.env.EMAIL_FROM;
+    const expectedFromAddress = "Methow Cycling Team <coaches@methowcyclingteam.com>";
+    process.env.EMAIL_FROM = expectedFromAddress;
 
-    expect(result).toEqual({ status: "sent" });
-    expect(smtp.sendMail).toHaveBeenCalledWith({
-      from: process.env.EMAIL_FROM,
-      to: ["family@example.com"],
-      subject: "Sender verification",
-      text: "Verification message",
-      replyTo: "coach@example.com",
-    });
+    try {
+      const result = await email.sendEmail({
+        to: "family@example.com",
+        subject: "Sender verification",
+        text: "Verification message",
+        replyTo: "coach@example.com",
+      });
+
+      expect(result).toEqual({ status: "sent" });
+      expect(smtp.sendMail).toHaveBeenCalledWith({
+        from: expectedFromAddress,
+        to: ["family@example.com"],
+        subject: "Sender verification",
+        text: "Verification message",
+        replyTo: "coach@example.com",
+      });
+    } finally {
+      if (configuredFromAddress === undefined) {
+        delete process.env.EMAIL_FROM;
+      } else {
+        process.env.EMAIL_FROM = configuredFromAddress;
+      }
+    }
   });
 
   it("refuses to send if EMAIL_FROM changes to an unapproved identity", async () => {
