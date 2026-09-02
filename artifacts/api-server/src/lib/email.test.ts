@@ -13,6 +13,8 @@ vi.mock("nodemailer", () => ({
 
 const originalEnv = {
   EMAIL_FROM: process.env.EMAIL_FROM,
+  EMAIL_APPROVED_SENDER_MAILBOXES:
+    process.env.EMAIL_APPROVED_SENDER_MAILBOXES,
   SMTP_PASS: process.env.SMTP_PASS,
   SMTP_USER: process.env.SMTP_USER,
 };
@@ -75,6 +77,43 @@ describe("transactional email headers", () => {
         delete process.env.EMAIL_FROM;
       } else {
         process.env.EMAIL_FROM = configuredFromAddress;
+      }
+    }
+  });
+
+  it("sends from a mailbox approved by deployment configuration", async () => {
+    const configuredFromAddress = process.env.EMAIL_FROM;
+    const configuredMailboxes = process.env.EMAIL_APPROVED_SENDER_MAILBOXES;
+    process.env.EMAIL_APPROVED_SENDER_MAILBOXES =
+      "billing@methowcyclingteam.com";
+    process.env.EMAIL_FROM =
+      "Methow Cycling Team <billing@methowcyclingteam.com>";
+    smtp.sendMail.mockClear();
+
+    try {
+      const result = await email.sendEmail({
+        to: "family@example.com",
+        subject: "Rotated sender",
+        text: "This uses the configured verified mailbox",
+      });
+
+      expect(result).toEqual({ status: "sent" });
+      expect(smtp.sendMail).toHaveBeenCalledWith({
+        from: "Methow Cycling Team <billing@methowcyclingteam.com>",
+        to: ["family@example.com"],
+        subject: "Rotated sender",
+        text: "This uses the configured verified mailbox",
+      });
+    } finally {
+      if (configuredFromAddress === undefined) {
+        delete process.env.EMAIL_FROM;
+      } else {
+        process.env.EMAIL_FROM = configuredFromAddress;
+      }
+      if (configuredMailboxes === undefined) {
+        delete process.env.EMAIL_APPROVED_SENDER_MAILBOXES;
+      } else {
+        process.env.EMAIL_APPROVED_SENDER_MAILBOXES = configuredMailboxes;
       }
     }
   });

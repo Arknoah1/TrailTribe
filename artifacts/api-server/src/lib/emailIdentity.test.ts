@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   APPROVED_SENDER_NAME,
   DEFAULT_FROM_ADDRESS,
+  resolveApprovedSenderMailboxes,
   resolveFromAddress,
   validateFromAddress,
 } from "./emailIdentity";
@@ -38,6 +39,37 @@ describe("transactional email identity", () => {
     expect(resolveFromAddress("Methow Cycling Team <admin@methowcyclingteam.com>")).toBe(
       DEFAULT_FROM_ADDRESS,
     );
+  });
+
+  it("accepts a verified mailbox from deployment configuration", () => {
+    const configuredMailboxes = process.env.EMAIL_APPROVED_SENDER_MAILBOXES;
+    process.env.EMAIL_APPROVED_SENDER_MAILBOXES =
+      "billing@methowcyclingteam.com, operations@methowcyclingteam.com";
+
+    try {
+      expect(
+        resolveFromAddress(
+          "Methow Cycling Team <billing@methowcyclingteam.com>",
+        ),
+      ).toBe("Methow Cycling Team <billing@methowcyclingteam.com>");
+      expect(() =>
+        resolveFromAddress("Methow Cycling Team <coaches@methowcyclingteam.com>"),
+      ).toThrow(/approved sender mailbox/);
+    } finally {
+      if (configuredMailboxes === undefined) {
+        delete process.env.EMAIL_APPROVED_SENDER_MAILBOXES;
+      } else {
+        process.env.EMAIL_APPROVED_SENDER_MAILBOXES = configuredMailboxes;
+      }
+    }
+  });
+
+  it("rejects an invalid deployment mailbox allowlist", () => {
+    expect(() =>
+      resolveApprovedSenderMailboxes(
+        "billing@methowcyclingteam.com, not-a-mailbox",
+      ),
+    ).toThrow(/EMAIL_APPROVED_SENDER_MAILBOXES/);
   });
 
   it("rejects stale branding and unapproved sender mailboxes", () => {

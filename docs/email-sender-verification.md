@@ -30,9 +30,44 @@ The command reports SMTP acceptance, the effective From header, and whether Repl
 
 ## Sender configuration guard
 
-Valid configured identities are:
+The sender display name is intentionally fixed in the API. The approved
+mailbox allowlist can be supplied through deployment configuration:
 
-- `Methow Cycling Team <coaches@methowcyclingteam.com>`
-- `Methow Cycling Team <admin@methowcyclingteam.com>` (the fallback when `EMAIL_FROM` is blank or missing)
+- `EMAIL_APPROVED_SENDER_MAILBOXES` — optional comma-separated mailbox
+  allowlist. When omitted, the defaults are
+  `admin@methowcyclingteam.com` and `coaches@methowcyclingteam.com`.
+- `EMAIL_FROM` — complete From header, for example
+  `Methow Cycling Team <coaches@methowcyclingteam.com>`.
 
-The API rejects stale display names, unapproved mailboxes, and bare email addresses. If `EMAIL_FROM` is changed while the API is running, the next transactional send is rejected before `sendMail` is called.
+An explicitly configured allowlist replaces the defaults. Each mailbox must be
+verified with the Gmail account used by `SMTP_USER` before it is added. The API
+rejects malformed allowlist entries, stale display names, unapproved mailboxes,
+and bare email addresses. Invalid configuration aborts startup, and changing
+either setting while the API is running is revalidated before the next send.
+
+## Rotate the verified mailbox
+
+1. In Gmail, verify the new address as a **Send mail as** address for the
+   account used by `SMTP_USER`. Finish Gmail's confirmation step before
+   changing the deployment.
+2. In the deployment environment, set both values together. For example:
+
+   ```sh
+   EMAIL_APPROVED_SENDER_MAILBOXES=billing@methowcyclingteam.com
+   EMAIL_FROM="Methow Cycling Team <billing@methowcyclingteam.com>"
+   ```
+
+   For multiple verified mailboxes, separate them with commas.
+3. Restart or redeploy the API. A typo in either value should prevent startup
+   rather than sending with an unapproved identity.
+4. Run the sender verification command from the deployment environment:
+
+   ```sh
+   EMAIL_TEST_TO="recipient@example.com" \
+   EMAIL_TEST_REPLY_TO="reply@example.com" \
+   pnpm --filter @workspace/api-server run email:verify-sender
+   ```
+
+5. In the receiving inbox, confirm the visible sender name is **Methow Cycling
+   Team**, the address is the new mailbox, and replies target the expected
+   Reply-To address.
