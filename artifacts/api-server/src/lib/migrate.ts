@@ -179,6 +179,17 @@ const migrations: { name: string; sql: string }[] = [
   {
     name: "seed_volunteer_template_tasks",
     sql: `
+      INSERT INTO volunteer_template_categories (name, name_key, sort_order)
+      SELECT seed.name, lower(seed.name), seed.sort_order
+      FROM (VALUES
+        ('Race Day',                           10),
+        ('Bike Village – Before Race Weekend', 20),
+        ('Bike Village – Saturday',            30),
+        ('Bike Village – Sunday',              40)
+      ) AS seed(name, sort_order)
+      WHERE NOT EXISTS (SELECT 1 FROM volunteer_template_tasks LIMIT 1)
+      ON CONFLICT (name_key) DO NOTHING;
+
       INSERT INTO volunteer_template_tasks (category_id, title, slots_default, sort_order)
       SELECT categories.id, seed.title, seed.slots_default, seed.sort_order
       FROM (VALUES
@@ -207,6 +218,42 @@ const migrations: { name: string; sql: string }[] = [
       INNER JOIN volunteer_template_categories AS categories
         ON categories.name_key = lower(seed.category)
       WHERE NOT EXISTS (SELECT 1 FROM volunteer_template_tasks LIMIT 1);
+    `,
+  },
+  {
+    name: "finalize_volunteer_template_task_categories",
+    sql: `
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM volunteer_template_tasks
+          WHERE category_id IS NULL
+        ) THEN
+          RAISE EXCEPTION
+            'Cannot finalize volunteer template categories: category_id backfill is incomplete';
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'volunteer_template_tasks_category_id_fk'
+        ) THEN
+          ALTER TABLE volunteer_template_tasks
+            ADD CONSTRAINT volunteer_template_tasks_category_id_fk
+            FOREIGN KEY (category_id)
+            REFERENCES volunteer_template_categories(id)
+            ON DELETE RESTRICT;
+        END IF;
+
+        ALTER TABLE volunteer_template_tasks
+          ALTER COLUMN category_id SET NOT NULL;
+        ALTER TABLE volunteer_template_tasks
+          DROP COLUMN IF EXISTS category;
+      END $$;
+
+      CREATE INDEX IF NOT EXISTS volunteer_template_tasks_category_sort_idx
+        ON volunteer_template_tasks(category_id, sort_order);
     `,
   },
   {
