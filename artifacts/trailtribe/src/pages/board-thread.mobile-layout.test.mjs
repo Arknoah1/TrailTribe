@@ -136,14 +136,13 @@ test("discussion navigation preserves the originating Messages category", () => 
 });
 
 test("thread actions are hidden when a family member has no permitted action", () => {
-  assert.match(threadSource, /const isCoachOrAdmin = me\?\.role === "coach" \|\| me\?\.role === "admin";/);
-  assert.match(threadSource, /const isAuthor = thread\?\.authorUserId === me\?\.id;/);
-  assert.match(threadSource, /const canDeleteThread = isCoachOrAdmin \|\| isAuthor;/);
+  assert.match(threadSource, /const canDeleteThread = thread\?\.permissions\?\.canDelete === true;/);
+  assert.match(threadSource, /const canPinThread = thread\?\.permissions\?\.canPin === true;/);
   assert.match(
     threadSource,
     /\{canDeleteThread && \(\s*<DropdownMenu>\s*<DropdownMenuTrigger asChild>/,
   );
   assert.match(threadSource, /aria-label="Thread actions"/);
-  assert.match(threadSource, /<DropdownMenuItem onClick=\{handlePin\}/);
+  assert.match(threadSource, /\{canPinThread && \(\s*<DropdownMenuItem onClick=\{handlePin\}/);
   assert.match(threadSource, /<DropdownMenuItem onClick=\{handleDeleteThread\}/);
 });

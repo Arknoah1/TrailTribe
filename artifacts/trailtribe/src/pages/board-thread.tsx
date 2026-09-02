@@ -297,8 +297,10 @@ export default function BoardThread() {
   }, [replyBody]);
 
   const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
-  const isAuthor = thread?.authorUserId === me?.id;
-  const canDeleteThread = isCoachOrAdmin || isAuthor;
+  // Thread permissions are computed by the API so this UI cannot drift from
+  // the authorization rules enforced by the server.
+  const canDeleteThread = thread?.permissions?.canDelete === true;
+  const canPinThread = thread?.permissions?.canPin === true;
 
   const handleToggleReaction = (targetType: "thread" | "post", targetId: number, reaction: string) => {
     toggleReaction.mutate({ data: { targetType, targetId, reaction: reaction as "helpful" | "like" | "celebrate" } }, {
@@ -414,7 +416,7 @@ export default function BoardThread() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="border-2 border-[#0a0c10] shadow-cel-sm font-medium">
-                {isCoachOrAdmin && (
+                {canPinThread && (
                   <DropdownMenuItem onClick={handlePin} className="cursor-pointer gap-2">
                     <Pin className="h-4 w-4" /> {thread.isPinned ? "Unpin Thread" : "Pin Thread"}
                   </DropdownMenuItem>

@@ -2587,6 +2587,14 @@ export const ListBoardThreadsResponseItem = zod
           }),
         )
         .optional(),
+      permissions: zod
+        .object({
+          canPin: zod.boolean(),
+          canDelete: zod.boolean(),
+        })
+        .describe(
+          "Actions the authenticated viewer may perform on this thread",
+        ),
     }),
   );
 export const ListBoardThreadsResponse = zod.array(ListBoardThreadsResponseItem);
@@ -2649,6 +2657,14 @@ export const GetBoardThreadResponse = zod
           }),
         )
         .optional(),
+      permissions: zod
+        .object({
+          canPin: zod.boolean(),
+          canDelete: zod.boolean(),
+        })
+        .describe(
+          "Actions the authenticated viewer may perform on this thread",
+        ),
     }),
   );
 

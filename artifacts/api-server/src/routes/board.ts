@@ -20,7 +20,10 @@ const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function enrichThread(thread: typeof boardThreadsTable.$inferSelect) {
+async function enrichThread(
+  thread: typeof boardThreadsTable.$inferSelect,
+  me: typeof usersTable.$inferSelect,
+) {
   const author = thread.authorUserId
     ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, thread.authorUserId) })
     : null;
@@ -34,6 +37,7 @@ async function enrichThread(thread: typeof boardThreadsTable.$inferSelect) {
     title: event ? `Discussion: ${event.title}` : thread.title,
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
     event: event ? { id: event.id, title: event.title, startTime: event.startTime } : null,
+    permissions: getThreadPermissions(me, thread),
   };
 }
 
@@ -155,6 +159,17 @@ async function notifyThreadParticipants(threadId: number, actorUserId: number, t
 
 async function getMe(clerkUserId: string) {
   return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+}
+
+function getThreadPermissions(
+  me: typeof usersTable.$inferSelect,
+  thread: typeof boardThreadsTable.$inferSelect,
+) {
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+  return {
+    canPin: isCoachOrAdmin,
+    canDelete: isCoachOrAdmin || thread.authorUserId === me.id,
+  };
 }
 
 function canAccessPodThread(me: typeof usersTable.$inferSelect, threadPodId: string | null): boolean {
@@ -288,7 +303,7 @@ router.get("/board/threads", requireApproved, async (req, res) => {
       .orderBy(desc(boardThreadsTable.isPinned), desc(boardThreadsTable.lastReplyAt), desc(boardThreadsTable.createdAt));
   }
 
-  const result = await Promise.all(threads.map((thread) => enrichThread(thread)));
+  const result = await Promise.all(threads.map((thread) => enrichThread(thread, me)));
   res.json(result);
 });
 
@@ -327,7 +342,7 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     replyCount: 0,
   }).returning();
 
-  const result = { ...await enrichThread(thread), reactions: await getReactionSummary("thread", thread.id, me.id) };
+  const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.status(201).json(result);
 });
 
@@ -343,7 +358,7 @@ router.get("/board/threads/:id", requireApproved, async (req, res) => {
   if (!(await canAccessThread(me, thread))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
-  const result = { ...await enrichThread(thread), reactions: await getReactionSummary("thread", thread.id, me.id) };
+  const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.json(result);
 });
 
@@ -472,8 +487,7 @@ router.delete("/board/threads/:id", requireApproved, async (req, res) => {
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
   if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
 
-  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
-  if (!isCoachOrAdmin && thread.authorUserId !== me.id) {
+  if (!getThreadPermissions(me, thread).canDelete) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

@@ -356,8 +356,13 @@ function addPost(id: number, threadId: number, authorUserId = RIDER.id, isDelete
   });
 }
 
-async function getThreads(path: string) {
-  const response = await fetch(`${baseUrl}${path}`);
+async function getThreads(path: string, user: typeof COACH = COACH) {
+  currentClerkUserId = user.clerkUserId;
+  const threadId = path.match(/\/board\/threads\/(\d+)/)?.[1];
+  currentTargetId = threadId ? Number(threadId) : null;
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { "x-test-user": user.clerkUserId },
+  });
   return { status: response.status, body: await response.json() };
 }
 
@@ -407,6 +412,20 @@ async function deleteThread(user: typeof COACH, threadId: number) {
 }
 
 describe("event discussion board visibility and ordering", () => {
+  it("returns thread actions from the same permission rules used by the API", async () => {
+    addThread(5, 0, NOW);
+
+    const familyViewer = await getThreads("/board/threads/5", RIDER);
+    expect(familyViewer.body.permissions).toEqual({ canPin: false, canDelete: false });
+
+    threads[0].authorUserId = RIDER.id;
+    const authorViewer = await getThreads("/board/threads/5", RIDER);
+    expect(authorViewer.body.permissions).toEqual({ canPin: false, canDelete: true });
+
+    const coachViewer = await getThreads("/board/threads/5", COACH);
+    expect(coachViewer.body.permissions).toEqual({ canPin: true, canDelete: true });
+  });
+
   it("includes upcoming, active, and recently ended events, but expires after 36 hours", async () => {
     addEvent(1, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     addEvent(2, new Date("2026-08-20T10:00:00Z"), new Date("2026-08-20T11:00:00Z"));

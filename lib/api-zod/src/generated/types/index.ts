@@ -27,6 +27,7 @@ export * from "./boardReactionSummary";
 export * from "./boardReactionSummaryReactions";
 export * from "./boardReactionSummaryTargetType";
 export * from "./boardThread";
+export * from "./boardThreadPermissions";
 export * from "./boardThreadWithDetails";
 export * from "./boardThreadWithDetailsReactions";
 export * from "./broadcast";

@@ -729,10 +729,19 @@ export type BoardThreadWithDetailsReactions = {
   [key: string]: BoardReactionCount;
 };
 
+/**
+ * Actions the authenticated viewer may perform on this thread
+ */
+export interface BoardThreadPermissions {
+  canPin: boolean;
+  canDelete: boolean;
+}
+
 export type BoardThreadWithDetails = BoardThread & {
   author?: BoardAuthor | null;
   event?: BoardEventRef | null;
   reactions?: BoardThreadWithDetailsReactions;
+  permissions: BoardThreadPermissions;
 };
 
 export interface BoardPost {

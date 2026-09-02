@@ -3617,6 +3617,19 @@ components:
               type: object
               additionalProperties:
                 $ref: "#/components/schemas/BoardReactionCount"
+            permissions:
+              $ref: "#/components/schemas/BoardThreadPermissions"
+          required: [permissions]
+
+    BoardThreadPermissions:
+      type: object
+      description: Actions the authenticated viewer may perform on this thread
+      properties:
+        canPin:
+          type: boolean
+        canDelete:
+          type: boolean
+      required: [canPin, canDelete]
 
     BoardPost:
       type: object
