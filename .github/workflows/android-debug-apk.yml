@@ -57,6 +57,9 @@ jobs:
           pnpm --filter @workspace/trailtribe run typecheck
           pnpm --filter @workspace/trailtribe run test
 
+      - name: Verify API server
+        run: pnpm --filter @workspace/api-server run test:clean
+
       - name: Build debug APK
         run: pnpm --filter @workspace/trailtribe run mobile:debug:android
 

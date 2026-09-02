@@ -49,6 +49,9 @@ jobs:
           pnpm --filter @workspace/trailtribe run typecheck
           pnpm --filter @workspace/trailtribe run test
 
+      - name: Verify API server
+        run: pnpm --filter @workspace/api-server run test:clean
+
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
 
