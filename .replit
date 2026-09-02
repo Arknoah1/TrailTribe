@@ -54,6 +54,6 @@ packages = ["glib", "gtk3", "nss", "nspr", "atk", "at-spi2-atk", "cups", "dbus",
 [userenv]
 
 [userenv.shared]
-EMAIL_FROM = "TrailTeam <coaches@methowcyclingteam.com>"
+EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>"
 SMTP_USER = "admin@methowcyclingteam.com"
 APP_BASE_URL = "https://trailteam.app"

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { logger } from "./logger";
-import { DEFAULT_FROM_ADDRESS } from "./emailIdentity";
+import { resolveFromAddress } from "./emailIdentity";
 
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
@@ -73,8 +73,13 @@ export function stopEmailHealthCheck(): void {
   }
 }
 
+/**
+ * EMAIL_FROM is an optional complete From header override, for example:
+ * "Methow Cycling Team <admin@methowcyclingteam.com>".
+ * Keep its display name aligned with DEFAULT_FROM_ADDRESS when configured.
+ */
 export const FROM_ADDRESS =
-  process.env.EMAIL_FROM ?? DEFAULT_FROM_ADDRESS;
+  resolveFromAddress(process.env.EMAIL_FROM);
 
 export interface SendEmailOptions {
   to: string | string[];

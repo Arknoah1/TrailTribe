@@ -11,3 +11,4 @@
 - [Drizzle push drift](drizzle-push-unrelated-drift.md) — unrelated unique-constraint drift can block non-interactive pushes; never bypass it with a truncating force-push
 - [Publish schema baseline mismatch](publish-schema-baseline-mismatch.md) — cancel rename prompts that contradict live schemas; neither mapping is safe
 - [Outbound email timezone](email-timezone.md) — format event times in Pacific time until the product stores an explicit event or recipient timezone
+- [Email sender override](email-sender-override.md) — shared EMAIL_FROM can override the code default; update it when changing sender branding
