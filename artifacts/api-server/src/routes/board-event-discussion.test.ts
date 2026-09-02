@@ -454,6 +454,20 @@ describe("event discussion board visibility and ordering", () => {
     expect(board.body).toEqual([]);
     expect(detail.body.map((thread: ThreadFixture) => thread.id)).toEqual([30]);
   });
+
+  it("uses the current event title when a stored event discussion title is stale", async () => {
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    addThread(40, event.id, new Date("2026-08-20T09:00:00Z"));
+    threads[0].title = "Discussion: Cooney Lake";
+
+    const beforeRename = await getThreads("/board/threads?scope=event&eventId=40");
+    expect(beforeRename.body[0].title).toBe("Discussion: Event 40");
+
+    event.title = "Evergreen Dig Day (Loop Loop - Goldilocks)";
+    const afterRename = await getThreads("/board/threads?scope=event&eventId=40");
+    expect(afterRename.body[0].title).toBe("Discussion: Evergreen Dig Day (Loop Loop - Goldilocks)");
+    expect(afterRename.body[0].event.title).toBe("Evergreen Dig Day (Loop Loop - Goldilocks)");
+  });
 });
 
 describe("event discussion reactions", () => {

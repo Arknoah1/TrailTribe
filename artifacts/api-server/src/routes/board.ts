@@ -29,6 +29,9 @@ async function enrichThread(thread: typeof boardThreadsTable.$inferSelect) {
     : null;
   return {
     ...thread,
+    // Event discussion titles are derived from the current event name so a
+    // renamed event cannot leave its linked discussion showing stale context.
+    title: event ? `Discussion: ${event.title}` : thread.title,
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
     event: event ? { id: event.id, title: event.title, startTime: event.startTime } : null,
   };
