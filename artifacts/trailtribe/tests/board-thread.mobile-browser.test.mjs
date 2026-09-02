@@ -131,3 +131,67 @@ test("mobile discussion keeps the reply controls visible through keyboard dismis
     await browser.close();
   }
 });
+
+test("authenticated author sees a redacted reply with no delete control after refresh", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 1,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/messages/thread/42?tab=general&viewer=author`, { waitUntil: "networkidle" });
+
+    const originalBody = "A private reply that should be redacted after deletion";
+    await page.getByText(originalBody, { exact: true }).waitFor({ state: "visible" });
+    const deleteReply = page.getByRole("button", { name: "Delete reply" });
+    await deleteReply.waitFor({ state: "visible" });
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await deleteReply.click();
+
+    const deletedMessage = page.getByText("[This message was deleted]", { exact: true });
+    await deletedMessage.waitFor({ state: "visible" });
+    assert.equal(await page.getByText(originalBody, { exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Delete reply" }).count(), 0);
+
+    await page.reload({ waitUntil: "networkidle" });
+    await deletedMessage.waitFor({ state: "visible" });
+    assert.equal(await page.getByText(originalBody, { exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Delete reply" }).count(), 0);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("unauthorized viewer cannot delete a reply before or after refresh", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 1,
+      hasTouch: true,
+      isMobile: true,
+    });
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/messages/thread/42?tab=general&viewer=other`, { waitUntil: "networkidle" });
+
+    const deleteReply = page.getByRole("button", { name: "Delete reply" });
+    assert.equal(await deleteReply.count(), 0);
+    assert.equal(
+      await page.evaluate(async () => (await fetch("/api/board/posts/7", { method: "DELETE" })).status),
+      403,
+    );
+
+    await page.reload({ waitUntil: "networkidle" });
+    assert.equal(await page.getByRole("button", { name: "Delete reply" }).count(), 0);
+    assert.equal(
+      await page.evaluate(async () => (await fetch("/api/board/posts/7", { method: "DELETE" })).status),
+      403,
+    );
+  } finally {
+    await browser.close();
+  }
+});

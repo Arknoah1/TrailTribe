@@ -5,6 +5,14 @@ import { Route, Router } from "wouter";
 import BoardThread from "../../src/pages/board-thread";
 import "../../src/index.css";
 
+const viewer = new URLSearchParams(window.location.search).get("viewer") ?? "author";
+const isAuthor = viewer === "author";
+const deletedReplyStorageKey = "trailteam-fixture-reply-deleted";
+
+function isReplyDeleted() {
+  return window.localStorage.getItem(deletedReplyStorageKey) === "true";
+}
+
 const thread = {
   id: 42,
   title: "Saturday ride plan",
@@ -23,10 +31,14 @@ const thread = {
   },
   event: null,
   reactions: {},
+  permissions: {
+    canPin: false,
+    canDelete: false,
+  },
 };
 
 const me = {
-  id: 1,
+  id: isAuthor ? 1 : 2,
   householdId: null,
   firstName: "Alex",
   lastName: "Rider",
@@ -56,15 +68,39 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-window.fetch = async (input) => {
+window.fetch = async (input, init) => {
   const requestUrl = new URL(
     typeof input === "string" ? input : input instanceof Request ? input.url : String(input),
     window.location.origin,
   );
+  const method = init?.method?.toUpperCase() ?? "GET";
 
   if (requestUrl.pathname === "/api/users/me") return jsonResponse(me);
   if (requestUrl.pathname === "/api/board/threads/42") return jsonResponse(thread);
-  if (requestUrl.pathname === "/api/board/threads/42/posts") return jsonResponse([]);
+  if (requestUrl.pathname === "/api/board/threads/42/posts") {
+    const deleted = isReplyDeleted();
+    return jsonResponse([{
+      id: 7,
+      threadId: 42,
+      authorUserId: 1,
+      body: deleted ? "" : "A private reply that should be redacted after deletion",
+      isDeleted: deleted,
+      createdAt: "2026-08-26T09:00:00.000Z",
+      author: {
+        id: 1,
+        firstName: "Alex",
+        lastName: "Rider",
+        avatarUrl: null,
+      },
+      reactions: {},
+      permissions: { canDelete: isAuthor },
+    }]);
+  }
+  if (requestUrl.pathname === "/api/board/posts/7" && method === "DELETE") {
+    if (!isAuthor) return jsonResponse({ error: "Forbidden" }, 403);
+    window.localStorage.setItem(deletedReplyStorageKey, "true");
+    return new Response(null, { status: 204 });
+  }
   if (requestUrl.pathname === "/api/board/unread-count") return jsonResponse({ count: 0 });
   return jsonResponse({ message: `Unexpected fixture request: ${requestUrl.pathname}` }, 404);
 };

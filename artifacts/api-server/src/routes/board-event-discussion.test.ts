@@ -569,6 +569,16 @@ describe("event discussion reactions", () => {
 
     const deleted = await deletePost(RIDER, 200);
     expect(deleted.status).toBe(204);
+
+    const authorAfterRefresh = await getReactionView(RIDER, "post", 200);
+    expect(authorAfterRefresh.body[0]).toMatchObject({
+      body: "",
+      isDeleted: true,
+      permissions: { canDelete: true },
+    });
+
+    const otherAfterRefresh = await getReactionView(OTHER_RIDER, "post", 200);
+    expect(otherAfterRefresh.body[0].permissions).toEqual({ canDelete: false });
   });
 
   it("keeps thread counts and each member's reacted state correct when members add and remove reactions", async () => {
