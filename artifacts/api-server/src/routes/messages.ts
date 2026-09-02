@@ -6,6 +6,7 @@ import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middleware
 import { sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
+import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 
@@ -63,16 +64,20 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
     let delivered = 0;
     let failed = 0;
     for (const user of emailRecipients) {
-      const result = await sendEmail({
-        to: user.email,
-        subject: emailSubject,
-        text: [
+      const message = addEmailLinks(
+        [
           `Message from ${senderName}:`,
           ``,
           body,
           ``,
           `— TrailTeam`,
         ].join("\n"),
+        [createEmailLink("/messages", "Open messages in TrailTeam")],
+      );
+      const result = await sendEmail({
+        to: user.email,
+        subject: emailSubject,
+        ...message,
         replyTo: me?.email,
       });
       if (result.status === "sent") {
@@ -144,10 +149,8 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
   (async () => {
     let sent = 0;
     for (const coach of coaches) {
-      await sendEmail({
-        to: coach.email,
-        subject: emailSubject,
-        text: [
+      const message = addEmailLinks(
+        [
           `${senderName} sent you a message via TrailTeam:`,
           ``,
           body,
@@ -155,6 +158,12 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
           `Reply directly to this email to respond.`,
           `— TrailTeam`,
         ].join("\n"),
+        [createEmailLink("/messages", "Open messages in TrailTeam")],
+      );
+      await sendEmail({
+        to: coach.email,
+        subject: emailSubject,
+        ...message,
         replyTo: me?.email,
       });
       sent++;

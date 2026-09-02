@@ -13,6 +13,7 @@ import { createNotification } from "../lib/notifications";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
+import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -195,10 +196,8 @@ router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
       const riderName = rider ? `${rider.firstName} ${rider.lastName}` : "Someone";
       const eventName = event?.title ?? "your event";
       const orgPrefix = await getShortNamePrefix();
-      await sendEmail({
-        to: driver.email,
-        subject: `${orgPrefix}${riderName} claimed your carpool spot`,
-        text: [
+      const message = addEmailLinks(
+        [
           `Hi ${driver.firstName},`,
           ``,
           `${riderName} just claimed a spot in your carpool for ${eventName}.`,
@@ -206,6 +205,12 @@ router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
           `Head to TrailTeam to view the full carpool board.`,
           `— TrailTeam`,
         ].join("\n"),
+        [createEmailLink(`/carpools/${offer.eventId}`, "View carpool board")],
+      );
+      await sendEmail({
+        to: driver.email,
+        subject: `${orgPrefix}${riderName} claimed your carpool spot`,
+        ...message,
       });
     } catch (err) {
       logger.error({ err }, "[carpools] claim notification email error");

@@ -35,6 +35,7 @@ import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { NativeAppBridge } from "@/lib/native-app";
 import { hasRequiredUserName } from "@/lib/user-name";
+import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirect";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -89,6 +90,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 function SignInPage() {
+  const redirectUrl = getRedirectUrlFromSearch(window.location.search, window.location.origin);
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
       <div className="flex flex-1 items-center justify-center p-6">
@@ -97,7 +99,13 @@ function SignInPage() {
              <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTeam</h1>
             <p className="text-muted-foreground text-sm font-medium">Welcome back, rider.</p>
           </div>
-          <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
+          <SignIn
+            routing="path"
+            path={`${basePath}/sign-in`}
+            signUpUrl={`${basePath}/sign-up`}
+            forceRedirectUrl={redirectUrl ?? undefined}
+            fallbackRedirectUrl={`${basePath}/dashboard`}
+          />
           <PolicyLinks />
         </div>
       </div>
@@ -106,6 +114,7 @@ function SignInPage() {
 }
 
 function SignUpPage() {
+  const redirectUrl = getRedirectUrlFromSearch(window.location.search, window.location.origin);
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background overflow-hidden">
       <div className="flex flex-1 items-center justify-center p-6">
@@ -114,12 +123,27 @@ function SignUpPage() {
              <h1 className="font-display text-5xl tracking-widest text-primary mb-1">TrailTeam</h1>
             <p className="text-muted-foreground text-sm font-medium">Join the crew.</p>
           </div>
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+          <SignUp
+            routing="path"
+            path={`${basePath}/sign-up`}
+            signInUrl={`${basePath}/sign-in`}
+            forceRedirectUrl={redirectUrl ?? undefined}
+            fallbackRedirectUrl={`${basePath}/dashboard`}
+          />
           <PolicyLinks />
         </div>
       </div>
     </div>
   );
+}
+
+function SignInRedirect() {
+  const [location] = useLocation();
+  const redirectUrl = getSafeRedirectUrl(location, window.location.origin);
+  const signInUrl = redirectUrl
+    ? `${basePath}/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`
+    : `${basePath}/sign-in`;
+  return <Redirect to={signInUrl} />;
 }
 
 function PolicyLinks() {
@@ -301,7 +325,7 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
         </OnboardingGuard>
       </Show>
       <Show when="signed-out">
-        <Redirect to="/sign-in" />
+        <SignInRedirect />
       </Show>
     </>
   );
@@ -314,7 +338,7 @@ function OnboardingRoute() {
         <Onboarding />
       </Show>
       <Show when="signed-out">
-        <Redirect to="/sign-in" />
+        <SignInRedirect />
       </Show>
     </>
   );
@@ -405,7 +429,7 @@ function ClerkProviderWithRoutes() {
             <Route path="/reenroll" component={() => (
               <>
                 <Show when="signed-in"><Reenroll /></Show>
-                <Show when="signed-out"><Redirect to="/sign-in" /></Show>
+                <Show when="signed-out"><SignInRedirect /></Show>
               </>
             )} />
             <Route path="/join/:code" component={Join} />

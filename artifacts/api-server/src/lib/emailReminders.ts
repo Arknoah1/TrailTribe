@@ -5,6 +5,7 @@ import { sendEmail } from "./email";
 import { logger } from "./logger";
 import { getShortNamePrefix } from "../routes/settings";
 import { formatEventDateTime } from "./eventTime";
+import { addEmailLinks, createEmailLink } from "./emailLinks";
 
 const sentReminders = new Set<string>();
 let sentRemindersDate = new Date().toISOString().slice(0, 10);
@@ -92,12 +93,15 @@ async function sendEventReminders(): Promise<void> {
           `See you on the trail!`,
           `— TrailTeam`,
         ];
+        const message = addEmailLinks(lines.join("\n"), [
+          createEmailLink(`/events/${event.id}`, "View event in TrailTeam"),
+        ]);
 
         const orgPrefix = await getShortNamePrefix();
         await sendEmail({
           to: user.email,
           subject: `${orgPrefix}Reminder: ${event.title} is tomorrow`,
-          text: lines.join("\n"),
+          ...message,
         });
 
         sentReminders.add(key);

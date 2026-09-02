@@ -16,8 +16,8 @@ import {
   storePendingObjectAcl,
 } from "../lib/objectAcl";
 import { sendEmail } from "../lib/email";
-import { getAppBase } from "../lib/config";
 import { logger } from "../lib/logger";
+import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -25,7 +25,6 @@ const storage = new ObjectStorageService();
 
 const BASE_URL = process.env.BASE_URL || "";
 /** Public-facing frontend URL used in email links (e.g. https://trailteam.app). */
-const APP_URL = process.env.APP_URL || getAppBase() || BASE_URL;
 
 // Pending families need the documents to complete onboarding, but not team-wide completion counts.
 router.get("/team-documents", requireAuth, async (req, res) => {
@@ -332,7 +331,7 @@ async function notifyUnsignedFamilies(
   versionNumber: number,
 ): Promise<void> {
   const currentVersion = `${docType}@v${versionNumber}`;
-  const profileUrl = `${APP_URL}/profile?tab=family`;
+  const profileLink = createEmailLink("/profile?tab=family", "Review and sign documents");
 
   // Run these two queries in parallel — they're independent
   const [[activeSeason], activeHouseholds] = await Promise.all([
@@ -416,16 +415,18 @@ async function notifyUnsignedFamilies(
     `Your team has updated the ${docLabel} and your signature is required.`,
     ``,
     `Please log in to TrailTeam and go to Profile → My Family → Season Documents to review and sign the document.`,
-    ...(APP_URL ? [``, `Sign now: ${profileUrl}`] : []),
+    ...(profileLink ? [``, `Sign now: ${profileLink.href}`] : []),
     ``,
     `If you have already signed this document, no further action is needed.`,
     ``,
     `— The TrailTeam`,
   ].join("\n");
 
+  const message = addEmailLinks(body, [profileLink]);
+
   // Send individually so each recipient sees their own To: address
   for (const target of emailTargets) {
-    await sendEmail({ to: target.email, subject, text: body });
+    await sendEmail({ to: target.email, subject, ...message });
   }
 
   logger.info(

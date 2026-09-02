@@ -84,6 +84,7 @@ export interface SendEmailOptions {
   to: string | string[];
   subject: string;
   text: string;
+  html?: string;
   replyTo?: string;
 }
 
@@ -125,6 +126,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
       to: filtered,
       subject: opts.subject,
       text: opts.text,
+      ...(opts.html ? { html: opts.html } : {}),
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
     });
     logger.info({ to: filtered, subject: opts.subject }, "[email] sent");

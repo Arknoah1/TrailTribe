@@ -26,6 +26,7 @@ import { z } from "zod";
 import { sendEmail } from "../lib/email";
 import { getAppBase } from "../lib/config";
 import { permanentlyDeleteLocalAccount } from "../lib/account-deletion";
+import { addEmailLinks, buildAppUrl } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -254,11 +255,13 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
   }
 
   const inviterName = `${requester.firstName} ${requester.lastName}`.trim() || "A parent";
-  const inviteUrl = `${appBase}/family-invite/${token}`;
-  const emailResult = await sendEmail({
-    to: email,
-    subject: `${inviterName} invited you to join the ${household.name} household on TrailTeam`,
-    text: [
+  const inviteUrl = buildAppUrl(`/family-invite/${token}`);
+  if (!inviteUrl) {
+    res.status(503).json({ error: "Email invitations are not configured right now. You can still copy and share the link." });
+    return;
+  }
+  const message = addEmailLinks(
+    [
       "Hi there!",
       "",
       `${inviterName} invited you to join the ${household.name} household on TrailTeam.`,
@@ -272,6 +275,12 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
       "",
       "— The TrailTeam",
     ].join("\n"),
+    [{ label: "Join the household on TrailTeam", href: inviteUrl }],
+  );
+  const emailResult = await sendEmail({
+    to: email,
+    subject: `${inviterName} invited you to join the ${household.name} household on TrailTeam`,
+    ...message,
   });
 
   if (emailResult.status === "skipped") {

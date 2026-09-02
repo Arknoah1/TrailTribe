@@ -3,6 +3,7 @@ import { notificationsTable, usersTable } from "@workspace/db";
 import { eq, or, and } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { getShortNamePrefix } from "../routes/settings";
+import { addEmailLinks, createEmailLink } from "./emailLinks";
 
 export async function createNotification(
   recipientUserId: number,
@@ -64,10 +65,8 @@ export async function notifyCoachesOfReturningFamily(user: {
 
     if (emailRecipients.length > 0) {
       const orgPrefix = await getShortNamePrefix();
-      await sendEmail({
-        to: emailRecipients,
-        subject: `${orgPrefix}Returning family re-enrolled`,
-        text: [
+      const message = addEmailLinks(
+        [
           `Hi,`,
           ``,
           `A returning family has re-enrolled for the new season.`,
@@ -79,6 +78,12 @@ export async function notifyCoachesOfReturningFamily(user: {
           ``,
           `— TrailTeam`,
         ].join("\n"),
+        [createEmailLink("/admin", "Open Admin in TrailTeam")],
+      );
+      await sendEmail({
+        to: emailRecipients,
+        subject: `${orgPrefix}Returning family re-enrolled`,
+        ...message,
       });
     }
   } catch (err) {
@@ -124,10 +129,8 @@ export async function notifyCoachesOfNewFamily(newUser: {
 
     if (emailRecipients.length > 0) {
       const orgPrefix = await getShortNamePrefix();
-      await sendEmail({
-        to: emailRecipients,
-        subject: `${orgPrefix}New family waiting for approval`,
-        text: [
+      const message = addEmailLinks(
+        [
           `Hi,`,
           ``,
           `A new family has registered on TrailTeam and is waiting for your approval.`,
@@ -139,6 +142,12 @@ export async function notifyCoachesOfNewFamily(newUser: {
           ``,
           `— TrailTeam`,
         ].join("\n"),
+        [createEmailLink("/admin", "Open Admin in TrailTeam")],
+      );
+      await sendEmail({
+        to: emailRecipients,
+        subject: `${orgPrefix}New family waiting for approval`,
+        ...message,
       });
     }
   } catch (err) {

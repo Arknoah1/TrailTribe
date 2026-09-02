@@ -11,6 +11,7 @@ import { createClerkClient } from "@clerk/express";
 import { z } from "zod";
 import { getOrCreateSettings } from "./settings";
 import { getAppBase } from "../lib/config";
+import { addEmailLinks, buildAppUrl } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -118,7 +119,12 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
       expiresAt: expiresAt(),
     });
 
-    const inviteUrl = `${appBase}/family-invite/${token}`;
+    const inviteUrl = buildAppUrl(`/family-invite/${token}`);
+    if (!inviteUrl) {
+      logger.error("[family-invites] configured app base could not build an invite URL");
+      res.status(500).json({ error: "Server misconfiguration: invite URL could not be created." });
+      return;
+    }
     const coachName = requester
       ? `${requester.firstName} ${requester.lastName}`.trim()
       : "Your coach";
@@ -131,10 +137,8 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
       ? `${orgPrefix}You've been invited to join ${teamName} on TrailTeam`
       : `${orgPrefix}You've been invited to join TrailTeam`;
 
-    const emailResult = await sendEmail({
-      to: email,
-      subject,
-      text: [
+    const message = addEmailLinks(
+      [
         `Hi there!`,
         ``,
         `${coachName} has invited you to ${teamPhrase} — your team's hub for schedules, carpools, and communication.`,
@@ -147,6 +151,12 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
         ``,
         `— The TrailTeam`,
       ].join("\n"),
+      [{ label: "Accept your TrailTeam invite", href: inviteUrl }],
+    );
+    const emailResult = await sendEmail({
+      to: email,
+      subject,
+      ...message,
     });
 
     const reason = emailResult.status === "skipped" ? emailResult.reason

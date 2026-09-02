@@ -211,12 +211,14 @@ async function processBatch(batch: typeof rsvpEmailBatchesTable.$inferSelect): P
       attendingUsers
         .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
         .map(({ firstName, lastName }) => ({ firstName, lastName })),
+      `/events/${batch.eventId}`,
     );
 
     const result = await sendEmail({
       to: recipient.email,
       subject: `${orgPrefix}${content.subject}`,
       text: content.text,
+      ...(content.html ? { html: content.html } : {}),
     });
     if (result.status === "sent") {
       await finishBatch(batch.id, "sent");

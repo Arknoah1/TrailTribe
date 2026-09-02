@@ -10,6 +10,7 @@ import { randomBytes } from "crypto";
 import { createClerkClient } from "@clerk/express";
 import { getOrCreateSettings } from "./settings";
 import { getAppBase } from "../lib/config";
+import { addEmailLinks, buildAppUrl } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -82,7 +83,11 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
     expiresAt: expiresAt(),
   });
 
-  const inviteUrl = `${appBase}/rider-invite/${token}`;
+  const inviteUrl = buildAppUrl(`/rider-invite/${token}`);
+  if (!inviteUrl) {
+    logger.error("[rider-invites] configured app base could not build an invite URL");
+    res.status(500).json({ error: "Server misconfiguration: invite URL could not be created." }); return;
+  }
   const settings = await getOrCreateSettings();
   const teamName = settings.teamName?.trim() || null;
   const orgPrefix = settings.shortName?.trim() ? `${settings.shortName.trim()}: ` : "";
@@ -90,10 +95,8 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
     ? `${orgPrefix}You've been invited to join ${teamName} on TrailTeam`
     : `${orgPrefix}You've been invited to TrailTeam`;
 
-  const emailResult = await sendEmail({
-    to: rider.email,
-    subject,
-    text: [
+  const message = addEmailLinks(
+    [
       `Hi ${rider.firstName}!`,
       ``,
       `${requester.firstName} ${requester.lastName} has invited you to access TrailTeam — your team's hub for schedules, RSVPs, carpools, and communication.`,
@@ -106,6 +109,12 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
       ``,
       `— The TrailTeam`,
     ].join("\n"),
+    [{ label: "Accept your TrailTeam invite", href: inviteUrl }],
+  );
+  const emailResult = await sendEmail({
+    to: rider.email,
+    subject,
+    ...message,
   });
 
   logger.info({ riderId, status: emailResult.status }, "[rider-invites] invite sent");

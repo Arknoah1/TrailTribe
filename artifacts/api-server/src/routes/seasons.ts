@@ -12,6 +12,7 @@ import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
 import { getShortNamePrefix } from "./settings";
 import { z } from "zod";
+import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -401,24 +402,30 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
 
   // One email per household — no shared To header, no duplicate outreach.
   const orgPrefix = await getShortNamePrefix();
+  const messageFor = () => {
+    const text = [
+      `Hi,`,
+      ``,
+      `A new season (${active.name}) has started on TrailTeam!`,
+      ``,
+      `Please log in and complete your enrollment to join the roster for this season.`,
+      `Your family will need to re-sign compliance documents and confirm your spot`,
+      `before a coach can assign you to a pod.`,
+      ``,
+      `Log in at TrailTeam to get started.`,
+      ``,
+      `— The TrailTeam`,
+    ].join("\n");
+    return addEmailLinks(text, [
+      createEmailLink("/reenroll", "Re-enroll in TrailTeam"),
+    ]);
+  };
   const results = await Promise.all(
     primaryContacts.map((address) =>
       sendEmail({
         to: address,
         subject: `${orgPrefix}Re-enroll for ${active.name}`,
-        text: [
-          `Hi,`,
-          ``,
-          `A new season (${active.name}) has started on TrailTeam!`,
-          ``,
-          `Please log in and complete your enrollment to join the roster for this season.`,
-          `Your family will need to re-sign compliance documents and confirm your spot`,
-          `before a coach can assign you to a pod.`,
-          ``,
-          `Log in at TrailTeam to get started.`,
-          ``,
-          `— The TrailTeam`,
-        ].join("\n"),
+        ...messageFor(),
       })
     )
   );
@@ -497,10 +504,8 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
   }
 
   const orgPrefix = await getShortNamePrefix();
-  const result = await sendEmail({
-    to: contact.email,
-    subject: `${orgPrefix}Re-enroll for ${active.name}`,
-    text: [
+  const message = addEmailLinks(
+    [
       `Hi,`,
       ``,
       `A new season (${active.name}) has started on TrailTeam!`,
@@ -513,6 +518,12 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
       ``,
       `— The TrailTeam`,
     ].join("\n"),
+    [createEmailLink("/reenroll", "Re-enroll in TrailTeam")],
+  );
+  const result = await sendEmail({
+    to: contact.email,
+    subject: `${orgPrefix}Re-enroll for ${active.name}`,
+    ...message,
   });
 
   if (result.status === "failed") {

@@ -1,4 +1,5 @@
 import { formatEventDateTime } from "./eventTime";
+import { addEmailLinks, createEmailLink } from "./emailLinks";
 
 export interface RsvpEmailEvent {
   title: string;
@@ -26,26 +27,30 @@ export function buildRsvpConfirmationContent(
   recipientFirstName: string,
   event: RsvpEmailEvent,
   attendees: RsvpEmailAttendee[],
-): { subject: string; text: string } {
+  eventPath?: string,
+): { subject: string; text: string; html?: string } {
   const attendeeLines = attendees.map((attendee) => {
     const name = `${attendee.firstName} ${attendee.lastName}`.trim();
     return `  ${name || "Family member"}`;
   });
+  const text = [
+    `Hi ${recipientFirstName},`,
+    ``,
+    `You're confirmed for your family:`,
+    ...attendeeLines,
+    ``,
+    `Event: ${event.title}`,
+    `When: ${formatRsvpEventTime(event.startTime)}`,
+    `Where: ${event.location}`,
+    ``,
+    `See you on the trail!`,
+    `— TrailTeam`,
+  ].join("\n");
 
   return {
     subject: `You're set for ${event.title}`,
-    text: [
-      `Hi ${recipientFirstName},`,
-      ``,
-      `You're confirmed for your family:`,
-      ...attendeeLines,
-      ``,
-      `Event: ${event.title}`,
-      `When: ${formatRsvpEventTime(event.startTime)}`,
-      `Where: ${event.location}`,
-      ``,
-      `See you on the trail!`,
-      `— TrailTeam`,
-    ].join("\n"),
+    ...addEmailLinks(text, [
+      eventPath ? createEmailLink(eventPath, "View event in TrailTeam") : null,
+    ]),
   };
 }

@@ -17,9 +17,10 @@ function appRoute(rawUrl: string | null | undefined): string | null {
   if (!rawUrl) return null;
   try {
     const url = new URL(rawUrl, "https://trailteam.app");
+    if (url.origin !== "https://trailteam.app") return null;
     const path = `${url.pathname}${url.search}${url.hash}`;
     const normalized = path.replace(/^\/+/, "/");
-    const knownRoute = /^\/(events\/\d+|messages(?:\/thread\/\d+)?|carpools(?:\/\d+)?|family-invite\/[^/]+|rider-invite\/[^/]+|join\/[^/]+|dashboard|calendar|profile|onboarding|reenroll|sign-in|sign-up)(?:[/?#]|$)/;
+    const knownRoute = /^\/(events\/\d+(?:\?focus=volunteer)?|messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?|carpools(?:\/\d+)?|volunteer|family-invite\/[^/]+|rider-invite\/[^/]+|join\/[^/]+|dashboard|calendar|profile(?:\?tab=family)?|admin|onboarding|reenroll|sign-in|sign-up)(?:[/?#]|$)/;
     return knownRoute.test(normalized) ? normalized : null;
   } catch {
     return null;
@@ -63,7 +64,9 @@ export function NativeAppBridge() {
         void routeOrQueue(data?.link ?? data?.url);
       }),
       App.addListener("appStateChange", ({ isActive }) => {
-        if (isActive) void takePendingLink().then((route) => route && setLocation(route));
+        if (isActive && isSignedIn) {
+          void takePendingLink().then((route) => route && setLocation(route));
+        }
       }),
       Keyboard.addListener("keyboardWillShow", () => document.body.classList.add("keyboard-open")),
       Keyboard.addListener("keyboardWillHide", () => document.body.classList.remove("keyboard-open")),
@@ -78,7 +81,12 @@ export function NativeAppBridge() {
       void Promise.all(listeners.map((listener) => listener.then((handle) => handle.remove())));
       document.body.classList.remove("keyboard-open");
     };
-  }, [setLocation]);
+  }, [isSignedIn, setLocation]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || !isSignedIn) return;
+    void takePendingLink().then((route) => route && setLocation(route));
+  }, [isSignedIn, setLocation]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform() || !isSignedIn || !user) return;
