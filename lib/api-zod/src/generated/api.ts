@@ -2710,6 +2710,11 @@ export const ListBoardPostsResponseItem = zod
           }),
         )
         .optional(),
+      permissions: zod
+        .object({
+          canDelete: zod.boolean(),
+        })
+        .describe("Actions the authenticated viewer may perform on this reply"),
     }),
   );
 export const ListBoardPostsResponse = zod.array(ListBoardPostsResponseItem);

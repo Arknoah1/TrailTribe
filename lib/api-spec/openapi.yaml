@@ -3650,6 +3650,14 @@ components:
           format: date-time
       required: [id, threadId, body, isDeleted, createdAt]
 
+    BoardPostPermissions:
+      type: object
+      description: Actions the authenticated viewer may perform on this reply
+      properties:
+        canDelete:
+          type: boolean
+      required: [canDelete]
+
     BoardPostWithAuthor:
       allOf:
         - $ref: "#/components/schemas/BoardPost"
@@ -3662,6 +3670,9 @@ components:
               type: object
               additionalProperties:
                 $ref: "#/components/schemas/BoardReactionCount"
+            permissions:
+              $ref: "#/components/schemas/BoardPostPermissions"
+          required: [permissions]
 
     BoardReactionSummary:
       type: object

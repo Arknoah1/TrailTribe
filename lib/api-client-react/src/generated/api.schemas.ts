@@ -753,6 +753,13 @@ export interface BoardPost {
   createdAt: string;
 }
 
+/**
+ * Actions the authenticated viewer may perform on this reply
+ */
+export interface BoardPostPermissions {
+  canDelete: boolean;
+}
+
 export type BoardPostWithAuthorReactions = {
   [key: string]: BoardReactionCount;
 };
@@ -760,6 +767,7 @@ export type BoardPostWithAuthorReactions = {
 export type BoardPostWithAuthor = BoardPost & {
   author?: BoardAuthor | null;
   reactions?: BoardPostWithAuthorReactions;
+  permissions: BoardPostPermissions;
 };
 
 export type BoardReactionSummaryTargetType =

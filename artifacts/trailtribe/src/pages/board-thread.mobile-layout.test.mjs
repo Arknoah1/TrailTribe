@@ -135,7 +135,7 @@ test("discussion navigation preserves the originating Messages category", () => 
   assert.match(eventDetailSource, /href=\{`\/messages\/thread\/\$\{thread\.id\}\?tab=events`\}/);
 });
 
-test("thread actions are hidden when a family member has no permitted action", () => {
+test("thread and reply actions use server-provided permissions", () => {
   assert.match(threadSource, /const canDeleteThread = thread\?\.permissions\?\.canDelete === true;/);
   assert.match(threadSource, /const canPinThread = thread\?\.permissions\?\.canPin === true;/);
   assert.match(
@@ -145,4 +145,6 @@ test("thread actions are hidden when a family member has no permitted action", (
   assert.match(threadSource, /aria-label="Thread actions"/);
   assert.match(threadSource, /\{canPinThread && \(\s*<DropdownMenuItem onClick=\{handlePin\}/);
   assert.match(threadSource, /<DropdownMenuItem onClick=\{handleDeleteThread\}/);
+  assert.match(threadSource, /const canDelete = post\.permissions\?\.canDelete === true;/);
+  assert.doesNotMatch(threadSource, /const canDelete = isCoachOrAdmin \|\| post\.authorUserId === me\?\.id;/);
 });

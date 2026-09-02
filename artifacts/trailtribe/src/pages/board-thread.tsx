@@ -481,7 +481,7 @@ export default function BoardThread() {
           ) : posts?.length ? (
             <div className="space-y-4 sm:pl-8">
               {posts.map(post => {
-            const canDelete = isCoachOrAdmin || post.authorUserId === me?.id;
+            const canDelete = post.permissions?.canDelete === true;
             return (
               <article key={post.id} className="flex gap-3 sm:gap-4">
                 <Avatar className="h-9 w-9 border-2 border-[#0a0c10] shrink-0">

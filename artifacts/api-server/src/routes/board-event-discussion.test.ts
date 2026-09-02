@@ -439,6 +439,16 @@ async function deleteThread(user: typeof COACH, threadId: number) {
   return { status: response.status };
 }
 
+async function deletePost(user: typeof COACH, postId: number) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = postId;
+  const response = await fetch(`${baseUrl}/board/posts/${postId}`, {
+    method: "DELETE",
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status };
+}
+
 describe("event discussion board visibility and ordering", () => {
   it("uses current event names in reply notifications and stored titles elsewhere", async () => {
     const event = addEvent(60, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
@@ -544,6 +554,21 @@ describe("event discussion reactions", () => {
   beforeEach(() => {
     addThread(100, 0, NOW);
     addPost(200, 100);
+  });
+
+  it("returns reply delete permissions and enforces the same author rule", async () => {
+    const authorView = await getReactionView(RIDER, "post", 200);
+    expect(authorView.status).toBe(200);
+    expect(authorView.body[0].permissions).toEqual({ canDelete: true });
+
+    const otherView = await getReactionView(OTHER_RIDER, "post", 200);
+    expect(otherView.body[0].permissions).toEqual({ canDelete: false });
+
+    const denied = await deletePost(OTHER_RIDER, 200);
+    expect(denied.status).toBe(403);
+
+    const deleted = await deletePost(RIDER, 200);
+    expect(deleted.status).toBe(204);
   });
 
   it("keeps thread counts and each member's reacted state correct when members add and remove reactions", async () => {

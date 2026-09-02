@@ -110,7 +110,10 @@ router.get("/board/reactions/:targetType/:targetId", requireApproved, async (req
   res.json({ targetType, targetId, reaction, members: rows });
 });
 
-async function enrichPost(post: typeof boardPostsTable.$inferSelect, userId?: number) {
+async function enrichPost(
+  post: typeof boardPostsTable.$inferSelect,
+  me: typeof usersTable.$inferSelect,
+) {
   const author = post.authorUserId
     ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, post.authorUserId) })
     : null;
@@ -119,7 +122,8 @@ async function enrichPost(post: typeof boardPostsTable.$inferSelect, userId?: nu
     // Redact body for soft-deleted posts so raw API consumers cannot read deleted content
     body: post.isDeleted ? "" : post.body,
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
-    reactions: userId ? await getReactionSummary("post", post.id, userId) : {},
+    reactions: await getReactionSummary("post", post.id, me.id),
+    permissions: getPostPermissions(me, post),
   };
 }
 
@@ -175,6 +179,16 @@ function getThreadPermissions(
   return {
     canPin: isCoachOrAdmin,
     canDelete: isCoachOrAdmin || thread.authorUserId === me.id,
+  };
+}
+
+function getPostPermissions(
+  me: typeof usersTable.$inferSelect,
+  post: typeof boardPostsTable.$inferSelect,
+) {
+  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
+  return {
+    canDelete: isCoachOrAdmin || post.authorUserId === me.id,
   };
 }
 
@@ -384,7 +398,7 @@ router.get("/board/threads/:id/posts", requireApproved, async (req, res) => {
   const posts = await db.select().from(boardPostsTable)
     .where(eq(boardPostsTable.threadId, threadId))
     .orderBy(boardPostsTable.createdAt);
-  const result = await Promise.all(posts.map((post) => enrichPost(post, me.id)));
+  const result = await Promise.all(posts.map((post) => enrichPost(post, me)));
   res.json(result);
 });
 
@@ -424,7 +438,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   notifyThreadParticipants(threadId, me.id)
     .catch((err) => logger.error({ err }, "[board] notify participants error"));
 
-  const result = await enrichPost(post, me.id);
+  const result = await enrichPost(post, me);
   res.status(201).json(result);
 });
 
@@ -511,8 +525,7 @@ router.delete("/board/posts/:id", requireApproved, async (req, res) => {
   const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, postId) });
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
 
-  const isCoachOrAdmin = me.role === "coach" || me.role === "admin";
-  if (!isCoachOrAdmin && post.authorUserId !== me.id) {
+  if (!getPostPermissions(me, post).canDelete) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

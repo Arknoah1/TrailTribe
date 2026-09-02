@@ -17,6 +17,7 @@ export * from "./batchCreateEventsResult";
 export * from "./boardAuthor";
 export * from "./boardEventRef";
 export * from "./boardPost";
+export * from "./boardPostPermissions";
 export * from "./boardPostWithAuthor";
 export * from "./boardPostWithAuthorReactions";
 export * from "./boardReactionCount";
