@@ -1,0 +1,90 @@
+Apply the following diffs to fix two tests that were coupled to a live deployment secret (EMAIL_FROM) instead of controlling their own test input. These tests only passed inside the actual Replit workspace, where .replit's [env] block happens to inject the real EMAIL_FROM value into every process — anywhere else (a fresh clone, a new contributor's machine, a CI runner) they failed with "expected undefined to be defined", even though the underlying resolveFromAddress/sendEmail logic they test is correct.
+
+Context/notes for the agent:
+- Both fixes follow the exact save/restore-in-a-try/finally pattern already used elsewhere in these same two files (see "accepts a verified mailbox from deployment configuration" in emailIdentity.test.ts, and the other two tests in email.test.ts) — this isn't a new pattern, just applying the existing one consistently.
+- Verified: ran both test files with EMAIL_FROM and EMAIL_APPROVED_SENDER_MAILBOXES explicitly unset (unset EMAIL_FROM EMAIL_APPROVED_SENDER_MAILBOXES) to reproduce the original failure condition — both files now pass (10/10 tests). Full suite: 150/150 non-integration tests pass (the DB-integration test still requires a real DATABASE_URL, expected and unrelated). tsc --noEmit clean on both files.
+- No app code changed — this is test-only, zero runtime behavior change.
+
+--- a/artifacts/api-server/src/lib/emailIdentity.test.ts
++++ b/artifacts/api-server/src/lib/emailIdentity.test.ts
+@@ -17,13 +17,22 @@
+   });
+ 
+   it("keeps the effective configured sender on the verified mailbox with the current display name", () => {
+-    expect(process.env.EMAIL_FROM).toBeDefined();
++    const configuredFromAddress = process.env.EMAIL_FROM;
++    process.env.EMAIL_FROM = EXPECTED_CONFIGURED_FROM_ADDRESS;
+ 
+-    const effectiveFromAddress = resolveFromAddress(process.env.EMAIL_FROM);
++    try {
++      const effectiveFromAddress = resolveFromAddress(process.env.EMAIL_FROM);
+ 
+-    expect(effectiveFromAddress).toBe(EXPECTED_CONFIGURED_FROM_ADDRESS);
+-    expect(effectiveFromAddress).toContain("coaches@methowcyclingteam.com");
+-    expect(effectiveFromAddress).not.toContain("TrailTeam");
++      expect(effectiveFromAddress).toBe(EXPECTED_CONFIGURED_FROM_ADDRESS);
++      expect(effectiveFromAddress).toContain("coaches@methowcyclingteam.com");
++      expect(effectiveFromAddress).not.toContain("TrailTeam");
++    } finally {
++      if (configuredFromAddress === undefined) {
++        delete process.env.EMAIL_FROM;
++      } else {
++        process.env.EMAIL_FROM = configuredFromAddress;
++      }
++    }
+   });
+ 
+   it("falls back when the configured sender is blank or missing", () => {
+
+--- a/artifacts/api-server/src/lib/email.test.ts
++++ b/artifacts/api-server/src/lib/email.test.ts
+@@ -40,21 +40,33 @@
+ 
+ describe("transactional email headers", () => {
+   it("sends the effective configured identity and preserves Reply-To", async () => {
+-    const result = await email.sendEmail({
+-      to: "family@example.com",
+-      subject: "Sender verification",
+-      text: "Verification message",
+-      replyTo: "coach@example.com",
+-    });
++    const configuredFromAddress = process.env.EMAIL_FROM;
++    const expectedFromAddress = "Methow Cycling Team <coaches@methowcyclingteam.com>";
++    process.env.EMAIL_FROM = expectedFromAddress;
+ 
+-    expect(result).toEqual({ status: "sent" });
+-    expect(smtp.sendMail).toHaveBeenCalledWith({
+-      from: process.env.EMAIL_FROM,
+-      to: ["family@example.com"],
+-      subject: "Sender verification",
+-      text: "Verification message",
+-      replyTo: "coach@example.com",
+-    });
++    try {
++      const result = await email.sendEmail({
++        to: "family@example.com",
++        subject: "Sender verification",
++        text: "Verification message",
++        replyTo: "coach@example.com",
++      });
++
++      expect(result).toEqual({ status: "sent" });
++      expect(smtp.sendMail).toHaveBeenCalledWith({
++        from: expectedFromAddress,
++        to: ["family@example.com"],
++        subject: "Sender verification",
++        text: "Verification message",
++        replyTo: "coach@example.com",
++      });
++    } finally {
++      if (configuredFromAddress === undefined) {
++        delete process.env.EMAIL_FROM;
++      } else {
++        process.env.EMAIL_FROM = configuredFromAddress;
++      }
++    }
+   });
+ 
+   it("refuses to send if EMAIL_FROM changes to an unapproved identity", async () => {
+
+After applying: run `pnpm --filter @workspace/api-server test` inside the Replit workspace (should still pass, same as before — the deployment's real EMAIL_FROM secret is still set there and unaffected), and optionally confirm the fix by running `unset EMAIL_FROM EMAIL_APPROVED_SENDER_MAILBOXES && pnpm --filter @workspace/api-server test` to prove the suite is now environment-independent.
