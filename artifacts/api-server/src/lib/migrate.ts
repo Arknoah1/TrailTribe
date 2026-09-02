@@ -36,7 +36,8 @@ const migrations: { name: string; sql: string }[] = [
     sql: `
       CREATE TABLE IF NOT EXISTS volunteer_template_tasks (
         id serial PRIMARY KEY,
-        category text NOT NULL,
+        category text,
+        category_id integer,
         title text NOT NULL,
         description text,
         slots_default integer NOT NULL DEFAULT 1,
