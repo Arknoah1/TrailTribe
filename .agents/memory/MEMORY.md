@@ -12,3 +12,4 @@
 - [Publish schema baseline mismatch](publish-schema-baseline-mismatch.md) — cancel rename prompts that contradict live schemas; neither mapping is safe
 - [Outbound email timezone](email-timezone.md) — format event times in Pacific time until the product stores an explicit event or recipient timezone
 - [Email sender override](email-sender-override.md) — shared EMAIL_FROM can override the code default; update it when changing sender branding
+- [Authenticated Vite browser fixtures](authenticated-vite-browser-fixtures.md) — isolate auth hooks in middleware fixtures by replacing the resolved module at load time

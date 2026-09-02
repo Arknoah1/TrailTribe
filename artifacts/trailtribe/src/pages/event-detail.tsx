@@ -881,19 +881,19 @@ export default function EventDetail() {
           </Card>
 
           {["practice", "race", "social"].includes(event.eventType) && (
-            <Card>
+            <Card data-testid="event-logistics-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Logistics</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {["practice", "race"].includes(event.eventType) && (
                   <Link href={`/carpools/${event.id}`}>
-                    <Button variant="outline" className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 py-2 group">
-                      <div className="flex min-w-0 items-center text-left">
+                    <Button data-testid="event-logistics-carpools" variant="outline" className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 py-2 group">
+                      <div data-testid="event-logistics-carpools-label" className="flex min-w-0 items-center text-left">
                         <Car className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className="truncate">Carpools</span>
                       </div>
-                      <span className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                      <span data-testid="event-logistics-carpools-badge" className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         {event.carpoolSpotsAvailable > 0 ? `${event.carpoolSpotsAvailable} spots` : 'View'}
                       </span>
                     </Button>
@@ -902,16 +902,17 @@ export default function EventDetail() {
 
                 {["race", "social"].includes(event.eventType) && showVolunteerSection && (
                   <Button
+                    data-testid="event-logistics-volunteers"
                     variant="outline"
                     className="h-auto min-h-10 w-full min-w-0 justify-between gap-2 py-2 group"
                     onClick={() => document.getElementById("volunteer-tasks-section")?.scrollIntoView({ behavior: "smooth" })}
                   >
-                    <div className="flex min-w-0 items-center text-left">
+                    <div data-testid="event-logistics-volunteers-label" className="flex min-w-0 items-center text-left">
                       <Users className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate">Volunteers</span>
                     </div>
                     {volunteerTasksEnabled ? (
-                      <span className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                      <span data-testid="event-logistics-volunteers-badge" className="max-w-[50%] shrink whitespace-normal rounded-full bg-primary/10 px-2 py-0.5 text-center text-xs font-medium leading-tight text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                         {event.volunteerCount} signed up
                       </span>
                     ) : (

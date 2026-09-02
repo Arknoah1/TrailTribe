@@ -9,7 +9,7 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test src/**/*.test.mjs",
-    "test:browser": "node --test tests/board-thread.mobile-browser.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 tests/*.test.mjs",
     "mobile:build": "NODE_ENV=production PORT=5173 BASE_PATH=/ VITE_API_ORIGIN=https://trailteam.app pnpm run build",
     "mobile:sync": "pnpm run mobile:build && cap sync",
     "mobile:android": "pnpm run mobile:sync && cap open android",
