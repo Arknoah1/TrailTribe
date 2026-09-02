@@ -401,25 +401,32 @@ export default function BoardThread() {
             </div>
           </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="border-2 border-[#0a0c10] shadow-cel-sm font-medium">
-              {isCoachOrAdmin && (
-                <DropdownMenuItem onClick={handlePin} className="cursor-pointer gap-2">
-                  <Pin className="h-4 w-4" /> {thread.isPinned ? "Unpin Thread" : "Pin Thread"}
-                </DropdownMenuItem>
-              )}
-              {canDeleteThread && (
-                <DropdownMenuItem onClick={handleDeleteThread} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10">
-                  <Trash2 className="h-4 w-4" /> Delete Thread
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {canDeleteThread && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Thread actions"
+                  className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-2 border-[#0a0c10] shadow-cel-sm font-medium">
+                {isCoachOrAdmin && (
+                  <DropdownMenuItem onClick={handlePin} className="cursor-pointer gap-2">
+                    <Pin className="h-4 w-4" /> {thread.isPinned ? "Unpin Thread" : "Pin Thread"}
+                  </DropdownMenuItem>
+                )}
+                {canDeleteThread && (
+                  <DropdownMenuItem onClick={handleDeleteThread} className="cursor-pointer gap-2 text-destructive focus:bg-destructive/10">
+                    <Trash2 className="h-4 w-4" /> Delete Thread
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </header>
 
