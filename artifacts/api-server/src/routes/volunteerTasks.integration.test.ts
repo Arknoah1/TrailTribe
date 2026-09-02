@@ -306,8 +306,9 @@ describe("volunteer signup capacity with PostgreSQL row locking", () => {
         method: "POST",
         body: JSON.stringify({ categoryId, title, slotsDefault: 1 }),
       });
-      expect(response.status).toBe(201);
-      const task = await response.json();
+      const responseBody = await response.text();
+      expect(response.status, responseBody).toBe(201);
+      const task = JSON.parse(responseBody);
       createdTemplateTaskIds.push(task.id);
       return task;
     };
