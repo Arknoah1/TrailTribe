@@ -739,6 +739,10 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [autoApproved, setAutoApproved] = useState(false);
   const [householdId, setHouseholdId] = useState<number | null>(null);
+  // Direct family invites approve the account before onboarding starts. Keep
+  // that server-backed state alongside the household-code join state so the
+  // completion screen does not incorrectly say approval is still pending.
+  const serverApproved = Boolean((me as any)?.approved);
 
   // If they already have a household and haven't started the wizard, send them home
   if (!isLoading && me?.householdId && step === 0) {
@@ -780,7 +784,7 @@ export default function Onboarding() {
             {step === 1 && (
               <StepHousehold
                 onNext={(joined) => {
-                  setAutoApproved(joined);
+                  setAutoApproved(joined || serverApproved);
                   setStep(2);
                 }}
               />
@@ -804,7 +808,7 @@ export default function Onboarding() {
 
             {step === 5 && (
               <StepDone
-                approved={autoApproved}
+                approved={autoApproved || serverApproved}
                 onGo={() => setLocation("/dashboard")}
               />
             )}
