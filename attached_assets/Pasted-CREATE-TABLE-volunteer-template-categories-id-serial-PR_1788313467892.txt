@@ -1,0 +1,32 @@
+CREATE TABLE "volunteer_template_categories" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" text NOT NULL,
+	"name_key" text NOT NULL,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "volunteer_template_categories_name_key_key" UNIQUE("name_key")
+);
+CREATE TABLE "event_rsvp_email_batches" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"event_id" integer NOT NULL,
+	"recipient_user_id" integer NOT NULL,
+	"due_at" timestamp with time zone NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"locked_at" timestamp with time zone,
+	"sent_at" timestamp with time zone,
+	"last_error" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "event_rsvp_email_batches_event_recipient_unique" UNIQUE("event_id","recipient_user_id")
+);
+ALTER TABLE "board_reactions" DROP CONSTRAINT "board_reactions_user_target_reaction_unique";
+ALTER TABLE "volunteer_template_tasks" ALTER COLUMN "category_id" SET NOT NULL;
+ALTER TABLE "event_rsvp_email_batches" ADD CONSTRAINT "event_rsvp_email_batches_event_id_fkey" FOREIGN KEY ("event_id") REFERENCES "public"."events"("id") ON DELETE cascade ON UPDATE no action;
+ALTER TABLE "event_rsvp_email_batches" ADD CONSTRAINT "event_rsvp_email_batches_recipient_user_id_fkey" FOREIGN KEY ("recipient_user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+CREATE INDEX "volunteer_template_categories_sort_order_idx" ON "volunteer_template_categories" USING btree ("sort_order");
+CREATE INDEX "event_rsvp_email_batches_due_idx" ON "event_rsvp_email_batches" USING btree ("status","due_at");
+ALTER TABLE "volunteer_template_tasks" ADD CONSTRAINT "volunteer_template_tasks_category_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."volunteer_template_categories"("id") ON DELETE restrict ON UPDATE no action;
+CREATE INDEX "volunteer_template_tasks_category_sort_idx" ON "volunteer_template_tasks" USING btree ("category_id","sort_order");
+ALTER TABLE "volunteer_template_tasks" DROP COLUMN "category";
+ALTER TABLE "board_reactions" ADD CONSTRAINT "board_reactions_user_target_reaction_unique" UNIQUE("user_id","thread_id","post_id","reaction");
