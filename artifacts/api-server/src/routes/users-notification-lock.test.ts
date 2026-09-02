@@ -305,6 +305,29 @@ describe("PATCH /users/me — notification lock guard", () => {
     expect(nameUpdate, "db.update().set({ firstName }) should have been called").toBeTruthy();
   });
 
+  it("rejects a whitespace-only first name instead of saving an incomplete profile", async () => {
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "   " }),
+    });
+
+    expect(resp.status).toBe(400);
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("rejects onboarding without both required names", async () => {
+    mockUser = null;
+
+    const resp = await fetch(`${baseUrl}/users/onboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "Alex" }),
+    });
+
+    expect(resp.status).toBe(400);
+  });
+
   it("allows an unlocked student to update notificationsEnabled", async () => {
     // Unlock the student.
     mockUser = { ...LOCKED_STUDENT, notificationPreferencesLocked: false };

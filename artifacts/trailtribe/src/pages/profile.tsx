@@ -43,8 +43,8 @@ import { ProfileSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
 
 const profileSchema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
+  firstName: z.string().trim().min(2),
+  lastName: z.string().trim().min(2),
   phone: z.string().optional(),
 });
 
@@ -59,8 +59,8 @@ const coParentInviteSchema = z.object({
 });
 
 const riderSchema = z.object({
-  firstName: z.string().min(1, "Required"),
-  lastName: z.string().min(1, "Required"),
+  firstName: z.string().trim().min(1, "Required"),
+  lastName: z.string().trim().min(1, "Required"),
   grade: z.coerce.number().int().min(5).max(12).optional(),
   allergies: z.string().optional(),
   medicalNotes: z.string().optional(),
@@ -329,14 +329,14 @@ function RiderDialog({
           <FormField control={form.control} name="firstName" render={({ field }) => (
             <FormItem>
               <FormLabel>First Name</FormLabel>
-              <FormControl><Input {...field} /></FormControl>
+              <FormControl><Input required {...field} /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
           <FormField control={form.control} name="lastName" render={({ field }) => (
             <FormItem>
               <FormLabel>Last Name</FormLabel>
-              <FormControl><Input {...field} /></FormControl>
+              <FormControl><Input required {...field} /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -1362,14 +1362,14 @@ export default function Profile() {
                     <FormField control={form.control} name="firstName" render={({ field }) => (
                       <FormItem>
                         <FormLabel>First Name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input required {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
                     <FormField control={form.control} name="lastName" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
-                        <FormControl><Input {...field} /></FormControl>
+                        <FormControl><Input required {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />

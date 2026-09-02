@@ -13,3 +13,4 @@
 - [Outbound email timezone](email-timezone.md) — format event times in Pacific time until the product stores an explicit event or recipient timezone
 - [Email sender override](email-sender-override.md) — shared EMAIL_FROM can override the code default; update it when changing sender branding
 - [Authenticated Vite browser fixtures](authenticated-vite-browser-fixtures.md) — isolate auth hooks in middleware fixtures by replacing the resolved module at load time
+- [Required account names](account-name-validation.md) — empty names and legacy “New User” accounts must complete name setup before proceeding

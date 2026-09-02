@@ -34,6 +34,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { NativeAppBridge } from "@/lib/native-app";
+import { hasRequiredUserName } from "@/lib/user-name";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -250,18 +251,21 @@ function HomeRedirect() {
 // Coaches/admins are exempt — they're created by the system and may not have a household.
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const { data: me, isLoading } = useGetMe();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!isLoading && me && me.role === "parent") {
+    if (!isLoading && me) {
       const meAny = me as any;
-      if (!me.householdId) {
+      if (!hasRequiredUserName(me)) {
+        const nameSetupRoute = me.role === "parent" ? "/onboarding" : "/profile";
+        if (location !== nameSetupRoute) setLocation(nameSetupRoute);
+      } else if (me.role === "parent" && !me.householdId) {
         setLocation("/onboarding");
       } else if (!meAny.approved && meAny.isReturningFamily) {
         setLocation("/reenroll");
       }
     }
-  }, [me, isLoading, setLocation]);
+  }, [me, isLoading, location, setLocation]);
 
   if (isLoading) {
     return (
@@ -272,9 +276,14 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Don't render the layout while redirecting
+  if (me && !hasRequiredUserName(me)) {
+    const nameSetupRoute = me.role === "parent" ? "/onboarding" : "/profile";
+    if (location !== nameSetupRoute) return null;
+  }
+
   if (me && me.role === "parent") {
     const meAny = me as any;
-    if (!me.householdId) return null;
+    if (!hasRequiredUserName(me) || !me.householdId) return null;
     if (!meAny.approved && meAny.isReturningFamily) return null;
   }
 

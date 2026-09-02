@@ -27,11 +27,16 @@ const notificationPreferencesSchema = z.object({
 });
 
 const userRoleSchema = z.enum(["parent", "coach", "admin", "student"]);
+const requiredNameSchema = z.string().trim().min(1, "Name is required").max(100);
+const optionalNamePatchSchema = z.object({
+  firstName: requiredNameSchema.optional(),
+  lastName: requiredNameSchema.optional(),
+});
 
 // Schema for PATCH /users/:id (coach/admin editing a family member)
 const patchUserByIdSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
+  firstName: requiredNameSchema.optional(),
+  lastName: requiredNameSchema.optional(),
   phone: z.string().max(30).nullable().optional(),
   role: userRoleSchema.optional(),
   podId: z.string().max(100).nullable().optional(),
@@ -52,8 +57,8 @@ const approveUserSchema = z.object({
 
 // Schema for PUT /users/me (full self-update)
 const putUsersMeSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
+  firstName: requiredNameSchema.optional(),
+  lastName: requiredNameSchema.optional(),
   phone: z.string().max(30).nullable().optional(),
   avatarUrl: z.string().url().nullable().optional(),
   gender: z.enum(["male", "female", "non_binary", "prefer_not_to_say"]).nullable().optional(),
@@ -130,8 +135,8 @@ async function getOrCreateUser(clerkUserId: string): Promise<typeof usersTable.$
     const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
     const clerkUser = await clerkClient.users.getUser(clerkUserId);
     const email = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailteam.app`;
-    const firstName = clerkUser.firstName ?? "New";
-    const lastName = clerkUser.lastName ?? "User";
+    const firstName = clerkUser.firstName?.trim() ?? "";
+    const lastName = clerkUser.lastName?.trim() ?? "";
 
     const existing = await db.query.usersTable.findFirst({
       where: eq(usersTable.email, email),
@@ -339,11 +344,21 @@ router.patch("/users/me", requireAuth, async (req, res) => {
   });
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
+  const parsedNames = optionalNamePatchSchema.safeParse({
+    firstName: req.body.firstName,
+    lastName: req.body.lastName,
+  });
+  if (!parsedNames.success) {
+    res.status(400).json({ error: "First and last name are required when provided", details: parsedNames.error.issues });
+    return;
+  }
+
   const {
-    firstName, lastName, phone, avatarUrl, gender, grade,
+    phone, avatarUrl, gender, grade,
     notificationsEnabled, emailNotifications, smsNotifications, pushNotifications,
     notificationPreferences, defaultCarpoolSeats, defaultCarpoolTrays,
   } = req.body;
+  const { firstName, lastName } = parsedNames.data;
 
   // Riders whose parents have locked notification preferences cannot update them
   if (user.role === "student" && user.notificationPreferencesLocked) {
@@ -541,7 +556,16 @@ router.post("/users/me/regenerate-calendar-token", requireAuth, async (req, res)
 
 router.post("/users/onboard", requireAuth, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
-  const { firstName, lastName, phone, role, inviteCode } = req.body;
+  const parsedNames = z.object({
+    firstName: requiredNameSchema,
+    lastName: requiredNameSchema,
+  }).safeParse(req.body);
+  if (!parsedNames.success) {
+    res.status(400).json({ error: "First and last name are required", details: parsedNames.error.issues });
+    return;
+  }
+  const { firstName, lastName } = parsedNames.data;
+  const { phone, role, inviteCode } = req.body;
 
   const existing = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),

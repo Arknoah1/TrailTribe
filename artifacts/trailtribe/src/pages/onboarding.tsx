@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
 import { VolunteerSignupChoices, type VolunteerEvent } from "./volunteer";
+import { hasRequiredUserName } from "@/lib/user-name";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -120,6 +121,7 @@ function StepName({
             <Label htmlFor="ob-firstName">First name <span className="text-destructive">*</span></Label>
             <Input
               id="ob-firstName"
+              required
               value={firstName}
               onChange={e => setFirstName(e.target.value)}
               placeholder="First"
@@ -131,6 +133,7 @@ function StepName({
             <Label htmlFor="ob-lastName">Last name <span className="text-destructive">*</span></Label>
             <Input
               id="ob-lastName"
+              required
               value={lastName}
               onChange={e => setLastName(e.target.value)}
               placeholder="Last"
@@ -743,9 +746,10 @@ export default function Onboarding() {
   // that server-backed state alongside the household-code join state so the
   // completion screen does not incorrectly say approval is still pending.
   const serverApproved = Boolean((me as any)?.approved);
+  const hasName = hasRequiredUserName(me);
 
   // If they already have a household and haven't started the wizard, send them home
-  if (!isLoading && me?.householdId && step === 0) {
+  if (!isLoading && me?.householdId && hasName && step === 0) {
     setLocation("/dashboard");
     return null;
   }
@@ -774,8 +778,8 @@ export default function Onboarding() {
           <div className="rounded-2xl border-2 border-[#0a0c10] bg-card p-6 shadow-cel">
             {step === 0 && (
               <StepName
-                defaultFirstName={me?.firstName ?? ""}
-                defaultLastName={me?.lastName ?? ""}
+                defaultFirstName={hasName ? (me?.firstName ?? "") : ""}
+                defaultLastName={hasName ? (me?.lastName ?? "") : ""}
                 defaultPhone={me?.phone ?? ""}
                 onNext={() => setStep(1)}
               />

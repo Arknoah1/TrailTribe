@@ -291,8 +291,8 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
 
   // Get the primary email to use for the user record
   const primaryEmail = clerkUser.emailAddresses[0]?.emailAddress ?? `${clerkUserId}@trailteam.app`;
-  const firstName = clerkUser.firstName ?? "New";
-  const lastName = clerkUser.lastName ?? "User";
+  const firstName = clerkUser.firstName?.trim() ?? "";
+  const lastName = clerkUser.lastName?.trim() ?? "";
 
   // Log when the actual email differs from the invited email so coaches can see it
   // (skip this check for link-only invites that have no email constraint)
