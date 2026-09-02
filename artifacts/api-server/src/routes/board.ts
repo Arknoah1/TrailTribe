@@ -123,9 +123,15 @@ async function enrichPost(post: typeof boardPostsTable.$inferSelect, userId?: nu
   };
 }
 
-async function notifyThreadParticipants(threadId: number, actorUserId: number, threadTitle: string) {
+async function notifyThreadParticipants(threadId: number, actorUserId: number) {
   // Collect all unique user IDs who posted or authored the thread (excluding actor)
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  const event = thread?.eventId
+    ? await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })
+    : null;
+  const notificationThreadTitle = event
+    ? `Discussion: ${event.title}`
+    : thread?.title ?? "this discussion";
   const posts = await db.select({ authorUserId: boardPostsTable.authorUserId })
     .from(boardPostsTable)
     .where(and(eq(boardPostsTable.threadId, threadId), eq(boardPostsTable.isDeleted, false)));
@@ -147,7 +153,7 @@ async function notifyThreadParticipants(threadId: number, actorUserId: number, t
       user.id,
       "boardReplies",
       "New reply on the board",
-      `Someone replied to "${threadTitle}"`,
+      `Someone replied to "${notificationThreadTitle}"`,
       `/messages/thread/${threadId}`
     );
   }
@@ -415,7 +421,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   }).where(eq(boardThreadsTable.id, threadId));
 
   // Notify participants (non-blocking)
-  notifyThreadParticipants(threadId, me.id, thread.title)
+  notifyThreadParticipants(threadId, me.id)
     .catch((err) => logger.error({ err }, "[board] notify participants error"));
 
   const result = await enrichPost(post, me.id);

@@ -34,6 +34,9 @@ const OTHER_RIDER = {
   avatarUrl: null,
   isActive: true,
 };
+const notificationMock = vi.hoisted(() => ({
+  createNotification: vi.fn(),
+}));
 
 type EventFixture = {
   id: number;
@@ -124,7 +127,9 @@ vi.mock("@workspace/db", () => {
         if (!selection) {
           const query = chain(() => {
             const source = (query as any)._source;
-            return source === boardPostsTable ? posts : threads;
+            if (source === boardPostsTable) return posts;
+            if (source === usersTable) return users;
+            return threads;
           });
           query.from.mockImplementation((source: object) => {
             query._source = source;
@@ -171,10 +176,16 @@ vi.mock("@workspace/db", () => {
           if (source === boardReactionsTable) {
             reactions.push({ id: nextReactionId++, ...value });
           }
+          if (source === boardPostsTable) {
+            posts.push({ id: nextPostId++, ...value });
+          }
           return {
             returning: vi.fn(async () => {
             if (source === boardReactionsTable) {
               return [reactions.at(-1)];
+            }
+            if (source === boardPostsTable) {
+              return [posts.at(-1)];
             }
             return [];
             }),
@@ -270,6 +281,7 @@ vi.mock("@workspace/db", () => {
 let currentClerkUserId = COACH.clerkUserId;
 let currentTargetId: number | null = null;
 let currentReaction = "helpful";
+let nextPostId = 1000;
 function currentUser() {
   return users.find((user) => user.clerkUserId === currentClerkUserId) ?? COACH;
 }
@@ -289,7 +301,7 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
-vi.mock("../lib/notifications", () => ({ createNotification: vi.fn() }));
+vi.mock("../lib/notifications", () => notificationMock);
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -320,6 +332,8 @@ beforeEach(() => {
   currentClerkUserId = COACH.clerkUserId;
   currentTargetId = null;
   currentReaction = "helpful";
+  nextPostId = 1000;
+  notificationMock.createNotification.mockClear();
   selectCallIndex = 0;
 });
 
@@ -362,6 +376,20 @@ async function getThreads(path: string, user: typeof COACH = COACH) {
   currentTargetId = threadId ? Number(threadId) : null;
   const response = await fetch(`${baseUrl}${path}`, {
     headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+async function createReply(user: typeof COACH, threadId: number, body = "A reply") {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = threadId;
+  const response = await fetch(`${baseUrl}/board/threads/${threadId}/posts`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-test-user": user.clerkUserId,
+    },
+    body: JSON.stringify({ body }),
   });
   return { status: response.status, body: await response.json() };
 }
@@ -412,6 +440,29 @@ async function deleteThread(user: typeof COACH, threadId: number) {
 }
 
 describe("event discussion board visibility and ordering", () => {
+  it("uses current event names in reply notifications and stored titles elsewhere", async () => {
+    const event = addEvent(60, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    addThread(60, event.id, NOW);
+    threads[0].title = "Discussion: Old Event Name";
+    event.title = "Renamed Event";
+
+    const eventReply = await createReply(RIDER, 60);
+    expect(eventReply.status).toBe(201);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(notificationMock.createNotification.mock.calls.map((call) => call[3]))
+      .toContain('Someone replied to "Discussion: Renamed Event"');
+
+    notificationMock.createNotification.mockClear();
+    addThread(61, 0, NOW);
+    threads[1].title = "Family planning";
+
+    const generalReply = await createReply(RIDER, 61);
+    expect(generalReply.status).toBe(201);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(notificationMock.createNotification.mock.calls.map((call) => call[3]))
+      .toContain('Someone replied to "Family planning"');
+  });
+
   it("returns thread actions from the same permission rules used by the API", async () => {
     addThread(5, 0, NOW);
 
