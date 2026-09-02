@@ -1,3 +1,5 @@
+import { formatEventDateTime } from "./eventTime";
+
 export interface RsvpEmailEvent {
   title: string;
   startTime: Date;
@@ -17,14 +19,7 @@ export function shouldQueueRsvpConfirmation(
 }
 
 export function formatRsvpEventTime(startTime: Date): string {
-  return startTime.toLocaleString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  return formatEventDateTime(startTime);
 }
 
 export function buildRsvpConfirmationContent(

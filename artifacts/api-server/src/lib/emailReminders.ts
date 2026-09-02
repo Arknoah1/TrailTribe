@@ -4,17 +4,7 @@ import { eq, and, gte, lte } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { logger } from "./logger";
 import { getShortNamePrefix } from "../routes/settings";
-
-function formatEventTime(start: Date): string {
-  return start.toLocaleString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-}
+import { formatEventDateTime } from "./eventTime";
 
 const sentReminders = new Set<string>();
 let sentRemindersDate = new Date().toISOString().slice(0, 10);
@@ -76,7 +66,7 @@ async function sendEventReminders(): Promise<void> {
         ?? trailhead?.googleMapsUrl
         ?? null;
 
-      const timeStr = formatEventTime(event.startTime);
+      const timeStr = formatEventDateTime(event.startTime);
 
       for (const rsvp of rsvps) {
         const key = reminderKey(event.id, rsvp.userId);

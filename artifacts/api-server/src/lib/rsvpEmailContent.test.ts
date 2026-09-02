@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRsvpConfirmationContent,
+  formatRsvpEventTime,
   shouldQueueRsvpConfirmation,
 } from "./rsvpEmailContent";
 
 describe("RSVP confirmation batching rules", () => {
+  it("formats event times in TrailTeam's Pacific timezone instead of server UTC", () => {
+    expect(formatRsvpEventTime(new Date("2030-09-05T23:00:00Z"))).toBe("Thursday, September 5 at 4:00 PM PDT");
+    expect(formatRsvpEventTime(new Date("2030-01-05T00:00:00Z"))).toBe("Friday, January 4 at 4:00 PM PST");
+  });
+
   it("queues a confirmation only when an RSVP becomes attending", () => {
     expect(shouldQueueRsvpConfirmation(null, "attending")).toBe(true);
     expect(shouldQueueRsvpConfirmation("maybe", "attending")).toBe(true);
