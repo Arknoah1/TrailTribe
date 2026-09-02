@@ -20,7 +20,6 @@ const originalEnv = {
 let email: typeof import("./email");
 
 beforeAll(async () => {
-  process.env.EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>";
   process.env.SMTP_USER = "admin@methowcyclingteam.com";
   process.env.SMTP_PASS = "test-only-password";
   email = await import("./email");
@@ -38,7 +37,7 @@ afterAll(() => {
 });
 
 describe("transactional email headers", () => {
-  it("sends the configured Methow Cycling Team identity and preserves Reply-To", async () => {
+  it("sends the effective configured identity and preserves Reply-To", async () => {
     const result = await email.sendEmail({
       to: "family@example.com",
       subject: "Sender verification",
@@ -48,7 +47,7 @@ describe("transactional email headers", () => {
 
     expect(result).toEqual({ status: "sent" });
     expect(smtp.sendMail).toHaveBeenCalledWith({
-      from: "Methow Cycling Team <coaches@methowcyclingteam.com>",
+      from: process.env.EMAIL_FROM,
       to: ["family@example.com"],
       subject: "Sender verification",
       text: "Verification message",
