@@ -89,6 +89,15 @@ Support to reset or rebuild the Publish database-schema baseline, including the
 project URL, a screenshot of the rename dialog, and the development/production
 column checks.
 
+If Replit Support instead directs you to add the nullable `category_id` column
+manually, that is a safe additive fallback. Cancel the failed Publish, add the
+column in Production SQL Studio, then create the categories and backfill every
+task before starting a fresh Publish review. The final review may then safely
+make `category_id` required and remove `category`, because the legacy values
+have already been preserved in the normalized category relationship. If the
+SQL Studio batch runner is unstable, run the category insert, task update, and
+verification statements separately.
+
 ## Stage 2: finalize the schema
 
 Only after the checks pass:
