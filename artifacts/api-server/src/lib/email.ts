@@ -2,6 +2,13 @@ import nodemailer from "nodemailer";
 import { logger } from "./logger";
 import { resolveFromAddress } from "./emailIdentity";
 
+/**
+ * Resolve and validate before constructing SMTP state so a bad deployment
+ * override aborts API startup instead of allowing transactional mail to send.
+ */
+export const FROM_ADDRESS =
+  resolveFromAddress(process.env.EMAIL_FROM);
+
 const smtpUser = process.env.SMTP_USER;
 const smtpPass = process.env.SMTP_PASS;
 
@@ -73,14 +80,6 @@ export function stopEmailHealthCheck(): void {
   }
 }
 
-/**
- * EMAIL_FROM is an optional complete From header override, for example:
- * "Methow Cycling Team <admin@methowcyclingteam.com>".
- * Keep its display name aligned with DEFAULT_FROM_ADDRESS when configured.
- */
-export const FROM_ADDRESS =
-  resolveFromAddress(process.env.EMAIL_FROM);
-
 export interface SendEmailOptions {
   to: string | string[];
   subject: string;
@@ -98,6 +97,17 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
     logger.warn({ to: opts.to, subject: opts.subject }, "[email] skipping send — no SMTP credentials");
     return { status: "skipped", reason: "no_api_key" };
   }
+
+  let fromAddress: string;
+  try {
+    // Re-read the environment so a runtime change cannot bypass the startup
+    // validation and send with an unapproved identity.
+    fromAddress = resolveFromAddress(process.env.EMAIL_FROM);
+  } catch (err) {
+    logger.error({ err, subject: opts.subject }, "[email] skipping send — invalid EMAIL_FROM configuration");
+    return { status: "failed", error: err };
+  }
+
   try {
     const toArray = Array.isArray(opts.to) ? opts.to : [opts.to];
     const filtered = toArray.filter(
@@ -111,7 +121,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
       return { status: "skipped", reason: "no_valid_recipients" };
     }
     await transporter.sendMail({
-      from: FROM_ADDRESS,
+      from: fromAddress,
       to: filtered,
       subject: opts.subject,
       text: opts.text,

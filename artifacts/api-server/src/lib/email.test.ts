@@ -54,4 +54,28 @@ describe("transactional email headers", () => {
       replyTo: "coach@example.com",
     });
   });
+
+  it("refuses to send if EMAIL_FROM changes to an unapproved identity", async () => {
+    const configuredFromAddress = process.env.EMAIL_FROM;
+    process.env.EMAIL_FROM = "TrailTeam <noreply@trailteam.app>";
+
+    try {
+      const result = await email.sendEmail({
+        to: "family@example.com",
+        subject: "Invalid sender",
+        text: "This must not be sent",
+      });
+
+      expect(result.status).toBe("failed");
+      expect(smtp.sendMail).not.toHaveBeenCalledWith(
+        expect.objectContaining({ subject: "Invalid sender" }),
+      );
+    } finally {
+      if (configuredFromAddress === undefined) {
+        delete process.env.EMAIL_FROM;
+      } else {
+        process.env.EMAIL_FROM = configuredFromAddress;
+      }
+    }
+  });
 });
