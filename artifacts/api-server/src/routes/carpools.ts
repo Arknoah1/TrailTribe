@@ -17,6 +17,11 @@ import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
+const CLAIM_CONFLICT_MESSAGE = "This rider already has a driver for this event";
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
+}
 
 async function buildOfferWithClaims(offer: any) {
   const driver = await db.query.usersTable.findFirst({ where: eq(usersTable.id, offer.driverUserId) });
@@ -177,13 +182,23 @@ router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
       return;
     }
   }
-  const [claim] = await db.insert(carpoolClaimsTable).values({
-    carpoolOfferId: offerId,
-    riderUserId,
-    needsSeat: needsSeat ?? true,
-    needsBikeTray: needsBikeTray ?? false,
-    notes: notes ?? null,
-  }).returning();
+  let claim;
+  try {
+    [claim] = await db.insert(carpoolClaimsTable).values({
+      eventId: offer.eventId,
+      carpoolOfferId: offerId,
+      riderUserId,
+      needsSeat: needsSeat ?? true,
+      needsBikeTray: needsBikeTray ?? false,
+      notes: notes ?? null,
+    }).returning();
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      res.status(409).json({ error: CLAIM_CONFLICT_MESSAGE });
+      return;
+    }
+    throw err;
+  }
 
   (async () => {
     try {
@@ -496,42 +511,49 @@ router.post("/carpool-requests/:id/match", requireApproved, async (req, res) => 
   // accepted this request, so we trust their judgement on seat availability.
   // The claim is flagged matchedByDriver=true so it doesn't reduce the offer's
   // displayed seat/tray availability in the UI.
-  let alreadyMatched = false;
+  let conflictReason: "already-matched" | "rider-claimed" | null = null;
   const updated = await db.transaction(async (tx) => {
-    // Re-verify request is still open inside the transaction (prevents double-match races)
-    const [freshRequest] = await tx
-      .select()
-      .from(carpoolRequestsTable)
+    // Claim the request with a conditional update. Two concurrent drivers cannot
+    // both transition the same request from open to matched.
+    const [matched] = await tx
+      .update(carpoolRequestsTable)
+      .set({ status: "matched", matchedOfferId: offerId })
       .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
-      .limit(1);
+      .returning();
 
-    if (!freshRequest) {
+    if (!matched) {
       throw new Error("ALREADY_MATCHED");
     }
 
     await tx.insert(carpoolClaimsTable).values({
+      eventId: matched.eventId,
       carpoolOfferId: offerId,
-      riderUserId: freshRequest.riderUserId,
+      riderUserId: matched.riderUserId,
       needsSeat: true,
-      needsBikeTray: freshRequest.needsBikeTray,
-      notes: freshRequest.notes ?? null,
+      needsBikeTray: matched.needsBikeTray,
+      notes: matched.notes ?? null,
       matchedByDriver: claimMatchedByDriver,
     });
 
-    const [matched] = await tx
-      .update(carpoolRequestsTable)
-      .set({ status: "matched", matchedOfferId: offerId })
-      .where(eq(carpoolRequestsTable.id, requestId))
-      .returning();
-
     return matched;
   }).catch((err) => {
-    if (err.message === "ALREADY_MATCHED") { alreadyMatched = true; return null; }
+    if (err instanceof Error && err.message === "ALREADY_MATCHED") {
+      conflictReason = "already-matched";
+      return null;
+    }
+    if (isUniqueViolation(err)) {
+      conflictReason = "rider-claimed";
+      return null;
+    }
     throw err;
   });
 
   if (!updated) {
-    res.status(409).json({ error: alreadyMatched ? "Request has already been matched" : "Match failed" });
+    res.status(409).json({
+      error: conflictReason === "rider-claimed"
+        ? CLAIM_CONFLICT_MESSAGE
+        : "Request has already been matched",
+    });
     return;
   }
 

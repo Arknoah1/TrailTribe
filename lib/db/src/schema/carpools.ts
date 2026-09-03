@@ -35,6 +35,7 @@ export type CarpoolOffer = typeof carpoolOffersTable.$inferSelect;
 
 export const carpoolClaimsTable = pgTable("carpool_claims", {
   id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => eventsTable.id, { onDelete: "cascade" }),
   carpoolOfferId: integer("carpool_offer_id").notNull().references(() => carpoolOffersTable.id, { onDelete: "cascade" }),
   riderUserId: integer("rider_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   needsSeat: boolean("needs_seat").notNull().default(true),
@@ -50,6 +51,7 @@ export const carpoolClaimsTable = pgTable("carpool_claims", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (t) => [
+  uniqueIndex("carpool_claims_event_rider_unique_idx").on(t.eventId, t.riderUserId),
   index("carpool_claims_offer_id_idx").on(t.carpoolOfferId),
   index("carpool_claims_rider_user_id_idx").on(t.riderUserId),
 ]);

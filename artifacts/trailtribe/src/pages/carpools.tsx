@@ -61,7 +61,10 @@ export default function CarpoolBoard() {
   const requestableRiders = isStudent
     ? riders.filter(rider => rider.id === me?.id)
     : riders;
-  const claimableRiders = requestableRiders;
+  const claimedRiderIds = new Set(
+    (offers ?? []).flatMap((offer: any) => offer.claims ?? []).map((claim: any) => claim.riderUserId)
+  );
+  const claimableRiders = requestableRiders.filter(rider => !claimedRiderIds.has(rider.id));
 
   // Claim dialog state (2+ riders)
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
@@ -177,7 +180,7 @@ export default function CarpoolBoard() {
 
   // True if the claim belongs to the current household (rider or parent)
   const isMyHouseholdClaim = (claim: any) => {
-    const myRiderIds = claimableRiders.map(r => r.id);
+    const myRiderIds = requestableRiders.map(r => r.id);
     return myRiderIds.includes(claim.riderUserId) || claim.riderUserId === me?.id;
   };
 
@@ -189,8 +192,10 @@ export default function CarpoolBoard() {
   const myAllOffers = offers?.filter((o: any) => o.driverUserId === me?.id) ?? [];
 
   const handleClaimClick = (offer: any, needsTray: boolean) => {
-    if (claimableRiders.length === 0) {
+    if (requestableRiders.length === 0 && !claimedRiderIds.has(me?.id)) {
       claimForRiders(offer.id, [null], needsTray);
+    } else if (claimableRiders.length === 0) {
+      toast({ title: "Your riders already have a driver for this event" });
     } else if (claimableRiders.length === 1) {
       claimForRiders(offer.id, [claimableRiders[0].id], needsTray);
     } else {
@@ -204,6 +209,7 @@ export default function CarpoolBoard() {
   const claimForRiders = async (offerId: number, riderIds: (number | null)[], needsTray: boolean) => {
     setIsClaiming(true);
     let successCount = 0;
+    let firstError = "";
     for (const riderId of riderIds) {
       const body: any = { needsSeat: true, needsBikeTray: needsTray };
       if (riderId !== null) body.riderUserId = riderId;
@@ -213,16 +219,26 @@ export default function CarpoolBoard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) successCount++;
-      } catch {}
+        if (res.ok) {
+          successCount++;
+        } else {
+          const data = await res.json().catch(() => ({}));
+          firstError ||= data.error || "Failed to claim seat";
+        }
+      } catch {
+        firstError ||= "Failed to claim seat";
+      }
     }
     setIsClaiming(false);
     if (successCount > 0) {
       toast({ title: successCount === 1 ? "Seat claimed!" : `${successCount} seats claimed!` });
       queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
       setClaimDialogOpen(false);
+      if (firstError) {
+        toast({ title: firstError, variant: "destructive" });
+      }
     } else {
-      toast({ title: "Failed to claim seat", variant: "destructive" });
+      toast({ title: firstError || "Failed to claim seat", variant: "destructive" });
     }
   };
 

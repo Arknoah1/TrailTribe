@@ -644,6 +644,59 @@ const migrations: { name: string; sql: string }[] = [
         ON household_admin_audit(member_id);
     `,
   },
+  {
+    name: "enforce_one_carpool_claim_per_rider_event",
+    sql: `
+      ALTER TABLE carpool_claims
+        ADD COLUMN IF NOT EXISTS event_id integer;
+
+      UPDATE carpool_claims AS claim
+      SET event_id = offer.event_id
+      FROM carpool_offers AS offer
+      WHERE claim.carpool_offer_id = offer.id
+        AND claim.event_id IS DISTINCT FROM offer.event_id;
+
+      WITH ranked_claims AS (
+        SELECT
+          claim.id,
+          ROW_NUMBER() OVER (
+            PARTITION BY claim.event_id, claim.rider_user_id
+            ORDER BY
+              CASE WHEN matched_request.id IS NOT NULL THEN 0 ELSE 1 END,
+              claim.created_at,
+              claim.id
+          ) AS claim_rank
+        FROM carpool_claims AS claim
+        LEFT JOIN carpool_requests AS matched_request
+          ON matched_request.event_id = claim.event_id
+         AND matched_request.rider_user_id = claim.rider_user_id
+         AND matched_request.matched_offer_id = claim.carpool_offer_id
+         AND matched_request.status = 'matched'
+      )
+      DELETE FROM carpool_claims AS claim
+      USING ranked_claims
+      WHERE claim.id = ranked_claims.id
+        AND ranked_claims.claim_rank > 1;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'carpool_claims_event_id_fk'
+        ) THEN
+          ALTER TABLE carpool_claims
+            ADD CONSTRAINT carpool_claims_event_id_fk
+            FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+
+      ALTER TABLE carpool_claims
+        ALTER COLUMN event_id SET NOT NULL;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS carpool_claims_event_rider_unique_idx
+        ON carpool_claims(event_id, rider_user_id);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
