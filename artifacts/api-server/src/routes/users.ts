@@ -38,9 +38,7 @@ const patchUserByIdSchema = z.object({
   firstName: requiredNameSchema.optional(),
   lastName: requiredNameSchema.optional(),
   phone: z.string().max(30).nullable().optional(),
-  role: userRoleSchema.optional(),
   podId: z.string().max(100).nullable().optional(),
-  householdId: z.number().int().positive().nullable().optional(),
   notificationsEnabled: z.boolean().optional(),
   emailNotifications: z.boolean().optional(),
   smsNotifications: z.boolean().optional(),
@@ -656,6 +654,16 @@ router.get("/users/:id", requireApproved, async (req, res) => {
 
 router.patch("/users/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
+
+  // Household membership and role transitions are integrity-sensitive and are
+  // intentionally available only through the audited household admin workflow.
+  if (Object.prototype.hasOwnProperty.call(req.body, "role") ||
+      Object.prototype.hasOwnProperty.call(req.body, "householdId") ||
+      Object.prototype.hasOwnProperty.call(req.body, "clerkUserId") ||
+      Object.prototype.hasOwnProperty.call(req.body, "email")) {
+    res.status(400).json({ error: "Role, household, email, and sign-in identity changes must use the household admin workflow." });
+    return;
+  }
 
   const parsed = patchUserByIdSchema.safeParse(req.body);
   if (!parsed.success) {

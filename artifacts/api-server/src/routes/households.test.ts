@@ -215,6 +215,10 @@ vi.mock("../middlewares/requireAuth", () => ({
     (_req as any).clerkUserId = currentClerkUserId;
     next();
   },
+  requireAdmin: (_req: any, _res: any, next: any) => {
+    (_req as any).clerkUserId = currentClerkUserId;
+    next();
+  },
 }));
 
 vi.mock("../middlewares/rateLimiter", () => ({

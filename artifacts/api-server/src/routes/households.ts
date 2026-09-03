@@ -16,10 +16,20 @@ import {
   eventTaskSignupsTable,
   boardThreadsTable,
   boardPostsTable,
+  riderInvitesTable,
+  householdAdminAuditTable,
+  broadcastsTable,
+  eventRsvpsTable,
+  eventsTable,
+  rsvpEmailBatchesTable,
+  pushDevicesTable,
+  boardReactionsTable,
+  inviteLinksTable,
+  podsTable,
 } from "@workspace/db";
 import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
 import { SendCoParentInviteBody, SendCoParentInviteParams } from "@workspace/api-zod";
-import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin, requireAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -59,6 +69,32 @@ const createHouseholdSchema = z.object({
 
 const updateHouseholdSchema = createHouseholdSchema.partial();
 
+const adminHouseholdPatchSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  address: z.string().max(500).nullable().optional(),
+  emergencyContactName: z.string().max(200).nullable().optional(),
+  emergencyContactPhone: z.string().max(30).nullable().optional(),
+  podId: z.string().max(100).nullable().optional(),
+}).strict();
+
+const adminAdultMemberPatchSchema = z.object({
+  firstName: z.string().trim().min(1).max(100).optional(),
+  lastName: z.string().trim().min(1).max(100).optional(),
+  phone: z.string().max(30).nullable().optional(),
+}).strict();
+
+const adminStudentMemberPatchSchema = adminAdultMemberPatchSchema.extend({
+  grade: z.number().int().min(-1).max(20).nullable().optional(),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  allergies: z.string().max(10_000).nullable().optional(),
+  medications: z.string().max(10_000).nullable().optional(),
+  medicalNotes: z.string().max(10_000).nullable().optional(),
+}).strict();
+
+const confirmationSchema = z.object({ confirmation: z.literal(true) }).strict();
+const reclassifySchema = confirmationSchema.extend({ role: z.enum(["parent", "student"]) }).strict();
+const moveSchema = confirmationSchema.extend({ targetHouseholdId: z.number().int().positive() }).strict();
+
 // ── Medical-field privacy helpers ──────────────────────────────────────────
 const MEDICAL_FIELDS = ["allergies", "medications", "medicalNotes"] as const;
 
@@ -83,6 +119,35 @@ function shapeHouseholdMember<T extends { clerkUserId?: string | null }>(
   const shaped = shapeMedical(user, canSeeMedicalFields);
   const { clerkUserId, ...safeUser } = shaped;
   return { ...safeUser, hasAppAccess: Boolean(clerkUserId) };
+}
+
+function safeAdminMember(user: typeof usersTable.$inferSelect) {
+  // Admin correction responses deliberately have the same identity boundary as
+  // household reads. Clerk identities are never a client-side correction tool.
+  return shapeHouseholdMember(user, true);
+}
+
+function isResponsibleAdult(user: { role: string }) {
+  return user.role === "parent" || user.role === "coach";
+}
+
+async function writeHouseholdAdminAudit(
+  tx: any,
+  administratorUserId: number,
+  action: string,
+  householdId: number | null,
+  memberId: number | null,
+  before: unknown,
+  after: unknown,
+) {
+  await tx.insert(householdAdminAuditTable).values({
+    administratorUserId,
+    householdId,
+    memberId,
+    action,
+    before,
+    after,
+  });
 }
 
 async function getRequester(req: any) {
@@ -190,6 +255,164 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
     .where(eq(householdsTable.id, id))
     .returning();
   res.json(updated);
+});
+
+// Narrow, audited correction workflow. It is intentionally separate from the
+// normal household routes so a coach cannot use routine edit permissions to
+// alter family structure or a linked authentication identity.
+router.patch("/households/:householdId/admin", requireAdmin, async (req, res) => {
+  const householdId = Number(str(req.params.householdId));
+  const parsed = adminHouseholdPatchSchema.safeParse(req.body);
+  if (!Number.isInteger(householdId) || householdId < 1 || !parsed.success || Object.keys(parsed.success ? parsed.data : {}).length === 0) {
+    res.status(400).json({ error: "Invalid request body", ...(parsed.success ? {} : { details: parsed.error.issues }) });
+    return;
+  }
+  const administrator = await getRequester(req);
+  if (!administrator) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [before] = await tx.select().from(householdsTable).where(eq(householdsTable.id, householdId));
+    if (!before) return null;
+    const [after] = await tx.update(householdsTable).set(parsed.data).where(eq(householdsTable.id, householdId)).returning();
+    await writeHouseholdAdminAudit(tx, administrator.id, "household.patch", householdId, null, before, after);
+    return after;
+  });
+  if (!result) { res.status(404).json({ error: "Household not found" }); return; }
+  res.json(result);
+});
+
+router.patch("/households/:householdId/admin/members/:memberId", requireAdmin, async (req, res) => {
+  const householdId = Number(str(req.params.householdId));
+  const memberId = Number(str(req.params.memberId));
+  if (!Number.isInteger(householdId) || householdId < 1 || !Number.isInteger(memberId) || memberId < 1) {
+    res.status(400).json({ error: "Invalid member or household id" }); return;
+  }
+  const administrator = await getRequester(req);
+  if (!administrator) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [member] = await tx.select().from(usersTable).where(and(eq(usersTable.id, memberId), eq(usersTable.householdId, householdId)));
+    if (!member) return { status: 404 as const };
+    const parsed = (member.role === "student" ? adminStudentMemberPatchSchema : adminAdultMemberPatchSchema).safeParse(req.body);
+    if (!parsed.success || Object.keys(parsed.success ? parsed.data : {}).length === 0) {
+      return { status: 400 as const, details: parsed.success ? undefined : parsed.error.issues };
+    }
+    const [after] = await tx.update(usersTable).set(parsed.data).where(eq(usersTable.id, memberId)).returning();
+    await writeHouseholdAdminAudit(tx, administrator.id, "member.profile.patch", householdId, memberId, member, after);
+    return { status: 200 as const, member: after };
+  });
+  if (result.status !== 200) { res.status(result.status).json({ error: result.status === 404 ? "Member not found in household" : "Invalid request body", details: result.details }); return; }
+  res.json(safeAdminMember(result.member));
+});
+
+router.post("/households/:householdId/admin/members/:memberId/reclassify", requireAdmin, async (req, res) => {
+  const householdId = Number(str(req.params.householdId));
+  const memberId = Number(str(req.params.memberId));
+  const parsed = reclassifySchema.safeParse(req.body);
+  if (!Number.isInteger(householdId) || !Number.isInteger(memberId) || householdId < 1 || memberId < 1 || !parsed.success) {
+    res.status(400).json({ error: "Invalid request body", ...(parsed.success ? {} : { details: parsed.error.issues }) }); return;
+  }
+  const administrator = await getRequester(req);
+  if (!administrator) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [member] = await tx.select().from(usersTable).where(and(eq(usersTable.id, memberId), eq(usersTable.householdId, householdId)));
+    if (!member) return { status: 404 as const };
+    if (!["parent", "student"].includes(member.role) || member.role === parsed.data.role) return { status: 409 as const, error: "Only parent and student members can be reclassified." };
+    if (member.role === "parent") {
+      const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
+      const hasStudents = members.some((u: any) => u.role === "student");
+      const responsibleAdults = members.filter((u: any) => isResponsibleAdult(u)).length;
+      if (hasStudents && responsibleAdults <= 1) return { status: 409 as const, error: "Cannot reclassify the last responsible adult while students remain." };
+    }
+    const [after] = await tx.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, memberId)).returning();
+    await writeHouseholdAdminAudit(tx, administrator.id, "member.reclassify", householdId, memberId, member, after);
+    return { status: 200 as const, member: after };
+  });
+  if (result.status !== 200) { res.status(result.status).json({ error: result.error ?? "Member not found in household" }); return; }
+  res.json(safeAdminMember(result.member));
+});
+
+router.post("/households/:householdId/admin/members/:memberId/move", requireAdmin, async (req, res) => {
+  const householdId = Number(str(req.params.householdId));
+  const memberId = Number(str(req.params.memberId));
+  const parsed = moveSchema.safeParse(req.body);
+  if (!Number.isInteger(householdId) || !Number.isInteger(memberId) || householdId < 1 || memberId < 1 || !parsed.success || parsed.success && parsed.data.targetHouseholdId === householdId) {
+    res.status(400).json({ error: "Invalid move request" }); return;
+  }
+  const administrator = await getRequester(req);
+  if (!administrator) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [source, target, member] = await Promise.all([
+      tx.select().from(householdsTable).where(eq(householdsTable.id, householdId)),
+      tx.select().from(householdsTable).where(eq(householdsTable.id, parsed.data.targetHouseholdId)),
+      tx.select().from(usersTable).where(and(eq(usersTable.id, memberId), eq(usersTable.householdId, householdId))),
+    ]).then((rows: any[]) => [rows[0][0], rows[1][0], rows[2][0]]);
+    if (!source || !target) return { status: 404 as const, error: "Source or target household not found" };
+    if (!member) return { status: 404 as const, error: "Member not found in source household" };
+    if (isResponsibleAdult(member)) {
+      const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
+      if (members.some((u: any) => u.role === "student") && members.filter((u: any) => isResponsibleAdult(u)).length <= 1) {
+        return { status: 409 as const, error: "Cannot move the last responsible adult while students remain." };
+      }
+    }
+    const [after] = await tx.update(usersTable).set({ householdId: target.id, podId: target.podId ?? null }).where(eq(usersTable.id, memberId)).returning();
+    await writeHouseholdAdminAudit(tx, administrator.id, "member.move", householdId, memberId, member, after);
+    return { status: 200 as const, member: after };
+  });
+  if (result.status !== 200) { res.status(result.status).json({ error: result.error! }); return; }
+  res.json(safeAdminMember(result.member));
+});
+
+router.delete("/households/:householdId/admin/members/:memberId/duplicate", requireAdmin, async (req, res) => {
+  const householdId = Number(str(req.params.householdId));
+  const memberId = Number(str(req.params.memberId));
+  const parsed = confirmationSchema.safeParse(req.body);
+  if (!Number.isInteger(householdId) || !Number.isInteger(memberId) || householdId < 1 || memberId < 1 || !parsed.success) {
+    res.status(400).json({ error: "Invalid deletion request" }); return;
+  }
+  const administrator = await getRequester(req);
+  if (!administrator) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [member] = await tx.select().from(usersTable).where(and(eq(usersTable.id, memberId), eq(usersTable.householdId, householdId)));
+    if (!member) return { status: 404 as const, error: "Member not found in household" };
+    if (member.clerkUserId) return { status: 409 as const, error: "Linked app accounts cannot be deleted as duplicates." };
+    if (isResponsibleAdult(member)) {
+      const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
+      if (members.some((u: any) => u.role === "student") && members.filter((u: any) => isResponsibleAdult(u)).length <= 1) {
+        return { status: 409 as const, error: "Cannot delete the last responsible adult while students remain." };
+      }
+    }
+
+    // Deletion is deliberately more restrictive than ordinary account cleanup:
+    // no correction may erase a row that has participated in any activity.
+    const references = await Promise.all([
+      tx.select({ id: carpoolClaimsTable.id }).from(carpoolClaimsTable).where(eq(carpoolClaimsTable.riderUserId, memberId)).limit(1),
+      tx.select({ id: carpoolOffersTable.id }).from(carpoolOffersTable).where(eq(carpoolOffersTable.driverUserId, memberId)).limit(1),
+      tx.select({ id: carpoolRequestsTable.id }).from(carpoolRequestsTable).where(or(eq(carpoolRequestsTable.riderUserId, memberId), eq(carpoolRequestsTable.requestedByUserId, memberId))!).limit(1),
+      tx.select({ id: notificationsTable.id }).from(notificationsTable).where(eq(notificationsTable.recipientUserId, memberId)).limit(1),
+      tx.select({ id: eventTaskSignupsTable.id }).from(eventTaskSignupsTable).where(eq(eventTaskSignupsTable.userId, memberId)).limit(1),
+      tx.select({ id: boardPostsTable.id }).from(boardPostsTable).where(eq(boardPostsTable.authorUserId, memberId)).limit(1),
+      tx.select({ id: boardThreadsTable.id }).from(boardThreadsTable).where(eq(boardThreadsTable.authorUserId, memberId)).limit(1),
+      tx.select({ id: riderInvitesTable.id }).from(riderInvitesTable).where(eq(riderInvitesTable.riderId, memberId)).limit(1),
+      tx.select({ id: broadcastsTable.id }).from(broadcastsTable).where(eq(broadcastsTable.senderUserId, memberId)).limit(1),
+      tx.select({ id: eventRsvpsTable.id }).from(eventRsvpsTable).where(eq(eventRsvpsTable.userId, memberId)).limit(1),
+      tx.select({ id: eventsTable.id }).from(eventsTable).where(eq(eventsTable.createdByUserId, memberId)).limit(1),
+      tx.select({ id: rsvpEmailBatchesTable.id }).from(rsvpEmailBatchesTable).where(eq(rsvpEmailBatchesTable.recipientUserId, memberId)).limit(1),
+      tx.select({ id: familyInvitesTable.id }).from(familyInvitesTable).where(eq(familyInvitesTable.invitedByUserId, memberId)).limit(1),
+      tx.select({ id: pushDevicesTable.id }).from(pushDevicesTable).where(eq(pushDevicesTable.userId, memberId)).limit(1),
+      tx.select({ id: boardReactionsTable.id }).from(boardReactionsTable).where(eq(boardReactionsTable.userId, memberId)).limit(1),
+      tx.select({ id: riderInvitesTable.id }).from(riderInvitesTable).where(eq(riderInvitesTable.invitedByUserId, memberId)).limit(1),
+      tx.select({ id: inviteLinksTable.id }).from(inviteLinksTable).where(eq(inviteLinksTable.createdByUserId, memberId)).limit(1),
+      tx.select({ id: podsTable.id }).from(podsTable).where(eq(podsTable.headCoachId, memberId)).limit(1),
+      tx.select({ id: householdAdminAuditTable.id }).from(householdAdminAuditTable).where(eq(householdAdminAuditTable.memberId, memberId)).limit(1),
+    ]);
+    if (references.some((rows: any[]) => rows.length > 0)) {
+      return { status: 409 as const, error: "Members with historical or activity records cannot be deleted as duplicates." };
+    }
+    await writeHouseholdAdminAudit(tx, administrator.id, "member.duplicate.delete", householdId, memberId, member, { deleted: true });
+    await tx.delete(usersTable).where(eq(usersTable.id, memberId));
+    return { status: 204 as const };
+  });
+  if (result.status !== 204) { res.status(result.status).json({ error: result.error! }); return; }
+  res.status(204).end();
 });
 
 router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): Promise<void> => {

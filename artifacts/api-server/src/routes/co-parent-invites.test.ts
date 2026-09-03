@@ -90,6 +90,10 @@ vi.mock("../middlewares/requireAuth", () => ({
     req.clerkUserId = (state.requester as any)?.clerkUserId ?? "test_clerk";
     next();
   },
+  requireAdmin: (req: any, _res: any, next: any) => {
+    req.clerkUserId = (state.requester as any)?.clerkUserId ?? "test_clerk";
+    next();
+  },
 }));
 vi.mock("../middlewares/rateLimiter", () => ({ publicLookupLimiter: (_req: any, _res: any, next: any) => next() }));
 vi.mock("../lib/config", () => ({ getAppBase: () => "https://trailtribe.test" }));

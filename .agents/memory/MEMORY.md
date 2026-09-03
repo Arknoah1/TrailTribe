@@ -14,3 +14,4 @@
 - [Email sender override](email-sender-override.md) — shared EMAIL_FROM can override the code default; update it when changing sender branding
 - [Authenticated Vite browser fixtures](authenticated-vite-browser-fixtures.md) — isolate auth hooks in middleware fixtures by replacing the resolved module at load time
 - [Required account names](account-name-validation.md) — empty names and legacy “New User” accounts must complete name setup before proceeding
+- [Household correction safety](household-correction-safety.md) — structural family corrections stay admin-only, audited, and separate from login identity or generic user editing

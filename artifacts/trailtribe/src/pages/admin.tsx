@@ -42,6 +42,51 @@ interface TeamDocument {
   lastNotifiedAt: string | null;
 }
 
+type HouseholdMemberRole = "parent" | "student" | "coach" | "admin";
+
+interface HouseholdMember {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: HouseholdMemberRole;
+  phone?: string | null;
+  email?: string | null;
+  grade?: number | null;
+  dateOfBirth?: string | null;
+  allergies?: string | null;
+  medications?: string | null;
+  medicalNotes?: string | null;
+  hasAppAccess: boolean;
+}
+
+interface HouseholdRosterItem {
+  id: number;
+  name: string;
+  address?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  archivedAt?: string | null;
+  members: HouseholdMember[];
+}
+
+type HouseholdAdminForm = {
+  name: string;
+  address: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+};
+
+type MemberAdminForm = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  grade: string;
+  dateOfBirth: string;
+  allergies: string;
+  medications: string;
+  medicalNotes: string;
+};
+
 const DOC_META: Record<DocType, { label: string; description: string }> = {
   liability_waiver: {
     label: "Liability Waiver",
@@ -297,13 +342,23 @@ export default function Admin() {
 
   const [selectedPods, setSelectedPods] = useState<Record<number, string>>({});
   const [teamDocs, setTeamDocs] = useState<TeamDocument[]>([]);
-  const [roster, setRoster] = useState<any[]>([]);
+  const [roster, setRoster] = useState<HouseholdRosterItem[]>([]);
   const [archivedFamilies, setArchivedFamilies] = useState<any[]>([]);
   const [archivedSectionOpen, setArchivedSectionOpen] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
   const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  // Household management workflow state. It deliberately does not include email:
+  // linked accounts own their sign-in email and coaches should not edit it here.
+  const [managedHousehold, setManagedHousehold] = useState<HouseholdRosterItem | null>(null);
+  const [householdAdminForm, setHouseholdAdminForm] = useState<HouseholdAdminForm>({ name: "", address: "", emergencyContactName: "", emergencyContactPhone: "" });
+  const [memberAdminForm, setMemberAdminForm] = useState<MemberAdminForm>({ firstName: "", lastName: "", phone: "", grade: "", dateOfBirth: "", allergies: "", medications: "", medicalNotes: "" });
+  const [editingMember, setEditingMember] = useState<HouseholdMember | null>(null);
+  const [memberAction, setMemberAction] = useState<{ member: HouseholdMember; kind: "reclassify" | "move" | "duplicate" } | null>(null);
+  const [moveTargetId, setMoveTargetId] = useState("");
+  const [savingHouseholdAdmin, setSavingHouseholdAdmin] = useState(false);
+  const [savingMemberAdmin, setSavingMemberAdmin] = useState(false);
 
   // Rider invite state (from roster)
   const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
@@ -814,6 +869,94 @@ export default function Admin() {
       setRoster(all.filter((h: any) => !h.archivedAt));
       setArchivedFamilies(all.filter((h: any) => !!h.archivedAt));
     }
+  };
+
+  const readApiError = async (res: Response, fallback: string) => {
+    const body = await res.json().catch(() => ({} as { error?: string; message?: string }));
+    return body.error ?? body.message ?? fallback;
+  };
+
+  const openHouseholdManager = (household: HouseholdRosterItem) => {
+    setManagedHousehold(household);
+    setHouseholdAdminForm({
+      name: household.name ?? "",
+      address: household.address ?? "",
+      emergencyContactName: household.emergencyContactName ?? "",
+      emergencyContactPhone: household.emergencyContactPhone ?? "",
+    });
+    setEditingMember(null);
+    setMemberAction(null);
+  };
+
+  const openMemberEditor = (member: HouseholdMember) => {
+    setEditingMember(member);
+    setMemberAdminForm({
+      firstName: member.firstName ?? "", lastName: member.lastName ?? "", phone: member.phone ?? "",
+      grade: member.grade?.toString() ?? "", allergies: member.allergies ?? "",
+      dateOfBirth: member.dateOfBirth ? member.dateOfBirth.slice(0, 10) : "",
+      medications: member.medications ?? "", medicalNotes: member.medicalNotes ?? "",
+    });
+  };
+
+  const saveHouseholdAdmin = async () => {
+    if (!managedHousehold || !householdAdminForm.name.trim()) return;
+    setSavingHouseholdAdmin(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${managedHousehold.id}/admin`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...householdAdminForm, name: householdAdminForm.name.trim() }),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, "Unable to save household details"));
+      toast({ title: "Household details saved" });
+      await fetchRoster();
+      setManagedHousehold(null);
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Unable to save household details", variant: "destructive" });
+    } finally { setSavingHouseholdAdmin(false); }
+  };
+
+  const saveMemberAdmin = async () => {
+    if (!managedHousehold || !editingMember || !memberAdminForm.firstName.trim() || !memberAdminForm.lastName.trim()) return;
+    const isRider = editingMember.role === "student";
+    const body = isRider
+      ? { firstName: memberAdminForm.firstName.trim(), lastName: memberAdminForm.lastName.trim(), phone: memberAdminForm.phone || null, grade: memberAdminForm.grade ? Number(memberAdminForm.grade) : null, dateOfBirth: memberAdminForm.dateOfBirth || null, allergies: memberAdminForm.allergies, medications: memberAdminForm.medications, medicalNotes: memberAdminForm.medicalNotes }
+      : { firstName: memberAdminForm.firstName.trim(), lastName: memberAdminForm.lastName.trim(), phone: memberAdminForm.phone };
+    setSavingMemberAdmin(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${managedHousehold.id}/admin/members/${editingMember.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, "Unable to save member"));
+      toast({ title: "Member details saved" });
+      setEditingMember(null);
+      await fetchRoster();
+      setManagedHousehold(null);
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "Unable to save member", variant: "destructive" });
+    } finally { setSavingMemberAdmin(false); }
+  };
+
+  const performMemberAction = async () => {
+    if (!managedHousehold || !memberAction || (memberAction.kind === "move" && !moveTargetId)) return;
+    const { member, kind } = memberAction;
+    const suffix = kind === "reclassify" ? "reclassify" : kind === "move" ? "move" : "duplicate";
+    const body = kind === "reclassify"
+      ? { role: member.role === "student" ? "parent" : "student", confirmation: true }
+      : kind === "move" ? { targetHouseholdId: Number(moveTargetId), confirmation: true } : { confirmation: true };
+    setSavingMemberAdmin(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${managedHousehold.id}/admin/members/${member.id}/${suffix}`, {
+        method: kind === "duplicate" ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await readApiError(res, "This change could not be completed"));
+      toast({ title: kind === "move" ? "Member moved" : kind === "duplicate" ? "Duplicate member removed" : "Member role updated" });
+      setMemberAction(null); setMoveTargetId("");
+      await fetchRoster();
+      setManagedHousehold(null);
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : "This change could not be completed", variant: "destructive" });
+    } finally { setSavingMemberAdmin(false); }
   };
 
   const handleUnarchiveFamily = async (householdId: number) => {
@@ -1413,6 +1556,15 @@ export default function Admin() {
                               ))}
                             </div>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full sm:w-auto"
+                              onClick={() => openHouseholdManager(household)}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                              Manage Household
+                            </Button>
+                            <Button
                               variant="ghost"
                               size="sm"
                               className="text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 px-2 gap-1"
@@ -1429,6 +1581,133 @@ export default function Admin() {
                 })}
             </div>
           )}
+
+          <Dialog open={managedHousehold !== null} onOpenChange={(open) => { if (!open) { setManagedHousehold(null); setEditingMember(null); setMemberAction(null); } }}>
+            <DialogContent className="w-[calc(100%-1rem)] max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Manage {managedHousehold?.name}</DialogTitle>
+                <DialogDescription>
+                  Update household records and members. Sign-in email addresses are managed by the account owner and cannot be changed here.
+                </DialogDescription>
+              </DialogHeader>
+              <Tabs defaultValue="household" className="mt-2">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="household">Household</TabsTrigger>
+                  <TabsTrigger value="members">Members ({managedHousehold?.members.length ?? 0})</TabsTrigger>
+                </TabsList>
+                <TabsContent value="household" className="space-y-4 pt-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="household-admin-name">Household name</Label>
+                      <Input id="household-admin-name" value={householdAdminForm.name} onChange={(e) => setHouseholdAdminForm((form) => ({ ...form, name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="household-admin-address">Address</Label>
+                      <Textarea id="household-admin-address" value={householdAdminForm.address} onChange={(e) => setHouseholdAdminForm((form) => ({ ...form, address: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="household-admin-emergency-name">Emergency contact name</Label>
+                      <Input id="household-admin-emergency-name" value={householdAdminForm.emergencyContactName} onChange={(e) => setHouseholdAdminForm((form) => ({ ...form, emergencyContactName: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="household-admin-emergency-phone">Emergency contact phone</Label>
+                      <Input id="household-admin-emergency-phone" type="tel" value={householdAdminForm.emergencyContactPhone} onChange={(e) => setHouseholdAdminForm((form) => ({ ...form, emergencyContactPhone: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={saveHouseholdAdmin} disabled={savingHouseholdAdmin || !householdAdminForm.name.trim()}>
+                      {savingHouseholdAdmin ? "Saving…" : "Save household details"}
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="members" className="space-y-3 pt-3">
+                  {managedHousehold?.members.map((member) => (
+                    <div key={member.id} className="rounded-lg border p-3 sm:p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="font-medium">{member.firstName} {member.lastName}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="secondary">{member.role === "student" ? "Rider" : member.role}</Badge>
+                            {member.hasAppAccess ? (
+                              <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400"><LogIn className="h-3 w-3" /> App access</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1"><UserX className="h-3 w-3" /> Not linked</span>
+                            )}
+                            {member.hasAppAccess && <span>Linked accounts keep their own email.</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openMemberEditor(member)}>Edit</Button>
+                          {(member.role === "parent" || member.role === "student") && (
+                            <Button size="sm" variant="outline" onClick={() => setMemberAction({ member, kind: "reclassify" })}>
+                              Make {member.role === "student" ? "parent" : "rider"}
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => { setMoveTargetId(""); setMemberAction({ member, kind: "move" }); }}>Move</Button>
+                          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setMemberAction({ member, kind: "duplicate" })}>Remove duplicate</Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </TabsContent>
+              </Tabs>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={editingMember !== null} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
+            <DialogContent className="w-[calc(100%-1rem)] max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit {editingMember?.role === "student" ? "rider" : "adult"} details</DialogTitle>
+                <DialogDescription>Email is intentionally not editable here, including for linked accounts.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5"><Label htmlFor="member-first-name">First name</Label><Input id="member-first-name" value={memberAdminForm.firstName} onChange={(e) => setMemberAdminForm((form) => ({ ...form, firstName: e.target.value }))} /></div>
+                <div className="space-y-1.5"><Label htmlFor="member-last-name">Last name</Label><Input id="member-last-name" value={memberAdminForm.lastName} onChange={(e) => setMemberAdminForm((form) => ({ ...form, lastName: e.target.value }))} /></div>
+                {editingMember?.role === "student" ? (
+                  <>
+                    <div className="space-y-1.5"><Label htmlFor="member-phone">Phone</Label><Input id="member-phone" type="tel" value={memberAdminForm.phone} onChange={(e) => setMemberAdminForm((form) => ({ ...form, phone: e.target.value }))} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="member-grade">Grade</Label><Input id="member-grade" inputMode="numeric" value={memberAdminForm.grade} onChange={(e) => setMemberAdminForm((form) => ({ ...form, grade: e.target.value }))} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="member-date-of-birth">Date of birth</Label><Input id="member-date-of-birth" type="date" value={memberAdminForm.dateOfBirth} onChange={(e) => setMemberAdminForm((form) => ({ ...form, dateOfBirth: e.target.value }))} /></div>
+                    <div className="sm:col-span-2 space-y-1.5"><Label htmlFor="member-allergies">Allergies</Label><Textarea id="member-allergies" value={memberAdminForm.allergies} onChange={(e) => setMemberAdminForm((form) => ({ ...form, allergies: e.target.value }))} /></div>
+                    <div className="sm:col-span-2 space-y-1.5"><Label htmlFor="member-medications">Medications</Label><Textarea id="member-medications" value={memberAdminForm.medications} onChange={(e) => setMemberAdminForm((form) => ({ ...form, medications: e.target.value }))} /></div>
+                    <div className="sm:col-span-2 space-y-1.5"><Label htmlFor="member-medical-notes">Medical notes</Label><Textarea id="member-medical-notes" value={memberAdminForm.medicalNotes} onChange={(e) => setMemberAdminForm((form) => ({ ...form, medicalNotes: e.target.value }))} /></div>
+                  </>
+                ) : <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="member-phone">Phone</Label><Input id="member-phone" type="tel" value={memberAdminForm.phone} onChange={(e) => setMemberAdminForm((form) => ({ ...form, phone: e.target.value }))} /></div>}
+              </div>
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button><Button onClick={saveMemberAdmin} disabled={savingMemberAdmin || !memberAdminForm.firstName.trim() || !memberAdminForm.lastName.trim()}>{savingMemberAdmin ? "Saving…" : "Save member"}</Button></div>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog open={memberAction !== null} onOpenChange={(open) => { if (!open) { setMemberAction(null); setMoveTargetId(""); } }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {memberAction?.kind === "reclassify" ? `Make ${memberAction.member.firstName} a ${memberAction.member.role === "student" ? "parent" : "rider"}?` : memberAction?.kind === "move" ? `Move ${memberAction.member.firstName}?` : `Remove duplicate record for ${memberAction?.member.firstName}?`}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {memberAction?.kind === "reclassify" && `This changes this member from ${memberAction.member.role === "student" ? "rider to parent" : "parent to rider"}. Their participation and permissions may change. Confirm only after reviewing the impact.`}
+                  {memberAction?.kind === "move" && "The member will leave this household and appear in the selected household. Their household-specific records and contacts will follow the new assignment."}
+                  {memberAction?.kind === "duplicate" && "This permanently removes only this duplicate member record. If the record has related data, the server may prevent removal and explain why."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {memberAction?.kind === "move" && (
+                <div className="space-y-2">
+                  <Label htmlFor="move-target-household">Target household</Label>
+                  <Select value={moveTargetId} onValueChange={setMoveTargetId}>
+                    <SelectTrigger id="move-target-household"><SelectValue placeholder="Choose a household" /></SelectTrigger>
+                    <SelectContent>{roster.filter((household) => household.id !== managedHousehold?.id).map((household) => <SelectItem key={household.id} value={String(household.id)}>{household.name} · {household.members.length} member{household.members.length === 1 ? "" : "s"}</SelectItem>)}</SelectContent>
+                  </Select>
+                  {moveTargetId && <p className="text-sm text-muted-foreground">Impact: {memberAction.member.firstName} will be moved to <strong>{roster.find((household) => household.id === Number(moveTargetId))?.name}</strong>.</p>}
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={savingMemberAdmin}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={(event) => { event.preventDefault(); performMemberAction(); }} disabled={savingMemberAdmin || (memberAction?.kind === "move" && !moveTargetId)}>
+                  {savingMemberAdmin ? "Saving…" : memberAction?.kind === "duplicate" ? "Remove duplicate" : memberAction?.kind === "move" ? "Confirm move" : "Confirm reclassify"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* ── Archived families ────────────────────────────────────────── */}
           {archivedFamilies.length > 0 && (

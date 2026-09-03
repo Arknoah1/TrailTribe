@@ -625,6 +625,25 @@ const migrations: { name: string; sql: string }[] = [
         ON event_rsvp_email_batches(status, due_at);
     `,
   },
+  {
+    name: "create_household_admin_audit_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS household_admin_audit (
+        id serial PRIMARY KEY,
+        household_id integer REFERENCES households(id) ON DELETE SET NULL,
+        member_id integer REFERENCES users(id) ON DELETE SET NULL,
+        administrator_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        action text NOT NULL,
+        before jsonb NOT NULL,
+        after jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS household_admin_audit_household_id_idx
+        ON household_admin_audit(household_id);
+      CREATE INDEX IF NOT EXISTS household_admin_audit_member_id_idx
+        ON household_admin_audit(member_id);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
