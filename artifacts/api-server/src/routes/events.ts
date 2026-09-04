@@ -322,7 +322,11 @@ router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
       const householdStudents = await db
         .select({ id: usersTable.id })
         .from(usersTable)
-        .where(and(eq(usersTable.householdId, me.householdId), eq(usersTable.role, "student")));
+        .where(and(
+          eq(usersTable.householdId, me.householdId),
+          eq(usersTable.role, "student"),
+          eq(usersTable.seasonParticipationStatus, "active"),
+        ));
       householdStudents.forEach((s) => allowedIds.add(s.id));
     }
 

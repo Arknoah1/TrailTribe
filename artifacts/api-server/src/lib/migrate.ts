@@ -697,6 +697,42 @@ const migrations: { name: string; sql: string }[] = [
         ON carpool_claims(event_id, rider_user_id);
     `,
   },
+  {
+    name: "add_rider_season_participation",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS season_participation_status text NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS season_participation_season_id integer;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'users_season_participation_season_id_fk'
+        ) THEN
+          ALTER TABLE users
+            ADD CONSTRAINT users_season_participation_season_id_fk
+            FOREIGN KEY (season_participation_season_id) REFERENCES seasons(id) ON DELETE SET NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'users_season_participation_status_check'
+        ) THEN
+          ALTER TABLE users
+            ADD CONSTRAINT users_season_participation_status_check
+            CHECK (season_participation_status IN ('active', 'season_off', 'pending'));
+        END IF;
+      END $$;
+
+      UPDATE users
+      SET season_participation_season_id = active_season.id
+      FROM (
+        SELECT id FROM seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1
+      ) AS active_season
+      WHERE users.role = 'student'
+        AND users.season_participation_season_id IS NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

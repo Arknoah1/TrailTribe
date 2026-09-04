@@ -37,7 +37,10 @@ export default function Roster() {
 
       <div className="space-y-8">
         {pods?.map(pod => {
-          const podHouseholds = households?.filter(h => h.podId === pod.id.toString()) || [];
+          const podHouseholds = households?.filter(h =>
+            h.podId === pod.id.toString() &&
+            h.members.some(m => m.role === "student" && (m as any).seasonParticipationStatus === "active")
+          ) || [];
           const podCoaches = coaches?.filter(c => c.podId === pod.id.toString()) || [];
 
           return (
@@ -90,7 +93,7 @@ export default function Roster() {
                           <div className="space-y-3">
                             <div className="space-y-1">
                               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Students</div>
-                              {household.members.filter(m => m.role === 'student').map(student => (
+                              {household.members.filter(m => m.role === 'student' && (m as any).seasonParticipationStatus === "active").map(student => (
                                 <div key={student.id} className="flex items-center text-sm">
                                   <User className="h-3 w-3 mr-2 text-muted-foreground" />
                                   {student.firstName} {student.lastName} {student.grade ? `(Gr ${student.grade})` : ''}

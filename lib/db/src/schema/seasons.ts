@@ -22,6 +22,7 @@ export type SnapshotMember = {
   lastName: string;
   role: string;
   approved: boolean;
+  seasonParticipationStatus?: "active" | "season_off" | "pending";
 };
 
 export const seasonRosterSnapshotsTable = pgTable("season_roster_snapshots", {

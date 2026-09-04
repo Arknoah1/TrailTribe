@@ -46,6 +46,10 @@ const patchUserByIdSchema = z.object({
   isActive: z.boolean().optional(),
 }).strict();
 
+const participationSchema = z.object({
+  status: z.enum(["active", "season_off"]),
+}).strict();
+
 // Schema for POST /pending-approvals/:id/approve
 const approveUserSchema = z.object({
   podId: z.string().max(100).nullable().optional(),
@@ -246,6 +250,32 @@ router.patch("/users/:id/pod", requireCoachOrAdmin, async (req, res) => {
   res.json(updated);
 });
 
+router.patch("/users/:id/season-participation", requireCoachOrAdmin, async (req, res) => {
+  const id = parseInt(str(req.params.id));
+  const parsed = participationSchema.safeParse(req.body);
+  if (!Number.isInteger(id) || !parsed.success) {
+    res.status(400).json({ error: "Choose Active this season or Taking a Season Off." });
+    return;
+  }
+  const [target, activeSeason] = await Promise.all([
+    db.query.usersTable.findFirst({ where: eq(usersTable.id, id) }),
+    db.query.seasonsTable.findFirst({ where: eq(seasonsTable.status, "active") }),
+  ]);
+  if (!target || target.role !== "student") {
+    res.status(404).json({ error: "Rider not found" });
+    return;
+  }
+  if (!activeSeason) {
+    res.status(409).json({ error: "Start a season before changing rider participation." });
+    return;
+  }
+  const [updated] = await db.update(usersTable).set({
+    seasonParticipationStatus: parsed.data.status,
+    seasonParticipationSeasonId: activeSeason.id,
+  }).where(eq(usersTable.id, id)).returning();
+  res.json(updated);
+});
+
 router.patch("/users/:id/role", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   // Prevent a coach/admin from demoting or promoting themselves
@@ -428,8 +458,9 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   if (user.role !== "parent") { res.status(403).json({ error: "Only parents can re-enroll" }); return; }
   if (!user.householdId) { res.status(400).json({ error: "No household associated with this account" }); return; }
+  const householdId = user.householdId;
 
-  const returning = await getIsReturningFamily(user.householdId);
+  const returning = await getIsReturningFamily(householdId);
   if (!returning) {
     res.status(409).json({ error: "This account is not in a returning-family state" });
     return;
@@ -444,6 +475,23 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
     .orderBy(desc(seasonsTable.id))
     .limit(1);
   const activeSeasonId = activeSeason?.id ?? null;
+  const riderIds = z.array(z.number().int().positive()).safeParse(req.body?.activeRiderIds);
+  if (!activeSeasonId) {
+    res.status(409).json({ error: "No active season is available for re-enrollment." });
+    return;
+  }
+  if (!riderIds.success) {
+    res.status(400).json({ error: "Choose which riders are active this season." });
+    return;
+  }
+  const householdRiders = await db.select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.householdId, householdId), eq(usersTable.role, "student")));
+  const householdRiderIds = new Set(householdRiders.map((r) => r.id));
+  if (riderIds.data.some((id) => !householdRiderIds.has(id))) {
+    res.status(403).json({ error: "You can only select riders in your household." });
+    return;
+  }
 
   // All three required document types must be configured with a file URL before
   // any family can re-enroll — prevents bypassing the clickwrap requirement when
@@ -470,7 +518,7 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
         seasonId: documentConsentsTable.seasonId,
       })
       .from(documentConsentsTable)
-      .where(eq(documentConsentsTable.householdId, user.householdId));
+      .where(eq(documentConsentsTable.householdId, householdId));
 
     const unsigned = activeDocs.filter((d) => {
       // The canonical version string uses the server-controlled revision counter
@@ -494,9 +542,8 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
 
   const now = new Date();
 
-  const [updatedHousehold] = await db
-    .update(householdsTable)
-    .set({
+  const result = await db.transaction(async (tx) => {
+    const [updatedHousehold] = await tx.update(householdsTable).set({
       liabilityWaiverSigned: true,
       liabilityWaiverSignedAt: now,
       mediaReleaseSigned: true,
@@ -504,15 +551,20 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
       codeOfConductSigned: true,
       codeOfConductSignedAt: now,
       seasonEnrolled: true,
-    })
-    .where(eq(householdsTable.id, user.householdId))
-    .returning();
+    }).where(eq(householdsTable.id, householdId)).returning();
 
-  const [updatedUser] = await db
-    .update(usersTable)
+    const [updatedUser] = await tx.update(usersTable)
     .set({ approved: true })
     .where(eq(usersTable.id, user.id))
     .returning();
+    for (const rider of householdRiders) {
+      await tx.update(usersTable).set({
+        seasonParticipationStatus: riderIds.data.includes(rider.id) ? "active" : "season_off",
+        seasonParticipationSeasonId: activeSeasonId,
+      }).where(eq(usersTable.id, rider.id));
+    }
+    return { updatedHousehold, updatedUser };
+  });
 
   // Notify coaches (fire-and-forget)
   notifyCoachesOfReturningFamily({
@@ -521,7 +573,7 @@ router.post("/users/me/reenroll", requireAuth, async (req, res) => {
     email: user.email ?? "",
   }).catch(() => {});
 
-  res.json({ user: updatedUser, household: updatedHousehold });
+  res.json({ user: result.updatedUser, household: result.updatedHousehold });
 });
 
 router.post("/users/me/regenerate-calendar-token", requireAuth, async (req, res) => {

@@ -29,6 +29,7 @@ export default function Reenroll() {
 
   const [household, setHousehold] = useState<any>(null);
   const [riders, setRiders] = useState<any[]>([]);
+  const [activeRiderIds, setActiveRiderIds] = useState<Set<number>>(new Set());
   const [loadingHousehold, setLoadingHousehold] = useState(true);
 
   const [teamDocs, setTeamDocs] = useState<Array<{ type: string; viewUrl: string | null }>>([]);
@@ -52,6 +53,7 @@ export default function Reenroll() {
     ]).then(([h, r]) => {
       setHousehold(h);
       setRiders(r ?? []);
+      setActiveRiderIds(new Set((r ?? []).map((rider: any) => rider.id)));
     }).catch(() => {}).finally(() => setLoadingHousehold(false));
   }, [me?.householdId, authedFetch]);
 
@@ -76,6 +78,8 @@ export default function Reenroll() {
       setEnrollError(null);
       const res = await authedFetch(`${BASE_URL}/api/users/me/reenroll`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activeRiderIds: [...activeRiderIds] }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -149,14 +153,26 @@ export default function Reenroll() {
               {riders.length > 0 && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <Bike className="h-3 w-3" /> Riders
+                    <Bike className="h-3 w-3" /> Who is riding this season?
                   </p>
-                  <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground mb-2">Select each returning rider. Unselected riders stay registered and are marked as taking the season off.</p>
+                  <div className="space-y-2">
                     {riders.map((r: any) => (
-                      <div key={r.id} className="flex items-center justify-between text-sm">
-                        <span>{r.firstName} {r.lastName}</span>
+                      <label key={r.id} className="flex items-center justify-between text-sm rounded-lg border p-3 cursor-pointer">
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={activeRiderIds.has(r.id)}
+                            onChange={(event) => setActiveRiderIds((current) => {
+                              const next = new Set(current);
+                              event.target.checked ? next.add(r.id) : next.delete(r.id);
+                              return next;
+                            })}
+                          />
+                          {r.firstName} {r.lastName}
+                        </span>
                         {r.grade && <span className="text-muted-foreground text-xs">Grade {r.grade}</span>}
-                      </div>
+                      </label>
                     ))}
                   </div>
                 </div>

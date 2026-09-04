@@ -87,6 +87,15 @@ router.post("/seasons", requireCoachOrAdmin, async (req, res) => {
         )
       );
     }
+    await db.update(usersTable).set({
+      seasonParticipationStatus: "active",
+      seasonParticipationSeasonId: season.id,
+    }).where(eq(usersTable.role, "student"));
+  } else {
+    await db.update(usersTable).set({
+      seasonParticipationStatus: "pending",
+      seasonParticipationSeasonId: season.id,
+    }).where(eq(usersTable.role, "student"));
   }
 
   res.status(201).json(season);
@@ -132,6 +141,7 @@ router.post("/seasons/:id/close", requireCoachOrAdmin, async (req, res) => {
             lastName: m.lastName ?? "",
             role: m.role ?? "parent",
             approved: m.approved ?? false,
+            seasonParticipationStatus: m.role === "student" ? m.seasonParticipationStatus : undefined,
           }));
         return {
           seasonId: id,
@@ -173,6 +183,10 @@ router.post("/seasons/:id/close", requireCoachOrAdmin, async (req, res) => {
       .update(usersTable)
       .set({ approved: false })
       .where(or(eq(usersTable.role, "parent")));
+    await tx.update(usersTable).set({
+      seasonParticipationStatus: "pending",
+      seasonParticipationSeasonId: null,
+    }).where(eq(usersTable.role, "student"));
   });
 
   const [closed] = await db
@@ -218,11 +232,12 @@ router.get("/seasons/:id/roster", requireCoachOrAdmin, async (req, res) => {
       emergencyContactName: s.emergencyContactName,
       emergencyContactPhone: s.emergencyContactPhone,
       // Members array (snapshot JSONB → UI-compatible shape)
-      members: (s.members as Array<{ firstName: string; lastName: string; role: string; approved: boolean }>).map((m) => ({
+       members: (s.members as Array<{ firstName: string; lastName: string; role: string; approved: boolean; seasonParticipationStatus?: string }>).map((m) => ({
         firstName: m.firstName,
         lastName: m.lastName,
         role: m.role,
         approved: m.approved,
+         seasonParticipationStatus: m.seasonParticipationStatus ?? "active",
         // null-safe extras the UI might touch
         householdId: s.householdId,
       })),
@@ -274,6 +289,7 @@ router.get("/seasons/:id/export.csv", requireCoachOrAdmin, async (req, res) => {
   const header = [
     "Family Name",
     "Riders",
+    "Rider Participation",
     "Pod",
     "Enrolled",
     "Waiver",
@@ -298,9 +314,14 @@ router.get("/seasons/:id/export.csv", requireCoachOrAdmin, async (req, res) => {
         .filter((m) => m.role === "student")
         .map((m) => `${m.firstName} ${m.lastName}`)
         .join("; ");
+      const participation = (s.members as Array<{ firstName: string; lastName: string; role: string; seasonParticipationStatus?: string }>)
+        .filter((m) => m.role === "student")
+        .map((m) => `${m.firstName} ${m.lastName}: ${m.seasonParticipationStatus === "season_off" ? "Season Off" : m.seasonParticipationStatus === "pending" ? "Pending" : "Active"}`)
+        .join("; ");
       return [
         s.familyName,
         riders,
+        participation,
         s.podName ?? "",
         s.enrolled ? "Y" : "N",
         s.liabilityWaiverSigned ? "Y" : "N",
@@ -321,10 +342,15 @@ router.get("/seasons/:id/export.csv", requireCoachOrAdmin, async (req, res) => {
         .filter((m) => m.householdId === h.id && m.role === "student")
         .map((m) => `${m.firstName} ${m.lastName}`)
         .join("; ");
+      const participation = members
+        .filter((m) => m.householdId === h.id && m.role === "student")
+        .map((m) => `${m.firstName} ${m.lastName}: ${m.seasonParticipationStatus === "season_off" ? "Season Off" : m.seasonParticipationStatus === "pending" ? "Pending" : "Active"}`)
+        .join("; ");
       const pod = pods.find((p) => String(p.id) === h.podId);
       return [
         h.name,
         riders,
+        participation,
         pod?.name ?? "",
         h.seasonEnrolled ? "Y" : "N",
         h.liabilityWaiverSigned ? "Y" : "N",

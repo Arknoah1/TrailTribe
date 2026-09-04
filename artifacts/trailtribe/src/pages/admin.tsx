@@ -57,6 +57,7 @@ interface HouseholdMember {
   medications?: string | null;
   medicalNotes?: string | null;
   hasAppAccess: boolean;
+  seasonParticipationStatus?: "active" | "season_off" | "pending";
 }
 
 interface HouseholdRosterItem {
@@ -347,6 +348,7 @@ export default function Admin() {
   const [archivedSectionOpen, setArchivedSectionOpen] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterView, setRosterView] = useState<"family" | "individual">("family");
+  const [participationFilter, setParticipationFilter] = useState<"active" | "all" | "season_off">("active");
   const [archiveConfirmId, setArchiveConfirmId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   // Household management workflow state. It deliberately does not include email:
@@ -857,6 +859,20 @@ export default function Admin() {
     }
   };
 
+  const setRiderParticipation = async (riderId: number, status: "active" | "season_off") => {
+    const res = await authedFetch(`${BASE_URL}/api/users/${riderId}/season-participation`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) {
+      toast({ title: status === "active" ? "Rider marked active this season" : "Rider marked as taking the season off" });
+      await fetchRoster();
+    } else {
+      toast({ title: await readApiError(res, "Could not update participation"), variant: "destructive" });
+    }
+  };
+
   const fetchTeamDocs = async () => {
     const res = await authedFetch(`${BASE_URL}/api/team-documents`);
     if (res.ok) setTeamDocs(await res.json());
@@ -1253,6 +1269,14 @@ export default function Admin() {
                 onChange={(e) => setRosterSearch(e.target.value)}
                 className="sm:w-60"
               />
+              <Select value={participationFilter} onValueChange={(value) => setParticipationFilter(value as typeof participationFilter)}>
+                <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active riders</SelectItem>
+                  <SelectItem value="season_off">Season-off riders</SelectItem>
+                  <SelectItem value="all">All riders</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex items-center border border-border rounded-md overflow-hidden shrink-0">
                 <button
                   onClick={() => setRosterView("family")}
@@ -1294,6 +1318,7 @@ export default function Admin() {
             );
             const riders = filtered
               .filter((m: any) => m.role === "student")
+              .filter((m: any) => participationFilter === "all" || (participationFilter === "active" ? m.seasonParticipationStatus === "active" : m.seasonParticipationStatus !== "active"))
               .sort((a: any, b: any) => a.lastName.localeCompare(b.lastName));
             const coaches = filtered
               .filter((m: any) => m.role === "coach")
@@ -1317,6 +1342,7 @@ export default function Admin() {
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Family</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">Parent Contact</th>
                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden lg:table-cell">Login</th>
+                             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">Season</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -1366,6 +1392,14 @@ export default function Admin() {
                                     </div>
                                   )}
                                 </td>
+                                 <td className="px-4 py-2.5">
+                                   <button
+                                     onClick={() => setRiderParticipation(m.id, m.seasonParticipationStatus === "active" ? "season_off" : "active")}
+                                     className={`rounded-full border px-2 py-1 text-xs font-medium ${m.seasonParticipationStatus === "active" ? "border-green-600/30 bg-green-600/10 text-green-700" : "border-amber-600/30 bg-amber-600/10 text-amber-700"}`}
+                                   >
+                                     {m.seasonParticipationStatus === "active" ? "Active" : m.seasonParticipationStatus === "pending" ? "Needs decision" : "Season off"}
+                                   </button>
+                                 </td>
                               </tr>
                             );
                           })}
@@ -1436,7 +1470,9 @@ export default function Admin() {
                 })
                 .map((household: any) => {
                   const parents = (household.members || []).filter((m: any) => m.role === "parent" || m.role === "coach");
-                  const riders = (household.members || []).filter((m: any) => m.role === "student");
+                  const riders = (household.members || [])
+                    .filter((m: any) => m.role === "student")
+                    .filter((m: any) => participationFilter === "all" || (participationFilter === "active" ? m.seasonParticipationStatus === "active" : m.seasonParticipationStatus !== "active"));
                   const isCompliant =
                     household.liabilityWaiverSigned &&
                     household.mediaReleaseSigned &&
@@ -1506,6 +1542,12 @@ export default function Admin() {
                                   <div key={r.id} className="flex items-center gap-1.5 text-sm bg-muted rounded-full px-3 py-1">
                                     <Bike className="h-3 w-3 text-muted-foreground" />
                                     <span>{r.firstName} {r.lastName}</span>
+                                     <button
+                                       onClick={() => setRiderParticipation(r.id, r.seasonParticipationStatus === "active" ? "season_off" : "active")}
+                                       className={r.seasonParticipationStatus === "active" ? "text-xs text-green-700" : "text-xs text-amber-700"}
+                                     >
+                                       {r.seasonParticipationStatus === "active" ? "Active" : r.seasonParticipationStatus === "pending" ? "Needs decision" : "Season off"}
+                                     </button>
                                     {r.grade && <span className="text-muted-foreground text-xs">· Gr {r.grade}</span>}
                                     {r.hasAppAccess ? (
                                       <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400" title="App access is active">

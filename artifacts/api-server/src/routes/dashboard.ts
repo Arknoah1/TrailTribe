@@ -27,7 +27,13 @@ router.get("/dashboard/summary", requireApproved, async (req, res) => {
   // Only count active (non-archived) households and their members.
   const households = await db.select().from(householdsTable).where(isNull(householdsTable.archivedAt));
   const activeHouseholdIds = new Set(households.map((h) => h.id));
-  const students = allUsers.filter((u) => u.role === "student" && u.householdId != null && activeHouseholdIds.has(u.householdId));
+  const students = allUsers.filter((u) =>
+    u.role === "student" &&
+    u.seasonParticipationStatus !== "season_off" &&
+    u.seasonParticipationStatus !== "pending" &&
+    u.householdId != null &&
+    activeHouseholdIds.has(u.householdId)
+  );
   const pods = await db.select().from(podsTable).where(eq(podsTable.isActive, true));
   // Pending approvals: only users from active households (coaches/admins have no householdId so always include them).
   const pendingApprovals = allUsers.filter((u) => !u.podId && (u.householdId == null || activeHouseholdIds.has(u.householdId)));
@@ -125,7 +131,8 @@ router.get("/dashboard/upcoming-events", requireApproved, async (req, res) => {
   if (clerkUserId) {
     me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
     if (me?.role === "parent" && me.householdId) {
-      householdMembers = await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId));
+      householdMembers = (await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId)))
+        .filter((member) => member.role !== "student" || member.seasonParticipationStatus === "active");
     }
   }
 
@@ -205,7 +212,8 @@ router.get("/dashboard/carpool-events", requireApproved, async (req, res) => {
   if (clerkUserId) {
     me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
     if (me?.role === "parent" && me.householdId) {
-      householdMembers = await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId));
+      householdMembers = (await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId)))
+        .filter((member) => member.role !== "student" || member.seasonParticipationStatus === "active");
     }
   }
 

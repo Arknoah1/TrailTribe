@@ -29,7 +29,11 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const { subject, body, channel, targetPodIds, isAllTeam } = req.body;
 
-  const allUsers = await db.select().from(usersTable).where(eq(usersTable.isActive, true));
+  const allUsers = (await db.select().from(usersTable).where(eq(usersTable.isActive, true)))
+    .filter((user) =>
+      user.role !== "student" ||
+      (user.seasonParticipationStatus !== "season_off" && user.seasonParticipationStatus !== "pending")
+    );
   let recipients = allUsers;
   if (!isAllTeam && targetPodIds?.length) {
     recipients = allUsers.filter((u) => u.podId && targetPodIds.includes(u.podId));
@@ -41,7 +45,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
       u.notificationsEnabled &&
       (u.notificationPreferences?.coachMessages !== false)
   );
-  const uniqueEmails = new Set(recipients.map((u) => u.email));
+  const uniqueEmails = new Set(emailRecipients.map((u) => u.email));
 
   const [broadcast] = await db.insert(broadcastsTable).values({
     senderUserId: me?.id ?? null,

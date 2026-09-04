@@ -13,6 +13,9 @@ export type CoachCertLevel = (typeof coachCertLevelEnum)[number];
 export const genderEnum = ["male", "female", "non_binary", "prefer_not_to_say"] as const;
 export type Gender = (typeof genderEnum)[number];
 
+export const seasonParticipationStatusEnum = ["active", "season_off", "pending"] as const;
+export type SeasonParticipationStatus = (typeof seasonParticipationStatusEnum)[number];
+
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   householdId: integer("household_id").references(() => householdsTable.id, { onDelete: "set null" }),
@@ -24,6 +27,8 @@ export const usersTable = pgTable("users", {
   podId: text("pod_id"),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").notNull().default(true),
+  seasonParticipationStatus: text("season_participation_status", { enum: seasonParticipationStatusEnum }).notNull().default("active"),
+  seasonParticipationSeasonId: integer("season_participation_season_id"),
   clerkUserId: text("clerk_user_id").unique(),
   gender: text("gender", { enum: genderEnum }),
   dateOfBirth: timestamp("date_of_birth", { withTimezone: true }),
