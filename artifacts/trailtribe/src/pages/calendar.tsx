@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadErrorCard } from "@/components/network-status";
 import { CalendarSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
+import { trackEvent } from "@/lib/analytics";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -93,6 +94,7 @@ export default function Calendar() {
     regenMutation.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetCalendarSubscribeUrlQueryKey() });
+        trackEvent("calendar_link_regenerated");
         toast({ title: "Calendar link regenerated", description: "Your old link will no longer sync. New link is ready." });
         setRegenConfirmOpen(false);
       },
@@ -225,6 +227,11 @@ export default function Calendar() {
       toast(volunteerSetupFailed
         ? { title: "Event created, but volunteer setup failed", description: "Open the event to review and add its volunteer tasks.", variant: "destructive" }
         : { title: `"${newEvent.title.trim()}" created` });
+      trackEvent("event_created", {
+        event_type: newEvent.eventType,
+        volunteer_tasks: volunteerEnabled,
+        volunteer_setup_succeeded: !volunteerSetupFailed,
+      });
       setNewEvent(emptyNewEvent);
       resetVolunteerSetup();
       setShowAddEvent(false);

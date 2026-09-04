@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { Mountain, Bike, Phone, Mail, CheckCircle2, RotateCcw, Check } from "lucide-react";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
+import { trackEvent } from "@/lib/analytics";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -88,6 +89,11 @@ export default function Reenroll() {
         return;
       }
       await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      trackEvent("family_reenrolled", {
+        rider_count: riders.length,
+        active_rider_count: activeRiderIds.size,
+        signed_document_count: signedDocs.size,
+      });
       setLocation("/dashboard");
     } catch {
       toast({ title: "Something went wrong — please try again", variant: "destructive" });

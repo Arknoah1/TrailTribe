@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ChevronLeft, Send, Mail, Smartphone, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { trackEvent } from "@/lib/analytics";
 
 export default function NewBroadcast() {
   const [, setLocation] = useLocation();
@@ -22,7 +23,12 @@ export default function NewBroadcast() {
 
   const sendMutation = useSendBroadcast({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_data, variables) => {
+        trackEvent("broadcast_sent", {
+          channel: variables.data.channel,
+          audience: variables.data.isAllTeam ? "all_team" : "selected_pods",
+          pod_count: variables.data.targetPodIds?.length ?? 0,
+        });
         toast({ title: "Broadcast sent successfully" });
         setLocation("/messages");
       },

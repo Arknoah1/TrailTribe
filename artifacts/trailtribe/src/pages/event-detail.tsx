@@ -31,6 +31,7 @@ import { LoadErrorCard } from "@/components/network-status";
 import { EventDetailSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
 import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
+import { trackEvent } from "@/lib/analytics";
 import {
   getVolunteerTaskState,
   volunteerTaskAvailableButtonClassName,
@@ -313,14 +314,22 @@ export default function EventDetail() {
 
   const handleSignUp = (taskId: number) => {
     signUpMut.mutate({ id: eventId, taskId, data: {} }, {
-      onSuccess: () => { invalidateTasks(); toast({ title: "Signed up!" }); },
+      onSuccess: () => {
+        invalidateTasks();
+        trackEvent("volunteer_signup_updated", { action: "signed_up" });
+        toast({ title: "Signed up!" });
+      },
       onError: () => toast({ title: "Failed to sign up", variant: "destructive" }),
     });
   };
 
   const handleCancel = (taskId: number) => {
     cancelMut.mutate({ id: eventId, taskId }, {
-      onSuccess: () => { invalidateTasks(); toast({ title: "Signup cancelled" }); },
+      onSuccess: () => {
+        invalidateTasks();
+        trackEvent("volunteer_signup_updated", { action: "cancelled" });
+        toast({ title: "Signup cancelled" });
+      },
       onError: () => toast({ title: "Failed to cancel", variant: "destructive" }),
     });
   };
@@ -593,6 +602,7 @@ export default function EventDetail() {
       });
       if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
       queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
+      trackEvent("event_rsvp_updated", { status, member_count: 1, bulk: false });
     } catch {
       setMemberStatuses(s => ({ ...s, [memberId]: prev }));
       toast({ title: "Failed to update RSVP", variant: "destructive" });
@@ -614,6 +624,11 @@ export default function EventDetail() {
       });
       if (!res.ok) throw new Error(`RSVP failed: ${res.status}`);
       queryClient.invalidateQueries({ queryKey: getGetEventQueryKey(eventId) });
+      trackEvent("event_rsvp_updated", {
+        status: "attending",
+        member_count: allMembers.length,
+        bulk: true,
+      });
     } catch {
       setMemberStatuses(prevStatuses);
       toast({ title: "Failed to update RSVP", variant: "destructive" });
