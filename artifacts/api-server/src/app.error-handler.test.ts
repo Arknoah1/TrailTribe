@@ -1,10 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import { globalErrorHandler } from "./app";
 
+const recordUnhandledServerError = vi.hoisted(() => vi.fn());
+vi.mock("./lib/serverErrorAlerts", () => ({ recordUnhandledServerError }));
+
 function createContext(headersSent = false) {
   const requestLog = { error: vi.fn() };
-  const req = { log: requestLog } as unknown as Request;
+  const req = {
+    id: "request-123",
+    method: "GET",
+    originalUrl: "/api/events?token=secret",
+    log: requestLog,
+  } as unknown as Request;
   const json = vi.fn();
   const status = vi.fn(() => ({ json }));
   const res = { headersSent, status } as unknown as Response;
@@ -13,6 +21,10 @@ function createContext(headersSent = false) {
 }
 
 describe("globalErrorHandler", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("hides server error details while logging the real error", () => {
     const context = createContext();
     const error = Object.assign(new Error("database credentials leaked"), { status: 503 });
@@ -23,6 +35,7 @@ describe("globalErrorHandler", () => {
     expect(context.status).toHaveBeenCalledWith(503);
     expect(context.json).toHaveBeenCalledWith({ error: "Internal server error" });
     expect(context.next).not.toHaveBeenCalled();
+    expect(recordUnhandledServerError).toHaveBeenCalledWith(error, context.req);
   });
 
   it("preserves intentional client-error messages", () => {
@@ -37,6 +50,7 @@ describe("globalErrorHandler", () => {
 
     expect(context.status).toHaveBeenCalledWith(422);
     expect(context.json).toHaveBeenCalledWith({ error: "Invalid invitation code" });
+    expect(recordUnhandledServerError).not.toHaveBeenCalled();
   });
 
   it.each([200, 399, 600, 500.5, Number.NaN])(

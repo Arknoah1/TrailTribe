@@ -6,6 +6,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { recordUnhandledServerError } from "./lib/serverErrorAlerts";
 
 const app: Express = express();
 
@@ -75,17 +76,6 @@ app.use(clerkMiddleware());
 app.use("/api", router);
 
 export const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
-  if (req.log) {
-    req.log.error({ err }, "Unhandled error");
-  } else {
-    logger.error({ err }, "Unhandled error");
-  }
-
-  if (res.headersSent) {
-    next(err);
-    return;
-  }
-
   const candidateStatus =
     typeof err?.status === "number"
       ? err.status
@@ -96,6 +86,21 @@ export const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => 
     Number.isInteger(candidateStatus) && candidateStatus >= 400 && candidateStatus <= 599
       ? candidateStatus
       : 500;
+
+  if (req.log) {
+    req.log.error({ err }, "Unhandled error");
+  } else {
+    logger.error({ err }, "Unhandled error");
+  }
+
+  if (status >= 500) {
+    recordUnhandledServerError(err, req);
+  }
+
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
 
   res.status(status).json({
     error: status >= 500 ? "Internal server error" : (err?.message || "Request failed"),
