@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import {
   getGetLinkPreviewQueryKey,
@@ -20,7 +20,7 @@ function PreviewCard({ url, compact = false }: { url: string; compact?: boolean 
   useEffect(() => setImageFailed(false), [url]);
 
   if (isLoading) {
-    return (
+    const loadingPreview = (
       <Skeleton
         data-testid="link-preview-loading"
         className={compact
@@ -28,13 +28,14 @@ function PreviewCard({ url, compact = false }: { url: string; compact?: boolean 
           : "not-prose my-3 h-28 w-full max-w-xl rounded-xl border border-[#0a0c10]/15 sm:h-36"}
       />
     );
+    return compact ? <ComposerPreviewFrame>{loadingPreview}</ComposerPreviewFrame> : loadingPreview;
   }
   if (!data) return null;
 
   const label = data.siteName || data.hostname;
   const showImage = Boolean(data.imageUrl) && !imageFailed;
 
-  return (
+  const previewCard = (
     <a
       href={url}
       target="_blank"
@@ -76,6 +77,17 @@ function PreviewCard({ url, compact = false }: { url: string; compact?: boolean 
       </div>
     </a>
   );
+
+  return compact ? <ComposerPreviewFrame>{previewCard}</ComposerPreviewFrame> : previewCard;
+}
+
+function ComposerPreviewFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="min-w-0" data-testid="composer-link-preview">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Link preview</div>
+      {children}
+    </div>
+  );
 }
 
 export function LinkPreview({ url }: { url: string }) {
@@ -97,10 +109,5 @@ export function ComposerLinkPreview({ text }: { text: string }) {
 
   if (!previewUrl || previewUrl !== detectedUrl) return null;
 
-  return (
-    <div className="min-w-0" data-testid="composer-link-preview">
-      <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Link preview</div>
-      <PreviewCard url={previewUrl} compact />
-    </div>
-  );
+  return <PreviewCard url={previewUrl} compact />;
 }

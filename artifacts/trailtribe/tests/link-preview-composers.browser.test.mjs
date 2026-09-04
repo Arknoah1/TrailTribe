@@ -96,6 +96,7 @@ test("new-thread preview tracks edits and metadata failure cannot block posting 
     await message.fill(failedDraft);
     await page.waitForTimeout(500);
     assert.equal(await page.getByTestId("link-preview-card").count(), 0);
+    assert.equal(await page.getByTestId("composer-link-preview").count(), 0);
     assert.equal(await message.inputValue(), failedDraft);
 
     const controls = await page.evaluate(() => {
@@ -131,6 +132,7 @@ test("reply preview tracks edits and metadata failure cannot block sending on mo
     await reply.fill(failedDraft);
     await page.waitForTimeout(500);
     assert.equal(await page.getByTestId("link-preview-card").count(), 0);
+    assert.equal(await page.getByTestId("composer-link-preview").count(), 0);
     assert.equal(await reply.inputValue(), failedDraft);
 
     const controls = await page.evaluate(() => {
