@@ -54,6 +54,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ComposerLinkPreview } from "@/components/link-preview";
 
 const newThreadSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -397,6 +398,7 @@ export default function Messages() {
     resolver: zodResolver(newThreadSchema),
     defaultValues: { title: "", body: "" },
   });
+  const draftBody = form.watch("body");
 
   // Mark board seen on mount
   const markSeenMutateRef = useRef(markSeen.mutate);
@@ -469,6 +471,7 @@ export default function Messages() {
                         <FormMessage />
                       </FormItem>
                     )} />
+                     <ComposerLinkPreview text={draftBody} />
                     <Button type="submit" className="w-full cel-interactive border-2 border-[#0a0c10]" disabled={createThread.isPending}>
                       {createThread.isPending ? "Posting..." : "Post Thread"}
                     </Button>

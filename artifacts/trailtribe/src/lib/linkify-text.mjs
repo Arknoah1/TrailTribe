@@ -51,3 +51,7 @@ export function splitLinkifiedText(text) {
 
   return segments;
 }
+
+export function firstLinkifiedUrl(text) {
+  return splitLinkifiedText(text).find((segment) => segment.type === "link")?.value ?? "";
+}

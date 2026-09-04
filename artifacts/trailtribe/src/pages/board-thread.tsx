@@ -10,8 +10,6 @@ import {
   useToggleBoardReaction,
   useGetBoardReactionDetails,
   useGetMe,
-  useGetLinkPreview,
-  getGetLinkPreviewQueryKey,
   getGetBoardReactionDetailsQueryKey,
   getListBoardPostsQueryKey,
   getListBoardThreadsQueryKey
@@ -19,7 +17,7 @@ import {
 import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, ExternalLink, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,58 +30,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
-
-function LinkPreview({ url }: { url: string }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const { data, isLoading } = useGetLinkPreview({ url }, {
-    query: { 
-      enabled: !!url, 
-      queryKey: getGetLinkPreviewQueryKey({ url }),
-      retry: false
-    } 
-  });
-  
-  if (isLoading) {
-    return <Skeleton className="not-prose my-3 h-28 w-full max-w-xl rounded-xl border border-[#0a0c10]/15 sm:h-36" />;
-  }
-  if (!data) return null;
-
-  const label = data.siteName || data.hostname;
-  const showImage = Boolean(data.imageUrl) && !imageFailed;
-  
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={`Open ${data.title} on ${label} in a new page`}
-      className="not-prose group my-3 flex w-full max-w-xl flex-col overflow-hidden rounded-xl border-2 border-[#0a0c10] bg-card text-foreground no-underline shadow-cel-sm transition-transform hover:-translate-y-0.5 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:flex-row"
-    >
-      {showImage && (
-        <div className="aspect-video w-full shrink-0 overflow-hidden bg-muted sm:aspect-auto sm:w-48">
-          <img
-            src={data.imageUrl ?? undefined}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-          />
-        </div>
-      )}
-      <div className="min-w-0 flex-1 p-3 sm:p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {label}
-          </div>
-          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        </div>
-        <div className="mt-1 line-clamp-2 text-sm font-bold leading-tight sm:text-base">{data.title}</div>
-        {data.description && <div className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{data.description}</div>}
-      </div>
-    </a>
-  );
-}
+import { ComposerLinkPreview, LinkPreview } from "@/components/link-preview";
 
 function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean }) {
   if (isDeleted) {
@@ -616,8 +563,10 @@ export default function BoardThread() {
               <Lock className="h-4 w-4" /> THIS THREAD IS LOCKED
             </div>
           ) : (
-            <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-              <Textarea
+            <div className="space-y-2">
+              <ComposerLinkPreview text={replyBody} />
+              <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
+                <Textarea
                 ref={replyTextareaRef}
                 rows={1}
                 value={replyBody}
@@ -627,16 +576,17 @@ export default function BoardThread() {
                 aria-label="Reply to this discussion"
                 className="!min-h-10 max-h-32 overflow-y-auto border-0 bg-transparent px-2 py-2 text-base leading-5 shadow-none focus-visible:ring-0"
                 disabled={createPost.isPending}
-              />
-              <Button 
+                />
+                <Button
                 size="icon"
                 onClick={handleSend}
                 disabled={!replyBody.trim() || createPost.isPending}
                 aria-label="Send reply"
                 className="shrink-0 h-10 w-10 rounded-lg cel-interactive border-2 border-[#0a0c10]"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { splitLinkifiedText } from "./linkify-text.mjs";
+import { firstLinkifiedUrl, splitLinkifiedText } from "./linkify-text.mjs";
 
 test("linkifies multiple http and https URLs while preserving surrounding text", () => {
   assert.deepEqual(
@@ -12,6 +12,12 @@ test("linkifies multiple http and https URLs while preserving surrounding text",
       { type: "link", value: "http://example.org/b" },
     ],
   );
+});
+
+test("firstLinkifiedUrl returns the first complete HTTP URL or an empty string", () => {
+  assert.equal(firstLinkifiedUrl("See https://example.com/ride then https://example.org"), "https://example.com/ride");
+  assert.equal(firstLinkifiedUrl("example.com is not a full URL"), "");
+  assert.equal(firstLinkifiedUrl("removed"), "");
 });
 
 test("keeps sentence punctuation outside links", () => {

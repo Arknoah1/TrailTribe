@@ -4,3 +4,4 @@ export type LinkifiedTextSegment = {
 };
 
 export function splitLinkifiedText(text: string): LinkifiedTextSegment[];
+export function firstLinkifiedUrl(text: string): string;
