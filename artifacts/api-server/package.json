@@ -28,7 +28,6 @@
     "nodemailer": "^9.0.4",
     "pino": "^9",
     "pino-http": "^10",
-    "resend": "^6.14.0",
     "zod": "catalog:"
   },
   "devDependencies": {

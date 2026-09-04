@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type ErrorRequestHandler, type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
@@ -73,5 +73,37 @@ app.use(express.urlencoded({ extended: true }));
 app.use(clerkMiddleware());
 
 app.use("/api", router);
+
+export const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
+  if (req.log) {
+    req.log.error({ err }, "Unhandled error");
+  } else {
+    logger.error({ err }, "Unhandled error");
+  }
+
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  const candidateStatus =
+    typeof err?.status === "number"
+      ? err.status
+      : typeof err?.statusCode === "number"
+        ? err.statusCode
+        : 500;
+  const status =
+    Number.isInteger(candidateStatus) && candidateStatus >= 400 && candidateStatus <= 599
+      ? candidateStatus
+      : 500;
+
+  res.status(status).json({
+    error: status >= 500 ? "Internal server error" : (err?.message || "Request failed"),
+  });
+};
+
+// Keep this last so errors forwarded by any route or middleware are sanitized
+// consistently instead of relying on Express's environment-dependent default.
+app.use(globalErrorHandler);
 
 export default app;
