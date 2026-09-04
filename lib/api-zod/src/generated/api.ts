@@ -2822,7 +2822,7 @@ export const MarkBoardSeenResponse = zod.object({
 });
 
 /**
- * @summary Fetch og:title and og:description for a URL
+ * @summary Fetch safe rich-preview metadata for a URL
  */
 export const GetLinkPreviewQueryParams = zod.object({
   url: zod.coerce.string(),
@@ -2833,6 +2833,9 @@ export const GetLinkPreviewResponse = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   hostname: zod.string(),
+  imageUrl: zod.string().nullable(),
+  siteName: zod.string().nullable(),
+  provider: zod.string().nullable(),
 });
 
 /**

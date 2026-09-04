@@ -7778,7 +7778,7 @@ export const useMarkBoardSeen = <
 };
 
 /**
- * @summary Fetch og:title and og:description for a URL
+ * @summary Fetch safe rich-preview metadata for a URL
  */
 export const getGetLinkPreviewUrl = (params: GetLinkPreviewParams) => {
   const normalizedParams = new URLSearchParams();
@@ -7845,7 +7845,7 @@ export type GetLinkPreviewQueryResult = NonNullable<
 export type GetLinkPreviewQueryError = ErrorType<unknown>;
 
 /**
- * @summary Fetch og:title and og:description for a URL
+ * @summary Fetch safe rich-preview metadata for a URL
  */
 
 export function useGetLinkPreview<

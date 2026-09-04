@@ -14,6 +14,13 @@ import { logger } from "../lib/logger";
 import { promises as dnsPromises } from "dns";
 import * as http from "http";
 import * as https from "https";
+import {
+  fallbackLinkPreview,
+  isPrivatePreviewAddress,
+  parseLinkPreviewHtml,
+  safeImageDataUri,
+  type LinkPreviewMetadata,
+} from "../lib/linkPreview";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -616,26 +623,6 @@ router.patch("/board/seen", requireAuth, async (req, res) => {
 
 // ─── SSRF protection helpers ───────────────────────────────────────────────────
 
-/** Returns true if the address is a private/loopback/link-local IP. */
-function isPrivateIP(addr: string): boolean {
-  // IPv6 loopback / link-local / ULA
-  if (/^::1$/.test(addr)) return true;
-  if (/^fe80:/i.test(addr)) return true;
-  if (/^fc[0-9a-f]{2}:/i.test(addr) || /^fd[0-9a-f]{2}:/i.test(addr)) return true;
-  // IPv4
-  const parts = addr.split(".").map(Number);
-  if (parts.length !== 4 || parts.some(isNaN)) return false;
-  const [a, b] = parts;
-  if (a === 127) return true;           // loopback
-  if (a === 10) return true;            // RFC1918 class A
-  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918 class B
-  if (a === 192 && b === 168) return true;           // RFC1918 class C
-  if (a === 169 && b === 254) return true;           // link-local
-  if (a === 0) return true;             // 0.0.0.0
-  if (addr === "255.255.255.255") return true;
-  return false;
-}
-
 /**
  * Resolves the hostname via DNS and returns the list of IPs if ALL of them are
  * safe (public, non-loopback, non-private). Returns null if the host is unsafe
@@ -650,7 +637,7 @@ async function resolveAndValidateHost(hostname: string): Promise<string[] | null
     const v6 = await dnsPromises.resolve6(hostname).catch(() => [] as string[]);
     const all = [...v4, ...v6];
     if (all.length === 0) return null; // DNS failed — block
-    if (!all.every((ip) => !isPrivateIP(ip))) return null; // any private IP → block
+    if (!all.every((ip) => !isPrivatePreviewAddress(ip))) return null; // any private IP → block
     return all;
   } catch {
     return null;
@@ -666,7 +653,8 @@ async function resolveAndValidateHost(hostname: string): Promise<string[] | null
 function fetchWithPinnedIP(
   parsedUrl: URL,
   resolvedIp: string,
-  timeoutMs: number
+  timeoutMs: number,
+  maxBytes = 256 * 1024,
 ): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: Buffer }> {
   return new Promise((resolve, reject) => {
     const isHttps = parsedUrl.protocol === "https:";
@@ -694,15 +682,15 @@ function fetchWithPinnedIP(
     const req = (isHttps ? https : http).request(options, (response) => {
       clearTimeout(timer);
       const chunks: Buffer[] = [];
-      const MAX_BYTES = 256 * 1024;
       let totalBytes = 0;
 
       response.on("data", (chunk: Buffer) => {
         totalBytes += chunk.byteLength;
-        chunks.push(chunk);
-        if (totalBytes >= MAX_BYTES) {
-          response.destroy(); // Stop reading — we have enough
+        if (totalBytes > maxBytes) {
+          req.destroy(new Error("Response too large"));
+          return;
         }
+        chunks.push(chunk);
       });
 
       response.on("end", () => {
@@ -723,6 +711,33 @@ function fetchWithPinnedIP(
 
     req.end();
   });
+}
+
+async function inlineSafePreviewImage(metadata: LinkPreviewMetadata): Promise<LinkPreviewMetadata> {
+  if (!metadata.imageUrl) return metadata;
+  let imageUrl: URL;
+  try {
+    imageUrl = new URL(metadata.imageUrl);
+  } catch {
+    return { ...metadata, imageUrl: null };
+  }
+  if (!["http:", "https:"].includes(imageUrl.protocol)) {
+    return { ...metadata, imageUrl: null };
+  }
+
+  const resolvedIPs = await resolveAndValidateHost(imageUrl.hostname);
+  if (!resolvedIPs) return { ...metadata, imageUrl: null };
+
+  try {
+    const response = await fetchWithPinnedIP(imageUrl, resolvedIPs[0], 5000, 512 * 1024);
+    const contentType = String(response.headers["content-type"] ?? "");
+    return {
+      ...metadata,
+      imageUrl: safeImageDataUri(response.statusCode, contentType, response.body),
+    };
+  } catch {
+    return { ...metadata, imageUrl: null };
+  }
 }
 
 // Authenticated-only utility with no team data; it supports composing an onboarding contact message.
@@ -758,32 +773,19 @@ router.get("/board/link-preview", requireAuth, async (req, res) => {
 
     // Block redirect responses; any 3xx is treated as a failed fetch
     if (response.statusCode >= 300 && response.statusCode < 400) {
-      res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
+      res.json(await inlineSafePreviewImage(fallbackLinkPreview(parsed))); return;
     }
 
     // Enforce content-type — only parse HTML
     const ct = (response.headers["content-type"] as string | undefined) ?? "";
     if (!ct.includes("text/html") && !ct.includes("text/plain")) {
-      res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname }); return;
+      res.json(await inlineSafePreviewImage(fallbackLinkPreview(parsed))); return;
     }
 
-    const html = response.body.toString("utf8");
-
-    const getTag = (property: string): string | null => {
-      const match = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`, "i"))
-        ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`, "i"));
-      return match?.[1]?.trim() ?? null;
-    };
-
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-
-    const title = getTag("og:title") ?? titleMatch?.[1]?.trim() ?? parsed.hostname;
-    const description = getTag("og:description") ?? getTag("description") ?? null;
-
-    res.json({ url, title, description, hostname: parsed.hostname });
+    res.json(await inlineSafePreviewImage(parseLinkPreviewHtml(parsed, response.body.toString("utf8"))));
   } catch (err) {
     logger.warn({ url, err }, "[board] link preview fetch error");
-    res.json({ url, title: parsed.hostname, description: null, hostname: parsed.hostname });
+    res.json(await inlineSafePreviewImage(fallbackLinkPreview(parsed)));
   }
 });
 

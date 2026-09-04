@@ -32,3 +32,16 @@ test("keeps balanced closing punctuation that belongs to a URL", () => {
     { type: "link", value: "https://en.wikipedia.org/wiki/Trail_(network)" },
   ]);
 });
+
+test("handles YouTube links and strips surrounding punctuation", () => {
+  assert.deepEqual(
+    splitLinkifiedText("Review https://youtu.be/dQw4w9WgXcQ?t=20, then https://youtube.com/watch?v=abc_123!"),
+    [
+      { type: "text", value: "Review " },
+      { type: "link", value: "https://youtu.be/dQw4w9WgXcQ?t=20" },
+      { type: "text", value: ", then " },
+      { type: "link", value: "https://youtube.com/watch?v=abc_123" },
+      { type: "text", value: "!" },
+    ],
+  );
+});

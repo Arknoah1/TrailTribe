@@ -23,6 +23,12 @@ function trimTrailingPunctuation(candidate) {
 export function splitLinkifiedText(text) {
   const segments = [];
   let cursor = 0;
+  const appendText = (value) => {
+    if (!value) return;
+    const previous = segments.at(-1);
+    if (previous?.type === "text") previous.value += value;
+    else segments.push({ type: "text", value });
+  };
 
   for (const match of text.matchAll(HTTP_URL_PATTERN)) {
     const index = match.index ?? 0;
@@ -30,19 +36,17 @@ export function splitLinkifiedText(text) {
     const url = trimTrailingPunctuation(candidate);
 
     if (index > cursor) {
-      segments.push({ type: "text", value: text.slice(cursor, index) });
+      appendText(text.slice(cursor, index));
     }
     segments.push({ type: "link", value: url });
 
     const punctuation = candidate.slice(url.length);
-    if (punctuation) {
-      segments.push({ type: "text", value: punctuation });
-    }
+    appendText(punctuation);
     cursor = index + candidate.length;
   }
 
   if (cursor < text.length || segments.length === 0) {
-    segments.push({ type: "text", value: text.slice(cursor) });
+    appendText(text.slice(cursor));
   }
 
   return segments;

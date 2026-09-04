@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { Fragment, useEffect, useState, useRef } from "react";
 import { useLocation, useParams, Link, useSearch } from "wouter";
 import {
   useGetBoardThread,
@@ -19,7 +19,7 @@ import {
 import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, ExternalLink, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,11 +31,11 @@ import { DiscussionTitle } from "@/components/discussion-title";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
 
 function LinkPreview({ url }: { url: string }) {
-  const { data, isLoading } = useGetLinkPreview({ url }, { 
+  const [imageFailed, setImageFailed] = useState(false);
+  const { data, isLoading } = useGetLinkPreview({ url }, {
     query: { 
       enabled: !!url, 
       queryKey: getGetLinkPreviewQueryKey({ url }),
@@ -43,14 +43,43 @@ function LinkPreview({ url }: { url: string }) {
     } 
   });
   
-  if (isLoading || !data) return null;
+  if (isLoading) {
+    return <Skeleton className="not-prose my-3 h-28 w-full max-w-xl rounded-xl border border-[#0a0c10]/15 sm:h-36" />;
+  }
+  if (!data) return null;
+
+  const label = data.siteName || data.hostname;
+  const showImage = Boolean(data.imageUrl) && !imageFailed;
   
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-2 mb-2 border-2 border-[#0a0c10] rounded-xl overflow-hidden bg-card hover:bg-muted/50 transition-colors max-w-sm shadow-cel-sm block no-underline">
-      <div className="p-3">
-        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{data.hostname}</div>
-        <div className="font-bold text-sm leading-tight mt-1 line-clamp-1">{data.title}</div>
-        {data.description && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{data.description}</div>}
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Open ${data.title} on ${label} in a new page`}
+      className="not-prose group my-3 flex w-full max-w-xl flex-col overflow-hidden rounded-xl border-2 border-[#0a0c10] bg-card text-foreground no-underline shadow-cel-sm transition-transform hover:-translate-y-0.5 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:flex-row"
+    >
+      {showImage && (
+        <div className="aspect-video w-full shrink-0 overflow-hidden bg-muted sm:aspect-auto sm:w-48">
+          <img
+            src={data.imageUrl ?? undefined}
+            alt=""
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setImageFailed(true)}
+            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+          />
+        </div>
+      )}
+      <div className="min-w-0 flex-1 p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            {label}
+          </div>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <div className="mt-1 line-clamp-2 text-sm font-bold leading-tight sm:text-base">{data.title}</div>
+        {data.description && <div className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{data.description}</div>}
       </div>
     </a>
   );
@@ -61,19 +90,19 @@ function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean 
     return <div className="text-muted-foreground italic bg-muted/50 px-3 py-2 rounded-md text-sm border border-dashed border-muted-foreground/30">[This message was deleted]</div>;
   }
 
-  const parts = text.split(URL_REGEX);
+  const parts = splitLinkifiedText(text);
   return (
     <div className="whitespace-pre-wrap break-words prose prose-sm dark:prose-invert max-w-none">
       {parts.map((part, i) => {
-        if (part.match(URL_REGEX)) {
+        if (part.type === "link") {
           return (
-            <span key={i}>
-              <a href={part} target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2 break-all">{part}</a>
-              <LinkPreview url={part} />
-            </span>
+            <Fragment key={`${part.value}-${i}`}>
+              <a href={part.value} target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2 break-all">{part.value}</a>
+              <LinkPreview url={part.value} />
+            </Fragment>
           );
         }
-        return <span key={i}>{part}</span>;
+        return <span key={i}>{part.value}</span>;
       })}
     </div>
   );

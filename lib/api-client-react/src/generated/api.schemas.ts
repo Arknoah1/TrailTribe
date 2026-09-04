@@ -851,6 +851,12 @@ export interface LinkPreviewResult {
   title: string;
   description?: string | null;
   hostname: string;
+  /** @nullable */
+  imageUrl: string | null;
+  /** @nullable */
+  siteName: string | null;
+  /** @nullable */
+  provider: string | null;
 }
 
 export type BroadcastChannel =

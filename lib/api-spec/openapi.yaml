@@ -2025,7 +2025,7 @@ paths:
     get:
       operationId: getLinkPreview
       tags: [board]
-      summary: Fetch og:title and og:description for a URL
+      summary: Fetch safe rich-preview metadata for a URL
       parameters:
         - name: url
           in: query
@@ -3761,7 +3761,13 @@ components:
           nullable: true
         hostname:
           type: string
-      required: [url, title, hostname]
+        imageUrl:
+          type: ["string", "null"]
+        siteName:
+          type: ["string", "null"]
+        provider:
+          type: ["string", "null"]
+      required: [url, title, hostname, imageUrl, siteName, provider]
 
     # ─── MESSAGES ─────────────────────────────────────────────────────────────
 
