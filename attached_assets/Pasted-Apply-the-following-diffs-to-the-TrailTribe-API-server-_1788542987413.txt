@@ -1,0 +1,54 @@
+Apply the following diffs to the TrailTribe API server (artifacts/api-server). These close out the two findings from the pre-deployment review: an unused dependency, and a global error handler that removes an implicit dependency on Express's NODE_ENV-based default behavior for unhandled exceptions.
+
+Context/notes for the agent:
+- resend removal: confirmed zero imports and zero RESEND_API_KEY references anywhere in the codebase before removing — email actually goes through nodemailer/Gmail SMTP. This is dependency cleanup only, no functional change.
+- IMPORTANT: after applying the package.json diff, run `pnpm install` (not --frozen-lockfile) to regenerate pnpm-lock.yaml — I verified this locally and the lockfile update is required, `pnpm install --frozen-lockfile` will fail otherwise with "specifiers in the lockfile don't match specifiers in package.json."
+- Error handler: registered last in app.ts, after all routes, per Express's required convention for error-handling middleware (4-argument signature). Verified with a standalone functional smoke test: a 500-class error now returns a generic "Internal server error" message to the client while still logging the real error server-side (via req.log if pino-http's request-scoped logger is available, falling back to the shared logger otherwise); a 4xx-class error with an intentional err.status still passes its safe message through unchanged. Behavior no longer depends on NODE_ENV.
+- Verified: tsc --noEmit clean on both changed files, full test suite still 165/165 passing (only the pre-existing DB-integration test fails, and only because this sandbox has no live DATABASE_URL — expected and unrelated to this change).
+
+--- a/artifacts/api-server/package.json
++++ b/artifacts/api-server/package.json
+@@ -28,7 +28,6 @@
+     "nodemailer": "^9.0.4",
+     "pino": "^9",
+     "pino-http": "^10",
+-    "resend": "^6.14.0",
+     "zod": "catalog:"
+   },
+   "devDependencies": {
+
+--- a/artifacts/api-server/src/app.ts
++++ b/artifacts/api-server/src/app.ts
+@@ -74,4 +74,27 @@
+ 
+ app.use("/api", router);
+ 
++// Global error handler — registered last, after all routes. Express falls
++// back to its own default error handler for anything unhandled below this
++// point, and that default's behavior (whether it includes a stack trace)
++// depends on NODE_ENV. This repo doesn't set NODE_ENV=production anywhere
++// in its own scripts, so that default is an implicit dependency on the
++// deploy platform rather than a guarantee. This handler removes that
++// dependency: it never returns internal details to the client regardless
++// of environment, while still logging the full error server-side.
++// eslint-disable-next-line @typescript-eslint/no-unused-vars
++app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
++  req.log?.error({ err }, "Unhandled error") ?? logger.error({ err }, "Unhandled error");
++
++  if (res.headersSent) {
++    return;
++  }
++
++  const status = typeof err?.status === "number" ? err.status
++    : typeof err?.statusCode === "number" ? err.statusCode
++    : 500;
++
++  res.status(status).json({ error: status >= 500 ? "Internal server error" : (err?.message || "Request failed") });
++});
++
+ export default app;
+
+After applying:
+1. Run `pnpm install` (from repo root) to regenerate the lockfile.
+2. Run `pnpm --filter @workspace/api-server run typecheck` and `pnpm --filter @workspace/api-server test` — both should pass unchanged.
+3. Optional manual sanity check: temporarily throw an uncaught error in any route handler, hit it, confirm the response body is `{"error":"Internal server error"}` with no stack trace, then remove the test error.
