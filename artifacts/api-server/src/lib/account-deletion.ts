@@ -7,7 +7,7 @@ import {
   seasonRosterSnapshotsTable,
   usersTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
 
@@ -15,7 +15,7 @@ type LocalUser = typeof usersTable.$inferSelect;
 
 export type AccountDeletionResult =
   | { ok: true; deletedHousehold: boolean }
-  | { ok: false; stage: "clerk" | "database" };
+  | { ok: false; stage: "clerk" | "database" | "last_super_admin" };
 
 function isMissingClerkUser(error: unknown): boolean {
   const status = (error as { status?: unknown; statusCode?: unknown })?.status
@@ -51,14 +51,24 @@ export async function deleteClerkUserId(clerkUserId: string | null): Promise<boo
  * are removed too.
  */
 export async function permanentlyDeleteLocalAccount(user: LocalUser): Promise<AccountDeletionResult> {
-  const clerkDeleted = await deleteClerkUserId(user.clerkUserId);
-  if (!clerkDeleted) return { ok: false, stage: "clerk" };
-
   try {
-    let deletedHousehold = false;
-    const anonymizedClerkId = `deleted-account-${randomUUID()}`;
+    return await db.transaction(async (tx): Promise<AccountDeletionResult> => {
+      if (user.role === "super_admin") {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-super-admin-lifecycle'))`);
+        const superAdmins = await tx
+          .select({ id: usersTable.id })
+          .from(usersTable)
+          .where(eq(usersTable.role, "super_admin"));
+        if (superAdmins.length <= 1) {
+          return { ok: false, stage: "last_super_admin" };
+        }
+      }
 
-    await db.transaction(async (tx) => {
+      const clerkDeleted = await deleteClerkUserId(user.clerkUserId);
+      if (!clerkDeleted) return { ok: false, stage: "clerk" };
+
+      let deletedHousehold = false;
+      const anonymizedClerkId = `deleted-account-${randomUUID()}`;
       let isLastHouseholdMember = false;
       if (user.householdId !== null) {
         const members = await tx
@@ -91,10 +101,10 @@ export async function permanentlyDeleteLocalAccount(user: LocalUser): Promise<Ac
         await tx.delete(householdsTable).where(eq(householdsTable.id, user.householdId));
         deletedHousehold = true;
       }
-    });
 
-    logger.info({ userId: user.id, deletedHousehold }, "Permanently deleted local account");
-    return { ok: true, deletedHousehold };
+      logger.info({ userId: user.id, deletedHousehold }, "Permanently deleted local account");
+      return { ok: true, deletedHousehold };
+    });
   } catch (error) {
     // The Clerk identity has already been removed. The remaining local row is
     // deliberately retained so an administrator can safely retry by email.

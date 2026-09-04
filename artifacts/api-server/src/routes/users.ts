@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, isOperationalStaffRole } from "@workspace/db";
 import {
   usersTable,
   householdsTable,
@@ -7,9 +7,10 @@ import {
   seasonsTable,
   teamDocumentsTable,
   documentConsentsTable,
+  householdAdminAuditTable,
 } from "@workspace/db";
-import { eq, and, ilike, or, isNull, desc } from "drizzle-orm";
-import { hasStudentAccess, requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { eq, and, ilike, or, isNull, desc, sql } from "drizzle-orm";
+import { hasStudentAccess, requireAuth, requireApproved, requireCoachOrAdmin, requireSuperAdmin } from "../middlewares/requireAuth";
 import { notifyCoachesOfNewFamily, notifyCoachesOfReturningFamily } from "../lib/notifications";
 import { randomBytes } from "crypto";
 import { randomUUID } from "crypto";
@@ -26,7 +27,7 @@ const notificationPreferencesSchema = z.object({
   boardReplies: z.boolean().optional().default(true),
 });
 
-const userRoleSchema = z.enum(["parent", "coach", "admin", "student"]);
+const approvalRoleSchema = z.literal("parent");
 const requiredNameSchema = z.string().trim().min(1, "Name is required").max(100);
 const optionalNamePatchSchema = z.object({
   firstName: requiredNameSchema.optional(),
@@ -54,7 +55,7 @@ const participationSchema = z.object({
 const approveUserSchema = z.object({
   podId: z.string().max(100).nullable().optional(),
   householdId: z.number().int().positive().nullable().optional(),
-  role: userRoleSchema.optional(),
+  role: approvalRoleSchema,
 }).strict();
 
 // Schema for PUT /users/me (full self-update)
@@ -101,7 +102,7 @@ async function getRequester(req: any) {
 type Requester = Awaited<ReturnType<typeof getRequester>>;
 
 function isCoachOrAdmin(requester: Requester): boolean {
-  return requester?.role === "coach" || requester?.role === "admin";
+  return isOperationalStaffRole(requester?.role);
 }
 
 const DEFAULT_NOTIFICATION_PREFS = {
@@ -276,25 +277,52 @@ router.patch("/users/:id/season-participation", requireCoachOrAdmin, async (req,
   res.json(updated);
 });
 
-router.patch("/users/:id/role", requireCoachOrAdmin, async (req, res) => {
+// Staff privileges are intentionally managed separately from family-member
+// roles. Only a super admin may promote or demote a staff account.
+router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  // Prevent a coach/admin from demoting or promoting themselves
+  // Prevent a super admin from demoting or promoting themselves.
   const requestingUser = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, (req as any).clerkUserId) });
   if (requestingUser?.id === id) {
     res.status(403).json({ error: "You cannot change your own role" });
     return;
   }
   const { role } = req.body;
-  if (!["parent", "coach"].includes(role)) {
-    res.status(400).json({ error: "Role must be 'parent' or 'coach'" });
-    return;
-  }
   const target = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!target) { res.status(404).json({ error: "User not found" }); return; }
-  const [updated] = await db.update(usersTable)
-    .set({ role })
-    .where(eq(usersTable.id, id))
-    .returning();
+  const transitionAllowed =
+    (target.role === "parent" && role === "coach")
+    || (target.role === "coach" && (role === "parent" || role === "super_admin"))
+    || (target.role === "super_admin" && role === "coach");
+  if (!transitionAllowed) {
+    res.status(400).json({ error: "Choose a valid parent, coach, or super-admin role change." });
+    return;
+  }
+  const [updated] = await db.transaction(async (tx) => {
+    if (target.role === "super_admin" && role === "coach") {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-super-admin-lifecycle'))`);
+      const superAdmins = await tx.select({ id: usersTable.id }).from(usersTable)
+        .where(eq(usersTable.role, "super_admin"));
+      if (superAdmins.length <= 1) return [null] as const;
+    }
+    const [after] = await tx.update(usersTable)
+      .set({ role })
+      .where(eq(usersTable.id, id))
+      .returning();
+    await tx.insert(householdAdminAuditTable).values({
+      householdId: target.householdId ?? null,
+      memberId: target.id,
+      administratorUserId: requestingUser!.id,
+      action: "staff.role.patch",
+      before: { role: target.role },
+      after: { role: after.role },
+    });
+    return [after];
+  });
+  if (!updated) {
+    res.status(409).json({ error: "The last super admin cannot be demoted." });
+    return;
+  }
   res.json(updated);
 });
 
@@ -353,6 +381,10 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
 
   const result = await permanentlyDeleteLocalAccount(user);
   if (!result.ok) {
+    if (result.stage === "last_super_admin") {
+      res.status(409).json({ error: "Promote another super admin before deleting this account." });
+      return;
+    }
     if (result.stage === "clerk") {
       res.status(502).json({ error: "We could not reach the sign-in service. Your TrailTeam account has not been deleted; please try again." });
       return;
@@ -616,6 +648,10 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
   }
   const { firstName, lastName } = parsedNames.data;
   const { phone, role, inviteCode } = req.body;
+  if (role !== undefined && role !== "parent" && role !== "student") {
+    res.status(400).json({ error: "Role must be 'parent' or 'student'" });
+    return;
+  }
 
   const existing = await db.query.usersTable.findFirst({
     where: eq(usersTable.clerkUserId, clerkUserId),
@@ -653,10 +689,9 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
     email: `${clerkUserId}@pending.trailteam.app`,
   }).returning();
 
-  // Notify coaches/admins that a new family is waiting for approval (fire-and-forget)
-  // Only for parents/coaches (not for students added by parents)
+  // Notify staff that a new family is waiting for approval (not students).
   const newUserRole = role ?? "parent";
-  if (user && (newUserRole === "parent" || newUserRole === "coach")) {
+  if (user && newUserRole === "parent") {
     const displayEmail = user.email;
     notifyCoachesOfNewFamily({ firstName, lastName, email: displayEmail }).catch(() => {});
   }
@@ -835,10 +870,14 @@ router.post("/pending-approvals/:id/approve", requireCoachOrAdmin, async (req, r
 
   const existing = await db.query.usersTable.findFirst({ where: eq(usersTable.id, id) });
   if (!existing) { res.status(404).json({ error: "User not found" }); return; }
-
+  if (existing.approved || existing.role !== "parent") {
+    res.status(409).json({ error: "Only a pending parent account can be approved here." });
+    return;
+  }
+  const approvedRole = role;
   const updates: Record<string, any> = {
     approved: true,
-    role: role ?? existing.role,
+    role: approvedRole,
     householdId: householdId !== undefined ? householdId : existing.householdId,
   };
   // Pod assignment only applies to coaches, not parents

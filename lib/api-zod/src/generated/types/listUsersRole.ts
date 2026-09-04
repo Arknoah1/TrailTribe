@@ -9,7 +9,7 @@
 export type ListUsersRole = (typeof ListUsersRole)[keyof typeof ListUsersRole];
 
 export const ListUsersRole = {
-  admin: "admin",
+  super_admin: "super_admin",
   coach: "coach",
   parent: "parent",
   student: "student",

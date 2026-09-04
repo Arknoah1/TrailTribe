@@ -12,7 +12,7 @@ import {
   notificationsTable,
 } from "@workspace/db";
 import { eq, and, inArray, count, gte, max } from "drizzle-orm";
-import { requireAuth, requireApproved, requireAdmin, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 
 const router = Router();

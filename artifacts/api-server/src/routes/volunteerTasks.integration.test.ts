@@ -24,7 +24,7 @@ vi.mock("../middlewares/requireAuth", () => ({
     req.clerkUserId = req.header("x-test-clerk-user-id");
     next();
   },
-  requireAdmin: (_req: any, _res: any, next: any) => next(),
+  requireSuperAdmin: (_req: any, _res: any, next: any) => next(),
   requireCoachOrAdmin: (_req: any, _res: any, next: any) => next(),
 }));
 

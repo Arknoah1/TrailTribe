@@ -105,7 +105,7 @@ export default function Calendar() {
     });
   };
 
-  const isCoach = me?.role === "coach" || me?.role === "admin";
+  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
 
   useEffect(() => {
     if (!showAddEvent || !isCoach) return;

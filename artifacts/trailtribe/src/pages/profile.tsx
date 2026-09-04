@@ -101,7 +101,7 @@ function NotificationsTab({ user }: { user: User }) {
   const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(localUser.notificationPreferences ?? {}) };
   const masterOn: boolean = localUser.notificationsEnabled ?? true;
   const hasPhone = !!localUser.phone;
-  const isCoachOrAdmin = localUser.role === "coach" || localUser.role === "admin";
+  const isCoachOrAdmin = localUser.role === "coach" || (localUser as { role?: string }).role === "super_admin";
   const prefsLocked = localUser.role === "student" && !!(localUser as any).notificationPreferencesLocked;
 
   const save = async (patch: Record<string, any>, key: string) => {
@@ -1263,7 +1263,7 @@ export default function Profile() {
 
   const { signOut } = useClerk();
   const { adminViewEnabled, setAdminView } = useAdminView();
-  const isCoachOrAdmin = user?.role === "coach" || user?.role === "admin";
+  const isCoachOrAdmin = user?.role === "coach" || (user as { role?: string } | undefined)?.role === "super_admin";
   const isStudent = user?.role === "student";
   useRoutePerformance("profile", user !== undefined, user !== undefined && !isLoading);
 

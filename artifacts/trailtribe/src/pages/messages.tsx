@@ -386,7 +386,7 @@ export default function Messages() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
   const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(search));
   const [sheetOpen, setSheetOpen] = useState(false);
 

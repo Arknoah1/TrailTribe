@@ -40,7 +40,7 @@ async function buildEventWithDetails(event: any, clerkUserId?: string) {
   const maybe = rsvps.filter((r) => r.status === "maybe");
   const notAttending = rsvps.filter((r) => r.status === "not_attending");
 
-  const isCoachOrAdmin = (userId: number) => roleById[userId] === "coach" || roleById[userId] === "admin";
+  const isCoachOrAdmin = (userId: number) => roleById[userId] === "coach" || roleById[userId] === "super_admin";
   const isStudent = (userId: number) => roleById[userId] === "student";
 
   const rsvpCounts = {
@@ -318,7 +318,7 @@ router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
 
     const allowedIds = new Set<number>([me.id]);
     // Parents, coaches, and admins may all RSVP for riders in their own household
-    if ((me.role === "parent" || me.role === "coach" || me.role === "admin") && me.householdId) {
+    if ((me.role === "parent" || me.role === "coach" || me.role === "super_admin") && me.householdId) {
       const householdStudents = await db
         .select({ id: usersTable.id })
         .from(usersTable)

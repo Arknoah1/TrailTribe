@@ -4,8 +4,16 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { householdsTable } from "./households";
 
-export const userRoleEnum = ["admin", "coach", "parent", "student"] as const;
+export const userRoleEnum = ["super_admin", "coach", "parent", "student"] as const;
 export type UserRole = (typeof userRoleEnum)[number];
+
+export function isOperationalStaffRole(role: string | null | undefined): role is "super_admin" | "coach" {
+  return role === "super_admin" || role === "coach";
+}
+
+export function isSuperAdminRole(role: string | null | undefined): role is "super_admin" {
+  return role === "super_admin";
+}
 
 export const coachCertLevelEnum = ["1", "2", "3"] as const;
 export type CoachCertLevel = (typeof coachCertLevelEnum)[number];

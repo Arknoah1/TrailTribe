@@ -23,7 +23,7 @@ router.get("/pods", requireApproved, async (req, res) => {
     pods.map(async (pod) => {
       const members = await db.select().from(usersTable).where(eq(usersTable.podId, String(pod.id)));
       const students = members.filter((m) => m.role === "student");
-      const coaches = members.filter((m) => m.role === "coach" || m.role === "admin");
+      const coaches = members.filter((m) => m.role === "coach" || m.role === "super_admin");
       const households = await db.select().from(householdsTable).where(eq(householdsTable.podId, String(pod.id)));
       const totalHouseholds = households.length;
       const compliantHouseholds = households.filter(
@@ -84,7 +84,7 @@ router.get("/pods/:id", requireApproved, async (req, res) => {
     return;
   }
   const members = await db.select().from(usersTable).where(eq(usersTable.podId, String(id)));
-  const coaches = members.filter((m) => m.role === "coach" || m.role === "admin");
+  const coaches = members.filter((m) => m.role === "coach" || m.role === "super_admin");
   res.json({ ...pod, members, coaches });
 });
 

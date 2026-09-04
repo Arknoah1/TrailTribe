@@ -15,7 +15,7 @@ export default function Dashboard() {
   const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
   const { data: summary } = useGetDashboardSummary();
 
-  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
   const emailWarning = isCoachOrAdmin && summary != null && !summary.emailConfigured;
 
   const [coachWelcomeSeen, setCoachWelcomeSeen] = useState<boolean>(() => {

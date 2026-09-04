@@ -35,7 +35,7 @@ const PARENT_ID             = 3;
 
 const users: Record<number, Record<string, unknown>> = {
   [COACH_ID]:  { id: COACH_ID,  role: "coach",  householdId: null,         clerkUserId: "clerk_coach"  },
-  [ADMIN_ID]:  { id: ADMIN_ID,  role: "admin",  householdId: null,         clerkUserId: "clerk_admin"  },
+  [ADMIN_ID]:  { id: ADMIN_ID,  role: "super_admin",  householdId: null,         clerkUserId: "clerk_admin"  },
   [PARENT_ID]: { id: PARENT_ID, role: "parent", householdId: HOUSEHOLD_ID, clerkUserId: "clerk_parent" },
 };
 
@@ -215,7 +215,7 @@ vi.mock("../middlewares/requireAuth", () => ({
     (_req as any).clerkUserId = currentClerkUserId;
     next();
   },
-  requireAdmin: (_req: any, _res: any, next: any) => {
+  requireSuperAdmin: (_req: any, _res: any, next: any) => {
     (_req as any).clerkUserId = currentClerkUserId;
     next();
   },

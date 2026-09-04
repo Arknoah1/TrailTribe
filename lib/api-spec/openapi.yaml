@@ -167,7 +167,7 @@ paths:
     delete:
       operationId: deleteAccountByEmail
       tags: [users]
-      summary: Permanently delete a selected account (coach or admin only)
+      summary: Permanently delete a selected account (super admin only)
       requestBody:
         required: true
         content:
@@ -210,13 +210,13 @@ paths:
     get:
       operationId: listUsers
       tags: [users]
-      summary: List all users (admin/coach only)
+      summary: List all users (coach or super admin only)
       parameters:
         - name: role
           in: query
           schema:
             type: string
-            enum: [admin, coach, parent, student]
+            enum: [super_admin, coach, parent, student]
         - name: podId
           in: query
           schema:
@@ -255,7 +255,7 @@ paths:
     patch:
       operationId: updateUser
       tags: [users]
-      summary: Update user (admin only)
+      summary: Update user (coach or super admin only)
       parameters:
         - name: id
           in: path
@@ -275,6 +275,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+
+  /users/{id}/role:
+    patch:
+      operationId: updateStaffRole
+      tags: [users]
+      summary: Change a staff role (super admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffRoleUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid role transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Super-admin access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Last super admin cannot be demoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /users/onboard:
     post:
@@ -301,7 +344,7 @@ paths:
     get:
       operationId: listHouseholds
       tags: [households]
-      summary: List households (admin/coach only)
+      summary: List households (coach or super admin only)
       responses:
         "200":
           description: List of households with members
@@ -2379,7 +2422,7 @@ components:
           nullable: true
         role:
           type: string
-          enum: [admin, coach, parent, student]
+          enum: [super_admin, coach, parent, student]
         podId:
           type: string
           nullable: true
@@ -2489,8 +2532,16 @@ components:
           type: integer
         role:
           type: string
-          enum: [admin, coach, parent, student]
-      required: [podId, role]
+          enum: [parent]
+      required: [role]
+
+    StaffRoleUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [super_admin, coach, parent]
+      required: [role]
 
     # ─── HOUSEHOLD ────────────────────────────────────────────────────────────
 

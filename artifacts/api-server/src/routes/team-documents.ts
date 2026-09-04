@@ -37,7 +37,7 @@ router.get("/team-documents", requireAuth, async (req, res) => {
     return;
   }
   const docs = await db.select().from(teamDocumentsTable);
-  const canSeeUnsignedCounts = requester.role === "coach" || requester.role === "admin";
+  const canSeeUnsignedCounts = requester.role === "coach" || requester.role === "super_admin";
   if (!canSeeUnsignedCounts) {
     res.json(docs.map((doc) => ({
       ...doc,

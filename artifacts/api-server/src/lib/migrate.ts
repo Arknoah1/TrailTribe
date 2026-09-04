@@ -733,6 +733,14 @@ const migrations: { name: string; sql: string }[] = [
         AND users.season_participation_season_id IS NULL;
     `,
   },
+  {
+    name: "promote_legacy_admins_to_super_admin",
+    sql: `
+      UPDATE users
+      SET role = 'super_admin'
+      WHERE role = 'admin';
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

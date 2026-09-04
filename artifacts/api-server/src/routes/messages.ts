@@ -131,7 +131,7 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
 
   const allUsers = await db.select().from(usersTable).where(eq(usersTable.isActive, true));
   const allCoaches = allUsers.filter(
-    (u) => (u.role === "coach" || u.role === "admin") && u.emailNotifications,
+    (u) => (u.role === "coach" || u.role === "super_admin") && u.emailNotifications,
   );
 
   let coaches;

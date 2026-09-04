@@ -54,7 +54,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
     let aclPolicy: ObjectAclPolicy;
 
-    if (user && (user.role === "coach" || user.role === "admin")) {
+    if (user && (user.role === "coach" || user.role === "super_admin")) {
       // Coach/admin uploads are readable by the whole team.
       aclPolicy = {
         owner: clerkUserId,

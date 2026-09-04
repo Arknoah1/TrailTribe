@@ -49,7 +49,7 @@ async function notifyAdmins(alert: {
   occurrences: number;
 }): Promise<void> {
   const admins = await db.query.usersTable.findMany({
-    where: and(eq(usersTable.role, "admin"), eq(usersTable.isActive, true)),
+    where: and(eq(usersTable.role, "super_admin"), eq(usersTable.isActive, true)),
   });
   if (admins.length === 0) return;
 

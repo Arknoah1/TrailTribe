@@ -90,7 +90,7 @@ vi.mock("../middlewares/requireAuth", () => ({
     req.clerkUserId = (state.requester as any)?.clerkUserId ?? "test_clerk";
     next();
   },
-  requireAdmin: (req: any, _res: any, next: any) => {
+  requireSuperAdmin: (req: any, _res: any, next: any) => {
     req.clerkUserId = (state.requester as any)?.clerkUserId ?? "test_clerk";
     next();
   },
@@ -151,7 +151,7 @@ describe("POST /households/:id/co-parent-invites", () => {
   it.each([
     ["a student in the household", { id: 8, role: "student", householdId: 42 }],
     ["a coach from a different household", { id: 9, role: "coach", householdId: 99 }],
-    ["an admin in the household", { id: 10, role: "admin", householdId: 42 }],
+    ["a super admin in the household", { id: 10, role: "super_admin", householdId: 42 }],
   ])("rejects %s", async (_description, requester) => {
     state.requester = requester;
     const response = await send({ email: "coparent@example.com" });

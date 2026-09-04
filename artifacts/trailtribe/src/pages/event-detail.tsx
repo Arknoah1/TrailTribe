@@ -204,8 +204,8 @@ export default function EventDetail() {
   const { data: pods } = useListPods();
   const updateEvent = useUpdateEvent();
 
-  const isCoach = me?.role === "coach" || me?.role === "admin";
-  const isAdmin = me?.role === "admin";
+  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isSuperAdmin = (me as { role?: string } | undefined)?.role === "super_admin";
 
   const [showEdit, setShowEdit] = useState(false);
   const [editData, setEditData] = useState<{
@@ -1011,7 +1011,7 @@ export default function EventDetail() {
                             </span>
                             {r.user && (
                               <Badge
-                                variant={r.user.role === "coach" || r.user.role === "admin" ? "default" : "outline"}
+                                variant={r.user.role === "coach" || (r.user as { role?: string }).role === "super_admin" ? "default" : "outline"}
                                 className="text-xs capitalize shrink-0"
                               >
                                 {r.user.role}
@@ -1052,7 +1052,7 @@ export default function EventDetail() {
                             </span>
                             {r.user && (
                               <Badge
-                                variant={r.user.role === "coach" || r.user.role === "admin" ? "default" : "outline"}
+                                variant={r.user.role === "coach" || (r.user as { role?: string }).role === "super_admin" ? "default" : "outline"}
                                 className="text-xs capitalize shrink-0"
                               >
                                 {r.user.role}
@@ -1199,7 +1199,7 @@ export default function EventDetail() {
                   <Card className="border-dashed">
                     <CardContent className="py-10 text-center text-muted-foreground">
                       <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No volunteer tasks yet.{isAdmin ? " Add tasks from templates or create a custom one." : ""}</p>
+                      <p className="text-sm">No volunteer tasks yet.{isSuperAdmin ? " Add tasks from templates or create a custom one." : ""}</p>
                     </CardContent>
                   </Card>
                 ) : (

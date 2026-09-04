@@ -4,12 +4,12 @@ import { createServer, type Server } from "node:http";
 
 const email = "member@example.com";
 let databaseUser: Record<string, unknown> | null = null;
-let requester: Record<string, unknown> | null = { id: 1, role: "admin" };
+let requester: Record<string, unknown> | null = { id: 1, role: "super_admin" };
 let administratorIds: number[] = [1, 2];
 let clerkLookupResult: Array<{ id: string }> = [];
 const deletionCalls: Array<Record<string, unknown>> = [];
 const clerkDeletionCalls: string[] = [];
-let deletionResult: { ok: boolean; stage?: "clerk" | "database"; deletedHousehold?: boolean } = {
+let deletionResult: { ok: boolean; stage?: "clerk" | "database" | "last_super_admin"; deletedHousehold?: boolean } = {
   ok: true,
   deletedHousehold: false,
 };
@@ -53,6 +53,10 @@ vi.mock("@workspace/db", () => ({
 
 vi.mock("../middlewares/requireAuth", () => ({
   requireCoachOrAdmin: (req: any, _res: unknown, next: () => void) => {
+    req.clerkUserId = "clerk_requester";
+    next();
+  },
+  requireSuperAdmin: (req: any, _res: unknown, next: () => void) => {
     req.clerkUserId = "clerk_requester";
     next();
   },
@@ -100,7 +104,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   databaseUser = null;
-  requester = { id: 1, role: "admin" };
+  requester = { id: 1, role: "super_admin" };
   administratorIds = [1, 2];
   clerkLookupResult = [];
   deletionCalls.length = 0;
@@ -150,7 +154,7 @@ describe("DELETE /admin/accounts/by-email", () => {
   });
 
   it("protects an administrator from a coach", async () => {
-    databaseUser = { id: 7, email, role: "admin", clerkUserId: "clerk_admin", householdId: null };
+    databaseUser = { id: 7, email, role: "super_admin", clerkUserId: "clerk_admin", householdId: null };
     requester = { id: 1, role: "coach" };
 
     const response = await deleteAccount({ email, confirmation: "DELETE" });
@@ -159,15 +163,15 @@ describe("DELETE /admin/accounts/by-email", () => {
     expect(deletionCalls).toEqual([]);
   });
 
-  it("protects the last administrator from the admin support tool", async () => {
-    databaseUser = { id: 7, email, role: "admin", clerkUserId: "clerk_admin", householdId: null };
-    requester = { id: 1, role: "admin" };
-    administratorIds = [7];
+  it("protects the last super admin through the serialized deletion helper", async () => {
+    databaseUser = { id: 7, email, role: "super_admin", clerkUserId: "clerk_admin", householdId: null };
+    requester = { id: 1, role: "super_admin" };
+    deletionResult = { ok: false, stage: "last_super_admin" };
 
     const response = await deleteAccount({ email, confirmation: "DELETE" });
 
     expect(response.status).toBe(409);
-    expect(deletionCalls).toEqual([]);
+    expect(deletionCalls).toEqual([expect.objectContaining({ id: 7 })]);
   });
 
   it("still frees an orphaned Clerk-only account", async () => {

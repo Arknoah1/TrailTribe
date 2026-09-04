@@ -29,7 +29,7 @@ import {
 } from "@workspace/db";
 import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
 import { SendCoParentInviteBody, SendCoParentInviteParams } from "@workspace/api-zod";
-import { requireAuth, requireApproved, requireCoachOrAdmin, requireAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin, requireSuperAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
 import { z } from "zod";
@@ -160,7 +160,7 @@ type Requester = Awaited<ReturnType<typeof getRequester>>;
 
 function canSeeMedical(requester: Requester, householdId: number | null): boolean {
   if (!requester) return false;
-  if (requester.role === "coach" || requester.role === "admin") return true;
+  if (requester.role === "coach" || requester.role === "super_admin") return true;
   return householdId !== null && requester.householdId === householdId;
 }
 
@@ -239,7 +239,7 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
   // IDOR guard: requester must belong to this household or be coach/admin
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }
@@ -260,7 +260,7 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
 // Narrow, audited correction workflow. It is intentionally separate from the
 // normal household routes so a coach cannot use routine edit permissions to
 // alter family structure or a linked authentication identity.
-router.patch("/households/:householdId/admin", requireAdmin, async (req, res) => {
+router.patch("/households/:householdId/admin", requireSuperAdmin, async (req, res) => {
   const householdId = Number(str(req.params.householdId));
   const parsed = adminHouseholdPatchSchema.safeParse(req.body);
   if (!Number.isInteger(householdId) || householdId < 1 || !parsed.success || Object.keys(parsed.success ? parsed.data : {}).length === 0) {
@@ -280,7 +280,7 @@ router.patch("/households/:householdId/admin", requireAdmin, async (req, res) =>
   res.json(result);
 });
 
-router.patch("/households/:householdId/admin/members/:memberId", requireAdmin, async (req, res) => {
+router.patch("/households/:householdId/admin/members/:memberId", requireSuperAdmin, async (req, res) => {
   const householdId = Number(str(req.params.householdId));
   const memberId = Number(str(req.params.memberId));
   if (!Number.isInteger(householdId) || householdId < 1 || !Number.isInteger(memberId) || memberId < 1) {
@@ -303,7 +303,7 @@ router.patch("/households/:householdId/admin/members/:memberId", requireAdmin, a
   res.json(safeAdminMember(result.member));
 });
 
-router.post("/households/:householdId/admin/members/:memberId/reclassify", requireAdmin, async (req, res) => {
+router.post("/households/:householdId/admin/members/:memberId/reclassify", requireSuperAdmin, async (req, res) => {
   const householdId = Number(str(req.params.householdId));
   const memberId = Number(str(req.params.memberId));
   const parsed = reclassifySchema.safeParse(req.body);
@@ -330,7 +330,7 @@ router.post("/households/:householdId/admin/members/:memberId/reclassify", requi
   res.json(safeAdminMember(result.member));
 });
 
-router.post("/households/:householdId/admin/members/:memberId/move", requireAdmin, async (req, res) => {
+router.post("/households/:householdId/admin/members/:memberId/move", requireSuperAdmin, async (req, res) => {
   const householdId = Number(str(req.params.householdId));
   const memberId = Number(str(req.params.memberId));
   const parsed = moveSchema.safeParse(req.body);
@@ -361,7 +361,7 @@ router.post("/households/:householdId/admin/members/:memberId/move", requireAdmi
   res.json(safeAdminMember(result.member));
 });
 
-router.delete("/households/:householdId/admin/members/:memberId/duplicate", requireAdmin, async (req, res) => {
+router.delete("/households/:householdId/admin/members/:memberId/duplicate", requireSuperAdmin, async (req, res) => {
   const householdId = Number(str(req.params.householdId));
   const memberId = Number(str(req.params.memberId));
   const parsed = confirmationSchema.safeParse(req.body);
@@ -609,7 +609,7 @@ router.get("/households/:id/compliance/status", requireAuth, async (req, res) =>
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
@@ -662,7 +662,7 @@ router.get("/households/:id/compliance/consents", requireAuth, async (req, res) 
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   const consents = await db
@@ -719,7 +719,7 @@ router.post("/households/:id/unarchive", requireCoachOrAdmin, async (req, res) =
   res.json(updated);
 });
 
-router.delete("/households/:id", requireCoachOrAdmin, async (req, res) => {
+router.delete("/households/:id", requireSuperAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const household = await db.query.householdsTable.findFirst({ where: eq(householdsTable.id, id) });
   if (!household) { res.status(404).json({ error: "Household not found" }); return; }
@@ -825,7 +825,7 @@ router.get("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== id) {
+  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }
@@ -844,7 +844,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
   // IDOR guard: requester must belong to this household or be coach/admin
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!canSeeMedical(requester, id) && requester.role !== "coach" && requester.role !== "admin") {
+  if (!canSeeMedical(requester, id) && requester.role !== "coach" && requester.role !== "super_admin") {
     if (requester.householdId !== id) {
       res.status(403).json({ error: "Forbidden: you are not a member of this household" });
       return;
@@ -902,7 +902,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   // IDOR guard: requester must belong to this household or be coach/admin
   const patchRiderRequester = await getRequester(req);
   if (!patchRiderRequester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (patchRiderRequester.role !== "coach" && patchRiderRequester.role !== "admin" && patchRiderRequester.householdId !== householdId) {
+  if (patchRiderRequester.role !== "coach" && patchRiderRequester.role !== "super_admin" && patchRiderRequester.householdId !== householdId) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }
@@ -947,17 +947,12 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   res.json(updated);
 });
 
-router.delete("/households/:id/members/:userId", requireAuth, async (req, res) => {
+router.delete("/households/:id/members/:userId", requireSuperAdmin, async (req, res) => {
   const householdId = parseInt(str(req.params.id));
   const targetUserId = parseInt(str(req.params.userId));
 
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  // Must be a member of this household OR coach/admin
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== householdId) {
-    res.status(403).json({ error: "Forbidden" }); return;
-  }
 
   // Cannot remove yourself
   if (requester.id === targetUserId) {
@@ -970,11 +965,6 @@ router.delete("/households/:id/members/:userId", requireAuth, async (req, res) =
   });
   if (!target || target.role === "student") { res.status(404).json({ error: "Member not found" }); return; }
 
-  // Regular parents cannot remove a coach
-  if (target.role === "coach" && requester.role !== "coach" && requester.role !== "admin") {
-    res.status(403).json({ error: "Only coaches or admins can remove a coach" }); return;
-  }
-
   // Detach from household — keep the user account intact
   await db.update(usersTable)
     .set({ householdId: null })
@@ -983,17 +973,9 @@ router.delete("/households/:id/members/:userId", requireAuth, async (req, res) =
   res.status(204).send();
 });
 
-router.delete("/households/:id/riders/:riderId", requireAuth, async (req, res): Promise<void> => {
+router.delete("/households/:id/riders/:riderId", requireSuperAdmin, async (req, res): Promise<void> => {
   const householdId = parseInt(str(req.params.id));
   const riderId = parseInt(str(req.params.riderId));
-
-  // IDOR guard: requester must belong to this household or be coach/admin
-  const deleteRequester = await getRequester(req);
-  if (!deleteRequester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (deleteRequester.role !== "coach" && deleteRequester.role !== "admin" && deleteRequester.householdId !== householdId) {
-    res.status(403).json({ error: "Forbidden: you are not a member of this household" });
-    return;
-  }
 
   const rider = await db.query.usersTable.findFirst({
     where: and(eq(usersTable.id, riderId), eq(usersTable.householdId, householdId), eq(usersTable.role, "student")),

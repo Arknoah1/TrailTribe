@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { isOperationalStaffRole, isSuperAdminRole } from "@workspace/db";
 
 type ApprovalUser = {
   role: string | null;
@@ -37,7 +38,7 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+export async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);
   const clerkUserId = auth?.userId;
   if (!clerkUserId) {
@@ -46,8 +47,8 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   }
   (req as any).clerkUserId = clerkUserId;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || user.role !== "admin") {
-    res.status(403).json({ error: "Forbidden: admin role required" });
+  if (!user || !isSuperAdminRole(user.role)) {
+    res.status(403).json({ error: "Forbidden: super admin role required" });
     return;
   }
   next();
@@ -62,8 +63,8 @@ export async function requireCoachOrAdmin(req: Request, res: Response, next: Nex
   }
   (req as any).clerkUserId = clerkUserId;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || (user.role !== "coach" && user.role !== "admin")) {
-    res.status(403).json({ error: "Forbidden: coach or admin role required" });
+  if (!user || !isOperationalStaffRole(user.role)) {
+    res.status(403).json({ error: "Forbidden: coach or super admin role required" });
     return;
   }
   next();

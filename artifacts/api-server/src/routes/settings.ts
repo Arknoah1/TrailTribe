@@ -3,7 +3,7 @@ import { createClerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { teamSettingsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireCoachOrAdmin, requireSuperAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
 import { z } from "zod";
 import { deleteClerkUserId, permanentlyDeleteLocalAccount } from "../lib/account-deletion";
@@ -49,8 +49,8 @@ const updateSettingsSchema = z.object({
   shortName: z.string().max(60),
 });
 
-// PUT /settings — update team settings (coach/admin)
-router.put("/settings", requireCoachOrAdmin, async (req, res) => {
+// PUT /settings — update protected team settings (super admin only)
+router.put("/settings", requireSuperAdmin, async (req, res) => {
   const parsed = updateSettingsSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body", details: parsed.error.issues });
@@ -91,35 +91,31 @@ async function permanentlyDeleteAccountByEmail(req: any, res: any): Promise<void
   });
 
   if (activeUser) {
-    // Coaches may manage member accounts, but only an administrator can delete
-    // another administrator. A signed-in administrator must use their own
+    // Only a super admin can delete another super admin. A signed-in super admin
+    // must use their own
     // Profile deletion control so the stronger self-service confirmation is
     // always shown.
-    if (activeUser.role === "admin") {
+    if (activeUser.role === "super_admin") {
       const requester = await db.query.usersTable.findFirst({
         where: eq(usersTable.clerkUserId, req.clerkUserId),
       });
       if (requester?.id === activeUser.id) {
-        res.status(403).json({ error: "Use your Profile page to permanently delete your own administrator account." });
+        res.status(403).json({ error: "Use your Profile page to permanently delete your own super-admin account." });
         return;
       }
-      if (requester?.role !== "admin") {
-        res.status(403).json({ error: "Only an administrator can permanently delete another administrator account." });
+      if (requester?.role !== "super_admin") {
+        res.status(403).json({ error: "Only a super admin can permanently delete another super admin account." });
         return;
       }
 
-      const administrators = await db
-        .select({ id: usersTable.id })
-        .from(usersTable)
-        .where(eq(usersTable.role, "admin"));
-      if (administrators.length <= 1) {
-        res.status(409).json({ error: "The last administrator cannot be removed from the admin tool. They can delete their own account from Profile after arranging team ownership." });
-        return;
-      }
     }
 
     const result = await permanentlyDeleteLocalAccount(activeUser);
     if (!result.ok) {
+      if (result.stage === "last_super_admin") {
+        res.status(409).json({ error: "Promote another super admin before deleting this account." });
+        return;
+      }
       if (result.stage === "clerk") {
         res.status(502).json({ error: "The sign-in service could not be reached. No TrailTeam data was deleted; please try again." });
         return;
@@ -170,11 +166,11 @@ async function permanentlyDeleteAccountByEmail(req: any, res: any): Promise<void
 
 // DELETE /admin/accounts/by-email — permanently delete an active TrailTeam
 // account or an orphaned authentication account selected by its email.
-router.delete("/admin/accounts/by-email", requireCoachOrAdmin, permanentlyDeleteAccountByEmail);
+router.delete("/admin/accounts/by-email", requireSuperAdmin, permanentlyDeleteAccountByEmail);
 
 // Backwards-compatible endpoint for prior recovery links. It now performs the
 // complete permanent deletion flow rather than refusing active accounts.
-router.delete("/admin/cleanup/clerk-by-email", requireCoachOrAdmin, permanentlyDeleteAccountByEmail);
+router.delete("/admin/cleanup/clerk-by-email", requireSuperAdmin, permanentlyDeleteAccountByEmail);
 
 export { getOrCreateSettings, getShortNamePrefix };
 export default router;

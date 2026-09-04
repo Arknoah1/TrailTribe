@@ -38,7 +38,7 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
 
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "admin" && requester.householdId !== householdId) {
+  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== householdId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

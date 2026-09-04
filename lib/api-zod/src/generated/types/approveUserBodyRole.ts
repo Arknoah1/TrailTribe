@@ -10,8 +10,5 @@ export type ApproveUserBodyRole =
   (typeof ApproveUserBodyRole)[keyof typeof ApproveUserBodyRole];
 
 export const ApproveUserBodyRole = {
-  admin: "admin",
-  coach: "coach",
   parent: "parent",
-  student: "student",
 } as const;

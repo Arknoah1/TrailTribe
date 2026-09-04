@@ -37,7 +37,7 @@ const users: Record<number, Record<string, unknown>> = {
   [DRIVER_ID]:    { id: DRIVER_ID,   role: "parent",  householdId: 999,          clerkUserId: "clerk_driver" },
   [UNRELATED_ID]: { id: UNRELATED_ID,role: "parent",  householdId: 888,          clerkUserId: "clerk_unrelated" },
   [COACH_ID]:     { id: COACH_ID,    role: "coach",   householdId: null,         clerkUserId: "clerk_coach" },
-  [ADMIN_ID]:     { id: ADMIN_ID,    role: "admin",   householdId: null,         clerkUserId: "clerk_admin" },
+  [ADMIN_ID]:     { id: ADMIN_ID,    role: "super_admin",   householdId: null,         clerkUserId: "clerk_admin" },
 };
 
 const mockOffer = {

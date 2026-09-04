@@ -41,7 +41,7 @@ export async function notifyCoachesOfReturningFamily(user: {
 }): Promise<void> {
   try {
     const coaches = await db.query.usersTable.findMany({
-      where: or(eq(usersTable.role, "coach"), eq(usersTable.role, "admin")),
+      where: or(eq(usersTable.role, "coach"), eq(usersTable.role, "super_admin")),
     });
     if (coaches.length === 0) return;
 
@@ -102,7 +102,7 @@ export async function notifyCoachesOfNewFamily(newUser: {
 }): Promise<void> {
   try {
     const coaches = await db.query.usersTable.findMany({
-      where: or(eq(usersTable.role, "coach"), eq(usersTable.role, "admin")),
+      where: or(eq(usersTable.role, "coach"), eq(usersTable.role, "super_admin")),
     });
 
     if (coaches.length === 0) return;

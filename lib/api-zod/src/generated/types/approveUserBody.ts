@@ -8,7 +8,7 @@
 import type { ApproveUserBodyRole } from "./approveUserBodyRole";
 
 export interface ApproveUserBody {
-  podId: string;
+  podId?: string;
   householdId?: number;
   role: ApproveUserBodyRole;
 }

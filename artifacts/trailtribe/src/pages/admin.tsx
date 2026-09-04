@@ -1,4 +1,4 @@
-import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType, useListVolunteerTemplateTasks, useCreateVolunteerTemplateTask, useUpdateVolunteerTemplateTask, useDeleteVolunteerTemplateTask, getListVolunteerTemplateTasksQueryKey, useListVolunteerTemplateCategories, useCreateVolunteerTemplateCategory, useUpdateVolunteerTemplateCategory, useDeleteVolunteerTemplateCategory, useReorderVolunteerTemplateCategories, useReorderVolunteerTemplateTasks, getListVolunteerTemplateCategoriesQueryKey } from "@workspace/api-client-react";
+import { useListPendingApprovals, useApproveUser, useListPods, useGetDashboardSummary, useListEvents, useDeleteEvent, useUpdateEvent, useDeleteSeries, useRescheduleSeries, useCreateEvent, useListTrailheads, useCreateTrailhead, useUpdateTrailhead, useDeleteTrailhead, getListTrailheadsQueryKey, getListPodsQueryKey, CreateEventBodyEventType, useListVolunteerTemplateTasks, useCreateVolunteerTemplateTask, useUpdateVolunteerTemplateTask, useDeleteVolunteerTemplateTask, getListVolunteerTemplateTasksQueryKey, useListVolunteerTemplateCategories, useCreateVolunteerTemplateCategory, useUpdateVolunteerTemplateCategory, useDeleteVolunteerTemplateCategory, useReorderVolunteerTemplateCategories, useReorderVolunteerTemplateTasks, getListVolunteerTemplateCategoriesQueryKey, useGetMe, useListUsers, useUpdateStaffRole, getListUsersQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +42,7 @@ interface TeamDocument {
   lastNotifiedAt: string | null;
 }
 
-type HouseholdMemberRole = "parent" | "student" | "coach" | "admin";
+type HouseholdMemberRole = "parent" | "student" | "coach" | "super_admin";
 
 interface HouseholdMember {
   id: number;
@@ -323,6 +323,12 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
+  const { data: currentUser } = useGetMe();
+  const isSuperAdmin = currentUser?.role === "super_admin";
+  const { data: allUsers = [] } = useListUsers(undefined, {
+    query: { enabled: isSuperAdmin, queryKey: getListUsersQueryKey() },
+  });
+  const updateStaffRole = useUpdateStaffRole();
 
   const { data: allEvents, refetch: refetchEvents } = useListEvents({ archived: true });
   const deleteEvent = useDeleteEvent();
@@ -1133,17 +1139,10 @@ export default function Admin() {
     }
   }, [authedFetch]);
 
-  const handleApprove = (userId: number, role: "coach" | "parent" | "student") => {
-    const podId = selectedPods[userId];
-    // Pod is only required for coaches, not parents
-    if (role === "coach" && !podId) {
-      toast({ title: "Select a pod for this coach first", variant: "destructive" });
-      return;
-    }
-
+  const handleApprove = (userId: number) => {
     approveUser.mutate({
       id: userId,
-      data: { podId: podId ?? null, role }
+      data: { role: "parent" }
     }, {
       onSuccess: () => {
         toast({ title: "User approved" });
@@ -1509,28 +1508,32 @@ export default function Admin() {
                                     {p.phone && (
                                       <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{formatPhone(p.phone)}</span>
                                     )}
-                                    <button
-                                      onClick={async () => {
-                                        const newRole = p.role === "coach" ? "parent" : "coach";
-                                        const res = await authedFetch(`${BASE_URL}/api/users/${p.id}/role`, {
-                                          method: "PATCH",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ role: newRole }),
-                                        });
-                                        if (res.ok) {
-                                          toast({ title: `${p.firstName} is now a ${newRole}` });
-                                          fetchRoster();
-                                        }
-                                      }}
-                                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-                                        p.role === "coach"
-                                          ? "bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-                                          : "bg-muted text-muted-foreground border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                                      }`}
-                                      title={p.role === "coach" ? "Click to remove coach role" : "Click to make coach"}
-                                    >
-                                      {p.role === "coach" ? "Coach ✕" : "Parent → Coach?"}
-                                    </button>
+                                    {isSuperAdmin ? (
+                                      <button
+                                        onClick={async () => {
+                                          const newRole = p.role === "coach" ? "parent" : "coach";
+                                          const res = await authedFetch(`${BASE_URL}/api/users/${p.id}/role`, {
+                                            method: "PATCH",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ role: newRole }),
+                                          });
+                                          if (res.ok) {
+                                            toast({ title: `${p.firstName} is now a ${newRole}` });
+                                            fetchRoster();
+                                          }
+                                        }}
+                                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+                                          p.role === "coach"
+                                            ? "bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                                            : "bg-muted text-muted-foreground border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                        }`}
+                                        title={p.role === "coach" ? "Click to remove coach role" : "Click to make coach"}
+                                      >
+                                        {p.role === "coach" ? "Coach ✕" : "Parent → Coach?"}
+                                      </button>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[10px]">Staff roles are super-admin only</Badge>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -1597,15 +1600,17 @@ export default function Admin() {
                                 </div>
                               ))}
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full sm:w-auto"
-                              onClick={() => openHouseholdManager(household)}
-                            >
-                              <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                              Manage Household
-                            </Button>
+                            {isSuperAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full sm:w-auto"
+                                onClick={() => openHouseholdManager(household)}
+                              >
+                                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                                Manage Household
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1624,7 +1629,7 @@ export default function Admin() {
             </div>
           )}
 
-          <Dialog open={managedHousehold !== null} onOpenChange={(open) => { if (!open) { setManagedHousehold(null); setEditingMember(null); setMemberAction(null); } }}>
+          {isSuperAdmin && <Dialog open={managedHousehold !== null} onOpenChange={(open) => { if (!open) { setManagedHousehold(null); setEditingMember(null); setMemberAction(null); } }}>
             <DialogContent className="w-[calc(100%-1rem)] max-w-3xl max-h-[calc(100vh-2rem)] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Manage {managedHousehold?.name}</DialogTitle>
@@ -1694,9 +1699,9 @@ export default function Admin() {
                 </TabsContent>
               </Tabs>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
 
-          <Dialog open={editingMember !== null} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
+          {isSuperAdmin && <Dialog open={editingMember !== null} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
             <DialogContent className="w-[calc(100%-1rem)] max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Edit {editingMember?.role === "student" ? "rider" : "adult"} details</DialogTitle>
@@ -1718,9 +1723,9 @@ export default function Admin() {
               </div>
               <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button><Button onClick={saveMemberAdmin} disabled={savingMemberAdmin || !memberAdminForm.firstName.trim() || !memberAdminForm.lastName.trim()}>{savingMemberAdmin ? "Saving…" : "Save member"}</Button></div>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
 
-          <AlertDialog open={memberAction !== null} onOpenChange={(open) => { if (!open) { setMemberAction(null); setMoveTargetId(""); } }}>
+          {isSuperAdmin && <AlertDialog open={memberAction !== null} onOpenChange={(open) => { if (!open) { setMemberAction(null); setMoveTargetId(""); } }}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
@@ -1749,7 +1754,7 @@ export default function Admin() {
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
-          </AlertDialog>
+          </AlertDialog>}
 
           {/* ── Archived families ────────────────────────────────────────── */}
           {archivedFamilies.length > 0 && (
@@ -1823,15 +1828,17 @@ export default function Admin() {
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                 Restore
                               </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                                onClick={() => setDeleteConfirmId(household.id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </Button>
+                              {isSuperAdmin && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                  onClick={() => setDeleteConfirmId(household.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </CardContent>
@@ -1844,7 +1851,7 @@ export default function Admin() {
           )}
 
           {/* ── Delete family confirmation ───────────────────────────────── */}
-          <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+          {isSuperAdmin && <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Permanently delete this family?</AlertDialogTitle>
@@ -1866,7 +1873,7 @@ export default function Admin() {
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
-          </AlertDialog>
+          </AlertDialog>}
 
           {/* ── Archive family confirmation ──────────────────────────────── */}
           <AlertDialog open={archiveConfirmId !== null} onOpenChange={(open) => { if (!open) setArchiveConfirmId(null); }}>
@@ -2153,24 +2160,9 @@ export default function Admin() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        {user.role === "coach" && (
-                          <Select
-                            value={selectedPods[user.id]}
-                            onValueChange={(val) => setSelectedPods(prev => ({ ...prev, [user.id]: val }))}
-                          >
-                            <SelectTrigger className="w-[180px]">
-                              <SelectValue placeholder="Assign to Pod..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {pods?.map(pod => (
-                                <SelectItem key={pod.id} value={pod.id.toString()}>{pod.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
                         <Button
                           size="sm"
-                          onClick={() => handleApprove(user.id, user.role as any)}
+                          onClick={() => handleApprove(user.id)}
                           disabled={approveUser.isPending}
                         >
                           <Check className="h-4 w-4 mr-2" /> Approve
@@ -3620,12 +3612,56 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6 space-y-4">
+          {isSuperAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><Shield className="h-4 w-4" /> Staff Access</CardTitle>
+                <CardDescription>Promote a coach to super admin or return a super admin to coach access. The last super admin cannot be demoted.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {allUsers.filter((user) => user.role === "coach" || user.role === "super_admin").map((user) => {
+                  const isCurrentUser = user.id === currentUser?.id;
+                  const nextRole = user.role === "super_admin" ? "coach" : "super_admin";
+                  return (
+                    <div key={user.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium">{user.firstName} {user.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{user.email} · {user.role === "super_admin" ? "Super admin" : "Coach"}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isCurrentUser || updateStaffRole.isPending}
+                        title={isCurrentUser ? "You cannot change your own role" : undefined}
+                        onClick={() => updateStaffRole.mutate(
+                          { id: user.id, data: { role: nextRole } },
+                          {
+                            onSuccess: () => {
+                              toast({ title: `${user.firstName} is now ${nextRole === "super_admin" ? "a super admin" : "a coach"}` });
+                              queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+                              queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+                              fetchRoster();
+                            },
+                            onError: (roleError: any) => {
+                              toast({ title: roleError?.data?.error ?? "Could not change staff access", variant: "destructive" });
+                            },
+                          },
+                        )}
+                      >
+                        {nextRole === "super_admin" ? "Make super admin" : "Make coach"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Team Settings</CardTitle>
-              <CardDescription>Configure how your team appears in emails and notifications sent to families.</CardDescription>
+              <CardTitle className="text-base flex items-center gap-2">Team Settings {!isSuperAdmin && <Badge variant="outline">Super-admin only</Badge>}</CardTitle>
+              <CardDescription>{isSuperAdmin ? "Configure how your team appears in emails and notifications sent to families." : "Only super admins can change team settings."}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            {isSuperAdmin ? <CardContent className="space-y-6">
               <div className="space-y-1.5 max-w-sm">
                 <Label htmlFor="team-name-input">Full Team Name</Label>
                 <p className="text-xs text-muted-foreground">
@@ -3659,9 +3695,11 @@ export default function Admin() {
               >
                 {savingSettings ? "Saving…" : "Save Settings"}
               </Button>
-            </CardContent>
+            </CardContent> : <CardContent>
+              <p className="text-sm text-muted-foreground">Team name: <span className="font-medium text-foreground">{teamName || "Not configured"}</span></p>
+            </CardContent>}
           </Card>
-          <Card id="account-cleanup">
+          {isSuperAdmin && <Card id="account-cleanup">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive" />
@@ -3717,11 +3755,11 @@ export default function Admin() {
                 {cleanupRunning ? "Deleting…" : "Permanently delete account"}
               </Button>
             </CardContent>
-          </Card>
+          </Card>}
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={cleanupConfirmOpen} onOpenChange={(open) => {
+      {isSuperAdmin && <AlertDialog open={cleanupConfirmOpen} onOpenChange={(open) => {
         setCleanupConfirmOpen(open);
         if (!open) setCleanupConfirmation("");
       }}>
@@ -3756,7 +3794,7 @@ export default function Admin() {
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog>}
 
       <AlertDialog open={!!podToDelete} onOpenChange={(open) => { if (!open) setPodToDelete(null); }}>
         <AlertDialogContent>

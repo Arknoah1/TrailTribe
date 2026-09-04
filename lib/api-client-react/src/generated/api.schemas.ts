@@ -54,7 +54,7 @@ export interface UserNotificationPreferences {
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
 export const UserRole = {
-  admin: "admin",
+  super_admin: "super_admin",
   coach: "coach",
   parent: "parent",
   student: "student",
@@ -120,16 +120,26 @@ export type ApproveUserBodyRole =
   (typeof ApproveUserBodyRole)[keyof typeof ApproveUserBodyRole];
 
 export const ApproveUserBodyRole = {
-  admin: "admin",
-  coach: "coach",
   parent: "parent",
-  student: "student",
 } as const;
 
 export interface ApproveUserBody {
-  podId: string;
+  podId?: string;
   householdId?: number;
   role: ApproveUserBodyRole;
+}
+
+export type StaffRoleUpdateRole =
+  (typeof StaffRoleUpdateRole)[keyof typeof StaffRoleUpdateRole];
+
+export const StaffRoleUpdateRole = {
+  super_admin: "super_admin",
+  coach: "coach",
+  parent: "parent",
+} as const;
+
+export interface StaffRoleUpdate {
+  role: StaffRoleUpdateRole;
 }
 
 export interface Household {
@@ -975,7 +985,7 @@ export type ListUsersParams = {
 export type ListUsersRole = (typeof ListUsersRole)[keyof typeof ListUsersRole];
 
 export const ListUsersRole = {
-  admin: "admin",
+  super_admin: "super_admin",
   coach: "coach",
   parent: "parent",
   student: "student",

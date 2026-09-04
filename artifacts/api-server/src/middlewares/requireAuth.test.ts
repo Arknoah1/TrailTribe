@@ -23,9 +23,11 @@ vi.mock("@workspace/db", () => ({
     update,
   },
   usersTable: new Proxy({}, { get: () => ({}) }),
+  isOperationalStaffRole: (role: string | null | undefined) => role === "coach" || role === "super_admin",
+  isSuperAdminRole: (role: string | null | undefined) => role === "super_admin",
 }));
 
-const { requireApproved } = await import("./requireAuth");
+const { requireApproved, requireCoachOrAdmin, requireSuperAdmin } = await import("./requireAuth");
 
 describe("requireApproved student access", () => {
   let server: Server;
@@ -48,6 +50,8 @@ describe("requireApproved student access", () => {
     app.get("/messages", requireApproved, (_req, res) => res.sendStatus(200));
     app.get("/board/threads", requireApproved, (_req, res) => res.sendStatus(200));
     app.get("/board/threads/7", requireApproved, (_req, res) => res.sendStatus(200));
+    app.get("/staff", requireCoachOrAdmin, (_req, res) => res.sendStatus(200));
+    app.get("/super-admin", requireSuperAdmin, (_req, res) => res.sendStatus(200));
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     const address = server.address() as { port: number };
@@ -87,6 +91,20 @@ describe("requireApproved student access", () => {
     const response = await fetch(`${baseUrl}/events`);
     expect(response.status).toBe(403);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("gives super admins normal staff access plus protected access", async () => {
+    currentUser = { id: 1, role: "super_admin", householdId: null, approved: true };
+    expect((await fetch(`${baseUrl}/staff`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/super-admin`)).status).toBe(200);
+  });
+
+  it("keeps coach access operational while blocking protected actions", async () => {
+    currentUser = { id: 2, role: "coach", householdId: null, approved: true };
+    expect((await fetch(`${baseUrl}/staff`)).status).toBe(200);
+    const protectedResponse = await fetch(`${baseUrl}/super-admin`);
+    expect(protectedResponse.status).toBe(403);
+    expect(await protectedResponse.json()).toEqual({ error: "Forbidden: super admin role required" });
   });
 
   // Avoid leaking a listening socket between tests while retaining one app per test

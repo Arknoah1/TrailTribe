@@ -83,6 +83,9 @@ vi.mock("@workspace/db", () => {
     seasonRosterSnapshotsTable: new Proxy({}, { get: () => ({}) }),
     teamDocumentsTable: new Proxy({}, { get: () => ({}) }),
     documentConsentsTable: new Proxy({}, { get: () => ({}) }),
+    householdAdminAuditTable: new Proxy({}, { get: () => ({}) }),
+    isOperationalStaffRole: (role: string | null | undefined) => role === "coach" || role === "super_admin",
+    isSuperAdminRole: (role: string | null | undefined) => role === "super_admin",
   };
 });
 
@@ -96,6 +99,10 @@ vi.mock("../middlewares/requireAuth", () => ({
     next();
   },
   requireCoachOrAdmin: (req: any, _res: any, next: any) => {
+    req.clerkUserId = "clerk_test_student";
+    next();
+  },
+  requireSuperAdmin: (req: any, _res: any, next: any) => {
     req.clerkUserId = "clerk_test_student";
     next();
   },
@@ -328,6 +335,20 @@ describe("PATCH /users/me — notification lock guard", () => {
     expect(resp.status).toBe(400);
   });
 
+  it.each(["coach", "super_admin"])("rejects privileged onboarding role %s", async (role) => {
+    mockUser = null;
+
+    const resp = await fetch(`${baseUrl}/users/onboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ firstName: "Alex", lastName: "Rider", role }),
+    });
+
+    expect(resp.status).toBe(400);
+    expect(await resp.json()).toEqual({ error: "Role must be 'parent' or 'student'" });
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
   it("allows an unlocked student to update notificationsEnabled", async () => {
     // Unlock the student.
     mockUser = { ...LOCKED_STUDENT, notificationPreferencesLocked: false };
@@ -341,5 +362,21 @@ describe("PATCH /users/me — notification lock guard", () => {
     expect(resp.status).toBe(200);
     const notifUpdate = updateSetCalls.find((c) => c.notificationsEnabled === false);
     expect(notifUpdate, "db.update().set({ notificationsEnabled }) should have been called").toBeTruthy();
+  });
+});
+
+describe("POST /pending-approvals/:id/approve — role safety", () => {
+  it.each(["coach", "super_admin"])("cannot demote an approved %s through approval", async (role) => {
+    mockUser = { ...LOCKED_STUDENT, id: 22, role, approved: true };
+
+    const resp = await fetch(`${baseUrl}/pending-approvals/22/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "parent" }),
+    });
+
+    expect(resp.status).toBe(409);
+    expect(await resp.json()).toEqual({ error: "Only a pending parent account can be approved here." });
+    expect(updateSetCalls).toHaveLength(0);
   });
 });

@@ -272,7 +272,7 @@ export default function BoardThread() {
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [replyBody]);
 
-  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
   // Thread permissions are computed by the API so this UI cannot drift from
   // the authorization rules enforced by the server.
   const canDeleteThread = thread?.permissions?.canDelete === true;

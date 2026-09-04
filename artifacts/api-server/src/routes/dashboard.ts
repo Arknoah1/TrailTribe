@@ -23,7 +23,7 @@ router.get("/dashboard/summary", requireApproved, async (req, res) => {
   const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const allUsers = await db.select().from(usersTable);
-  const coaches = allUsers.filter((u) => u.role === "coach" || u.role === "admin");
+  const coaches = allUsers.filter((u) => u.role === "coach" || u.role === "super_admin");
   // Only count active (non-archived) households and their members.
   const households = await db.select().from(householdsTable).where(isNull(householdsTable.archivedAt));
   const activeHouseholdIds = new Set(households.map((h) => h.id));

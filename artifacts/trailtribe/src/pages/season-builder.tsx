@@ -122,7 +122,7 @@ export default function SeasonBuilder() {
     if (sid) setExistingSeriesId(sid);
   }, [search]);
 
-  const isCoach = me?.role === "coach" || me?.role === "admin";
+  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
 
   const existingSeries = useMemo(() => {
     const map: Record<string, { seriesId: string; label: string; count: number }> = {};

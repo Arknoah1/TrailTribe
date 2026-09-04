@@ -26,7 +26,7 @@ const boardReactionsTable = t("reactions", ["id", "userId"]);
 const inviteLinksTable = t("inviteLinks", ["id", "createdByUserId"]);
 const podsTable = t("pods", ["id", "headCoachId"]);
 
-let caller = "admin";
+let caller = "super_admin";
 let rows: { households: Row[]; users: Row[]; audit: Row[]; activity: Record<string, Row[]> };
 let writes: string[];
 const tableName = (table: any) => Object.values(table)[0] && (Object.values(table)[0] as any).table;
@@ -94,10 +94,10 @@ vi.mock("../middlewares/requireAuth", () => ({
   requireAuth: (req: any, _res: any, next: any) => { req.clerkUserId = caller; next(); },
   requireApproved: (req: any, _res: any, next: any) => { req.clerkUserId = caller; next(); },
   requireCoachOrAdmin: (req: any, _res: any, next: any) => { req.clerkUserId = caller; next(); },
-  requireAdmin: (req: any, res: any, next: any) => {
+  requireSuperAdmin: (req: any, res: any, next: any) => {
     req.clerkUserId = caller;
     const user = rows.users.find((u) => u.clerkUserId === caller);
-    if (!user || user.role !== "admin") { res.status(403).json({ error: "Forbidden: admin role required" }); return; }
+    if (!user || user.role !== "super_admin") { res.status(403).json({ error: "Forbidden: super admin role required" }); return; }
     next();
   },
 }));
@@ -118,11 +118,11 @@ beforeAll(async () => {
 });
 afterAll(() => server.close());
 beforeEach(() => {
-  caller = "admin"; writes = [];
+  caller = "super_admin"; writes = [];
   rows = {
     households: [{ id: 10, name: "Source", podId: "red" }, { id: 20, name: "Target", podId: "blue" }],
     users: [
-      { id: 1, clerkUserId: "admin", role: "admin", firstName: "Admin", lastName: "A", householdId: null },
+      { id: 1, clerkUserId: "super_admin", role: "super_admin", firstName: "Admin", lastName: "A", householdId: null },
       { id: 2, clerkUserId: "coach", role: "coach", householdId: null },
       { id: 3, clerkUserId: "parent", role: "parent", householdId: 10, firstName: "Pat", lastName: "P" },
       { id: 4, clerkUserId: null, role: "student", householdId: 10, firstName: "Stu", lastName: "S" },
@@ -140,7 +140,7 @@ describe("household admin correction workflow", () => {
       expect(res.status).toBe(403);
       expect(writes).toEqual([]);
     }
-    caller = "admin";
+    caller = "super_admin";
     expect((await request("/households/10/admin", "PATCH", { name: "Corrected" })).status).toBe(200);
     expect(rows.households[0].name).toBe("Corrected");
     expect(rows.audit).toHaveLength(1);

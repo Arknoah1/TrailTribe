@@ -265,7 +265,7 @@ export const GetMeResponse = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -326,7 +326,7 @@ export const UpdateMeResponse = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -366,7 +366,7 @@ export const DeleteMyAccountResponse = zod.object({
 });
 
 /**
- * @summary Permanently delete a selected account (coach or admin only)
+ * @summary Permanently delete a selected account (super admin only)
  */
 export const DeleteAccountByEmailBody = zod.object({
   email: zod.string().email(),
@@ -380,10 +380,10 @@ export const DeleteAccountByEmailResponse = zod.object({
 });
 
 /**
- * @summary List all users (admin/coach only)
+ * @summary List all users (coach or super admin only)
  */
 export const ListUsersQueryParams = zod.object({
-  role: zod.enum(["admin", "coach", "parent", "student"]).optional(),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]).optional(),
   podId: zod.coerce.string().optional(),
   search: zod.coerce.string().optional(),
 });
@@ -395,7 +395,7 @@ export const ListUsersResponseItem = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -433,7 +433,7 @@ export const GetUserResponse = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -460,7 +460,7 @@ export const GetUserResponse = zod.object({
 });
 
 /**
- * @summary Update user (admin only)
+ * @summary Update user (coach or super admin only)
  */
 export const UpdateUserParams = zod.object({
   id: zod.coerce.number(),
@@ -498,7 +498,51 @@ export const UpdateUserResponse = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  podId: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
+  isActive: zod.boolean(),
+  gender: zod.string().nullish(),
+  grade: zod.number().nullish(),
+  coachCertLevel: zod.string().nullish(),
+  notificationsEnabled: zod.boolean(),
+  emailNotifications: zod.boolean(),
+  smsNotifications: zod.boolean(),
+  pushNotifications: zod.boolean(),
+  defaultCarpoolSeats: zod.number().nullish(),
+  defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
+    })
+    .nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Change a staff role (super admin only)
+ */
+export const UpdateStaffRoleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateStaffRoleBody = zod.object({
+  role: zod.enum(["super_admin", "coach", "parent"]),
+});
+
+export const UpdateStaffRoleResponse = zod.object({
+  id: zod.number(),
+  householdId: zod.number().nullish(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  email: zod.string(),
+  phone: zod.string().nullish(),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -536,7 +580,7 @@ export const OnboardUserBody = zod.object({
 });
 
 /**
- * @summary List households (admin/coach only)
+ * @summary List households (coach or super admin only)
  */
 export const ListHouseholdsResponseItem = zod
   .object({
@@ -565,7 +609,7 @@ export const ListHouseholdsResponseItem = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -634,7 +678,7 @@ export const GetHouseholdResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -790,7 +834,7 @@ export const GetPodResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -824,7 +868,7 @@ export const GetPodResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -1262,7 +1306,7 @@ export const ListEventRsvpsResponseItem = zod
         lastName: zod.string(),
         email: zod.string(),
         phone: zod.string().nullish(),
-        role: zod.enum(["admin", "coach", "parent", "student"]),
+        role: zod.enum(["super_admin", "coach", "parent", "student"]),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1313,7 +1357,7 @@ export const ListEventVolunteersResponseItem = zod
         lastName: zod.string(),
         email: zod.string(),
         phone: zod.string().nullish(),
-        role: zod.enum(["admin", "coach", "parent", "student"]),
+        role: zod.enum(["super_admin", "coach", "parent", "student"]),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1426,7 +1470,7 @@ export const ListEventTasksResponseItem = zod
                 lastName: zod.string(),
                 email: zod.string(),
                 phone: zod.string().nullish(),
-                role: zod.enum(["admin", "coach", "parent", "student"]),
+                role: zod.enum(["super_admin", "coach", "parent", "student"]),
                 podId: zod.string().nullish(),
                 avatarUrl: zod.string().nullish(),
                 isActive: zod.boolean(),
@@ -1707,7 +1751,7 @@ export const ListEventCarpoolsResponseItem = zod
         lastName: zod.string(),
         email: zod.string(),
         phone: zod.string().nullish(),
-        role: zod.enum(["admin", "coach", "parent", "student"]),
+        role: zod.enum(["super_admin", "coach", "parent", "student"]),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1752,7 +1796,7 @@ export const ListEventCarpoolsResponseItem = zod
                 lastName: zod.string(),
                 email: zod.string(),
                 phone: zod.string().nullish(),
-                role: zod.enum(["admin", "coach", "parent", "student"]),
+                role: zod.enum(["super_admin", "coach", "parent", "student"]),
                 podId: zod.string().nullish(),
                 avatarUrl: zod.string().nullish(),
                 isActive: zod.boolean(),
@@ -1879,7 +1923,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -1913,7 +1957,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -1950,7 +1994,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
               lastName: zod.string(),
               email: zod.string(),
               phone: zod.string().nullish(),
-              role: zod.enum(["admin", "coach", "parent", "student"]),
+              role: zod.enum(["super_admin", "coach", "parent", "student"]),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2045,7 +2089,7 @@ export const UpdateCarpoolRequestResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2079,7 +2123,7 @@ export const UpdateCarpoolRequestResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2116,7 +2160,7 @@ export const UpdateCarpoolRequestResponse = zod
               lastName: zod.string(),
               email: zod.string(),
               phone: zod.string().nullish(),
-              role: zod.enum(["admin", "coach", "parent", "student"]),
+              role: zod.enum(["super_admin", "coach", "parent", "student"]),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2194,7 +2238,7 @@ export const MatchCarpoolRequestResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2228,7 +2272,7 @@ export const MatchCarpoolRequestResponse = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2265,7 +2309,7 @@ export const MatchCarpoolRequestResponse = zod
               lastName: zod.string(),
               email: zod.string(),
               phone: zod.string().nullish(),
-              role: zod.enum(["admin", "coach", "parent", "student"]),
+              role: zod.enum(["super_admin", "coach", "parent", "student"]),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2401,7 +2445,7 @@ export const ListBroadcastsResponseItem = zod
           lastName: zod.string(),
           email: zod.string(),
           phone: zod.string().nullish(),
-          role: zod.enum(["admin", "coach", "parent", "student"]),
+          role: zod.enum(["super_admin", "coach", "parent", "student"]),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2902,7 +2946,7 @@ export const ListPendingApprovalsResponseItem = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -2939,9 +2983,9 @@ export const ApproveUserParams = zod.object({
 });
 
 export const ApproveUserBody = zod.object({
-  podId: zod.string(),
+  podId: zod.string().optional(),
   householdId: zod.number().optional(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["parent"]),
 });
 
 export const ApproveUserResponse = zod.object({
@@ -2951,7 +2995,7 @@ export const ApproveUserResponse = zod.object({
   lastName: zod.string(),
   email: zod.string(),
   phone: zod.string().nullish(),
-  role: zod.enum(["admin", "coach", "parent", "student"]),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),

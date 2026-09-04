@@ -97,6 +97,7 @@ import type {
   SendBroadcastBody,
   SetEventVolunteerTasksEnabledBody,
   SignUpForEventTaskBody,
+  StaffRoleUpdate,
   SuccessResponse,
   ToggleBoardReactionBody,
   Trailhead,
@@ -664,7 +665,7 @@ export const useDeleteMyAccount = <
 };
 
 /**
- * @summary Permanently delete a selected account (coach or admin only)
+ * @summary Permanently delete a selected account (super admin only)
  */
 export const getDeleteAccountByEmailUrl = () => {
   return `/api/admin/accounts/by-email`;
@@ -728,7 +729,7 @@ export type DeleteAccountByEmailMutationBody =
 export type DeleteAccountByEmailMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Permanently delete a selected account (coach or admin only)
+ * @summary Permanently delete a selected account (super admin only)
  */
 export const useDeleteAccountByEmail = <
   TError = ErrorType<ErrorResponse>,
@@ -751,7 +752,7 @@ export const useDeleteAccountByEmail = <
 };
 
 /**
- * @summary List all users (admin/coach only)
+ * @summary List all users (coach or super admin only)
  */
 export const getListUsersUrl = (params?: ListUsersParams) => {
   const normalizedParams = new URLSearchParams();
@@ -818,7 +819,7 @@ export type ListUsersQueryResult = NonNullable<
 export type ListUsersQueryError = ErrorType<unknown>;
 
 /**
- * @summary List all users (admin/coach only)
+ * @summary List all users (coach or super admin only)
  */
 
 export function useListUsers<
@@ -915,7 +916,7 @@ export function useGetUser<
 }
 
 /**
- * @summary Update user (admin only)
+ * @summary Update user (coach or super admin only)
  */
 export const getUpdateUserUrl = (id: number) => {
   return `/api/users/${id}`;
@@ -979,7 +980,7 @@ export type UpdateUserMutationBody = BodyType<UpdateUserBody>;
 export type UpdateUserMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update user (admin only)
+ * @summary Update user (coach or super admin only)
  */
 export const useUpdateUser = <
   TError = ErrorType<unknown>,
@@ -999,6 +1000,93 @@ export const useUpdateUser = <
   TContext
 > => {
   return useMutation(getUpdateUserMutationOptions(options));
+};
+
+/**
+ * @summary Change a staff role (super admin only)
+ */
+export const getUpdateStaffRoleUrl = (id: number) => {
+  return `/api/users/${id}/role`;
+};
+
+export const updateStaffRole = async (
+  id: number,
+  staffRoleUpdate: StaffRoleUpdate,
+  options?: RequestInit,
+): Promise<User> => {
+  return customFetch<User>(getUpdateStaffRoleUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(staffRoleUpdate),
+  });
+};
+
+export const getUpdateStaffRoleMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    TError,
+    { id: number; data: BodyType<StaffRoleUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStaffRole>>,
+  TError,
+  { id: number; data: BodyType<StaffRoleUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateStaffRole"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    { id: number; data: BodyType<StaffRoleUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateStaffRole(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStaffRoleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStaffRole>>
+>;
+export type UpdateStaffRoleMutationBody = BodyType<StaffRoleUpdate>;
+export type UpdateStaffRoleMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Change a staff role (super admin only)
+ */
+export const useUpdateStaffRole = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStaffRole>>,
+    TError,
+    { id: number; data: BodyType<StaffRoleUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateStaffRole>>,
+  TError,
+  { id: number; data: BodyType<StaffRoleUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateStaffRoleMutationOptions(options));
 };
 
 /**
@@ -1088,7 +1176,7 @@ export const useOnboardUser = <
 };
 
 /**
- * @summary List households (admin/coach only)
+ * @summary List households (coach or super admin only)
  */
 export const getListHouseholdsUrl = () => {
   return `/api/households`;
@@ -1139,7 +1227,7 @@ export type ListHouseholdsQueryResult = NonNullable<
 export type ListHouseholdsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List households (admin/coach only)
+ * @summary List households (coach or super admin only)
  */
 
 export function useListHouseholds<

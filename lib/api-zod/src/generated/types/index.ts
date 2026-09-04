@@ -122,6 +122,8 @@ export * from "./sendBroadcastBody";
 export * from "./sendBroadcastBodyChannel";
 export * from "./setEventVolunteerTasksEnabledBody";
 export * from "./signUpForEventTaskBody";
+export * from "./staffRoleUpdate";
+export * from "./staffRoleUpdateRole";
 export * from "./successResponse";
 export * from "./toggleBoardReactionBody";
 export * from "./toggleBoardReactionBodyReaction";

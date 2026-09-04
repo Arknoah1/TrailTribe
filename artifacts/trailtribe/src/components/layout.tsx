@@ -67,7 +67,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { data: unreadData } = useGetBoardUnreadCount({ query: { refetchInterval: 30000, queryKey: getGetBoardUnreadCountQueryKey() } });
   const unreadCount = typeof unreadData === "number" ? unreadData : (unreadData as any)?.count ?? 0;
 
-  const isCoachOrAdmin = me?.role === "coach" || me?.role === "admin";
+  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
   const { adminViewEnabled } = useAdminView();
   const { theme, toggleTheme } = useTheme();
   const showAdminTabs = isCoachOrAdmin && adminViewEnabled;

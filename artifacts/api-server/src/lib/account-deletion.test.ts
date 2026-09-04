@@ -23,6 +23,7 @@ const seasonRosterSnapshotsTable = table("seasonRosterSnapshotsTable");
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(() => ({})),
+  sql: vi.fn(() => ({})),
 }));
 
 vi.mock("@clerk/express", () => ({
@@ -43,6 +44,7 @@ vi.mock("@workspace/db", () => ({
       callOrder.push("transaction");
       if (transactionFailure) throw transactionFailure;
       const tx = {
+        execute: vi.fn(async () => undefined),
         select: vi.fn(() => ({
           from: vi.fn(() => ({
             where: vi.fn(async () => householdMembers),
@@ -95,12 +97,12 @@ beforeEach(() => {
 });
 
 describe("permanentlyDeleteLocalAccount", () => {
-  it("deletes the Clerk identity before atomically removing a sole member and empty household", async () => {
+  it("holds the database transaction while deleting the identity and local account", async () => {
     const result = await permanentlyDeleteLocalAccount(member);
 
     expect(result).toEqual({ ok: true, deletedHousehold: true });
     expect(clerkDeleteCalls).toEqual(["clerk_member"]);
-    expect(callOrder).toEqual(["clerk", "transaction"]);
+    expect(callOrder).toEqual(["transaction", "clerk"]);
     expect(transactionUpdateCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({ table: "documentConsentsTable", values: expect.objectContaining({ ipAddress: null, userAgent: null }) }),
       expect.objectContaining({ table: "familyInvitesTable", values: { acceptedByClerkUserId: null } }),
@@ -122,24 +124,32 @@ describe("permanentlyDeleteLocalAccount", () => {
     expect(transactionDeleteCalls).toEqual(["usersTable"]);
   });
 
-  it("does not start a database deletion when Clerk is unavailable", async () => {
+  it("does not write database deletions when Clerk is unavailable", async () => {
     clerkDeleteFailure = new Error("network unavailable");
 
     const result = await permanentlyDeleteLocalAccount(member);
 
     expect(result).toEqual({ ok: false, stage: "clerk" });
-    expect(callOrder).toEqual(["clerk"]);
+    expect(callOrder).toEqual(["transaction", "clerk"]);
     expect(transactionDeleteCalls).toEqual([]);
   });
 
-  it("reports a recoverable database failure after Clerk deletion", async () => {
+  it("does not delete the identity when the protected database transaction cannot start", async () => {
     transactionFailure = new Error("database unavailable");
 
     const result = await permanentlyDeleteLocalAccount(member);
 
     expect(result).toEqual({ ok: false, stage: "database" });
-    expect(callOrder).toEqual(["clerk", "transaction"]);
-    expect(clerkDeleteCalls).toEqual(["clerk_member"]);
+    expect(callOrder).toEqual(["transaction"]);
+    expect(clerkDeleteCalls).toEqual([]);
+  });
+
+  it("blocks deletion of the last super admin before touching Clerk", async () => {
+    const result = await permanentlyDeleteLocalAccount({ ...member, role: "super_admin" });
+
+    expect(result).toEqual({ ok: false, stage: "last_super_admin" });
+    expect(clerkDeleteCalls).toEqual([]);
+    expect(transactionDeleteCalls).toEqual([]);
   });
 
   it("treats an already-missing Clerk identity as a successful retry", async () => {
