@@ -30,6 +30,7 @@ import { useAuthedFetch } from "@/lib/use-authed-fetch";
 import { LoadErrorCard } from "@/components/network-status";
 import { EventDetailSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
+import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
 import {
   getVolunteerTaskState,
   volunteerTaskAvailableButtonClassName,
@@ -716,8 +717,22 @@ export default function EventDetail() {
               {event.description && (
                 <div className="pt-4 border-t">
                   <h3 className="font-semibold mb-2">Details</h3>
-                  <div className="text-sm prose dark:prose-invert max-w-none">
-                    {event.description}
+                  <div className="text-sm whitespace-pre-wrap break-words">
+                    {splitLinkifiedText(event.description).map((segment, index) =>
+                      segment.type === "link" ? (
+                        <a
+                          key={`${segment.value}-${index}`}
+                          href={segment.value}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary underline underline-offset-2 hover:no-underline [overflow-wrap:anywhere]"
+                        >
+                          {segment.value}
+                        </a>
+                      ) : (
+                        <span key={index}>{segment.value}</span>
+                      ),
+                    )}
                   </div>
                 </div>
               )}
