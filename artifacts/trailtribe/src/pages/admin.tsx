@@ -1531,9 +1531,7 @@ export default function Admin() {
                                       >
                                         {p.role === "coach" ? "Coach ✕" : "Parent → Coach?"}
                                       </button>
-                                    ) : (
-                                      <Badge variant="outline" className="text-[10px]">Staff roles are super-admin only</Badge>
-                                    )}
+                                    ) : null}
                                   </div>
                                 ))}
                               </div>
