@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { broadcastsTable, usersTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
-import { sendEmail, emailHealthy } from "../lib/email";
+import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
 import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
@@ -39,13 +39,18 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
     recipients = allUsers.filter((u) => u.podId && targetPodIds.includes(u.podId));
   }
 
-  const emailRecipients = recipients.filter(
+  const eligibleEmailRecipients = recipients.filter(
     (u) =>
       u.emailNotifications &&
       u.notificationsEnabled &&
-      (u.notificationPreferences?.coachMessages !== false)
+      (u.notificationPreferences?.coachMessages !== false) &&
+      isDeliverableEmailAddress(u.email)
   );
-  const uniqueEmails = new Set(emailRecipients.map((u) => u.email));
+  const emailRecipients = eligibleEmailRecipients.filter(
+    (user, index, users) =>
+      users.findIndex((candidate) => candidate.email.toLowerCase() === user.email.toLowerCase()) === index,
+  );
+  const uniqueEmails = new Set(emailRecipients.map((u) => u.email.toLowerCase()));
 
   const [broadcast] = await db.insert(broadcastsTable).values({
     senderUserId: me?.id ?? null,
