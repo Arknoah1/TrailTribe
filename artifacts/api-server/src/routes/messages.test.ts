@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   sendEmail: vi.fn(),
   getShortNamePrefix: vi.fn(),
   allUsers: [] as Record<string, unknown>[],
+  broadcasts: [] as Record<string, unknown>[],
+  currentUser: null as Record<string, unknown> | null,
   broadcast: {
     id: 9001,
     senderUserId: 1,
@@ -33,7 +35,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../middlewares/requireAuth", () => ({
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
-  requireApproved: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireApproved: (req: any, _res: unknown, next: () => void) => {
+    req.clerkUserId = "viewer-clerk-id";
+    next();
+  },
   requireCoachOrAdmin: (req: any, _res: unknown, next: () => void) => {
     req.clerkUserId = "coach-clerk-id";
     next();
@@ -42,6 +47,8 @@ vi.mock("../middlewares/requireAuth", () => ({
 
 vi.mock("@workspace/db", () => ({
   db: mocks.db,
+  isOperationalStaffRole: (role: string | null | undefined) =>
+    role === "coach" || role === "super_admin",
   broadcastsTable: {
     createdAt: "broadcast_created_at",
     id: "broadcast_id",
@@ -91,15 +98,16 @@ function user(overrides: Record<string, unknown>) {
 }
 
 function setupDatabase() {
-  mocks.db.query.usersTable.findFirst.mockResolvedValue(user({
+  mocks.currentUser = user({
     id: 1,
     role: "coach",
     email: "coach@example.test",
-  }));
+  });
+  mocks.db.query.usersTable.findFirst.mockImplementation(() => Promise.resolve(mocks.currentUser));
   mocks.db.select.mockImplementation(() => ({
     from: vi.fn(() => ({
       where: vi.fn(() => Promise.resolve(mocks.allUsers)),
-      orderBy: vi.fn(() => Promise.resolve([])),
+      orderBy: vi.fn(() => Promise.resolve(mocks.broadcasts)),
     })),
   }));
   mocks.db.insert.mockImplementation(() => ({
@@ -135,6 +143,7 @@ beforeEach(async () => {
   }
   vi.clearAllMocks();
   mocks.allUsers = [];
+  mocks.broadcasts = [];
   mocks.updateCalls = [];
   mocks.insertCalls = [];
   mocks.broadcast = {
@@ -154,6 +163,99 @@ afterAll(async () => {
       server.close((error) => error ? reject(error) : resolve());
     });
   }
+});
+
+async function fetchMessageArchive(currentUser: Record<string, unknown>) {
+  mocks.currentUser = currentUser;
+  const app = express();
+  app.use(express.json());
+  app.use("/", messagesRouter);
+  server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const address = server.address() as AddressInfo;
+  baseUrl = `http://localhost:${address.port}`;
+  return fetch(`${baseUrl}/messages`);
+}
+
+describe("broadcast archive audience", () => {
+  const teamBroadcast = {
+    ...mocks.broadcast,
+    id: 100,
+    isAllTeam: true,
+    targetPodIds: null,
+    senderUserId: null,
+  };
+  const podABroadcast = {
+    ...mocks.broadcast,
+    id: 101,
+    isAllTeam: false,
+    targetPodIds: ["pod-a"],
+    senderUserId: null,
+  };
+  const podBBroadcast = {
+    ...mocks.broadcast,
+    id: 102,
+    isAllTeam: false,
+    targetPodIds: ["pod-b"],
+    senderUserId: null,
+  };
+  const untargetedBroadcast = {
+    ...mocks.broadcast,
+    id: 103,
+    isAllTeam: false,
+    targetPodIds: null,
+    senderUserId: null,
+  };
+
+  beforeEach(() => {
+    mocks.broadcasts = [teamBroadcast, podABroadcast, podBBroadcast, untargetedBroadcast];
+  });
+
+  it.each(["coach", "super_admin"])("lets %s users review every broadcast", async (role) => {
+    const response = await fetchMessageArchive(user({ role }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
+      .toEqual([100, 101, 102, 103]);
+  });
+
+  it.each(["coach", "super_admin"])("shows no broadcasts to an inactive %s account", async (role) => {
+    const response = await fetchMessageArchive(user({ role, isActive: false }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+  });
+
+  it("shows a parent team-wide broadcasts and broadcasts for their own pod only", async () => {
+    const response = await fetchMessageArchive(user({ role: "parent", podId: "pod-a" }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
+      .toEqual([100, 101]);
+  });
+
+  it("does not show another pod's broadcast to an active rider", async () => {
+    const response = await fetchMessageArchive(user({
+      role: "student",
+      podId: "pod-b",
+      seasonParticipationStatus: "active",
+    }));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
+      .toEqual([100, 102]);
+  });
+
+  it.each(["season_off", "pending"])("shows no broadcasts to a %s rider", async (seasonParticipationStatus) => {
+    const response = await fetchMessageArchive(user({
+      role: "student",
+      podId: "pod-a",
+      seasonParticipationStatus,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([]);
+  });
 });
 
 describe("broadcast email notifications", () => {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { broadcastsTable, usersTable } from "@workspace/db";
+import { broadcastsTable, isOperationalStaffRole, usersTable } from "@workspace/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
@@ -10,9 +10,39 @@ import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 
+function canViewBroadcast(
+  viewer: {
+    role: string;
+    podId: string | null;
+    isActive: boolean;
+    seasonParticipationStatus: string;
+  },
+  broadcast: {
+    isAllTeam: boolean;
+    targetPodIds: string[] | null;
+  },
+) {
+  if (!viewer.isActive) return false;
+  if (isOperationalStaffRole(viewer.role)) return true;
+  if (viewer.role === "student" && viewer.seasonParticipationStatus !== "active") return false;
+  if (viewer.role !== "parent" && viewer.role !== "student") return false;
+  if (broadcast.isAllTeam) return true;
+  return viewer.podId != null && broadcast.targetPodIds?.includes(viewer.podId) === true;
+}
+
 router.get("/messages", requireApproved, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const viewer = await db.query.usersTable.findFirst({
+    where: eq(usersTable.clerkUserId, clerkUserId),
+  });
+  if (!viewer) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const emailConfigured = emailHealthy;
-  const broadcasts = await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt);
+  const broadcasts = (await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt))
+    .filter((broadcast) => canViewBroadcast(viewer, broadcast));
   const result = await Promise.all(
     broadcasts.map(async (b) => {
       const sender = b.senderUserId
