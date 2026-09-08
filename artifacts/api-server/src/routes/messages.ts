@@ -56,8 +56,17 @@ router.get("/messages", requireApproved, async (req, res) => {
 
 router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
-  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const { subject, body, channel, targetPodIds, isAllTeam } = req.body;
+  const deliveryChannel = channel ?? "email";
+
+  if (deliveryChannel !== "email") {
+    res.status(400).json({
+      error: `Broadcast channel "${String(deliveryChannel)}" is not supported`,
+    });
+    return;
+  }
+
+  const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
 
   const allUsers = (await db.select().from(usersTable).where(and(
     eq(usersTable.isActive, true),
@@ -93,7 +102,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
     senderUserId: me?.id ?? null,
     subject: subject ?? null,
     body,
-    channel: channel ?? "email",
+    channel: deliveryChannel,
     targetPodIds: targetPodIds ?? null,
     isAllTeam: isAllTeam ?? false,
     recipientCount: uniqueEmails.size,

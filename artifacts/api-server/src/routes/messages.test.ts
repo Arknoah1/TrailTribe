@@ -259,6 +259,36 @@ describe("broadcast archive audience", () => {
 });
 
 describe("broadcast email notifications", () => {
+  it.each(["sms", "push"])("rejects unsupported %s broadcasts without sending email", async (channel) => {
+    mocks.allUsers = [user({ id: 31, email: "parent@example.test" })];
+
+    const app = express();
+    app.use(express.json());
+    app.use("/", messagesRouter);
+    server = createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://localhost:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: "Do not deliver this by email",
+        channel,
+        isAllTeam: true,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: `Broadcast channel "${channel}" is not supported`,
+    });
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+    expect(mocks.db.query.usersTable.findFirst).not.toHaveBeenCalled();
+  });
+
   it("queues a team-wide email for eligible recipients and records delivery results", async () => {
     mocks.allUsers = [
       user({ id: 2, email: "parent@example.test" }),
