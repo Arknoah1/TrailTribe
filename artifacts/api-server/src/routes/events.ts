@@ -10,6 +10,8 @@ import {
   usersTable,
   carpoolOffersTable,
   carpoolClaimsTable,
+  EventAudienceConflictError,
+  normalizeEventAudience,
 } from "@workspace/db";
 import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -21,6 +23,12 @@ import { shouldQueueRsvpConfirmation } from "../lib/rsvpEmailContent";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
+
+function sendAudienceConflict(res: any, error: unknown): boolean {
+  if (!(error instanceof EventAudienceConflictError)) return false;
+  res.status(400).json({ error: error.message });
+  return true;
+}
 
 async function buildEventWithDetails(event: any, clerkUserId?: string) {
   const trailhead = event.trailheadId
@@ -129,9 +137,22 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
     return;
   }
   const resolvedSeriesId = seriesId || randomUUID();
+  let normalizedEvents: Array<{ event: any; audience: ReturnType<typeof normalizeEventAudience> }>;
+  try {
+    normalizedEvents = events.map((event) => ({
+      event,
+      audience: normalizeEventAudience({
+        podIds: event.podIds ?? null,
+        isAllTeam: event.isAllTeam ?? true,
+      }),
+    }));
+  } catch (error) {
+    if (sendAudienceConflict(res, error)) return;
+    throw error;
+  }
   const created = await db.transaction(async (tx) => {
     return tx.insert(eventsTable).values(
-      events.map((e: any) => ({
+      normalizedEvents.map(({ event: e, audience }) => ({
         title: e.title,
         description: e.description ?? null,
         eventType: e.eventType ?? "practice",
@@ -140,8 +161,8 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
         trailheadId: e.trailheadId ?? null,
         locationOverride: e.locationOverride ?? null,
         googleMapsUrlOverride: e.googleMapsUrlOverride ?? null,
-        podIds: e.podIds ?? null,
-        isAllTeam: e.isAllTeam ?? true,
+        podIds: audience.podIds,
+        isAllTeam: audience.isAllTeam,
         rsvpDeadline: e.rsvpDeadline ? new Date(e.rsvpDeadline) : null,
         volunteerSlotsNeeded: e.volunteerSlotsNeeded ?? 0,
         volunteerTasksEnabled: e.volunteerTasksEnabled ?? false,
@@ -220,6 +241,16 @@ router.post("/events", requireCoachOrAdmin, async (req, res) => {
     title, description, eventType, startTime, endTime, trailheadId, locationOverride,
     googleMapsUrlOverride, podIds, isAllTeam, rsvpDeadline, volunteerSlotsNeeded
   } = req.body;
+  let audience;
+  try {
+    audience = normalizeEventAudience({
+      podIds: podIds ?? null,
+      isAllTeam: isAllTeam ?? false,
+    });
+  } catch (error) {
+    if (sendAudienceConflict(res, error)) return;
+    throw error;
+  }
 
   const [event] = await db.insert(eventsTable).values({
     title,
@@ -230,8 +261,8 @@ router.post("/events", requireCoachOrAdmin, async (req, res) => {
     trailheadId: trailheadId ?? null,
     locationOverride: locationOverride ?? null,
     googleMapsUrlOverride: googleMapsUrlOverride ?? null,
-    podIds: podIds ?? null,
-    isAllTeam: isAllTeam ?? false,
+    podIds: audience.podIds,
+    isAllTeam: audience.isAllTeam,
     rsvpDeadline: rsvpDeadline ? new Date(rsvpDeadline) : null,
     volunteerSlotsNeeded: volunteerSlotsNeeded ?? 0,
     createdByUserId: me?.id ?? null,
@@ -274,8 +305,33 @@ router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
   if (endTime !== undefined) updates.endTime = new Date(endTime);
   if (trailheadId !== undefined) updates.trailheadId = trailheadId;
   if (locationOverride !== undefined) updates.locationOverride = locationOverride;
-  if (podIds !== undefined) updates.podIds = podIds ? [...new Set(podIds as string[])] : podIds;
-  if (isAllTeam !== undefined) updates.isAllTeam = isAllTeam;
+  if (podIds !== undefined || isAllTeam !== undefined) {
+    const existing = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
+    if (!existing) {
+      res.status(404).json({ error: "Event not found" });
+      return;
+    }
+    try {
+      const effectivePodIds = podIds !== undefined
+        ? podIds
+        : isAllTeam === true
+          ? null
+          : existing.podIds;
+      const audience = normalizeEventAudience({
+        podIds: effectivePodIds,
+        isAllTeam: isAllTeam !== undefined
+          ? isAllTeam
+          : Array.isArray(effectivePodIds) && effectivePodIds.length > 0
+            ? false
+            : existing.isAllTeam,
+      });
+      updates.podIds = audience.podIds;
+      updates.isAllTeam = audience.isAllTeam;
+    } catch (error) {
+      if (sendAudienceConflict(res, error)) return;
+      throw error;
+    }
+  }
   if (rsvpDeadline !== undefined) updates.rsvpDeadline = new Date(rsvpDeadline);
   if (volunteerSlotsNeeded !== undefined) updates.volunteerSlotsNeeded = volunteerSlotsNeeded;
   if (isArchived !== undefined) updates.isArchived = isArchived;

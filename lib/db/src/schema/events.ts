@@ -4,7 +4,9 @@ import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
 import { usersTable } from "./users";
 export {
+  EventAudienceConflictError,
   isEventAudienceMember,
+  normalizeEventAudience,
   type EventAudience,
   type EventAudienceUser,
 } from "../event-audience";

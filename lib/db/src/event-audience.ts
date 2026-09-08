@@ -8,6 +8,34 @@ export type EventAudienceUser = {
   podId: string | null;
 };
 
+export class EventAudienceConflictError extends Error {
+  constructor() {
+    super("Team-wide events cannot also target specific pods");
+    this.name = "EventAudienceConflictError";
+  }
+}
+
+/**
+ * Canonicalizes audience values before an event is written.
+ *
+ * Legacy conflicting rows remain supported by the read rule below, but new
+ * writes must choose either the whole team or one or more specific pods.
+ */
+export function normalizeEventAudience(event: EventAudience): EventAudience {
+  const podIds = event.podIds
+    ? [...new Set(event.podIds.filter((podId) => podId.length > 0))]
+    : null;
+
+  if (event.isAllTeam && podIds && podIds.length > 0) {
+    throw new EventAudienceConflictError();
+  }
+
+  return {
+    isAllTeam: event.isAllTeam,
+    podIds: podIds && podIds.length > 0 ? podIds : null,
+  };
+}
+
 /**
  * The canonical event audience rule used by every visibility and delivery path.
  * Staff can access every event. Other members can access team-wide events or
