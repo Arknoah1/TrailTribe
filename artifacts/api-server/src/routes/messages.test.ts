@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     failedCount: 0,
   },
   updateCalls: [] as Record<string, unknown>[],
+  insertCalls: [] as Record<string, unknown>[],
   db: {
     select: vi.fn(),
     insert: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("@workspace/db", () => ({
     id: "user_id",
     clerkUserId: "user_clerk_id",
     isActive: "user_is_active",
+    approved: "user_approved",
   },
 }));
 
@@ -101,9 +103,12 @@ function setupDatabase() {
     })),
   }));
   mocks.db.insert.mockImplementation(() => ({
-    values: vi.fn(() => ({
-      returning: vi.fn(() => Promise.resolve([{ ...mocks.broadcast }])),
-    })),
+    values: vi.fn((values: Record<string, unknown>) => {
+      mocks.insertCalls.push(values);
+      return {
+        returning: vi.fn(() => Promise.resolve([{ ...mocks.broadcast, ...values }])),
+      };
+    }),
   }));
   mocks.db.update.mockImplementation(() => ({
     set: vi.fn((values: Record<string, unknown>) => {
@@ -131,6 +136,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.allUsers = [];
   mocks.updateCalls = [];
+  mocks.insertCalls = [];
   mocks.broadcast = {
     ...mocks.broadcast,
     recipientCount: 0,
@@ -157,6 +163,7 @@ describe("broadcast email notifications", () => {
       user({ id: 3, role: "student", email: "rider@example.test" }),
       user({ id: 4, email: "failed@example.test" }),
       user({ id: 5, isActive: false, email: "inactive@example.test" }),
+      user({ id: 14, approved: false, email: "unapproved@example.test" }),
       user({ id: 6, role: "student", seasonParticipationStatus: "season_off", email: "season-off@example.test" }),
       user({ id: 7, role: "student", seasonParticipationStatus: "pending", email: "pending@example.test" }),
       user({ id: 8, emailNotifications: false, email: "email-opt-out@example.test" }),
@@ -191,7 +198,10 @@ describe("broadcast email notifications", () => {
     });
 
     expect(response.status).toBe(201);
-    expect((await response.json()).emailConfigured).toBe(true);
+    expect(await response.json()).toMatchObject({
+      emailConfigured: true,
+      recipientCount: 3,
+    });
     await waitForBroadcastUpdate();
 
     expect(mocks.sendEmail).toHaveBeenCalledTimes(3);
@@ -241,5 +251,44 @@ describe("broadcast email notifications", () => {
       "pod-a@example.test",
       "active-rider@example.test",
     ]);
+    expect(mocks.insertCalls[0]).toMatchObject({
+      targetPodIds: ["pod-a"],
+      isAllTeam: false,
+      recipientCount: 2,
+    });
+  });
+
+  it("responds before asynchronous email delivery finishes", async () => {
+    mocks.allUsers = [user({ id: 30, email: "slow-delivery@example.test" })];
+    let resolveDelivery!: (result: { status: "sent" }) => void;
+    mocks.sendEmail.mockImplementation(() => new Promise((resolve) => {
+      resolveDelivery = resolve;
+    }));
+
+    const app = express();
+    app.use(express.json());
+    app.use("/", messagesRouter);
+    server = createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://localhost:${address.port}`;
+
+    const response = await fetch(`${baseUrl}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: "Background delivery check",
+        channel: "email",
+        isAllTeam: true,
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.updateCalls).toEqual([]);
+
+    resolveDelivery({ status: "sent" });
+    await waitForBroadcastUpdate();
+    expect(mocks.updateCalls).toContainEqual({ deliveredCount: 1, failedCount: 0 });
   });
 });

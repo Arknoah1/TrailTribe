@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { broadcastsTable, usersTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -29,10 +29,17 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
   const me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
   const { subject, body, channel, targetPodIds, isAllTeam } = req.body;
 
-  const allUsers = (await db.select().from(usersTable).where(eq(usersTable.isActive, true)))
+  const allUsers = (await db.select().from(usersTable).where(and(
+    eq(usersTable.isActive, true),
+    eq(usersTable.approved, true),
+  )))
     .filter((user) =>
-      user.role !== "student" ||
-      (user.seasonParticipationStatus !== "season_off" && user.seasonParticipationStatus !== "pending")
+      user.isActive &&
+      user.approved &&
+      (
+        user.role !== "student" ||
+        (user.seasonParticipationStatus !== "season_off" && user.seasonParticipationStatus !== "pending")
+      )
     );
   let recipients = allUsers;
   if (!isAllTeam && targetPodIds?.length) {
