@@ -25,6 +25,24 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "capture_broadcast_audience",
+    sql: `
+      ALTER TABLE broadcasts
+        ADD COLUMN IF NOT EXISTS audience_captured_at timestamptz;
+
+      CREATE TABLE IF NOT EXISTS broadcast_recipients (
+        id serial PRIMARY KEY,
+        broadcast_id integer NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+        user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS broadcast_recipients_broadcast_user_unique
+        ON broadcast_recipients(broadcast_id, user_id);
+      CREATE INDEX IF NOT EXISTS broadcast_recipients_user_id_idx
+        ON broadcast_recipients(user_id);
+    `,
+  },
+  {
     name: "add_volunteer_tasks_enabled_column",
     sql: `
       ALTER TABLE events

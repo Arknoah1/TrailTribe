@@ -1,7 +1,20 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { broadcastsTable, isOperationalStaffRole, usersTable } from "@workspace/db";
-import { and, arrayContains, eq, inArray, or } from "drizzle-orm";
+import {
+  broadcastRecipientsTable,
+  broadcastsTable,
+  isOperationalStaffRole,
+  usersTable,
+} from "@workspace/db";
+import {
+  and,
+  arrayContains,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+} from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -46,16 +59,33 @@ router.get("/messages", requireApproved, async (req, res) => {
 
   const rows = isOperationalStaffRole(viewer.role)
     ? await baseQuery.orderBy(broadcastsTable.createdAt)
-    : await baseQuery
-        .where(
-          viewer.podId
-            ? or(
-                eq(broadcastsTable.isAllTeam, true),
-                arrayContains(broadcastsTable.targetPodIds, [viewer.podId]),
-              )
-            : eq(broadcastsTable.isAllTeam, true),
-        )
-        .orderBy(broadcastsTable.createdAt);
+    : await (async () => {
+        const capturedBroadcastIds = (await db
+          .select({ broadcastId: broadcastRecipientsTable.broadcastId })
+          .from(broadcastRecipientsTable)
+          .where(eq(broadcastRecipientsTable.userId, viewer.id)))
+          .map(({ broadcastId }) => broadcastId);
+        const legacyPodAudience = viewer.podId
+          ? or(
+              eq(broadcastsTable.isAllTeam, true),
+              arrayContains(broadcastsTable.targetPodIds, [viewer.podId]),
+            )
+          : eq(broadcastsTable.isAllTeam, true);
+        const visibilityConditions = [
+          and(isNull(broadcastsTable.audienceCapturedAt), legacyPodAudience),
+        ];
+        if (capturedBroadcastIds.length > 0) {
+          visibilityConditions.push(
+            and(
+              isNotNull(broadcastsTable.audienceCapturedAt),
+              inArray(broadcastsTable.id, capturedBroadcastIds),
+            ),
+          );
+        }
+        return baseQuery
+          .where(or(...visibilityConditions))
+          .orderBy(broadcastsTable.createdAt);
+      })();
 
   res.json(rows.map(({ broadcast, sender }) => ({
     ...broadcast,
@@ -117,7 +147,17 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
     isAllTeam: isAllTeam ?? false,
     recipientCount: uniqueEmails.size,
     sentAt: new Date(),
+    audienceCapturedAt: new Date(),
   }).returning();
+
+  if (recipients.length > 0) {
+    await db.insert(broadcastRecipientsTable).values(
+      recipients.map((recipient) => ({
+        broadcastId: broadcast.id,
+        userId: recipient.id,
+      })),
+    );
+  }
 
   const senderName = me ? `${me.firstName} ${me.lastName}` : "Your Coach";
   const orgPrefix = await getShortNamePrefix();
