@@ -3,6 +3,11 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
 import { usersTable } from "./users";
+export {
+  isEventAudienceMember,
+  type EventAudience,
+  type EventAudienceUser,
+} from "../event-audience";
 import { volunteerTemplateCategoriesTable } from "./volunteer";
 
 export const eventTypeEnum = ["practice", "race", "social", "volunteer", "other"] as const;

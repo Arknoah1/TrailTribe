@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vites
 import express from "express";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { isEventAudienceMember as sharedIsEventAudienceMember } from "@workspace/db/event-audience";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
 const COACH = {
@@ -44,6 +45,7 @@ type EventFixture = {
   startTime: Date;
   endTime: Date;
   podIds: string[];
+  isAllTeam: boolean;
 };
 
 type ThreadFixture = {
@@ -121,6 +123,7 @@ vi.mock("@workspace/db", () => {
   const targetIdFrom = (condition: any) =>
     currentTargetId ?? condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
   return {
+    isEventAudienceMember: sharedIsEventAudienceMember,
     db: {
       select: vi.fn((selection?: Record<string, unknown>) => {
         selectCallIndex += 1;
@@ -338,7 +341,7 @@ beforeEach(() => {
 });
 
 function addEvent(id: number, startTime: Date, endTime: Date) {
-  const event = { id, title: `Event ${id}`, startTime, endTime, podIds: [] };
+  const event = { id, title: `Event ${id}`, startTime, endTime, podIds: [], isAllTeam: true };
   events.push(event);
   return event;
 }
@@ -450,6 +453,20 @@ async function deletePost(user: typeof COACH, postId: number) {
 }
 
 describe("event discussion board visibility and ordering", () => {
+  it("uses the shared pod, team-wide, and staff audience rules", async () => {
+    const event = addEvent(70, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    addThread(70, event.id, NOW);
+
+    expect((await getThreads("/board/threads/70", RIDER)).status).toBe(200);
+    expect((await getThreads("/board/threads/70", OTHER_RIDER)).status).toBe(403);
+    expect((await getThreads("/board/threads/70", COACH)).status).toBe(200);
+
+    event.isAllTeam = true;
+    expect((await getThreads("/board/threads/70", OTHER_RIDER)).status).toBe(200);
+  });
+
   it("uses current event names in reply notifications and stored titles elsewhere", async () => {
     const event = addEvent(60, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     addThread(60, event.id, NOW);

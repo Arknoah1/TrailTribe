@@ -6,6 +6,7 @@ import {
   usersTable,
   eventsTable,
   boardReactionsTable,
+  isEventAudienceMember,
 } from "@workspace/db";
 import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -214,12 +215,9 @@ async function canAccessEventThread(
   me: typeof usersTable.$inferSelect,
   eventId: number
 ): Promise<boolean> {
-  if (me.role === "coach" || me.role === "super_admin") return true;
   const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
   if (!event) return false;
-  // No pod restriction: open to all team members
-  if (!event.podIds || event.podIds.length === 0) return true;
-  return me.podId != null && event.podIds.includes(me.podId);
+  return isEventAudienceMember(event, me);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isEventAudienceMember as sharedIsEventAudienceMember } from "@workspace/db/event-audience";
 
 const mocks = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
@@ -30,6 +31,7 @@ vi.mock("@workspace/db", () => ({
     approved: "user_approved",
   },
   trailheadsTable: { id: "trailhead_id" },
+  isEventAudienceMember: sharedIsEventAudienceMember,
 }));
 
 vi.mock("./email", () => ({
@@ -67,6 +69,7 @@ function event(overrides: Record<string, unknown>) {
     startTime: new Date(Date.now() + 25 * 60 * 60 * 1000),
     isArchived: false,
     podIds: [] as string[],
+    isAllTeam: true,
     trailheadId: null,
     locationOverride: "Central Park",
     googleMapsUrlOverride: null,
@@ -110,7 +113,7 @@ describe("event reminder recipients", () => {
 
   it("includes eligible pod members and staff regardless of RSVP status", async () => {
     setupSelects([
-      [event({ id: 1002, title: "Pod Ride", podIds: ["pod-a"], locationOverride: null })],
+      [event({ id: 1002, title: "Pod Ride", podIds: ["pod-a"], isAllTeam: false, locationOverride: null })],
       [
         user({ id: 201, email: "no-rsvp@example.test", rsvpStatus: null }),
         user({ id: 202, email: "maybe@example.test", rsvpStatus: "maybe" }),
@@ -131,6 +134,19 @@ describe("event reminder recipients", () => {
       "attending@example.test",
       "coach@example.test",
       "active-rider@example.test",
+    ]);
+  });
+
+  it("uses the shared audience rule when isAllTeam overrides a populated pod list", async () => {
+    setupSelects([
+      [event({ id: 1004, podIds: ["pod-a"], isAllTeam: true })],
+      [user({ id: 401, podId: "pod-b", email: "other-pod@example.test" })],
+    ]);
+
+    await sendEventReminders();
+
+    expect(mocks.sendEmail.mock.calls.map(([email]) => email.to)).toEqual([
+      "other-pod@example.test",
     ]);
   });
 

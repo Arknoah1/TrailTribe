@@ -1,5 +1,5 @@
 import { db } from "@workspace/db";
-import { eventsTable, usersTable, trailheadsTable } from "@workspace/db";
+import { eventsTable, usersTable, trailheadsTable, isEventAudienceMember } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { isDeliverableEmailAddress, sendEmail } from "./email";
 import { logger } from "./logger";
@@ -19,7 +19,7 @@ function reminderKey(eventId: number, userId: number): string {
   return `${eventId}:${userId}:${today}`;
 }
 
-type ReminderEvent = Pick<typeof eventsTable.$inferSelect, "podIds">;
+type ReminderEvent = Pick<typeof eventsTable.$inferSelect, "podIds" | "isAllTeam">;
 type ReminderUser = Pick<
   typeof usersTable.$inferSelect,
   "role" | "podId" | "seasonParticipationStatus"
@@ -30,9 +30,7 @@ export function isEventReminderRecipient(
   user: ReminderUser,
 ): boolean {
   if (user.role === "student" && user.seasonParticipationStatus !== "active") return false;
-  if (user.role === "coach" || user.role === "super_admin") return true;
-  if (!event.podIds || event.podIds.length === 0) return true;
-  return user.podId != null && event.podIds.includes(user.podId);
+  return isEventAudienceMember(event, user);
 }
 
 export async function sendEventReminders(): Promise<void> {
