@@ -478,6 +478,39 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "create_event_reminder_deliveries_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS event_reminder_deliveries (
+        id serial PRIMARY KEY,
+        event_id integer NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        occurrence_start timestamptz NOT NULL,
+        status text NOT NULL DEFAULT 'processing',
+        attempt_count integer NOT NULL DEFAULT 1,
+        claimed_at timestamptz NOT NULL DEFAULT now(),
+        sent_at timestamptz,
+        next_attempt_at timestamptz,
+        last_error text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      ALTER TABLE event_reminder_deliveries
+        ADD COLUMN IF NOT EXISTS occurrence_start timestamptz;
+      UPDATE event_reminder_deliveries AS delivery
+        SET occurrence_start = events.start_time
+        FROM events
+        WHERE delivery.event_id = events.id
+          AND delivery.occurrence_start IS NULL;
+      ALTER TABLE event_reminder_deliveries
+        ALTER COLUMN occurrence_start SET NOT NULL;
+      DROP INDEX IF EXISTS event_reminder_deliveries_event_user_unique;
+      CREATE UNIQUE INDEX IF NOT EXISTS event_reminder_deliveries_event_user_occurrence_unique
+        ON event_reminder_deliveries(event_id, user_id, occurrence_start);
+      CREATE INDEX IF NOT EXISTS event_reminder_deliveries_retry_idx
+        ON event_reminder_deliveries(status, next_attempt_at);
+    `,
+  },
+  {
     name: "add_short_name_to_team_settings",
     sql: `
       ALTER TABLE team_settings

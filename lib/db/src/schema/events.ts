@@ -67,6 +67,26 @@ export const insertEventRsvpSchema = createInsertSchema(eventRsvpsTable).omit({
 export type InsertEventRsvp = z.infer<typeof insertEventRsvpSchema>;
 export type EventRsvp = typeof eventRsvpsTable.$inferSelect;
 
+export const eventReminderDeliveriesTable = pgTable("event_reminder_deliveries", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => eventsTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  occurrenceStart: timestamp("occurrence_start", { withTimezone: true }).notNull(),
+  status: text("status", { enum: ["processing", "sent", "failed"] }).notNull().default("processing"),
+  attemptCount: integer("attempt_count").notNull().default(1),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex("event_reminder_deliveries_event_user_occurrence_unique").on(t.eventId, t.userId, t.occurrenceStart),
+  index("event_reminder_deliveries_retry_idx").on(t.status, t.nextAttemptAt),
+]);
+
+export type EventReminderDelivery = typeof eventReminderDeliveriesTable.$inferSelect;
+
 // ─── VOLUNTEER TASK SYSTEM ──────────────────────────────────────────────────
 
 export const volunteerTemplateTasksTable = pgTable("volunteer_template_tasks", {

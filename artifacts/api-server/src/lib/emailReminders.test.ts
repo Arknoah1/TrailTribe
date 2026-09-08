@@ -5,8 +5,14 @@ const mocks = vi.hoisted(() => ({
   selectResults: [] as unknown[][],
   sendEmail: vi.fn(),
   getShortNamePrefix: vi.fn(),
+  insertClaims: [] as unknown[][],
+  retryClaims: [] as unknown[][],
+  deliveryUpdates: [] as Record<string, unknown>[],
+  insertedDeliveries: [] as Record<string, unknown>[],
   db: {
     select: vi.fn(),
+    insert: vi.fn(),
+    update: vi.fn(),
     query: {
       trailheadsTable: { findFirst: vi.fn() },
     },
@@ -16,8 +22,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("drizzle-orm", () => ({
   and: (...args: unknown[]) => args,
   eq: (left: unknown, right: unknown) => [left, right],
-  gte: (left: unknown, right: unknown) => [left, right],
+  gt: (left: unknown, right: unknown) => [left, right],
   lte: (left: unknown, right: unknown) => [left, right],
+  or: (...args: unknown[]) => args,
+  sql: (strings: TemplateStringsArray) => strings.join(""),
 }));
 
 vi.mock("@workspace/db", () => ({
@@ -25,6 +33,15 @@ vi.mock("@workspace/db", () => ({
   eventsTable: {
     startTime: "event_start_time",
     isArchived: "event_is_archived",
+  },
+  eventReminderDeliveriesTable: {
+    eventId: "delivery_event_id",
+    userId: "delivery_user_id",
+    occurrenceStart: "delivery_occurrence_start",
+    status: "delivery_status",
+    attemptCount: "delivery_attempt_count",
+    claimedAt: "delivery_claimed_at",
+    nextAttemptAt: "delivery_next_attempt_at",
   },
   usersTable: {
     isActive: "user_is_active",
@@ -86,12 +103,143 @@ function setupSelects(results: unknown[][]) {
   }));
 }
 
+function setupDeliveryClaims(insertClaims: unknown[][] = []) {
+  mocks.insertClaims = [...insertClaims];
+  mocks.retryClaims = [];
+  mocks.deliveryUpdates = [];
+  mocks.insertedDeliveries = [];
+  mocks.db.insert.mockImplementation(() => ({
+    values: vi.fn((values: Record<string, unknown>) => {
+      mocks.insertedDeliveries.push(values);
+      return {
+        onConflictDoNothing: vi.fn(() => ({
+          returning: vi.fn(() => Promise.resolve(
+            mocks.insertClaims.length > 0
+              ? mocks.insertClaims.shift()
+              : [{ attemptCount: 1 }],
+          )),
+        })),
+      };
+    }),
+  }));
+  mocks.db.update.mockImplementation(() => ({
+    set: vi.fn((values: Record<string, unknown>) => {
+      mocks.deliveryUpdates.push(values);
+      return {
+        where: vi.fn(() => {
+          if (values.status === "processing") {
+            return {
+              returning: vi.fn(() => Promise.resolve(mocks.retryClaims.shift() ?? [])),
+            };
+          }
+          return Promise.resolve();
+        }),
+      };
+    }),
+  }));
+}
+
 describe("event reminder recipients", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getShortNamePrefix.mockResolvedValue("");
     mocks.sendEmail.mockResolvedValue({ status: "sent" });
     mocks.db.query.trailheadsTable.findFirst.mockResolvedValue(null);
+    setupDeliveryClaims();
+  });
+
+  it("does not send again when a durable delivery row already exists", async () => {
+    setupSelects([[event({ id: 1010 })], [user({ id: 510 })]]);
+    setupDeliveryClaims([[]]);
+
+    await sendEventReminders();
+
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("records success and schedules a controlled retry after failure", async () => {
+    setupSelects([
+      [event({ id: 1011 }), event({ id: 1012 })],
+      [user({ id: 511, email: "success@example.test" })],
+      [user({ id: 512, email: "retry@example.test" })],
+    ]);
+    mocks.sendEmail
+      .mockResolvedValueOnce({ status: "sent" })
+      .mockResolvedValueOnce({ status: "failed", error: new Error("temporary SMTP failure") });
+
+    await sendEventReminders();
+
+    expect(mocks.deliveryUpdates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: "sent", nextAttemptAt: null }),
+      expect.objectContaining({ status: "failed", lastError: "temporary SMTP failure" }),
+    ]));
+    const failed = mocks.deliveryUpdates.find((update) => update.status === "failed");
+    expect(failed?.nextAttemptAt).toBeInstanceOf(Date);
+  });
+
+  it("retries a due failed delivery after the event leaves the new-reminder window", async () => {
+    setupSelects([
+      [event({ id: 1013, startTime: new Date(Date.now() + 17 * 60 * 60 * 1000) })],
+      [user({ id: 513, email: "failed-retry@example.test" })],
+    ]);
+    setupDeliveryClaims();
+    mocks.retryClaims = [[{ attemptCount: 2 }]];
+
+    await sendEventReminders();
+
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      to: "failed-retry@example.test",
+    }));
+  });
+
+  it("reclaims a stale in-progress delivery after the event leaves the new-reminder window", async () => {
+    setupSelects([
+      [event({ id: 1014, startTime: new Date(Date.now() + 17 * 60 * 60 * 1000) })],
+      [user({ id: 514, email: "stale-claim@example.test" })],
+    ]);
+    setupDeliveryClaims();
+    mocks.retryClaims = [[{ attemptCount: 2 }]];
+
+    await sendEventReminders();
+
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      to: "stale-claim@example.test",
+    }));
+  });
+
+  it("does not create a late reminder for an event below the new-reminder window", async () => {
+    setupSelects([
+      [event({ id: 1015, startTime: new Date(Date.now() + 17 * 60 * 60 * 1000) })],
+      [user({ id: 515, email: "too-late@example.test" })],
+    ]);
+    setupDeliveryClaims();
+
+    await sendEventReminders();
+
+    expect(mocks.db.insert).not.toHaveBeenCalled();
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("creates a new durable reminder occurrence when an event is rescheduled", async () => {
+    const firstStart = new Date(Date.now() + 20 * 60 * 60 * 1000);
+    const rescheduledStart = new Date(Date.now() + 22 * 60 * 60 * 1000);
+    setupSelects([
+      [event({ id: 1016, startTime: firstStart })],
+      [user({ id: 516, email: "rescheduled@example.test" })],
+      [event({ id: 1016, startTime: rescheduledStart })],
+      [user({ id: 516, email: "rescheduled@example.test" })],
+    ]);
+
+    await sendEventReminders();
+    await sendEventReminders();
+
+    expect(mocks.insertedDeliveries.map((delivery) => delivery.occurrenceStart)).toEqual([
+      firstStart,
+      rescheduledStart,
+    ]);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(2);
   });
 
   it("reminds active team members for team-wide events even without an RSVP", async () => {
