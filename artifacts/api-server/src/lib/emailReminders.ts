@@ -16,7 +16,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function claimDelivery(
+export async function claimEventReminderDelivery(
   eventId: number,
   userId: number,
   occurrenceStart: Date,
@@ -133,7 +133,7 @@ export async function sendEventReminders(): Promise<void> {
       const timeStr = formatEventDateTime(event.startTime);
 
       for (const user of recipients) {
-        const attemptCount = await claimDelivery(event.id, user.id, event.startTime, now, allowNewClaims);
+        const attemptCount = await claimEventReminderDelivery(event.id, user.id, event.startTime, now, allowNewClaims);
         if (attemptCount === null) continue;
 
         const lines = [
