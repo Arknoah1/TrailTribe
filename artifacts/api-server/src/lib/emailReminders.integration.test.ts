@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import {
   db,
   eventReminderDeliveriesTable,
@@ -67,6 +67,65 @@ describe("event reminder delivery claims with PostgreSQL uniqueness", () => {
       userId,
       status: "processing",
       attemptCount: 1,
+    });
+  });
+
+  it("allows exactly one fresh claim after the event is rescheduled", async () => {
+    const originalOccurrenceStart = occurrenceStart;
+    const originalClaimedAt = new Date();
+    const originalSentAt = new Date(originalClaimedAt.getTime() + 1_000);
+
+    await db
+      .update(eventReminderDeliveriesTable)
+      .set({
+        status: "sent",
+        sentAt: originalSentAt,
+      })
+      .where(and(
+        eq(eventReminderDeliveriesTable.eventId, eventId),
+        eq(eventReminderDeliveriesTable.userId, userId),
+        eq(eventReminderDeliveriesTable.occurrenceStart, originalOccurrenceStart),
+      ));
+
+    const rescheduledOccurrenceStart = new Date(originalOccurrenceStart.getTime() + 60 * 60 * 1000);
+    await db
+      .update(eventsTable)
+      .set({ startTime: rescheduledOccurrenceStart })
+      .where(eq(eventsTable.id, eventId));
+
+    const rescheduledClaimedAt = new Date(originalClaimedAt.getTime() + 2_000);
+    const claims = await Promise.all([
+      claimEventReminderDelivery(eventId, userId, rescheduledOccurrenceStart, rescheduledClaimedAt, true),
+      claimEventReminderDelivery(eventId, userId, rescheduledOccurrenceStart, rescheduledClaimedAt, true),
+    ]);
+
+    expect(claims.filter((attemptCount) => attemptCount !== null)).toEqual([1]);
+
+    const rows = await db
+      .select()
+      .from(eventReminderDeliveriesTable)
+      .where(and(
+        eq(eventReminderDeliveriesTable.eventId, eventId),
+        eq(eventReminderDeliveriesTable.userId, userId),
+      ))
+      .orderBy(asc(eventReminderDeliveriesTable.occurrenceStart));
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      eventId,
+      userId,
+      occurrenceStart: originalOccurrenceStart,
+      status: "sent",
+      attemptCount: 1,
+      sentAt: originalSentAt,
+    });
+    expect(rows[1]).toMatchObject({
+      eventId,
+      userId,
+      occurrenceStart: rescheduledOccurrenceStart,
+      status: "processing",
+      attemptCount: 1,
+      sentAt: null,
     });
   });
 });
