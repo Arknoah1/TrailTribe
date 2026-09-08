@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
-import { eventsTable, eventRsvpsTable, usersTable, trailheadsTable } from "@workspace/db";
+import { eventsTable, usersTable, trailheadsTable } from "@workspace/db";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { sendEmail } from "./email";
+import { isDeliverableEmailAddress, sendEmail } from "./email";
 import { logger } from "./logger";
 import { getShortNamePrefix } from "../routes/settings";
 import { formatEventDateTime } from "./eventTime";
@@ -19,7 +19,23 @@ function reminderKey(eventId: number, userId: number): string {
   return `${eventId}:${userId}:${today}`;
 }
 
-async function sendEventReminders(): Promise<void> {
+type ReminderEvent = Pick<typeof eventsTable.$inferSelect, "podIds">;
+type ReminderUser = Pick<
+  typeof usersTable.$inferSelect,
+  "role" | "podId" | "seasonParticipationStatus"
+>;
+
+export function isEventReminderRecipient(
+  event: ReminderEvent,
+  user: ReminderUser,
+): boolean {
+  if (user.role === "student" && user.seasonParticipationStatus !== "active") return false;
+  if (user.role === "coach" || user.role === "super_admin") return true;
+  if (!event.podIds || event.podIds.length === 0) return true;
+  return user.podId != null && event.podIds.includes(user.podId);
+}
+
+export async function sendEventReminders(): Promise<void> {
   try {
     const now = new Date();
     const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -41,17 +57,23 @@ async function sendEventReminders(): Promise<void> {
     logger.info({ count: upcoming.length }, "[email-reminders] found events in 24h window");
 
     for (const event of upcoming) {
-      const rsvps = await db
+      const activeUsers = await db
         .select()
-        .from(eventRsvpsTable)
+        .from(usersTable)
         .where(
           and(
-            eq(eventRsvpsTable.eventId, event.id),
-            eq(eventRsvpsTable.status, "attending"),
-          )
+            eq(usersTable.isActive, true),
+            eq(usersTable.approved, true),
+          ),
         );
-
-      if (rsvps.length === 0) continue;
+      const recipients = activeUsers.filter((user) =>
+        user.isActive
+        && user.approved
+        && isEventReminderRecipient(event, user)
+        && user.emailNotifications
+        && user.notificationPreferences?.eventReminders !== false
+        && isDeliverableEmailAddress(user.email)
+      );
 
       const trailhead = event.trailheadId
         ? await db.query.trailheadsTable.findFirst({ where: eq(trailheadsTable.id, event.trailheadId) })
@@ -69,16 +91,11 @@ async function sendEventReminders(): Promise<void> {
 
       const timeStr = formatEventDateTime(event.startTime);
 
-      for (const rsvp of rsvps) {
-        const key = reminderKey(event.id, rsvp.userId);
+      for (const user of recipients) {
+        const key = reminderKey(event.id, user.id);
         if (sentReminders.has(key)) {
           continue;
         }
-
-        const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, rsvp.userId) });
-        if (!user) continue;
-        if (!user.emailNotifications) continue;
-        if (user.notificationPreferences && user.notificationPreferences.eventReminders === false) continue;
 
         const lines = [
           `Hi ${user.firstName},`,

@@ -111,12 +111,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
 
   try {
     const toArray = Array.isArray(opts.to) ? opts.to : [opts.to];
-    const filtered = toArray.filter(
-      (e) =>
-        e &&
-        !e.endsWith("@trailteam.internal") &&
-        !e.endsWith("@pending.trailteam.app"),
-    );
+    const filtered = toArray.filter(isDeliverableEmailAddress);
     if (filtered.length === 0) {
       logger.info({ subject: opts.subject }, "[email] no valid recipients — skipping");
       return { status: "skipped", reason: "no_valid_recipients" };
@@ -149,4 +144,12 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
     }
     return { status: "failed", error: err };
   }
+}
+
+export function isDeliverableEmailAddress(email: string | null | undefined): email is string {
+  return Boolean(
+    email
+    && !email.endsWith("@trailteam.internal")
+    && !email.endsWith("@pending.trailteam.app"),
+  );
 }
