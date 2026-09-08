@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { trailheadsTable } from "./trailheads";
@@ -36,7 +37,12 @@ export const eventsTable = pgTable("events", {
   seriesId: text("series_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  check(
+    "events_audience_not_conflicting_check",
+    sql`NOT (${t.isAllTeam} AND COALESCE(cardinality(${t.podIds}), 0) > 0)`,
+  ),
+]);
 
 export const insertEventSchema = createInsertSchema(eventsTable).omit({
   id: true,

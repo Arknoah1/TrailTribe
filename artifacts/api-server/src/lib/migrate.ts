@@ -774,6 +774,49 @@ const migrations: { name: string; sql: string }[] = [
       WHERE role = 'admin';
     `,
   },
+  {
+    name: "enforce_canonical_event_audiences",
+    sql: `
+      DO $$
+      DECLARE
+        conflicting_event_ids integer[];
+      BEGIN
+        SELECT array_agg(id ORDER BY id)
+        INTO conflicting_event_ids
+        FROM events
+        WHERE is_all_team = true
+          AND COALESCE(cardinality(pod_ids), 0) > 0;
+
+        IF conflicting_event_ids IS NOT NULL THEN
+          RAISE WARNING
+            'Normalizing conflicting team-wide event audiences by clearing pod_ids; event ids: %',
+            conflicting_event_ids;
+
+          -- The canonical read rule already treated these rows as team-wide.
+          -- Clearing pod_ids preserves their effective audience.
+          UPDATE events
+          SET pod_ids = NULL
+          WHERE id = ANY(conflicting_event_ids);
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'events'::regclass
+            AND conname = 'events_audience_not_conflicting_check'
+        ) THEN
+          ALTER TABLE events
+            ADD CONSTRAINT events_audience_not_conflicting_check
+            CHECK (
+              NOT (
+                is_all_team = true
+                AND COALESCE(cardinality(pod_ids), 0) > 0
+              )
+            );
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
