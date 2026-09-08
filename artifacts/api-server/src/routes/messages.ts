@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { broadcastsTable, isOperationalStaffRole, usersTable } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, arrayContains, eq, inArray, or } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -9,26 +9,6 @@ import { getShortNamePrefix } from "./settings";
 import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
-
-function canViewBroadcast(
-  viewer: {
-    role: string;
-    podId: string | null;
-    isActive: boolean;
-    seasonParticipationStatus: string;
-  },
-  broadcast: {
-    isAllTeam: boolean;
-    targetPodIds: string[] | null;
-  },
-) {
-  if (!viewer.isActive) return false;
-  if (isOperationalStaffRole(viewer.role)) return true;
-  if (viewer.role === "student" && viewer.seasonParticipationStatus !== "active") return false;
-  if (viewer.role !== "parent" && viewer.role !== "student") return false;
-  if (broadcast.isAllTeam) return true;
-  return viewer.podId != null && broadcast.targetPodIds?.includes(viewer.podId) === true;
-}
 
 router.get("/messages", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
@@ -41,17 +21,47 @@ router.get("/messages", requireApproved, async (req, res) => {
   }
 
   const emailConfigured = emailHealthy;
-  const broadcasts = (await db.select().from(broadcastsTable).orderBy(broadcastsTable.createdAt))
-    .filter((broadcast) => canViewBroadcast(viewer, broadcast));
-  const result = await Promise.all(
-    broadcasts.map(async (b) => {
-      const sender = b.senderUserId
-        ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, b.senderUserId) })
-        : null;
-      return { ...b, emailConfigured, sender: sender ?? null };
+  if (
+    !viewer.isActive
+    || (viewer.role === "student" && viewer.seasonParticipationStatus !== "active")
+    || (!isOperationalStaffRole(viewer.role) && viewer.role !== "parent" && viewer.role !== "student")
+  ) {
+    res.json([]);
+    return;
+  }
+
+  const baseQuery = db
+    .select({
+      broadcast: broadcastsTable,
+      sender: {
+        id: usersTable.id,
+        firstName: usersTable.firstName,
+        lastName: usersTable.lastName,
+        avatarUrl: usersTable.avatarUrl,
+        role: usersTable.role,
+      },
     })
-  );
-  res.json(result);
+    .from(broadcastsTable)
+    .leftJoin(usersTable, eq(usersTable.id, broadcastsTable.senderUserId));
+
+  const rows = isOperationalStaffRole(viewer.role)
+    ? await baseQuery.orderBy(broadcastsTable.createdAt)
+    : await baseQuery
+        .where(
+          viewer.podId
+            ? or(
+                eq(broadcastsTable.isAllTeam, true),
+                arrayContains(broadcastsTable.targetPodIds, [viewer.podId]),
+              )
+            : eq(broadcastsTable.isAllTeam, true),
+        )
+        .orderBy(broadcastsTable.createdAt);
+
+  res.json(rows.map(({ broadcast, sender }) => ({
+    ...broadcast,
+    emailConfigured,
+    sender: sender ?? null,
+  })));
 });
 
 router.post("/messages", requireCoachOrAdmin, async (req, res) => {

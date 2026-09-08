@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   allUsers: [] as Record<string, unknown>[],
   broadcasts: [] as Record<string, unknown>[],
   currentUser: null as Record<string, unknown> | null,
+  archiveWhereCalls: [] as unknown[],
   broadcast: {
     id: 9001,
     senderUserId: 1,
@@ -52,12 +53,19 @@ vi.mock("@workspace/db", () => ({
   broadcastsTable: {
     createdAt: "broadcast_created_at",
     id: "broadcast_id",
+    senderUserId: "broadcast_sender_user_id",
+    isAllTeam: "broadcast_is_all_team",
+    targetPodIds: "broadcast_target_pod_ids",
   },
   usersTable: {
     id: "user_id",
     clerkUserId: "user_clerk_id",
     isActive: "user_is_active",
     approved: "user_approved",
+    firstName: "user_first_name",
+    lastName: "user_last_name",
+    avatarUrl: "user_avatar_url",
+    role: "user_role",
   },
 }));
 
@@ -104,12 +112,37 @@ function setupDatabase() {
     email: "coach@example.test",
   });
   mocks.db.query.usersTable.findFirst.mockImplementation(() => Promise.resolve(mocks.currentUser));
-  mocks.db.select.mockImplementation(() => ({
-    from: vi.fn(() => ({
-      where: vi.fn(() => Promise.resolve(mocks.allUsers)),
-      orderBy: vi.fn(() => Promise.resolve(mocks.broadcasts)),
-    })),
-  }));
+  mocks.db.select.mockImplementation((selection?: Record<string, unknown>) => {
+    if (selection?.broadcast) {
+      const rows = () => mocks.broadcasts.map((broadcast) => ({
+        broadcast,
+        sender: broadcast.senderUserId ? user({
+          id: broadcast.senderUserId,
+          role: "coach",
+          firstName: "Archive",
+          lastName: "Sender",
+        }) : null,
+      }));
+      const orderBy = vi.fn(() => Promise.resolve(rows()));
+      return {
+        from: vi.fn(() => ({
+          leftJoin: vi.fn(() => ({
+            orderBy,
+            where: vi.fn((condition: unknown) => {
+              mocks.archiveWhereCalls.push(condition);
+              return { orderBy };
+            }),
+          })),
+        })),
+      };
+    }
+    return {
+      from: vi.fn(() => ({
+        where: vi.fn(() => Promise.resolve(mocks.allUsers)),
+        orderBy: vi.fn(() => Promise.resolve(mocks.broadcasts)),
+      })),
+    };
+  });
   mocks.db.insert.mockImplementation(() => ({
     values: vi.fn((values: Record<string, unknown>) => {
       mocks.insertCalls.push(values);
@@ -144,6 +177,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.allUsers = [];
   mocks.broadcasts = [];
+  mocks.archiveWhereCalls = [];
   mocks.updateCalls = [];
   mocks.insertCalls = [];
   mocks.broadcast = {
@@ -217,6 +251,19 @@ describe("broadcast archive audience", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
       .toEqual([100, 101, 102, 103]);
+    expect(mocks.archiveWhereCalls).toEqual([]);
+    expect(mocks.db.select).toHaveBeenCalledTimes(1);
+    expect(mocks.db.query.usersTable.findFirst).toHaveBeenCalledTimes(1);
+    expect(mocks.db.select).toHaveBeenCalledWith({
+      broadcast: expect.anything(),
+      sender: {
+        id: "user_id",
+        firstName: "user_first_name",
+        lastName: "user_last_name",
+        avatarUrl: "user_avatar_url",
+        role: "user_role",
+      },
+    });
   });
 
   it.each(["coach", "super_admin"])("shows no broadcasts to an inactive %s account", async (role) => {
@@ -227,14 +274,19 @@ describe("broadcast archive audience", () => {
   });
 
   it("shows a parent team-wide broadcasts and broadcasts for their own pod only", async () => {
+    mocks.broadcasts = [teamBroadcast, podABroadcast];
     const response = await fetchMessageArchive(user({ role: "parent", podId: "pod-a" }));
 
     expect(response.status).toBe(200);
     expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
       .toEqual([100, 101]);
+    expect(mocks.archiveWhereCalls).toHaveLength(1);
+    expect(mocks.db.select).toHaveBeenCalledTimes(1);
+    expect(mocks.db.query.usersTable.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it("does not show another pod's broadcast to an active rider", async () => {
+    mocks.broadcasts = [teamBroadcast, podBBroadcast];
     const response = await fetchMessageArchive(user({
       role: "student",
       podId: "pod-b",
@@ -244,6 +296,7 @@ describe("broadcast archive audience", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
       .toEqual([100, 102]);
+    expect(mocks.archiveWhereCalls).toHaveLength(1);
   });
 
   it.each(["season_off", "pending"])("shows no broadcasts to a %s rider", async (seasonParticipationStatus) => {
