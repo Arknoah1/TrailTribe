@@ -157,6 +157,25 @@ export class ObjectStorageService {
     return objectFile;
   }
 
+  /**
+   * Delete an object in the private object namespace.
+   *
+   * Cleanup callers intentionally treat an already-missing object as success:
+   * the durable ACL row is the work queue, and removing it is safe once the
+   * object is absent.
+   */
+  async deleteObjectEntity(objectPath: string): Promise<void> {
+    try {
+      const objectFile = await this.getObjectEntityFile(objectPath);
+      await objectFile.delete({ ignoreNotFound: true });
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        return;
+      }
+      throw error;
+    }
+  }
+
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;

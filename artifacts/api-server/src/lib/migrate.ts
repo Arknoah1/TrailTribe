@@ -441,6 +441,14 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "index_discussion_image_acl_cleanup",
+    sql: `
+      CREATE INDEX IF NOT EXISTS object_acl_policies_discussion_cleanup_idx
+        ON object_acl_policies(created_at, object_path)
+        WHERE object_path LIKE '/objects/discussion-images/%';
+    `,
+  },
+  {
     // Idempotent bootstrap: the document_type enum was originally created by
     // drizzle-kit push and is required by team_documents (and later document_consents).
     name: "create_document_type_enum",

@@ -1,8 +1,12 @@
 import { File } from "@google-cloud/storage";
 import { db, pool, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logger } from "./logger";
 
 const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
+export const DISCUSSION_IMAGE_LIFECYCLE_LOCK = "trailteam-discussion-image-lifecycle";
+export const DISCUSSION_IMAGE_CLEANUP_GRACE_MS = 24 * 60 * 60 * 1000;
+const DISCUSSION_IMAGE_CLEANUP_BATCH_SIZE = 100;
 
 /**
  * AUTHENTICATED_USER — any user with a valid Clerk session (team-wide access).
@@ -149,6 +153,96 @@ export async function getDbObjectAclPolicy(
       return null;
     }
     return result.rows[0].policy;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Remove stale ACL reservations for discussion images that were never
+ * attached to a board thread or post.
+ *
+ * The advisory transaction lock is shared with board attachment creation. That
+ * makes the object delete and the attachment insert mutually exclusive across
+ * all API instances, including the period where the object store is called
+ * while the database transaction is open.
+ */
+export async function cleanupAbandonedDiscussionImageAcls(
+  deleteObject: (objectPath: string) => Promise<void>,
+  options: {
+    now?: Date;
+    gracePeriodMs?: number;
+    batchSize?: number;
+  } = {},
+): Promise<{ deletedCount: number; failedCount: number }> {
+  const now = options.now ?? new Date();
+  const gracePeriodMs = options.gracePeriodMs ?? DISCUSSION_IMAGE_CLEANUP_GRACE_MS;
+  const batchSize = options.batchSize ?? DISCUSSION_IMAGE_CLEANUP_BATCH_SIZE;
+  const cutoff = new Date(now.getTime() - gracePeriodMs);
+  const client = await pool.connect();
+  let deletedCount = 0;
+  let failedCount = 0;
+
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext($1))",
+      [DISCUSSION_IMAGE_LIFECYCLE_LOCK],
+    );
+
+    const candidates = await client.query<{ object_path: string }>(
+      `SELECT acl.object_path
+       FROM object_acl_policies AS acl
+       WHERE acl.object_path LIKE $1
+         AND acl.created_at < $2
+         AND NOT EXISTS (
+           SELECT 1
+           FROM board_attachments AS attachment
+           WHERE attachment.object_path = acl.object_path
+         )
+       ORDER BY acl.created_at
+       LIMIT $3
+       FOR UPDATE OF acl SKIP LOCKED`,
+      ["/objects/discussion-images/%", cutoff, batchSize],
+    );
+
+    for (const candidate of candidates.rows) {
+      try {
+        await deleteObject(candidate.object_path);
+        await client.query(
+          "DELETE FROM object_acl_policies WHERE object_path = $1",
+          [candidate.object_path],
+        );
+        deletedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        logger.error(
+          { err: error, objectPath: candidate.object_path },
+          "[discussion-image-cleanup] failed to remove abandoned image",
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    logger.info(
+      {
+        examinedCount: candidates.rowCount ?? candidates.rows.length,
+        deletedCount,
+        failedCount,
+        cutoff,
+      },
+      "[discussion-image-cleanup] completed",
+    );
+    return { deletedCount, failedCount };
+  } catch (error) {
+    await client.query("ROLLBACK").catch((rollbackError) => {
+      logger.error(
+        { err: rollbackError },
+        "[discussion-image-cleanup] rollback failed",
+      );
+    });
+    logger.error({ err: error }, "[discussion-image-cleanup] failed");
+    throw error;
   } finally {
     client.release();
   }

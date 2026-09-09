@@ -6,6 +6,31 @@ import { startRsvpEmailBatchJob, stopRsvpEmailBatchJob } from "./lib/rsvpEmailBa
 import { runMigrations } from "./lib/migrate";
 import { getAppBase } from "./lib/config";
 import { stopEmailHealthCheck } from "./lib/email";
+import { ObjectStorageService } from "./lib/objectStorage";
+import { cleanupAbandonedDiscussionImageAcls } from "./lib/objectAcl";
+
+const objectStorageService = new ObjectStorageService();
+const DISCUSSION_IMAGE_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+let discussionImageCleanupTimer: NodeJS.Timeout | undefined;
+
+async function runDiscussionImageCleanup() {
+  try {
+    await cleanupAbandonedDiscussionImageAcls((objectPath) =>
+      objectStorageService.deleteObjectEntity(objectPath),
+    );
+  } catch (err) {
+    logger.error({ err }, "[discussion-image-cleanup] run failed");
+  }
+}
+
+function startDiscussionImageCleanupJob() {
+  void runDiscussionImageCleanup();
+  discussionImageCleanupTimer = setInterval(
+    () => void runDiscussionImageCleanup(),
+    DISCUSSION_IMAGE_CLEANUP_INTERVAL_MS,
+  );
+  discussionImageCleanupTimer.unref();
+}
 
 const rawPort = process.env["PORT"];
 
@@ -43,6 +68,7 @@ runMigrations()
       startEmailReminderJob();
       startVolunteerReminderJob();
       startRsvpEmailBatchJob();
+      startDiscussionImageCleanupJob();
     });
   })
   .catch((err) => {
@@ -54,6 +80,10 @@ function gracefulShutdown(signal: string) {
   logger.info({ signal }, "Received shutdown signal — cleaning up");
   stopEmailHealthCheck();
   stopRsvpEmailBatchJob();
+  if (discussionImageCleanupTimer) {
+    clearInterval(discussionImageCleanupTimer);
+    discussionImageCleanupTimer = undefined;
+  }
   process.exit(0);
 }
 

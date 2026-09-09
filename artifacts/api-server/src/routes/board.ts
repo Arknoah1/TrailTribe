@@ -28,6 +28,7 @@ import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage"
 import {
   getDbObjectAclPolicy,
   storePendingObjectAcl,
+  DISCUSSION_IMAGE_LIFECYCLE_LOCK,
   type ObjectAclPolicy,
 } from "../lib/objectAcl";
 import {
@@ -43,41 +44,53 @@ const DISCUSSION_IMAGE_PATH = /^\/objects\/discussion-images\/[A-Za-z0-9._-]+$/;
 const DISCUSSION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_DISCUSSION_IMAGE_BYTES = 10 * 1024 * 1024;
 
+class DiscussionImageValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DiscussionImageValidationError";
+  }
+}
+
 async function validateOwnedDiscussionImages(
   clerkUserId: string,
   value: unknown,
 ): Promise<Array<{ objectPath: string; contentType: string; size: number; generation: string }>> {
   if (value == null) return [];
   if (!Array.isArray(value) || value.length > MAX_DISCUSSION_IMAGES) {
-    throw new Error(`Attach no more than ${MAX_DISCUSSION_IMAGES} images`);
+    throw new DiscussionImageValidationError(`Attach no more than ${MAX_DISCUSSION_IMAGES} images`);
   }
   const paths = [...new Set(value)];
   if (paths.length !== value.length || paths.some((path) => typeof path !== "string" || !DISCUSSION_IMAGE_PATH.test(path))) {
-    throw new Error("Invalid discussion image");
+    throw new DiscussionImageValidationError("Invalid discussion image");
   }
   const attachments: Array<{ objectPath: string; contentType: string; size: number; generation: string }> = [];
   for (const path of paths) {
     const existing = await db.query.boardAttachmentsTable.findFirst({
       where: eq(boardAttachmentsTable.objectPath, path),
     });
-    if (existing) throw new Error("This image is already attached to a discussion");
-    const file = await objectStorageService.getObjectEntityFile(path);
-    const policy = await getDbObjectAclPolicy(path);
-    if (!policy || policy.owner !== clerkUserId) {
-      throw new Error("You can only attach images you uploaded");
+    if (existing) throw new DiscussionImageValidationError("This image is already attached to a discussion");
+    try {
+      const file = await objectStorageService.getObjectEntityFile(path);
+      const policy = await getDbObjectAclPolicy(path);
+      if (!policy || policy.owner !== clerkUserId) {
+        throw new DiscussionImageValidationError("You can only attach images you uploaded");
+      }
+      const [metadata] = await file.getMetadata();
+      const size = Number(metadata.size ?? 0);
+      if (!DISCUSSION_IMAGE_TYPES.has(metadata.contentType ?? "") || !Number.isFinite(size) || size <= 0 || size > MAX_DISCUSSION_IMAGE_BYTES) {
+        throw new DiscussionImageValidationError("Attachment must be a supported image under 10 MB");
+      }
+      if (!metadata.generation) throw new DiscussionImageValidationError("Could not verify image upload");
+      attachments.push({
+        objectPath: path,
+        contentType: metadata.contentType!,
+        size,
+        generation: String(metadata.generation),
+      });
+    } catch (error) {
+      if (error instanceof DiscussionImageValidationError) throw error;
+      throw new DiscussionImageValidationError("Invalid discussion image");
     }
-    const [metadata] = await file.getMetadata();
-    const size = Number(metadata.size ?? 0);
-    if (!DISCUSSION_IMAGE_TYPES.has(metadata.contentType ?? "") || !Number.isFinite(size) || size <= 0 || size > MAX_DISCUSSION_IMAGE_BYTES) {
-      throw new Error("Attachment must be a supported image under 10 MB");
-    }
-    if (!metadata.generation) throw new Error("Could not verify image upload");
-    attachments.push({
-      objectPath: path,
-      contentType: metadata.contentType!,
-      size,
-      generation: String(metadata.generation),
-    });
   }
   return attachments;
 }
@@ -429,14 +442,6 @@ router.post("/board/threads", requireApproved, async (req, res) => {
 
   const { title, body, podId, eventId } = req.body;
   if (!title || !body) { res.status(400).json({ error: "title and body required" }); return; }
-  let attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>;
-  try {
-    attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid discussion image" });
-    return;
-  }
-
   // Disallow ambiguous scope: a thread must be general, pod-scoped, OR event-linked — not a mix
   if (podId && eventId) {
     res.status(400).json({ error: "A thread cannot have both podId and eventId" }); return;
@@ -452,7 +457,10 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     res.status(403).json({ error: "Not in this event's audience" }); return;
   }
 
-  const createThread = async (executor: Pick<typeof db, "insert">) => {
+  const createThread = async (
+    executor: Pick<typeof db, "insert">,
+    attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>,
+  ) => {
     const [created] = await executor.insert(boardThreadsTable).values({
       title,
       body,
@@ -470,9 +478,24 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     }
     return created;
   };
-  const thread = attachments.length
-    ? await db.transaction(createThread)
-    : await createThread(db);
+  let thread;
+  try {
+    if (req.body.imageObjectPaths == null) {
+      thread = await createThread(db, []);
+    } else {
+      thread = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${DISCUSSION_IMAGE_LIFECYCLE_LOCK}))`);
+        const attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
+        return createThread(tx, attachments);
+      });
+    }
+  } catch (error) {
+    if (error instanceof DiscussionImageValidationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
 
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.status(201).json(result);
@@ -532,15 +555,10 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
 
   const { body } = req.body;
   if (!body) { res.status(400).json({ error: "body required" }); return; }
-  let attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>;
-  try {
-    attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid discussion image" });
-    return;
-  }
-
-  const createPost = async (executor: Pick<typeof db, "insert" | "update">) => {
+  const createPost = async (
+    executor: Pick<typeof db, "insert" | "update">,
+    attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>,
+  ) => {
     const [created] = await executor.insert(boardPostsTable).values({
       threadId,
       authorUserId: me.id,
@@ -558,9 +576,24 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
     }).where(eq(boardThreadsTable.id, threadId));
     return created;
   };
-  const post = attachments.length
-    ? await db.transaction(createPost)
-    : await createPost(db);
+  let post;
+  try {
+    if (req.body.imageObjectPaths == null) {
+      post = await createPost(db, []);
+    } else {
+      post = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${DISCUSSION_IMAGE_LIFECYCLE_LOCK}))`);
+        const attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
+        return createPost(tx, attachments);
+      });
+    }
+  } catch (error) {
+    if (error instanceof DiscussionImageValidationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
 
   // Notify participants (non-blocking)
   notifyThreadParticipants(threadId, me.id)
