@@ -261,6 +261,49 @@ async function deleteHousehold(id: number) {
   return fetch(`${baseUrl}/households/${id}`, { method: "DELETE" });
 }
 
+async function getFamilyLink(id: number | string) {
+  return fetch(`${baseUrl}/households/${id}/family-link`);
+}
+
+/* ─── GET /households/:id/family-link ──────────────────────────────────── */
+
+describe("GET /households/:id/family-link", () => {
+  it("returns the reusable join code for an active household", async () => {
+    householdFindFirstResult = mockHousehold;
+    setUser(COACH_ID);
+
+    const res = await getFamilyLink(HOUSEHOLD_ID);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ inviteCode: mockHousehold.inviteCode });
+  });
+
+  it("does not return a link for an archived household", async () => {
+    householdFindFirstResult = mockArchivedHousehold;
+    setUser(ADMIN_ID);
+
+    const res = await getFamilyLink(ARCHIVED_HOUSEHOLD_ID);
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toMatchObject({ error: expect.stringMatching(/active household/i) });
+  });
+
+  it("returns 404 when the household does not exist", async () => {
+    householdFindFirstResult = null;
+    setUser(COACH_ID);
+
+    const res = await getFamilyLink(9999);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects an invalid household ID", async () => {
+    const res = await getFamilyLink(0);
+
+    expect(res.status).toBe(400);
+  });
+});
+
 /* ─── DELETE /households/:id — guard: non-archived ─────────────────────── */
 
 describe("DELETE /households/:id — non-archived household", () => {

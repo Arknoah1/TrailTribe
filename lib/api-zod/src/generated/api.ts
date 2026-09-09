@@ -747,6 +747,18 @@ export const SendCoParentInviteBody = zod.object({
 });
 
 /**
+ * @summary Get an active household's reusable family join code
+ */
+
+export const GetHouseholdFamilyLinkParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const GetHouseholdFamilyLinkResponse = zod.object({
+  inviteCode: zod.string(),
+});
+
+/**
  * @summary Mark compliance docs as signed
  */
 export const UpdateHouseholdComplianceParams = zod.object({

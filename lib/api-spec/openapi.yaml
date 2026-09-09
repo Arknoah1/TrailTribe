@@ -466,6 +466,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /households/{id}/family-link:
+    get:
+      operationId: getHouseholdFamilyLink
+      tags: [households]
+      summary: Get an active household's reusable family join code
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Household family join code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdFamilyLink"
+        "400":
+          description: Invalid household ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Staff access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Active household not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /households/{id}/compliance:
     patch:
       operationId: updateHouseholdCompliance
@@ -2625,6 +2663,13 @@ components:
               items:
                 $ref: "#/components/schemas/User"
           required: [members]
+
+    HouseholdFamilyLink:
+      type: object
+      properties:
+        inviteCode:
+          type: string
+      required: [inviteCode]
 
     CoParentInviteInput:
       type: object

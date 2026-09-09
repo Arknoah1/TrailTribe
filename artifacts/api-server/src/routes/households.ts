@@ -28,7 +28,12 @@ import {
   podsTable,
 } from "@workspace/db";
 import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
-import { SendCoParentInviteBody, SendCoParentInviteParams } from "@workspace/api-zod";
+import {
+  GetHouseholdFamilyLinkParams,
+  GetHouseholdFamilyLinkResponse,
+  SendCoParentInviteBody,
+  SendCoParentInviteParams,
+} from "@workspace/api-zod";
 import { requireAuth, requireApproved, requireCoachOrAdmin, requireSuperAdmin } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
 import { randomBytes } from "crypto";
@@ -216,6 +221,27 @@ router.get("/households/by-invite/:code", publicLookupLimiter, async (req, res) 
   }
   // Return safe public info only
   res.json({ id: household.id, name: household.name, inviteCode: household.inviteCode });
+});
+
+router.get("/households/:id/family-link", requireCoachOrAdmin, async (req, res): Promise<void> => {
+  const params = GetHouseholdFamilyLinkParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid household ID" });
+    return;
+  }
+
+  const household = await db.query.householdsTable.findFirst({
+    where: and(
+      eq(householdsTable.id, params.data.id),
+      isNull(householdsTable.archivedAt),
+    ),
+  });
+  if (!household || household.archivedAt) {
+    res.status(404).json({ error: "Active household not found" });
+    return;
+  }
+
+  res.json(GetHouseholdFamilyLinkResponse.parse({ inviteCode: household.inviteCode }));
 });
 
 router.get("/households/:id", requireApproved, async (req, res) => {

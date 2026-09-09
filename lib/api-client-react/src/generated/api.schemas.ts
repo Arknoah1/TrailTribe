@@ -163,6 +163,10 @@ export type HouseholdWithMembers = Household & {
   members: User[];
 };
 
+export interface HouseholdFamilyLink {
+  inviteCode: string;
+}
+
 export interface CoParentInviteInput {
   email: string;
 }

@@ -367,6 +367,7 @@ export default function Admin() {
   const [moveTargetId, setMoveTargetId] = useState("");
   const [savingHouseholdAdmin, setSavingHouseholdAdmin] = useState(false);
   const [savingMemberAdmin, setSavingMemberAdmin] = useState(false);
+  const [manualFamilyLink, setManualFamilyLink] = useState<{ householdName: string; url: string } | null>(null);
 
   // Rider invite state (from roster)
   const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
@@ -846,6 +847,56 @@ export default function Admin() {
       toast({ title: "Network error — please try again", variant: "destructive" });
     } finally {
       setSendingInviteForRider(null);
+    }
+  };
+
+  const handleShareFamilyLink = async (household: HouseholdRosterItem) => {
+    setManualFamilyLink(null);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
+        throw new Error(data.error ?? "Unable to get this family's link");
+      }
+
+      const url = `${window.location.origin}${BASE_URL}/join/${encodeURIComponent(data.inviteCode)}`;
+      if (typeof navigator.share === "function") {
+        try {
+          await navigator.share({
+            title: `${household.name} family link`,
+            text: `Use this private link to join the ${household.name} household on TrailTeam.`,
+            url,
+          });
+          toast({ title: "Family link shared" });
+          return;
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+        }
+      }
+
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(url);
+          toast({
+            title: "Family link copied",
+            description: `Send it to the person joining the ${household.name} household.`,
+          });
+          return;
+        } catch {
+          // Fall through to the selectable manual-copy dialog.
+        }
+      }
+
+      setManualFamilyLink({ householdName: household.name, url });
+      toast({
+        title: "Copy the family link manually",
+        description: "Your device blocked automatic sharing and copying.",
+      });
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Unable to get this family's link",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1598,6 +1649,15 @@ export default function Admin() {
                                 </div>
                               ))}
                             </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full sm:w-auto"
+                              onClick={() => handleShareFamilyLink(household)}
+                            >
+                              <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                              Share family link
+                            </Button>
                             {isSuperAdmin && (
                               <Button
                                 variant="outline"
@@ -1698,6 +1758,26 @@ export default function Admin() {
               </Tabs>
             </DialogContent>
           </Dialog>}
+
+          <Dialog open={manualFamilyLink !== null} onOpenChange={(open) => { if (!open) setManualFamilyLink(null); }}>
+            <DialogContent className="w-[calc(100%-1rem)] max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Copy family link</DialogTitle>
+                <DialogDescription>
+                  Copy this link and send it to the person joining the {manualFamilyLink?.householdName} household.
+                </DialogDescription>
+              </DialogHeader>
+              <Input
+                value={manualFamilyLink?.url ?? ""}
+                readOnly
+                aria-label="Family invite link"
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tap or click the link field to select it, then use your device&apos;s Copy command.
+              </p>
+            </DialogContent>
+          </Dialog>
 
           {isSuperAdmin && <Dialog open={editingMember !== null} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
             <DialogContent className="w-[calc(100%-1rem)] max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto">

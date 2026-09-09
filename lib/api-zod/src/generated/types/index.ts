@@ -88,6 +88,7 @@ export * from "./getBoardUnreadCount200";
 export * from "./getLinkPreviewParams";
 export * from "./healthStatus";
 export * from "./household";
+export * from "./householdFamilyLink";
 export * from "./householdMemberRsvp";
 export * from "./householdMemberRsvpStatus";
 export * from "./householdWithMembers";

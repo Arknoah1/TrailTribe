@@ -72,6 +72,7 @@ import type {
   GetLinkPreviewParams,
   HealthStatus,
   Household,
+  HouseholdFamilyLink,
   HouseholdWithMembers,
   InviteLink,
   LinkPreviewResult,
@@ -1578,6 +1579,94 @@ export const useSendCoParentInvite = <
 > => {
   return useMutation(getSendCoParentInviteMutationOptions(options));
 };
+
+/**
+ * @summary Get an active household's reusable family join code
+ */
+export const getGetHouseholdFamilyLinkUrl = (id: number) => {
+  return `/api/households/${id}/family-link`;
+};
+
+export const getHouseholdFamilyLink = async (
+  id: number,
+  options?: RequestInit,
+): Promise<HouseholdFamilyLink> => {
+  return customFetch<HouseholdFamilyLink>(getGetHouseholdFamilyLinkUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHouseholdFamilyLinkQueryKey = (id: number) => {
+  return [`/api/households/${id}/family-link`] as const;
+};
+
+export const getGetHouseholdFamilyLinkQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHouseholdFamilyLink>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHouseholdFamilyLink>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetHouseholdFamilyLinkQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getHouseholdFamilyLink>>
+  > = ({ signal }) => getHouseholdFamilyLink(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHouseholdFamilyLink>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHouseholdFamilyLinkQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHouseholdFamilyLink>>
+>;
+export type GetHouseholdFamilyLinkQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get an active household's reusable family join code
+ */
+
+export function useGetHouseholdFamilyLink<
+  TData = Awaited<ReturnType<typeof getHouseholdFamilyLink>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHouseholdFamilyLink>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHouseholdFamilyLinkQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Mark compliance docs as signed

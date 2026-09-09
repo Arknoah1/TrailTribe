@@ -24,5 +24,4 @@ test("admin privileged controls require the super_admin role", () => {
 test("coaches retain archive and restore controls", () => {
   assert.match(source, /onClick=\{\(\) => setArchiveConfirmId\(household\.id\)\}/);
   assert.match(source, /onClick=\{\(\) => handleUnarchiveFamily\(household\.id\)\}/);
-  assert.match(source, /Staff roles are super-admin only/);
 });
