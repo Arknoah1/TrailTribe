@@ -51,6 +51,23 @@ export const insertBoardPostSchema = createInsertSchema(boardPostsTable).omit({
 export type InsertBoardPost = z.infer<typeof insertBoardPostSchema>;
 export type BoardPost = typeof boardPostsTable.$inferSelect;
 
+export const boardAttachmentsTable = pgTable("board_attachments", {
+  id: serial("id").primaryKey(),
+  objectPath: text("object_path").notNull().unique(),
+  threadId: integer("thread_id").references(() => boardThreadsTable.id, { onDelete: "cascade" }),
+  postId: integer("post_id").references(() => boardPostsTable.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  generation: text("generation").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  check("board_attachments_target_check", sql`(${t.threadId} IS NOT NULL) <> (${t.postId} IS NOT NULL)`),
+  index("board_attachments_thread_id_idx").on(t.threadId),
+  index("board_attachments_post_id_idx").on(t.postId),
+]);
+
+export type BoardAttachment = typeof boardAttachmentsTable.$inferSelect;
+
 export const boardReactionsTable = pgTable("board_reactions", {
   id: serial("id").primaryKey(),
   threadId: integer("thread_id").references(() => boardThreadsTable.id, { onDelete: "cascade" }),

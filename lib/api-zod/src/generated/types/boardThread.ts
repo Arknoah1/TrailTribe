@@ -10,6 +10,8 @@ export interface BoardThread {
   id: number;
   title: string;
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths: string[];
   authorUserId?: number | null;
   podId?: string | null;
   eventId?: number | null;

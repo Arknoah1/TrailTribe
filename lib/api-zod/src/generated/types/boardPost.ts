@@ -11,6 +11,8 @@ export interface BoardPost {
   threadId: number;
   authorUserId?: number | null;
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths: string[];
   isDeleted: boolean;
   createdAt: Date;
 }

@@ -1862,6 +1862,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/BoardThreadWithDetails"
 
+  /board/attachments/request-url:
+    post:
+      operationId: requestBoardImageUploadUrl
+      tags: [board]
+      summary: Request a private upload URL for a discussion image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardImageUploadInput"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
   /board/threads/{id}:
     get:
       operationId: getBoardThread
@@ -3626,6 +3645,11 @@ components:
           type: string
         body:
           type: string
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
         authorUserId:
           type: integer
           nullable: true
@@ -3651,7 +3675,7 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [id, title, body, isPinned, isLocked, replyCount, createdAt, updatedAt]
+      required: [id, title, body, imageObjectPaths, isPinned, isLocked, replyCount, createdAt, updatedAt]
 
     BoardThreadWithDetails:
       allOf:
@@ -3694,12 +3718,17 @@ components:
           nullable: true
         body:
           type: string
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
         isDeleted:
           type: boolean
         createdAt:
           type: string
           format: date-time
-      required: [id, threadId, body, isDeleted, createdAt]
+      required: [id, threadId, body, imageObjectPaths, isDeleted, createdAt]
 
     BoardPostPermissions:
       type: object
@@ -3791,6 +3820,11 @@ components:
         eventId:
           type: integer
           nullable: true
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
       required: [title, body]
 
     CreateBoardPostBody:
@@ -3798,7 +3832,26 @@ components:
       properties:
         body:
           type: string
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
       required: [body]
+
+    BoardImageUploadInput:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/gif]
+      required: [name, size, contentType]
 
     LinkPreviewResult:
       type: object

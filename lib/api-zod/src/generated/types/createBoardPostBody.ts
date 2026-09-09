@@ -8,4 +8,6 @@
 
 export interface CreateBoardPostBody {
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
 }

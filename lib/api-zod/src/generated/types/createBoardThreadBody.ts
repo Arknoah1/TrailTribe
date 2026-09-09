@@ -11,4 +11,6 @@ export interface CreateBoardThreadBody {
   body: string;
   podId?: string | null;
   eventId?: number | null;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
 }

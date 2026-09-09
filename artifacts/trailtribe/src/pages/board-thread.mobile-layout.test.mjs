@@ -116,7 +116,7 @@ test("the multiline composer and send control stay usable within the visible vie
   assert.match(threadSource, /Math\.min\(Math\.max\(textarea\.scrollHeight, 40\), maxHeight\)/);
   assert.match(threadSource, /<Button[\s\S]*?aria-label="Send reply"/);
   assert.match(threadSource, /className="shrink-0 h-10 w-10/);
-  assert.match(threadSource, /disabled=\{!replyBody\.trim\(\) \|\| createPost\.isPending\}/);
+  assert.match(threadSource, /disabled=\{!replyBody\.trim\(\) \|\| createPost\.isPending \|\| replyImagesUploading\}/);
 });
 
 test("discussion navigation preserves the originating Messages category", () => {

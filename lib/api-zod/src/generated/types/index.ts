@@ -16,6 +16,8 @@ export * from "./batchCreateEventsBody";
 export * from "./batchCreateEventsResult";
 export * from "./boardAuthor";
 export * from "./boardEventRef";
+export * from "./boardImageUploadInput";
+export * from "./boardImageUploadInputContentType";
 export * from "./boardPost";
 export * from "./boardPostPermissions";
 export * from "./boardPostWithAuthor";

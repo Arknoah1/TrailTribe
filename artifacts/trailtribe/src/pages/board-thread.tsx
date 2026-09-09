@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
 import { ComposerLinkPreview, LinkPreview } from "@/components/link-preview";
+import { DiscussionImagePicker, DiscussionImages } from "@/components/discussion-images";
 
 function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean }) {
   if (isDeleted) {
@@ -198,6 +199,8 @@ export default function BoardThread() {
   );
 
   const [replyBody, setReplyBody] = useState("");
+  const [replyImages, setReplyImages] = useState<string[]>([]);
+  const [replyImagesUploading, setReplyImagesUploading] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -295,10 +298,11 @@ export default function BoardThread() {
   ) => setReactionDetails({ targetType, targetId, reaction });
 
   const handleSend = () => {
-    if (!replyBody.trim()) return;
-    createPost.mutate({ id, data: { body: replyBody.trim() } }, {
+    if (!replyBody.trim() || replyImagesUploading) return;
+    createPost.mutate({ id, data: { body: replyBody.trim(), imageObjectPaths: replyImages } }, {
       onSuccess: () => {
         setReplyBody("");
+        setReplyImages([]);
         queryClient.invalidateQueries({ queryKey: getListBoardPostsQueryKey(id) });
         queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -432,6 +436,7 @@ export default function BoardThread() {
             </div>
             <div className="text-foreground">
               <ParsedContent text={thread.body} />
+              <DiscussionImages paths={thread.imageObjectPaths} />
             </div>
             <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
           </section>
@@ -492,6 +497,7 @@ export default function BoardThread() {
                   </div>
                   <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
                     <ParsedContent text={post.body} isDeleted={post.isDeleted} />
+                    {!post.isDeleted && <DiscussionImages paths={post.imageObjectPaths} />}
                   </div>
                    {!post.isDeleted && (
                      <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
@@ -565,6 +571,7 @@ export default function BoardThread() {
           ) : (
             <div className="space-y-2">
               <ComposerLinkPreview text={replyBody} />
+              <DiscussionImagePicker paths={replyImages} onChange={setReplyImages} onUploadingChange={setReplyImagesUploading} disabled={createPost.isPending} />
               <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
                 <Textarea
                 ref={replyTextareaRef}
@@ -580,7 +587,7 @@ export default function BoardThread() {
                 <Button
                 size="icon"
                 onClick={handleSend}
-                disabled={!replyBody.trim() || createPost.isPending}
+                disabled={!replyBody.trim() || createPost.isPending || replyImagesUploading}
                 aria-label="Send reply"
                 className="shrink-0 h-10 w-10 rounded-lg cel-interactive border-2 border-[#0a0c10]"
                 >

@@ -24,6 +24,7 @@ import type {
   ApproveUserBody,
   BatchCreateEventsBody,
   BatchCreateEventsResult,
+  BoardImageUploadInput,
   BoardPostWithAuthor,
   BoardReactionDetails,
   BoardReactionSummary,
@@ -6978,6 +6979,96 @@ export const useCreateBoardThread = <
   TContext
 > => {
   return useMutation(getCreateBoardThreadMutationOptions(options));
+};
+
+/**
+ * @summary Request a private upload URL for a discussion image
+ */
+export const getRequestBoardImageUploadUrlUrl = () => {
+  return `/api/board/attachments/request-url`;
+};
+
+export const requestBoardImageUploadUrl = async (
+  boardImageUploadInput: BoardImageUploadInput,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(
+    getRequestBoardImageUploadUrlUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(boardImageUploadInput),
+    },
+  );
+};
+
+export const getRequestBoardImageUploadUrlMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestBoardImageUploadUrl>>,
+    TError,
+    { data: BodyType<BoardImageUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestBoardImageUploadUrl>>,
+  TError,
+  { data: BodyType<BoardImageUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["requestBoardImageUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestBoardImageUploadUrl>>,
+    { data: BodyType<BoardImageUploadInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestBoardImageUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestBoardImageUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestBoardImageUploadUrl>>
+>;
+export type RequestBoardImageUploadUrlMutationBody =
+  BodyType<BoardImageUploadInput>;
+export type RequestBoardImageUploadUrlMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request a private upload URL for a discussion image
+ */
+export const useRequestBoardImageUploadUrl = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestBoardImageUploadUrl>>,
+    TError,
+    { data: BodyType<BoardImageUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestBoardImageUploadUrl>>,
+  TError,
+  { data: BodyType<BoardImageUploadInput> },
+  TContext
+> => {
+  return useMutation(getRequestBoardImageUploadUrlMutationOptions(options));
 };
 
 /**

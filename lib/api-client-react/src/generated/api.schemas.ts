@@ -719,6 +719,8 @@ export interface BoardThread {
   id: number;
   title: string;
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths: string[];
   authorUserId?: number | null;
   podId?: string | null;
   eventId?: number | null;
@@ -759,6 +761,8 @@ export interface BoardPost {
   threadId: number;
   authorUserId?: number | null;
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths: string[];
   isDeleted: boolean;
   createdAt: string;
 }
@@ -850,10 +854,34 @@ export interface CreateBoardThreadBody {
   body: string;
   podId?: string | null;
   eventId?: number | null;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
 }
 
 export interface CreateBoardPostBody {
   body: string;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
+}
+
+export type BoardImageUploadInputContentType =
+  (typeof BoardImageUploadInputContentType)[keyof typeof BoardImageUploadInputContentType];
+
+export const BoardImageUploadInputContentType = {
+  "image/jpeg": "image/jpeg",
+  "image/png": "image/png",
+  "image/webp": "image/webp",
+  "image/gif": "image/gif",
+} as const;
+
+export interface BoardImageUploadInput {
+  name: string;
+  /**
+   * @minimum 1
+   * @maximum 10485760
+   */
+  size: number;
+  contentType: BoardImageUploadInputContentType;
 }
 
 export interface LinkPreviewResult {

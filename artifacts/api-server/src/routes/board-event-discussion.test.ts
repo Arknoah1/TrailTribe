@@ -117,6 +117,7 @@ vi.mock("@workspace/db", () => {
   };
   const boardThreadsTable = table("threads");
   const boardPostsTable = table("posts");
+  const boardAttachmentsTable = table("attachments");
   const boardReactionsTable = table("reactions");
   const usersTable = table("users");
   const eventsTable = table("events");
@@ -261,6 +262,9 @@ vi.mock("@workspace/db", () => {
           findFirst: vi.fn().mockImplementation(({ where }: any) =>
             Promise.resolve(posts.find((post) => post.id === targetIdFrom(where)) ?? null)),
         },
+        boardAttachmentsTable: {
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
         boardReactionsTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) => {
             const userId = currentUser().id;
@@ -275,6 +279,7 @@ vi.mock("@workspace/db", () => {
     },
     boardThreadsTable,
     boardPostsTable,
+    boardAttachmentsTable,
     usersTable,
     eventsTable,
     boardReactionsTable,

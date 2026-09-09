@@ -55,6 +55,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ComposerLinkPreview } from "@/components/link-preview";
+import { DiscussionImagePicker } from "@/components/discussion-images";
 
 const newThreadSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -389,6 +390,8 @@ export default function Messages() {
   const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
   const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(search));
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [threadImages, setThreadImages] = useState<string[]>([]);
+  const [threadImagesUploading, setThreadImagesUploading] = useState(false);
 
   const podNameMap = new Map<string, string>((pods ?? []).map(p => [String(p.id), p.name]));
 
@@ -413,12 +416,14 @@ export default function Messages() {
         title: values.title,
         body: values.body,
         podId: activeTab === "pod" ? me?.podId : null,
+        imageObjectPaths: threadImages,
       }
     }, {
       onSuccess: () => {
         toast({ title: "Thread created" });
         setSheetOpen(false);
         form.reset();
+        setThreadImages([]);
         queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
       },
       onError: () => toast({ title: "Failed to create thread", variant: "destructive" })
@@ -439,7 +444,11 @@ export default function Messages() {
             </Button>
           )}
           {activeTab !== "events" && activeTab !== "announcements" && (
-            <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <Sheet open={sheetOpen} onOpenChange={(open) => {
+              if (!open && threadImagesUploading) return;
+              setSheetOpen(open);
+              if (!open) setThreadImages([]);
+            }}>
               <SheetTrigger asChild>
                 <Button className="cel-interactive border-2 border-[#0a0c10]">
                   <Plus className="h-4 w-4 mr-2" /> New Thread
@@ -472,7 +481,8 @@ export default function Messages() {
                       </FormItem>
                     )} />
                      <ComposerLinkPreview text={draftBody} />
-                    <Button type="submit" className="w-full cel-interactive border-2 border-[#0a0c10]" disabled={createThread.isPending}>
+                    <DiscussionImagePicker paths={threadImages} onChange={setThreadImages} onUploadingChange={setThreadImagesUploading} disabled={createThread.isPending} />
+                    <Button type="submit" className="w-full cel-interactive border-2 border-[#0a0c10]" disabled={createThread.isPending || threadImagesUploading}>
                       {createThread.isPending ? "Posting..." : "Post Thread"}
                     </Button>
                   </form>

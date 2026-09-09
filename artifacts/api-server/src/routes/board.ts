@@ -1,8 +1,10 @@
 import { Router } from "express";
+import { Readable } from "stream";
 import { db } from "@workspace/db";
 import {
   boardThreadsTable,
   boardPostsTable,
+  boardAttachmentsTable,
   usersTable,
   eventsTable,
   boardReactionsTable,
@@ -22,9 +24,88 @@ import {
   safeImageDataUri,
   type LinkPreviewMetadata,
 } from "../lib/linkPreview";
+import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
+import {
+  getDbObjectAclPolicy,
+  storePendingObjectAcl,
+  type ObjectAclPolicy,
+} from "../lib/objectAcl";
+import {
+  RequestBoardImageUploadUrlBody,
+  RequestBoardImageUploadUrlResponse,
+} from "@workspace/api-zod";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
+const objectStorageService = new ObjectStorageService();
+const MAX_DISCUSSION_IMAGES = 4;
+const DISCUSSION_IMAGE_PATH = /^\/objects\/discussion-images\/[A-Za-z0-9._-]+$/;
+const DISCUSSION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const MAX_DISCUSSION_IMAGE_BYTES = 10 * 1024 * 1024;
+
+async function validateOwnedDiscussionImages(
+  clerkUserId: string,
+  value: unknown,
+): Promise<Array<{ objectPath: string; contentType: string; size: number; generation: string }>> {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > MAX_DISCUSSION_IMAGES) {
+    throw new Error(`Attach no more than ${MAX_DISCUSSION_IMAGES} images`);
+  }
+  const paths = [...new Set(value)];
+  if (paths.length !== value.length || paths.some((path) => typeof path !== "string" || !DISCUSSION_IMAGE_PATH.test(path))) {
+    throw new Error("Invalid discussion image");
+  }
+  const attachments: Array<{ objectPath: string; contentType: string; size: number; generation: string }> = [];
+  for (const path of paths) {
+    const existing = await db.query.boardAttachmentsTable.findFirst({
+      where: eq(boardAttachmentsTable.objectPath, path),
+    });
+    if (existing) throw new Error("This image is already attached to a discussion");
+    const file = await objectStorageService.getObjectEntityFile(path);
+    const policy = await getDbObjectAclPolicy(path);
+    if (!policy || policy.owner !== clerkUserId) {
+      throw new Error("You can only attach images you uploaded");
+    }
+    const [metadata] = await file.getMetadata();
+    const size = Number(metadata.size ?? 0);
+    if (!DISCUSSION_IMAGE_TYPES.has(metadata.contentType ?? "") || !Number.isFinite(size) || size <= 0 || size > MAX_DISCUSSION_IMAGE_BYTES) {
+      throw new Error("Attachment must be a supported image under 10 MB");
+    }
+    if (!metadata.generation) throw new Error("Could not verify image upload");
+    attachments.push({
+      objectPath: path,
+      contentType: metadata.contentType!,
+      size,
+      generation: String(metadata.generation),
+    });
+  }
+  return attachments;
+}
+
+// POST /board/attachments/request-url — reserve a discussion-only private image.
+router.post("/board/attachments/request-url", requireApproved, async (req, res) => {
+  const parsed = RequestBoardImageUploadUrlBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Choose a supported image under 10 MB" });
+    return;
+  }
+
+  try {
+    const clerkUserId = (req as any).clerkUserId as string;
+    const uploadURL = await objectStorageService.getObjectEntityUploadURL("discussion-images");
+    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    const ownerOnlyPolicy: ObjectAclPolicy = {
+      owner: clerkUserId,
+      visibility: "private",
+      aclRules: [],
+    };
+    await storePendingObjectAcl(objectPath, ownerOnlyPolicy);
+    res.json(RequestBoardImageUploadUrlResponse.parse({ uploadURL, objectPath }));
+  } catch (error) {
+    req.log.error({ err: error }, "Error generating discussion image upload URL");
+    res.status(500).json({ error: "Failed to prepare image upload" });
+  }
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,8 +119,12 @@ async function enrichThread(
   const event = thread.eventId
     ? await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })
     : null;
+  const attachments = await db.select({ objectPath: boardAttachmentsTable.objectPath })
+    .from(boardAttachmentsTable)
+    .where(eq(boardAttachmentsTable.threadId, thread.id));
   return {
     ...thread,
+    imageObjectPaths: attachments.map(({ objectPath }) => objectPath),
     // Event discussion titles are derived from the current event name so a
     // renamed event cannot leave its linked discussion showing stale context.
     title: event ? `Discussion: ${event.title}` : thread.title,
@@ -125,10 +210,14 @@ async function enrichPost(
   const author = post.authorUserId
     ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, post.authorUserId) })
     : null;
+  const attachments = post.isDeleted ? [] : await db.select({ objectPath: boardAttachmentsTable.objectPath })
+    .from(boardAttachmentsTable)
+    .where(eq(boardAttachmentsTable.postId, post.id));
   return {
     ...post,
     // Redact body for soft-deleted posts so raw API consumers cannot read deleted content
     body: post.isDeleted ? "" : post.body,
+    imageObjectPaths: attachments.map(({ objectPath }) => objectPath),
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
     reactions: await getReactionSummary("post", post.id, me.id),
     permissions: getPostPermissions(me, post),
@@ -340,6 +429,13 @@ router.post("/board/threads", requireApproved, async (req, res) => {
 
   const { title, body, podId, eventId } = req.body;
   if (!title || !body) { res.status(400).json({ error: "title and body required" }); return; }
+  let attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>;
+  try {
+    attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid discussion image" });
+    return;
+  }
 
   // Disallow ambiguous scope: a thread must be general, pod-scoped, OR event-linked — not a mix
   if (podId && eventId) {
@@ -356,16 +452,27 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     res.status(403).json({ error: "Not in this event's audience" }); return;
   }
 
-  const [thread] = await db.insert(boardThreadsTable).values({
-    title,
-    body,
-    authorUserId: me.id,
-    podId: podId ?? null,
-    eventId: eventId ?? null,
-    isPinned: false,
-    isLocked: false,
-    replyCount: 0,
-  }).returning();
+  const createThread = async (executor: Pick<typeof db, "insert">) => {
+    const [created] = await executor.insert(boardThreadsTable).values({
+      title,
+      body,
+      authorUserId: me.id,
+      podId: podId ?? null,
+      eventId: eventId ?? null,
+      isPinned: false,
+      isLocked: false,
+      replyCount: 0,
+    }).returning();
+    if (attachments.length) {
+      await executor.insert(boardAttachmentsTable).values(
+        attachments.map((attachment) => ({ ...attachment, threadId: created.id })),
+      );
+    }
+    return created;
+  };
+  const thread = attachments.length
+    ? await db.transaction(createThread)
+    : await createThread(db);
 
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.status(201).json(result);
@@ -425,19 +532,35 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
 
   const { body } = req.body;
   if (!body) { res.status(400).json({ error: "body required" }); return; }
+  let attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>;
+  try {
+    attachments = await validateOwnedDiscussionImages(clerkUserId, req.body.imageObjectPaths);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : "Invalid discussion image" });
+    return;
+  }
 
-  const [post] = await db.insert(boardPostsTable).values({
-    threadId,
-    authorUserId: me.id,
-    body,
-    isDeleted: false,
-  }).returning();
-
-  // Update thread reply count and lastReplyAt
-  await db.update(boardThreadsTable).set({
-    replyCount: thread.replyCount + 1,
-    lastReplyAt: new Date(),
-  }).where(eq(boardThreadsTable.id, threadId));
+  const createPost = async (executor: Pick<typeof db, "insert" | "update">) => {
+    const [created] = await executor.insert(boardPostsTable).values({
+      threadId,
+      authorUserId: me.id,
+      body,
+      isDeleted: false,
+    }).returning();
+    if (attachments.length) {
+      await executor.insert(boardAttachmentsTable).values(
+        attachments.map((attachment) => ({ ...attachment, postId: created.id })),
+      );
+    }
+    await executor.update(boardThreadsTable).set({
+      replyCount: thread.replyCount + 1,
+      lastReplyAt: new Date(),
+    }).where(eq(boardThreadsTable.id, threadId));
+    return created;
+  };
+  const post = attachments.length
+    ? await db.transaction(createPost)
+    : await createPost(db);
 
   // Notify participants (non-blocking)
   notifyThreadParticipants(threadId, me.id)
@@ -445,6 +568,72 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
 
   const result = await enrichPost(post, me);
   res.status(201).json(result);
+});
+
+// GET /board/attachments/*path — serve an image only to viewers of its discussion.
+router.get("/board/attachments/*path", requireApproved, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+
+  const rawPath = req.params.path;
+  const wildcardPath = Array.isArray(rawPath) ? rawPath.join("/") : rawPath;
+  const objectPath = `/objects/${wildcardPath}`;
+  if (!DISCUSSION_IMAGE_PATH.test(objectPath)) {
+    res.status(400).json({ error: "Invalid discussion image" });
+    return;
+  }
+
+  const attachment = await db.query.boardAttachmentsTable.findFirst({
+    where: eq(boardAttachmentsTable.objectPath, objectPath),
+  });
+  if (!attachment) {
+    res.status(404).json({ error: "Image not found" });
+    return;
+  }
+  const post = attachment.postId
+    ? await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, attachment.postId) })
+    : null;
+  if (attachment.postId && (!post || post.isDeleted)) {
+    res.status(404).json({ error: "Image not found" });
+    return;
+  }
+  const threadId = attachment.threadId ?? post?.threadId;
+  const thread = threadId
+    ? await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) })
+    : null;
+  if (!thread || !(await canAccessThread(me, thread))) {
+    res.status(404).json({ error: "Image not found" });
+    return;
+  }
+
+  try {
+    // Read the exact immutable generation that was validated when attached.
+    // If it was overwritten and bucket versioning is unavailable, fail closed.
+    const file = await objectStorageService.getObjectEntityFile(objectPath, attachment.generation);
+    const [metadata] = await file.getMetadata();
+    if (
+      String(metadata.generation ?? "") !== attachment.generation
+      || metadata.contentType !== attachment.contentType
+      || Number(metadata.size ?? 0) !== attachment.size
+    ) {
+      req.log.warn({ objectPath }, "Discussion image changed after attachment; refusing to serve");
+      res.status(404).json({ error: "Image not found" });
+      return;
+    }
+    const response = await objectStorageService.downloadObject(file);
+    res.status(response.status);
+    response.headers.forEach((value, key) => res.setHeader(key, value));
+    if (!response.body) { res.end(); return; }
+    Readable.fromWeb(response.body as ReadableStream<Uint8Array>).pipe(res);
+  } catch (error) {
+    if (error instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Image not found" });
+      return;
+    }
+    req.log.error({ err: error }, "Error serving discussion image");
+    res.status(500).json({ error: "Failed to serve discussion image" });
+  }
 });
 
 // POST /board/reactions — toggle a reaction on a visible thread starter or reply

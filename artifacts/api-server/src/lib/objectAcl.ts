@@ -136,7 +136,7 @@ export async function storePendingObjectAcl(
   }
 }
 
-async function getDbObjectAclPolicy(
+export async function getDbObjectAclPolicy(
   objectPath: string,
 ): Promise<ObjectAclPolicy | null> {
   const client = await pool.connect();

@@ -17,3 +17,4 @@
 - [Household correction safety](household-correction-safety.md) — structural family corrections stay admin-only, audited, and separate from login identity or generic user editing
 - [Season participation](season-participation.md) — season-off riders keep normal accounts and history; participation must never be modeled as account deactivation or a pod
 - [Durable email cutovers](durable-email-cutovers.md) — moving from in-memory to durable deduplication needs a cutover plan or startup can resend recently delivered email
+- [Private discussion attachments](private-discussion-attachments.md) — use a dedicated namespace, one authoritative parent, and generation-pinned reads

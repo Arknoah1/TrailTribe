@@ -346,6 +346,25 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "create_board_attachments_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS board_attachments (
+        id serial PRIMARY KEY,
+        object_path text NOT NULL UNIQUE,
+        thread_id integer REFERENCES board_threads(id) ON DELETE CASCADE,
+        post_id integer REFERENCES board_posts(id) ON DELETE CASCADE,
+        content_type text NOT NULL,
+        size integer NOT NULL,
+        generation text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT board_attachments_target_check
+          CHECK ((thread_id IS NOT NULL) <> (post_id IS NOT NULL))
+      );
+      CREATE INDEX IF NOT EXISTS board_attachments_thread_id_idx ON board_attachments(thread_id);
+      CREATE INDEX IF NOT EXISTS board_attachments_post_id_idx ON board_attachments(post_id);
+    `,
+  },
+  {
     name: "create_object_acl_policies_table",
     sql: `
       CREATE TABLE IF NOT EXISTS object_acl_policies (

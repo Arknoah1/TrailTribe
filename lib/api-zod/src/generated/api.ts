@@ -2590,11 +2590,16 @@ export const ListBoardThreadsQueryParams = zod.object({
   eventId: zod.coerce.number().optional(),
 });
 
+export const listBoardThreadsResponseOneImageObjectPathsMax = 4;
+
 export const ListBoardThreadsResponseItem = zod
   .object({
     id: zod.number(),
     title: zod.string(),
     body: zod.string(),
+    imageObjectPaths: zod
+      .array(zod.string())
+      .max(listBoardThreadsResponseOneImageObjectPathsMax),
     authorUserId: zod.number().nullish(),
     podId: zod.string().nullish(),
     eventId: zod.number().nullish(),
@@ -2646,11 +2651,33 @@ export const ListBoardThreadsResponse = zod.array(ListBoardThreadsResponseItem);
 /**
  * @summary Create a new thread
  */
+export const createBoardThreadBodyImageObjectPathsMax = 4;
+
 export const CreateBoardThreadBody = zod.object({
   title: zod.string(),
   body: zod.string(),
   podId: zod.string().nullish(),
   eventId: zod.number().nullish(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(createBoardThreadBodyImageObjectPathsMax)
+    .optional(),
+});
+
+/**
+ * @summary Request a private upload URL for a discussion image
+ */
+export const requestBoardImageUploadUrlBodySizeMax = 10485760;
+
+export const RequestBoardImageUploadUrlBody = zod.object({
+  name: zod.string(),
+  size: zod.number().min(1).max(requestBoardImageUploadUrlBodySizeMax),
+  contentType: zod.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+});
+
+export const RequestBoardImageUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
 });
 
 /**
@@ -2660,11 +2687,16 @@ export const GetBoardThreadParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getBoardThreadResponseOneImageObjectPathsMax = 4;
+
 export const GetBoardThreadResponse = zod
   .object({
     id: zod.number(),
     title: zod.string(),
     body: zod.string(),
+    imageObjectPaths: zod
+      .array(zod.string())
+      .max(getBoardThreadResponseOneImageObjectPathsMax),
     authorUserId: zod.number().nullish(),
     podId: zod.string().nullish(),
     eventId: zod.number().nullish(),
@@ -2726,12 +2758,17 @@ export const ListBoardPostsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const listBoardPostsResponseOneImageObjectPathsMax = 4;
+
 export const ListBoardPostsResponseItem = zod
   .object({
     id: zod.number(),
     threadId: zod.number(),
     authorUserId: zod.number().nullish(),
     body: zod.string(),
+    imageObjectPaths: zod
+      .array(zod.string())
+      .max(listBoardPostsResponseOneImageObjectPathsMax),
     isDeleted: zod.boolean(),
     createdAt: zod.coerce.date(),
   })
@@ -2770,8 +2807,14 @@ export const CreateBoardPostParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const createBoardPostBodyImageObjectPathsMax = 4;
+
 export const CreateBoardPostBody = zod.object({
   body: zod.string(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(createBoardPostBodyImageObjectPathsMax)
+    .optional(),
 });
 
 /**
@@ -2835,10 +2878,15 @@ export const PinBoardThreadParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const pinBoardThreadResponseImageObjectPathsMax = 4;
+
 export const PinBoardThreadResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
   body: zod.string(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(pinBoardThreadResponseImageObjectPathsMax),
   authorUserId: zod.number().nullish(),
   podId: zod.string().nullish(),
   eventId: zod.number().nullish(),
