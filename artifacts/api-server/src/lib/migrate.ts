@@ -820,6 +820,29 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "bootstrap_production_super_admin",
+    sql: `
+      DO $$
+      BEGIN
+        -- Recover the production role-management bootstrap without creating
+        -- a general-purpose privilege-escalation path. This is intentionally
+        -- idempotent and becomes a no-op once any active super admin exists.
+        IF NOT EXISTS (
+          SELECT 1
+          FROM users
+          WHERE role = 'super_admin'
+            AND is_active = true
+        ) THEN
+          UPDATE users
+          SET role = 'super_admin'
+          WHERE lower(email) = 'arknoah1@gmail.com'
+            AND role = 'coach'
+            AND is_active = true;
+        END IF;
+      END $$;
+    `,
+  },
+  {
     name: "enforce_canonical_event_audiences",
     sql: `
       DO $$
