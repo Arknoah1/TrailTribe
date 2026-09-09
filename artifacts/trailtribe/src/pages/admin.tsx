@@ -22,6 +22,7 @@ import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
 import SeasonBuilder from "./season-builder";
 import SeasonsTab from "./admin-seasons";
+import { FamilyLinkAction } from "@/components/family-link-action";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -908,24 +909,6 @@ export default function Admin() {
     }
   };
 
-  const handleShareFamilyLink = async (household: HouseholdRosterItem) => {
-    try {
-      const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
-        throw new Error(data.error ?? "Unable to get this family's link");
-      }
-
-      const url = `${window.location.origin}${BASE_URL}/join/${encodeURIComponent(data.inviteCode)}`;
-      await shareFamilyLinkUrl(household, url);
-    } catch (error) {
-      toast({
-        title: error instanceof Error ? error.message : "Unable to get this family's link",
-        variant: "destructive",
-      });
-    }
-  };
-
   const handleRotateFamilyLink = async () => {
     if (!rotateFamilyLinkHousehold) return;
     const household = rotateFamilyLinkHousehold;
@@ -1707,15 +1690,18 @@ export default function Admin() {
                                 </div>
                               ))}
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full sm:w-auto"
-                              onClick={() => handleShareFamilyLink(household)}
-                            >
-                              <Link2 className="h-3.5 w-3.5 mr-1.5" />
-                              Share family link
-                            </Button>
+                            <FamilyLinkAction
+                              householdName={household.name}
+                              getInviteCode={async () => {
+                                const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`);
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
+                                  throw new Error(data.error ?? "Unable to get this family's link");
+                                }
+                                return data.inviteCode;
+                              }}
+                              notify={toast}
+                            />
                             <Button
                               variant="ghost"
                               size="sm"
