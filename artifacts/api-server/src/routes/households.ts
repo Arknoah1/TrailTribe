@@ -31,6 +31,9 @@ import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
 import {
   GetHouseholdFamilyLinkParams,
   GetHouseholdFamilyLinkResponse,
+  RotateHouseholdFamilyLinkBody,
+  RotateHouseholdFamilyLinkParams,
+  RotateHouseholdFamilyLinkResponse,
   SendCoParentInviteBody,
   SendCoParentInviteParams,
 } from "@workspace/api-zod";
@@ -55,7 +58,7 @@ const studentNotifPrefsSchema = z.object({
 const CO_PARENT_INVITE_TTL_DAYS = 7;
 
 function generateInviteCode(): string {
-  return randomBytes(6).toString("hex");
+  return randomBytes(16).toString("hex");
 }
 
 function coParentInviteExpiresAt(): Date {
@@ -213,9 +216,12 @@ router.post("/households", requireAuth, async (req, res) => {
 router.get("/households/by-invite/:code", publicLookupLimiter, async (req, res) => {
   const code = str(req.params.code);
   const household = await db.query.householdsTable.findFirst({
-    where: eq(householdsTable.inviteCode, code),
+    where: and(
+      eq(householdsTable.inviteCode, code),
+      isNull(householdsTable.archivedAt),
+    ),
   });
-  if (!household) {
+  if (!household || household.archivedAt) {
     res.status(404).json({ error: "Invalid invite code" });
     return;
   }
@@ -242,6 +248,54 @@ router.get("/households/:id/family-link", requireCoachOrAdmin, async (req, res):
   }
 
   res.json(GetHouseholdFamilyLinkResponse.parse({ inviteCode: household.inviteCode }));
+});
+
+router.post("/households/:id/family-link", requireCoachOrAdmin, async (req, res): Promise<void> => {
+  const params = RotateHouseholdFamilyLinkParams.safeParse(req.params);
+  const body = RotateHouseholdFamilyLinkBody.safeParse(req.body);
+  if (!params.success || !body.success || body.data.confirmation !== true) {
+    res.status(400).json({ error: "A valid household ID and confirmation are required" });
+    return;
+  }
+
+  const requester = await getRequester(req);
+  if (!requester) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+
+  const inviteCode = generateInviteCode();
+  const rotated = await db.transaction(async (tx) => {
+    const [household] = await tx
+      .update(householdsTable)
+      .set({ inviteCode })
+      .where(and(
+        eq(householdsTable.id, params.data.id),
+        isNull(householdsTable.archivedAt),
+      ))
+      .returning();
+
+    if (!household || household.archivedAt) return null;
+
+    await writeHouseholdAdminAudit(
+      tx,
+      requester.id,
+      "rotate_family_link",
+      household.id,
+      null,
+      { familyLinkVersion: "previous" },
+      { familyLinkVersion: "replacement" },
+    );
+
+    return household;
+  });
+
+  if (!rotated) {
+    res.status(404).json({ error: "Active household not found" });
+    return;
+  }
+
+  res.json(RotateHouseholdFamilyLinkResponse.parse({ inviteCode: rotated.inviteCode }));
 });
 
 router.get("/households/:id", requireApproved, async (req, res) => {

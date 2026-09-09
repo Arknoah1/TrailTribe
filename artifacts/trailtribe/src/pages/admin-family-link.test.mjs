@@ -23,3 +23,16 @@ test("sharing handles cancellation and has a selectable manual fallback", () => 
   assert.match(source, /aria-label="Family invite link"/);
   assert.match(source, /event\.currentTarget\.select\(\)/);
 });
+
+test("staff must confirm before replacing a family link and then share the replacement", () => {
+  assert.match(source, /Replace family link/);
+  assert.match(source, /Replace this family link\?/);
+  assert.match(source, /The current link for .* will stop working immediately/);
+  assert.match(source, /body: JSON\.stringify\(\{ confirmation: true \}\)/);
+  assert.match(source, /Family link replaced/);
+  assert.match(
+    source,
+    /const handleRotateFamilyLink = async \(\) => \{[\s\S]*?await shareFamilyLinkUrl\(household, url, true\);[\s\S]*?\n  \};/,
+  );
+  assert.match(source, /The previous link no longer works\. Copy the replacement when you're ready\./);
+});

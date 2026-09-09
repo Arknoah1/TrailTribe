@@ -79,6 +79,7 @@ const txDeleteCalls: any[] = [];
 let clerkDeleteUserShouldFail = false;
 // Tracks which Clerk user IDs were passed to deleteUser.
 const clerkDeleteCalls: string[] = [];
+const auditInsertValues: Record<string, unknown>[] = [];
 
 /* ─── module mocks ──────────────────────────────────────────────────────── */
 
@@ -97,6 +98,7 @@ const MOCK_NOTIFICATIONS_TABLE       = { __table: "notificationsTable" };
 const MOCK_EVENT_TASK_SIGNUPS_TABLE  = { __table: "eventTaskSignupsTable" };
 const MOCK_BOARD_POSTS_TABLE         = { __table: "boardPostsTable" };
 const MOCK_BOARD_THREADS_TABLE       = { __table: "boardThreadsTable" };
+const MOCK_HOUSEHOLD_AUDIT_TABLE     = { __table: "householdAdminAuditTable" };
 
 vi.mock("@clerk/express", () => {
   return {
@@ -118,9 +120,17 @@ vi.mock("@workspace/db", () => {
 
   const makeUpdateChain = () => {
     const c: any = {};
-    c.set = vi.fn(() => c);
+    let patch: Record<string, unknown> = {};
+    c.set = vi.fn((values: Record<string, unknown>) => {
+      patch = values;
+      return c;
+    });
     c.where = vi.fn(() => c);
-    c.returning = vi.fn().mockResolvedValue([mockHousehold]);
+    c.returning = vi.fn().mockImplementation(() => Promise.resolve(
+      householdFindFirstResult
+        ? [{ ...householdFindFirstResult, ...patch }]
+        : [],
+    ));
     return c;
   };
 
@@ -164,6 +174,12 @@ vi.mock("@workspace/db", () => {
       transaction: vi.fn().mockImplementation(async (fn: any) => {
         const tx = {
           select: vi.fn(() => makeTxSelectChain()),
+          update: vi.fn(() => makeUpdateChain()),
+          insert: vi.fn(() => ({
+            values: vi.fn(async (values: Record<string, unknown>) => {
+              auditInsertValues.push(values);
+            }),
+          })),
           delete: vi.fn().mockImplementation((table: any) => {
             txDeleteCalls.push(table);
             return makeWhereChain();
@@ -195,6 +211,7 @@ vi.mock("@workspace/db", () => {
     eventTaskSignupsTable:       MOCK_EVENT_TASK_SIGNUPS_TABLE,
     boardPostsTable:             MOCK_BOARD_POSTS_TABLE,
     boardThreadsTable:           MOCK_BOARD_THREADS_TABLE,
+    householdAdminAuditTable:    MOCK_HOUSEHOLD_AUDIT_TABLE,
     eq:    vi.fn(() => ({})),
     and:   vi.fn((...args: any[]) => args),
     isNull:vi.fn(() => ({})),
@@ -247,6 +264,7 @@ beforeEach(() => {
   txDeleteCalls.length = 0;
   clerkDeleteCalls.length = 0;
   clerkDeleteUserShouldFail = false;
+  auditInsertValues.length = 0;
   householdFindFirstResult = mockHousehold;
   currentClerkUserId = (users[ADMIN_ID] as any).clerkUserId;
 });
@@ -263,6 +281,18 @@ async function deleteHousehold(id: number) {
 
 async function getFamilyLink(id: number | string) {
   return fetch(`${baseUrl}/households/${id}/family-link`);
+}
+
+async function lookUpFamilyLink(code: string) {
+  return fetch(`${baseUrl}/households/by-invite/${code}`);
+}
+
+async function rotateFamilyLink(id: number | string, body: unknown = { confirmation: true }) {
+  return fetch(`${baseUrl}/households/${id}/family-link`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 /* ─── GET /households/:id/family-link ──────────────────────────────────── */
@@ -301,6 +331,59 @@ describe("GET /households/:id/family-link", () => {
     const res = await getFamilyLink(0);
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /households/by-invite/:code", () => {
+  it("does not resolve a known link for an archived household", async () => {
+    householdFindFirstResult = mockArchivedHousehold;
+
+    const res = await lookUpFamilyLink(mockArchivedHousehold.inviteCode);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /households/:id/family-link", () => {
+  it("replaces the reusable code and audits the action without recording either private code", async () => {
+    householdFindFirstResult = mockHousehold;
+    setUser(COACH_ID);
+
+    const res = await rotateFamilyLink(HOUSEHOLD_ID);
+    const responseText = await res.text();
+
+    expect(res.status, responseText).toBe(200);
+    const body = JSON.parse(responseText);
+    expect(body.inviteCode).toMatch(/^[a-f0-9]{32}$/);
+    expect(body.inviteCode).not.toBe(mockHousehold.inviteCode);
+    expect(auditInsertValues).toContainEqual(expect.objectContaining({
+      administratorUserId: COACH_ID,
+      householdId: HOUSEHOLD_ID,
+      action: "rotate_family_link",
+    }));
+    expect(JSON.stringify(auditInsertValues)).not.toContain(mockHousehold.inviteCode);
+    expect(JSON.stringify(auditInsertValues)).not.toContain(body.inviteCode);
+  });
+
+  it("requires explicit confirmation", async () => {
+    const res = await rotateFamilyLink(HOUSEHOLD_ID, {});
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an explicit refusal to confirm", async () => {
+    const res = await rotateFamilyLink(HOUSEHOLD_ID, { confirmation: false });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("does not replace the link for an archived household", async () => {
+    householdFindFirstResult = mockArchivedHousehold;
+
+    const res = await rotateFamilyLink(ARCHIVED_HOUSEHOLD_ID);
+
+    expect(res.status).toBe(404);
+    expect(auditInsertValues).toHaveLength(0);
   });
 });
 

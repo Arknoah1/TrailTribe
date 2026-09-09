@@ -759,6 +759,22 @@ export const GetHouseholdFamilyLinkResponse = zod.object({
 });
 
 /**
+ * @summary Replace an active household's reusable family join code
+ */
+
+export const RotateHouseholdFamilyLinkParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+export const RotateHouseholdFamilyLinkBody = zod.object({
+  confirmation: zod.boolean(),
+});
+
+export const RotateHouseholdFamilyLinkResponse = zod.object({
+  inviteCode: zod.string(),
+});
+
+/**
  * @summary Mark compliance docs as signed
  */
 export const UpdateHouseholdComplianceParams = zod.object({

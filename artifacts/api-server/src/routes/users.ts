@@ -227,9 +227,12 @@ router.post("/users/me/join", requireAuth, async (req, res) => {
   if (!inviteCode) { res.status(400).json({ error: "Invite code is required" }); return; }
 
   const household = await db.query.householdsTable.findFirst({
-    where: eq(householdsTable.inviteCode, inviteCode),
+    where: and(
+      eq(householdsTable.inviteCode, inviteCode),
+      isNull(householdsTable.archivedAt),
+    ),
   });
-  if (!household) { res.status(404).json({ error: "Invalid invite code" }); return; }
+  if (!household || household.archivedAt) { res.status(404).json({ error: "Invalid invite code" }); return; }
 
   const [updated] = await db.update(usersTable)
     .set({ householdId: household.id, podId: household.podId ?? null, approved: true })

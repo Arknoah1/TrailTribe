@@ -73,6 +73,7 @@ import type {
   HealthStatus,
   Household,
   HouseholdFamilyLink,
+  HouseholdFamilyLinkRotationInput,
   HouseholdWithMembers,
   InviteLink,
   LinkPreviewResult,
@@ -1667,6 +1668,94 @@ export function useGetHouseholdFamilyLink<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Replace an active household's reusable family join code
+ */
+export const getRotateHouseholdFamilyLinkUrl = (id: number) => {
+  return `/api/households/${id}/family-link`;
+};
+
+export const rotateHouseholdFamilyLink = async (
+  id: number,
+  householdFamilyLinkRotationInput: HouseholdFamilyLinkRotationInput,
+  options?: RequestInit,
+): Promise<HouseholdFamilyLink> => {
+  return customFetch<HouseholdFamilyLink>(getRotateHouseholdFamilyLinkUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(householdFamilyLinkRotationInput),
+  });
+};
+
+export const getRotateHouseholdFamilyLinkMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>,
+    TError,
+    { id: number; data: BodyType<HouseholdFamilyLinkRotationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>,
+  TError,
+  { id: number; data: BodyType<HouseholdFamilyLinkRotationInput> },
+  TContext
+> => {
+  const mutationKey = ["rotateHouseholdFamilyLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>,
+    { id: number; data: BodyType<HouseholdFamilyLinkRotationInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return rotateHouseholdFamilyLink(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RotateHouseholdFamilyLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>
+>;
+export type RotateHouseholdFamilyLinkMutationBody =
+  BodyType<HouseholdFamilyLinkRotationInput>;
+export type RotateHouseholdFamilyLinkMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Replace an active household's reusable family join code
+ */
+export const useRotateHouseholdFamilyLink = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>,
+    TError,
+    { id: number; data: BodyType<HouseholdFamilyLinkRotationInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rotateHouseholdFamilyLink>>,
+  TError,
+  { id: number; data: BodyType<HouseholdFamilyLinkRotationInput> },
+  TContext
+> => {
+  return useMutation(getRotateHouseholdFamilyLinkMutationOptions(options));
+};
 
 /**
  * @summary Mark compliance docs as signed

@@ -167,6 +167,12 @@ export interface HouseholdFamilyLink {
   inviteCode: string;
 }
 
+export const HouseholdFamilyLinkRotationInputValue = {
+  confirmation: true,
+} as const;
+export type HouseholdFamilyLinkRotationInput =
+  typeof HouseholdFamilyLinkRotationInputValue;
+
 export interface CoParentInviteInput {
   email: string;
 }

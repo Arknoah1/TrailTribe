@@ -503,6 +503,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: rotateHouseholdFamilyLink
+      tags: [households]
+      summary: Replace an active household's reusable family join code
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseholdFamilyLinkRotationInput"
+      responses:
+        "200":
+          description: Replacement household family join code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseholdFamilyLink"
+        "400":
+          description: Invalid household ID or missing confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Staff access required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Active household not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /households/{id}/compliance:
     patch:
@@ -2670,6 +2712,15 @@ components:
         inviteCode:
           type: string
       required: [inviteCode]
+
+    HouseholdFamilyLinkRotationInput:
+      type: object
+      additionalProperties: false
+      properties:
+        confirmation:
+          type: boolean
+          const: true
+      required: [confirmation]
 
     CoParentInviteInput:
       type: object

@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListPendingApprovalsQueryKey, getListEventsQueryKey } from "@workspace/api-client-react";
-import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy, AlertTriangle, LogIn, UserX } from "lucide-react";
+import { Check, Shield, Users, ClipboardCheck, FileText, Upload, ExternalLink, Trash2, Link2, CheckCircle2, XCircle, Bike, Phone, Mail, LayoutList, LayoutGrid, Plus, Pencil, Calendar, Layers, ChevronDown, ChevronUp, Mountain, ImageIcon, X, Download, Archive, Copy, AlertTriangle, LogIn, UserX, RotateCcw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -368,6 +368,8 @@ export default function Admin() {
   const [savingHouseholdAdmin, setSavingHouseholdAdmin] = useState(false);
   const [savingMemberAdmin, setSavingMemberAdmin] = useState(false);
   const [manualFamilyLink, setManualFamilyLink] = useState<{ householdName: string; url: string } | null>(null);
+  const [rotateFamilyLinkHousehold, setRotateFamilyLinkHousehold] = useState<HouseholdRosterItem | null>(null);
+  const [isRotatingFamilyLink, setIsRotatingFamilyLink] = useState(false);
 
   // Rider invite state (from roster)
   const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
@@ -850,16 +852,13 @@ export default function Admin() {
     }
   };
 
-  const handleShareFamilyLink = async (household: HouseholdRosterItem) => {
+  const shareFamilyLinkUrl = async (
+    household: HouseholdRosterItem,
+    url: string,
+    preserveOnShareCancel = false,
+  ) => {
     setManualFamilyLink(null);
     try {
-      const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
-        throw new Error(data.error ?? "Unable to get this family's link");
-      }
-
-      const url = `${window.location.origin}${BASE_URL}/join/${encodeURIComponent(data.inviteCode)}`;
       if (typeof navigator.share === "function") {
         try {
           await navigator.share({
@@ -870,7 +869,16 @@ export default function Admin() {
           toast({ title: "Family link shared" });
           return;
         } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (error instanceof DOMException && error.name === "AbortError") {
+            if (preserveOnShareCancel) {
+              setManualFamilyLink({ householdName: household.name, url });
+              toast({
+                title: "New family link ready",
+                description: "The previous link no longer works. Copy the replacement when you're ready.",
+              });
+            }
+            return;
+          }
         }
       }
 
@@ -897,6 +905,56 @@ export default function Admin() {
         title: error instanceof Error ? error.message : "Unable to get this family's link",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleShareFamilyLink = async (household: HouseholdRosterItem) => {
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
+        throw new Error(data.error ?? "Unable to get this family's link");
+      }
+
+      const url = `${window.location.origin}${BASE_URL}/join/${encodeURIComponent(data.inviteCode)}`;
+      await shareFamilyLinkUrl(household, url);
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Unable to get this family's link",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRotateFamilyLink = async () => {
+    if (!rotateFamilyLinkHousehold) return;
+    const household = rotateFamilyLinkHousehold;
+    setIsRotatingFamilyLink(true);
+    try {
+      const res = await authedFetch(`${BASE_URL}/api/households/${household.id}/family-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.inviteCode !== "string" || !data.inviteCode) {
+        throw new Error(data.error ?? "Unable to replace this family's link");
+      }
+
+      setRotateFamilyLinkHousehold(null);
+      toast({
+        title: "Family link replaced",
+        description: "The previous link no longer works.",
+      });
+      const url = `${window.location.origin}${BASE_URL}/join/${encodeURIComponent(data.inviteCode)}`;
+      await shareFamilyLinkUrl(household, url, true);
+    } catch (error) {
+      toast({
+        title: error instanceof Error ? error.message : "Unable to replace this family's link",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRotatingFamilyLink(false);
     }
   };
 
@@ -1658,6 +1716,15 @@ export default function Admin() {
                               <Link2 className="h-3.5 w-3.5 mr-1.5" />
                               Share family link
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full sm:w-auto text-xs text-muted-foreground"
+                              onClick={() => setRotateFamilyLinkHousehold(household)}
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                              Replace family link
+                            </Button>
                             {isSuperAdmin && (
                               <Button
                                 variant="outline"
@@ -1778,6 +1845,23 @@ export default function Admin() {
               </p>
             </DialogContent>
           </Dialog>
+
+          <AlertDialog open={rotateFamilyLinkHousehold !== null} onOpenChange={(open) => { if (!open && !isRotatingFamilyLink) setRotateFamilyLinkHousehold(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Replace this family link?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The current link for {rotateFamilyLinkHousehold?.name} will stop working immediately. Anyone who still needs access must receive the new link.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isRotatingFamilyLink}>Keep current link</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRotateFamilyLink} disabled={isRotatingFamilyLink}>
+                  {isRotatingFamilyLink ? "Replacing…" : "Replace and share"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {isSuperAdmin && <Dialog open={editingMember !== null} onOpenChange={(open) => { if (!open) setEditingMember(null); }}>
             <DialogContent className="w-[calc(100%-1rem)] max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto">
