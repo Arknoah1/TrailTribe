@@ -76,14 +76,101 @@ type ReactionFixture = {
   userId: number;
   reaction: string;
 };
+type AttachmentFixture = {
+  id: number;
+  objectPath: string;
+  threadId: number | null;
+  postId: number | null;
+  contentType: string;
+  size: number;
+  generation: string;
+};
+
+type DiscussionObjectFixture = {
+  generation: string;
+  contentType: string;
+  size: number;
+  body: string;
+};
+
+const discussionStorageMock = vi.hoisted(() => {
+  class MockObjectNotFoundError extends Error {
+    constructor() {
+      super("Object not found");
+      this.name = "ObjectNotFoundError";
+    }
+  }
+
+  const objects = new Map<string, DiscussionObjectFixture[]>();
+  const getObjectEntityFile = vi.fn(async (objectPath: string, generation?: string) => {
+    const versions = objects.get(objectPath) ?? [];
+    const object = generation
+      ? versions.find((version) => version.generation === generation)
+      : versions.at(-1);
+    if (!object) throw new MockObjectNotFoundError();
+    return {
+      objectPath,
+      generation: object.generation,
+      getMetadata: vi.fn(async () => [{
+        generation: object.generation,
+        contentType: object.contentType,
+        size: String(object.size),
+      }]),
+    };
+  });
+
+  class MockObjectStorageService {
+    getObjectEntityFile = getObjectEntityFile;
+    getObjectEntityUploadURL = vi.fn(async () => "https://storage.example/upload");
+    normalizeObjectEntityPath = vi.fn(() => "/objects/discussion-images/new-upload");
+    downloadObject = vi.fn(async (file: { objectPath: string; generation: string }) => {
+      const object = (objects.get(file.objectPath) ?? [])
+        .find((version) => version.generation === file.generation);
+      return new Response(object?.body ?? "", {
+        status: 200,
+        headers: {
+          "content-type": object?.contentType ?? "application/octet-stream",
+          ...(object ? { "content-length": String(object.size) } : {}),
+        },
+      });
+    });
+  }
+
+  return {
+    objects,
+    getObjectEntityFile,
+    ObjectNotFoundError: MockObjectNotFoundError,
+    ObjectStorageService: MockObjectStorageService,
+  };
+});
+
+const discussionAclMock = vi.hoisted(() => {
+  const policies = new Map<string, { owner: string; visibility: "private"; aclRules: [] }>();
+  return {
+    policies,
+    getDbObjectAclPolicy: vi.fn(async (objectPath: string) => policies.get(objectPath) ?? null),
+    getObjectAclPolicy: vi.fn(async () => null),
+    storePendingObjectAcl: vi.fn(async (objectPath: string, policy: { owner: string; visibility: "private"; aclRules: [] }) => {
+      policies.set(objectPath, policy);
+    }),
+    canAccessObject: vi.fn(async () => true),
+    ObjectPermission: { READ: "read", WRITE: "write" },
+    ObjectAccessGroupType: { AUTHENTICATED_USER: "AUTHENTICATED_USER", HOUSEHOLD_MEMBER: "HOUSEHOLD_MEMBER" },
+    DISCUSSION_IMAGE_LIFECYCLE_LOCK: "trailteam-discussion-image-lifecycle",
+  };
+});
 
 const events: EventFixture[] = [];
 const threads: ThreadFixture[] = [];
 const posts: PostFixture[] = [];
 const reactions: ReactionFixture[] = [];
+const attachments: AttachmentFixture[] = [];
 const users = [COACH, RIDER, OTHER_RIDER];
 let selectCallIndex = 0;
 let nextReactionId = 1;
+let nextThreadId = 10000;
+let nextPostId = 1000;
+let nextAttachmentId = 1;
 
 function chain<T>(result: T | (() => T)) {
   const query: any = {
@@ -123,120 +210,139 @@ vi.mock("@workspace/db", () => {
   const eventsTable = table("events");
   const targetIdFrom = (condition: any) =>
     currentTargetId ?? condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
-  return {
-    isEventAudienceMember: sharedIsEventAudienceMember,
-    db: {
-      select: vi.fn((selection?: Record<string, unknown>) => {
-        selectCallIndex += 1;
-        if (!selection) {
-          const query = chain(() => {
-            const source = (query as any)._source;
-            if (source === boardPostsTable) return posts;
-            if (source === usersTable) return users;
-            return threads;
-          });
-          query.from.mockImplementation((source: object) => {
-            query._source = source;
-            return query;
-          });
+  const targetPathFrom = (condition: any) =>
+    condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
+  const dbMock: any = {
+    select: vi.fn((selection?: Record<string, unknown>) => {
+      selectCallIndex += 1;
+      if (!selection) {
+        const query = chain(() => {
+          const source = (query as any)._source;
+          if (source === boardPostsTable) return posts;
+          if (source === usersTable) return users;
+          return threads;
+        });
+        query.from.mockImplementation((source: object) => {
+          query._source = source;
           return query;
+        });
+        return query;
+      }
+      if ("objectPath" in selection) {
+        const query = chain(() => {
+          const targetId = targetIdFrom(query._where);
+          return attachments
+            .filter((attachment) =>
+              attachment.threadId === targetId || attachment.postId === targetId)
+            .map(({ objectPath }) => ({ objectPath }));
+        });
+        query.from.mockImplementation((source: object) => { query._source = source; return query; });
+        query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
+        return query;
+      }
+      if ("count" in selection && "reacted" in selection) {
+        const query = chain(() => {
+          const targetId = targetIdFrom(query._where);
+          const targetRows = reactions.filter((reaction) =>
+            (targetId != null && (reaction.threadId === targetId || reaction.postId === targetId)));
+          return ["helpful", "like", "celebrate"]
+            .filter((kind) => targetRows.some((reaction) => reaction.reaction === kind))
+            .map((kind) => ({
+              reaction: kind,
+              count: targetRows.filter((reaction) => reaction.reaction === kind).length,
+              reacted: targetRows.some((reaction) => reaction.reaction === kind && reaction.userId === currentUser().id),
+            }));
+        });
+        query.from.mockImplementation((source: object) => { query._source = source; return query; });
+        query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
+        return query;
+      }
+      if ("firstName" in selection && "lastName" in selection) {
+        const query = chain(() => {
+          const targetId = targetIdFrom(query._where);
+          const reaction = reactions.filter((row) =>
+            row.reaction === currentReaction && (row.threadId === targetId || row.postId === targetId));
+          return reaction
+            .map((row) => users.find((user) => user.id === row.userId))
+            .filter(Boolean)
+            .map((user) => ({ id: user!.id, firstName: user!.firstName, lastName: user!.lastName, avatarUrl: user!.avatarUrl }));
+        });
+        query.from.mockImplementation((source: object) => { query._source = source; return query; });
+        query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
+        return query;
+      }
+      return chain([]);
+    }),
+    insert: vi.fn((source: object) => ({
+      values: vi.fn((value: any) => {
+        const values = Array.isArray(value) ? value : [value];
+        if (source === boardReactionsTable) {
+          reactions.push({ id: nextReactionId++, ...values[0] });
         }
-        if ("count" in selection && "reacted" in selection) {
-          const query = chain(() => {
-            const targetId = targetIdFrom(query._where);
-            const targetType = query._source === boardReactionsTable ? "unknown" : undefined;
-            const targetRows = reactions.filter((reaction) =>
-              (targetId != null && (reaction.threadId === targetId || reaction.postId === targetId)));
-            return ["helpful", "like", "celebrate"]
-              .filter((kind) => targetRows.some((reaction) => reaction.reaction === kind))
-              .map((kind) => ({
-                reaction: kind,
-                count: targetRows.filter((reaction) => reaction.reaction === kind).length,
-                reacted: targetRows.some((reaction) => reaction.reaction === kind && reaction.userId === currentUser().id),
-              }));
-          });
-          query.from.mockImplementation((source: object) => { query._source = source; return query; });
-          query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
-          return query;
+        if (source === boardPostsTable) {
+          posts.push({ id: nextPostId++, ...values[0] });
         }
-        if ("firstName" in selection && "lastName" in selection) {
-          const query = chain(() => {
-            const targetId = targetIdFrom(query._where);
-            const reaction = reactions.filter((row) =>
-              row.reaction === currentReaction && (row.threadId === targetId || row.postId === targetId));
-            return reaction
-              .map((row) => users.find((user) => user.id === row.userId))
-              .filter(Boolean)
-              .map((user) => ({ id: user!.id, firstName: user!.firstName, lastName: user!.lastName, avatarUrl: user!.avatarUrl }));
-          });
-          query.from.mockImplementation((source: object) => { query._source = source; return query; });
-          query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
-          return query;
+        if (source === boardThreadsTable) {
+          threads.push({ id: nextThreadId++, ...values[0], createdAt: NOW, lastReplyAt: null });
         }
-        return chain([]);
-      }),
-      insert: vi.fn((source: object) => ({
-        values: vi.fn((value: any) => {
-          if (source === boardReactionsTable) {
-            reactions.push({ id: nextReactionId++, ...value });
-          }
-          if (source === boardPostsTable) {
-            posts.push({ id: nextPostId++, ...value });
-          }
-          return {
-            returning: vi.fn(async () => {
-            if (source === boardReactionsTable) {
-              return [reactions.at(-1)];
-            }
-            if (source === boardPostsTable) {
-              return [posts.at(-1)];
-            }
+        if (source === boardAttachmentsTable) {
+          attachments.push(...values.map((attachment) => ({ id: nextAttachmentId++, ...attachment })));
+        }
+        return {
+          returning: vi.fn(async () => {
+            if (source === boardReactionsTable) return [reactions.at(-1)];
+            if (source === boardPostsTable) return [posts.at(-1)];
+            if (source === boardThreadsTable) return [threads.at(-1)];
             return [];
-            }),
-          };
-        }),
-      })),
-      delete: vi.fn((source: object) => ({
+          }),
+        };
+      }),
+    })),
+    delete: vi.fn((source: object) => ({
+      where: vi.fn(async (condition: any) => {
+        if (source === boardReactionsTable) {
+          const index = reactions.findIndex((reaction) =>
+            reaction.userId === currentUser().id &&
+            reaction.reaction === currentReaction &&
+            (reaction.threadId === currentTargetId || reaction.postId === currentTargetId));
+          if (index >= 0) reactions.splice(index, 1);
+        }
+        if (source === boardThreadsTable) {
+          const threadId = targetIdFrom(condition);
+          const threadIndex = threads.findIndex((thread) => thread.id === threadId);
+          if (threadIndex >= 0) threads.splice(threadIndex, 1);
+
+          // Mirror the database-level cascades from board.ts: deleting a
+          // thread removes its posts and all reactions on the thread/posts.
+          const postIds = posts
+            .filter((post) => post.threadId === threadId)
+            .map((post) => post.id);
+          for (let index = posts.length - 1; index >= 0; index -= 1) {
+            if (posts[index].threadId === threadId) posts.splice(index, 1);
+          }
+          for (let index = reactions.length - 1; index >= 0; index -= 1) {
+            if (reactions[index].threadId === threadId || (reactions[index].postId != null && postIds.includes(reactions[index].postId))) {
+              reactions.splice(index, 1);
+            }
+          }
+        }
+      }),
+    })),
+    update: vi.fn((source: object) => ({
+      set: vi.fn((value: any) => ({
         where: vi.fn(async (condition: any) => {
-          if (source === boardReactionsTable) {
-            const index = reactions.findIndex((reaction) =>
-              reaction.userId === currentUser().id &&
-              reaction.reaction === currentReaction &&
-              (reaction.threadId === currentTargetId || reaction.postId === currentTargetId));
-            if (index >= 0) reactions.splice(index, 1);
+          if (source === boardPostsTable) {
+            const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
+            if (post) Object.assign(post, value);
           }
           if (source === boardThreadsTable) {
-            const threadId = targetIdFrom(condition);
-            const threadIndex = threads.findIndex((thread) => thread.id === threadId);
-            if (threadIndex >= 0) threads.splice(threadIndex, 1);
-
-            // Mirror the database-level cascades from board.ts: deleting a
-            // thread removes its posts and all reactions on the thread/posts.
-            const postIds = posts
-              .filter((post) => post.threadId === threadId)
-              .map((post) => post.id);
-            for (let index = posts.length - 1; index >= 0; index -= 1) {
-              if (posts[index].threadId === threadId) posts.splice(index, 1);
-            }
-            for (let index = reactions.length - 1; index >= 0; index -= 1) {
-              if (reactions[index].threadId === threadId || (reactions[index].postId != null && postIds.includes(reactions[index].postId))) {
-                reactions.splice(index, 1);
-              }
-            }
+            const thread = threads.find((candidate) => candidate.id === targetIdFrom(condition));
+            if (thread) Object.assign(thread, value);
           }
         }),
       })),
-      update: vi.fn((source: object) => ({
-        set: vi.fn((value: any) => ({
-          where: vi.fn(async (condition: any) => {
-            if (source === boardPostsTable) {
-              const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
-              if (post) Object.assign(post, value);
-            }
-          }),
-        })),
-      })),
-      query: {
+    })),
+    query: {
         usersTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) =>
             Promise.resolve(users.find((user) => user.clerkUserId === currentClerkUserId) ?? null)),
@@ -251,6 +357,14 @@ vi.mock("@workspace/db", () => {
         },
         boardThreadsTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) => {
+            if (currentAttachmentPath) {
+              const attachment = attachments.find((candidate) => candidate.objectPath === currentAttachmentPath);
+              const attachedPost = attachment?.postId
+                ? posts.find((post) => post.id === attachment.postId)
+                : null;
+              const threadId = attachment?.threadId ?? attachedPost?.threadId;
+              return Promise.resolve(threads.find((thread) => thread.id === threadId) ?? null);
+            }
             const requestedId = targetIdFrom(where);
             const threadId = threads.some((thread) => thread.id === requestedId)
               ? requestedId
@@ -259,11 +373,18 @@ vi.mock("@workspace/db", () => {
           }),
         },
         boardPostsTable: {
-          findFirst: vi.fn().mockImplementation(({ where }: any) =>
-            Promise.resolve(posts.find((post) => post.id === targetIdFrom(where)) ?? null)),
+          findFirst: vi.fn().mockImplementation(({ where }: any) => {
+            if (currentAttachmentPath) {
+              const attachment = attachments.find((candidate) => candidate.objectPath === currentAttachmentPath);
+              return Promise.resolve(posts.find((post) => post.id === attachment?.postId) ?? null);
+            }
+            return Promise.resolve(posts.find((post) => post.id === targetIdFrom(where)) ?? null);
+          }),
         },
         boardAttachmentsTable: {
-          findFirst: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockImplementation(({ where }: any) =>
+            Promise.resolve(attachments.find((attachment) =>
+              attachment.objectPath === (currentAttachmentPath ?? targetPathFrom(where))) ?? null)),
         },
         boardReactionsTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) => {
@@ -276,7 +397,15 @@ vi.mock("@workspace/db", () => {
           }),
         },
       },
-    },
+  };
+  dbMock.transaction = vi.fn(async (callback: (tx: any) => unknown) => callback({
+    execute: vi.fn(async () => undefined),
+    insert: dbMock.insert,
+    update: dbMock.update,
+  }));
+  return {
+    isEventAudienceMember: sharedIsEventAudienceMember,
+    db: dbMock,
     boardThreadsTable,
     boardPostsTable,
     boardAttachmentsTable,
@@ -288,8 +417,8 @@ vi.mock("@workspace/db", () => {
 
 let currentClerkUserId = COACH.clerkUserId;
 let currentTargetId: number | null = null;
+let currentAttachmentPath: string | null = null;
 let currentReaction = "helpful";
-let nextPostId = 1000;
 function currentUser() {
   return users.find((user) => user.clerkUserId === currentClerkUserId) ?? COACH;
 }
@@ -313,12 +442,16 @@ vi.mock("../lib/notifications", () => notificationMock);
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+vi.mock("../lib/objectStorage", () => discussionStorageMock);
+vi.mock("../lib/objectAcl", () => discussionAclMock);
 
 const { default: boardRouter } = await import("./board");
+const { default: storageRouter } = await import("./storage");
 
 const app = express();
 app.use(express.json());
 app.use(boardRouter);
+app.use(storageRouter);
 let server: Server;
 let baseUrl: string;
 
@@ -336,9 +469,15 @@ beforeEach(() => {
   threads.length = 0;
   posts.length = 0;
   reactions.length = 0;
+  attachments.length = 0;
+  discussionStorageMock.objects.clear();
+  discussionAclMock.policies.clear();
   nextReactionId = 1;
+  nextThreadId = 10000;
+  nextAttachmentId = 1;
   currentClerkUserId = COACH.clerkUserId;
   currentTargetId = null;
+  currentAttachmentPath = null;
   currentReaction = "helpful";
   nextPostId = 1000;
   notificationMock.createNotification.mockClear();
@@ -378,6 +517,42 @@ function addPost(id: number, threadId: number, authorUserId = RIDER.id, isDelete
   });
 }
 
+function addDiscussionObject(
+  objectPath: string,
+  owner: typeof COACH | typeof RIDER | typeof OTHER_RIDER,
+  versions: DiscussionObjectFixture[] = [{
+    generation: "generation-1",
+    contentType: "image/jpeg",
+    size: 5,
+    body: "image",
+  }],
+) {
+  discussionStorageMock.objects.set(objectPath, versions);
+  discussionAclMock.policies.set(objectPath, {
+    owner: owner.clerkUserId,
+    visibility: "private",
+    aclRules: [],
+  });
+}
+
+function addAttachment(
+  objectPath: string,
+  target: { threadId?: number; postId?: number },
+  generation = "generation-1",
+  contentType = "image/jpeg",
+  size = 5,
+) {
+  attachments.push({
+    id: nextAttachmentId++,
+    objectPath,
+    threadId: target.threadId ?? null,
+    postId: target.postId ?? null,
+    contentType,
+    size,
+    generation,
+  });
+}
+
 async function getThreads(path: string, user: typeof COACH = COACH) {
   currentClerkUserId = user.clerkUserId;
   const threadId = path.match(/\/board\/threads\/(\d+)/)?.[1];
@@ -400,6 +575,45 @@ async function createReply(user: typeof COACH, threadId: number, body = "A reply
     body: JSON.stringify({ body }),
   });
   return { status: response.status, body: await response.json() };
+}
+
+async function createThreadWithImages(
+  user: typeof COACH | typeof RIDER | typeof OTHER_RIDER,
+  imageObjectPaths: unknown,
+  options: { podId?: string; eventId?: number } = {},
+) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = null;
+  currentAttachmentPath = Array.isArray(imageObjectPaths) && imageObjectPaths.length === 1
+    && typeof imageObjectPaths[0] === "string"
+    ? imageObjectPaths[0]
+    : null;
+  const response = await fetch(`${baseUrl}/board/threads`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-test-user": user.clerkUserId,
+    },
+    body: JSON.stringify({
+      title: "Picture planning",
+      body: "Attached pictures",
+      ...options,
+      imageObjectPaths,
+    }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function getDiscussionAttachment(user: typeof COACH | typeof RIDER | typeof OTHER_RIDER, objectPath: string) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = null;
+  currentAttachmentPath = objectPath;
+  const response = await fetch(`${baseUrl}/board/attachments${objectPath.replace("/objects", "")}`, {
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  const body = await response.text();
+  return { status: response.status, body };
 }
 
 async function toggleReaction(user: typeof COACH, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
@@ -456,6 +670,100 @@ async function deletePost(user: typeof COACH, postId: number) {
   });
   return { status: response.status };
 }
+
+describe("discussion image security boundaries", () => {
+  it("rejects images owned by another user, malformed paths, and paths already attached elsewhere", async () => {
+    const ownedByRider = "/objects/discussion-images/rider-photo";
+    addDiscussionObject(ownedByRider, RIDER);
+
+    const ownerMismatch = await createThreadWithImages(OTHER_RIDER, [ownedByRider]);
+    expect(ownerMismatch.status).toBe(400);
+    expect(ownerMismatch.body).toEqual({ error: "You can only attach images you uploaded" });
+
+    const malformed = await createThreadWithImages(RIDER, [
+      "/objects/uploads/not-a-discussion-image",
+    ]);
+    expect(malformed.status).toBe(400);
+    expect(malformed.body).toEqual({ error: "Invalid discussion image" });
+
+    addThread(500, 0, NOW);
+    addAttachment(ownedByRider, { threadId: 500 });
+    const reused = await createThreadWithImages(RIDER, [ownedByRider]);
+    expect(reused.status).toBe(400);
+    expect(reused.body).toEqual({ error: "This image is already attached to a discussion" });
+  });
+
+  it("enforces the four-image limit before accepting a discussion", async () => {
+    const paths = Array.from({ length: 5 }, (_, index) => `/objects/discussion-images/photo-${index}`);
+    for (const path of paths) addDiscussionObject(path, RIDER);
+
+    const response = await createThreadWithImages(RIDER, paths);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Attach no more than 4 images" });
+    expect(threads).toHaveLength(0);
+    expect(attachments).toHaveLength(0);
+  });
+
+  it("returns 404 for pod and event pictures outside the discussion audience", async () => {
+    const podPath = "/objects/discussion-images/pod-photo";
+    addDiscussionObject(podPath, RIDER);
+    addThread(600, 0, NOW);
+    threads[0].podId = "pod-a";
+    addAttachment(podPath, { threadId: 600 });
+
+    expect((await getDiscussionAttachment(RIDER, podPath)).status).toBe(200);
+    expect((await getDiscussionAttachment(OTHER_RIDER, podPath)).status).toBe(404);
+
+    const eventPath = "/objects/discussion-images/event-photo";
+    addDiscussionObject(eventPath, RIDER);
+    const event = addEvent(601, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    addThread(601, event.id, NOW);
+    addAttachment(eventPath, { threadId: 601 });
+
+    expect((await getDiscussionAttachment(RIDER, eventPath)).status).toBe(200);
+    expect((await getDiscussionAttachment(OTHER_RIDER, eventPath)).status).toBe(404);
+  });
+
+  it("stops serving pictures attached to deleted replies", async () => {
+    const objectPath = "/objects/discussion-images/deleted-reply";
+    addDiscussionObject(objectPath, RIDER);
+    addThread(700, 0, NOW);
+    addPost(701, 700);
+    addAttachment(objectPath, { postId: 701 });
+
+    expect((await getDiscussionAttachment(RIDER, objectPath)).status).toBe(200);
+    posts[0].isDeleted = true;
+    expect((await getDiscussionAttachment(RIDER, objectPath)).status).toBe(404);
+  });
+
+  it("serves the recorded immutable generation after an object is overwritten", async () => {
+    const objectPath = "/objects/discussion-images/versioned";
+    addDiscussionObject(objectPath, RIDER, [
+      { generation: "generation-1", contentType: "image/jpeg", size: 8, body: "original" },
+      { generation: "generation-2", contentType: "image/jpeg", size: 9, body: "overwrite" },
+    ]);
+    addThread(800, 0, NOW);
+    addAttachment(objectPath, { threadId: 800 }, "generation-1", "image/jpeg", 8);
+
+    const response = await getDiscussionAttachment(RIDER, objectPath);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toBe("original");
+    expect(discussionStorageMock.getObjectEntityFile).toHaveBeenLastCalledWith(objectPath, "generation-1");
+  });
+
+  it("refuses discussion-image paths through the generic storage route", async () => {
+    const response = await fetch(`${baseUrl}/storage/objects/discussion-images/private-photo`, {
+      headers: { "x-test-user": RIDER.clerkUserId },
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Object not found" });
+  });
+});
 
 describe("event discussion board visibility and ordering", () => {
   it("uses the shared pod, team-wide, and staff audience rules", async () => {
