@@ -22,3 +22,17 @@ mtime_ms = 1789015667546
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:a99d8236-646d-4331-9b60-0e0f5aafe725/c1f7d2fe-cefb-4371-9794-9f4a44c15916/a491d0a2-ebb0-441d-be14-ebc2e0eda036"
 storage_version_token = "1789015677655578"
 content_type = "image/png"
+
+[[outputs]]
+id = "q0-gATTSDi-zmnKJ_Tgak"
+uri = "file://artifacts/trailtribe/resources/trailteam-feature-graphic-1024x500.png"
+type = "image"
+title = "TrailTeam Google Play Feature Graphic"
+description = "1024×500 PNG, 47 KB, ready for the Google Play Feature graphic field."
+logical_id = "c2d348f7-db2d-4acf-892d-e163c35d9a74"
+content_hash = "sha256:6128709cdafc7d007117fda1838aba6fb10b59e7ff415d2947e8c6a6ea30cf17"
+size = 47193
+mtime_ms = 1789015850632
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:a99d8236-646d-4331-9b60-0e0f5aafe725/c2d348f7-db2d-4acf-892d-e163c35d9a74/e8c00604-d1b3-4f62-beb8-d823ea08e2ab"
+storage_version_token = "1789015863559139"
+content_type = "image/png"
