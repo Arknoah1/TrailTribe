@@ -13,7 +13,7 @@ const config: CapacitorConfig = {
     allowNavigation: [
       "trailteam.app",
       "trailtribemtb.com",
-      "accounts.trailtribemtb.com",
+      "*.trailtribemtb.com",
       "*.clerk.accounts.dev",
       "*.clerk.com",
     ],
