@@ -10,7 +10,13 @@ const config: CapacitorConfig = {
     // supplied without changing source code via CAP_SERVER_URL.
     url: process.env.CAP_SERVER_URL,
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
-    allowNavigation: ["trailteam.app", "*.clerk.accounts.dev", "*.clerk.com"],
+    allowNavigation: [
+      "trailteam.app",
+      "trailtribemtb.com",
+      "accounts.trailtribemtb.com",
+      "*.clerk.accounts.dev",
+      "*.clerk.com",
+    ],
   },
   plugins: {
     SplashScreen: {
