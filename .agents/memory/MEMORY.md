@@ -20,3 +20,4 @@
 - [Private discussion attachments](private-discussion-attachments.md) — use a dedicated namespace, one authoritative parent, and generation-pinned reads
 - [Private image regression fixtures](private-image-regression-fixtures.md) — security tests must model parent visibility and immutable object versions, not only ACL ownership
 - [Discussion image lifecycle lock](discussion-image-lifecycle-lock.md) — cleanup and attachment claiming must share a transaction advisory lock
+- [Native bundle credential checks](native-bundle-credential-checks.md) — match complete encoded keys and scan extracted archives to avoid SDK-prefix and pipefail false results

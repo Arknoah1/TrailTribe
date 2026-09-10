@@ -26,6 +26,28 @@ if (!basePath) {
   );
 }
 
+if (process.env.TRAILTEAM_MOBILE_BUILD === "true") {
+  const clerkPublishableKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+  if (!clerkPublishableKey) {
+    throw new Error(
+      "Native build blocked: VITE_CLERK_PUBLISHABLE_KEY is required.",
+    );
+  }
+
+  if (!clerkPublishableKey.startsWith("pk_live_")) {
+    throw new Error(
+      "Native build blocked: VITE_CLERK_PUBLISHABLE_KEY must be the production pk_live_ key.",
+    );
+  }
+
+  if (process.env.CAP_SERVER_URL) {
+    throw new Error(
+      "Native build blocked: CAP_SERVER_URL must not be set for a packaged release.",
+    );
+  }
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [

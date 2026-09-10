@@ -61,6 +61,8 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:clean
 
       - name: Build debug APK
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
         run: pnpm --filter @workspace/trailtribe run mobile:debug:android
 
       - name: Verify APK contents and create checksum
@@ -71,11 +73,14 @@ jobs:
           release_dir="release-assets"
           test -s "$source_apk"
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$source_apk" | grep -F "package: name='app.trailteam.trailteam'"
-          if unzip -p "$source_apk" | grep -a -q "trailtribemtb.com"; then
-            echo "Deprecated public domain found in APK"
+          apk_contents="$RUNNER_TEMP/trailteam-apk-contents.bin"
+          unzip -p "$source_apk" > "$apk_contents"
+          if grep -a -E -q "pk_test_[A-Za-z0-9_$-]{12,}" "$apk_contents"; then
+            echo "Development Clerk key found in APK"
             exit 1
           fi
-          if unzip -p "$source_apk" | grep -a -q "com.trailtribemtb.trailtribe"; then
+          grep -a -q "https://trailteam.app/api/__clerk" "$apk_contents"
+          if grep -a -q "com.trailtribemtb.trailtribe" "$apk_contents"; then
             echo "Deprecated package identifier found in APK"
             exit 1
           fi

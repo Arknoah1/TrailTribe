@@ -14,6 +14,9 @@ native package identifiers are permanent:
 1. Install the platform toolchains (Xcode on macOS and Android Studio/JDK for
    Android).
 2. Set the same Clerk and API environment values used by the web artifact.
+   Native builds require the production `pk_live_` Clerk publishable key and
+   intentionally fail if the key is missing or belongs to a development
+   instance.
 3. Run `pnpm --filter @workspace/trailtribe run build`.
 4. Run `pnpm --filter @workspace/trailtribe run mobile:sync`.
 5. Open the platform project with `mobile:ios` or `mobile:android`.

@@ -97,6 +97,13 @@ jobs:
           source_aab="artifacts/trailtribe/android/app/build/outputs/bundle/release/app-release.aab"
           release_dir="release-assets"
           test -s "$source_aab"
+          aab_contents="$RUNNER_TEMP/trailteam-aab-contents.bin"
+          unzip -p "$source_aab" > "$aab_contents"
+          if grep -a -E -q "pk_test_[A-Za-z0-9_$-]{12,}" "$aab_contents"; then
+            echo "Development Clerk key found in release bundle"
+            exit 1
+          fi
+          grep -a -q "https://trailteam.app/api/__clerk" "$aab_contents"
           mkdir -p "$release_dir"
           cp "$source_aab" "$release_dir/trailteam-release.aab"
           sha256sum "$release_dir/trailteam-release.aab" > "$release_dir/trailteam-release.aab.sha256"

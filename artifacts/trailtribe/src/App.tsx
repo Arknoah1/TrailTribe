@@ -351,9 +351,23 @@ function DummyPage({ title }: { title: string }) {
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
 
+  if (!clerkPubKey) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-[#0f1117] p-6 text-[#e8e9eb]">
+        <div role="alert" className="w-full max-w-md rounded-xl border-2 border-[#2e3340] bg-[#151922] p-6 text-center">
+          <h1 className="text-2xl font-bold">TrailTeam couldn't start</h1>
+          <p className="mt-3 text-sm text-[#aab2bf]">
+            This app build is missing its sign-in configuration. Please install
+            the latest build or contact TrailTeam support.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <ClerkProvider
-      publishableKey={clerkPubKey!}
+      publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
