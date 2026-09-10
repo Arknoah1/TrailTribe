@@ -7,3 +7,18 @@ uri = "file://artifacts/trailtribe/resources/trailtribe-icon.svg"
 type = "image"
 title = "TrailTeam app icon source"
 description = "The editable SVG source used for the TrailTeam native app icon."
+logical_id = "17dc543a-d624-4b84-9779-49aff6f619e7"
+
+[[outputs]]
+id = "NBfFjvNGwYbTIDEDBB0h8"
+uri = "file://artifacts/trailtribe/resources/trailteam-play-store-icon-512.png"
+type = "image"
+title = "TrailTeam Google Play Icon"
+description = "512×512 PNG app icon, 16 KB, ready for the Google Play listing."
+logical_id = "c1f7d2fe-cefb-4371-9794-9f4a44c15916"
+content_hash = "sha256:d3e5f70a3925230aa1b31b947280d57368a866e7ce68793d65ba759a5562df61"
+size = 16389
+mtime_ms = 1789015667546
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:a99d8236-646d-4331-9b60-0e0f5aafe725/c1f7d2fe-cefb-4371-9794-9f4a44c15916/a491d0a2-ebb0-441d-be14-ebc2e0eda036"
+storage_version_token = "1789015677655578"
+content_type = "image/png"
