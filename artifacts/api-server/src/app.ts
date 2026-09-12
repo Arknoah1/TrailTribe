@@ -35,8 +35,6 @@ app.use(
   }),
 );
 
-app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
-
 // Security headers
 app.use(helmet());
 
@@ -67,6 +65,10 @@ app.use(
         : true, // No env vars configured — open during early local dev only
   })
 );
+
+// Keep the proxy after security and CORS middleware so its responses receive
+// the same headers as the rest of the API, but before body parsing.
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
