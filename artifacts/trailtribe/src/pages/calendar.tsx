@@ -38,21 +38,13 @@ import { LoadErrorCard } from "@/components/network-status";
 import { CalendarSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
 import { trackEvent } from "@/lib/analytics";
+import { isCalendarEventCompleted } from "@/lib/calendar-events";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 type CalendarView = "list" | "month";
-type CalendarEventTiming = {
-  startTime: string;
-  endTime?: string | null;
-};
 
 const SHOW_COMPLETED_STORAGE_KEY = "tt-calendar-show-completed";
-
-export function isCalendarEventCompleted(event: CalendarEventTiming, now = new Date()): boolean {
-  const completionTime = event.endTime ?? event.startTime;
-  return new Date(completionTime).getTime() <= now.getTime();
-}
 
 function getStoredView(): CalendarView {
   try {

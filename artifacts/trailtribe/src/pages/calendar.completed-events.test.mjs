@@ -3,13 +3,30 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { isCalendarEventCompleted } from "../lib/calendar-events.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const calendarSource = await readFile(resolve(here, "calendar.tsx"), "utf8");
 
-test("calendar completion uses the end time and falls back to the start time", () => {
-  assert.match(calendarSource, /const completionTime = event\.endTime \?\? event\.startTime/);
-  assert.match(calendarSource, /new Date\(completionTime\)\.getTime\(\) <= now\.getTime\(\)/);
+test("calendar completion uses the end time when present", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  assert.equal(isCalendarEventCompleted({
+    startTime: "2026-09-12T10:00:00.000Z",
+    endTime: "2026-09-12T13:00:00.000Z",
+  }, now), false);
+  assert.equal(isCalendarEventCompleted({
+    startTime: "2026-09-12T09:00:00.000Z",
+    endTime: "2026-09-12T11:00:00.000Z",
+  }, now), true);
+});
+
+test("calendar completion falls back to the start time and includes the boundary", () => {
+  const now = new Date("2026-09-12T12:00:00.000Z");
+
+  assert.equal(isCalendarEventCompleted({ startTime: "2026-09-12T11:59:59.000Z" }, now), true);
+  assert.equal(isCalendarEventCompleted({ startTime: "2026-09-12T12:00:00.000Z" }, now), true);
+  assert.equal(isCalendarEventCompleted({ startTime: "2026-09-12T12:00:01.000Z" }, now), false);
 });
 
 test("completed events are hidden by default and the preference is persisted", () => {
