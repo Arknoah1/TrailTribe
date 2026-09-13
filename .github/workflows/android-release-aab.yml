@@ -81,6 +81,9 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
         run: pnpm --filter @workspace/trailtribe run mobile:sync
 
+      - name: Verify native web bundle
+        run: pnpm --filter @workspace/trailtribe run mobile:verify
+
       - name: Build signed release bundle
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks

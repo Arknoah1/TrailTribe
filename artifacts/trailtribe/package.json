@@ -11,11 +11,12 @@
     "test": "node --test src/**/*.test.mjs",
     "test:browser": "node --test --test-concurrency=1 tests/*.test.mjs",
     "mobile:build": "TRAILTEAM_MOBILE_BUILD=true NODE_ENV=production PORT=5173 BASE_PATH=/ VITE_API_ORIGIN=https://trailteam.app pnpm run build",
+    "mobile:verify": "node scripts/verify-mobile-bundle.mjs",
     "mobile:sync": "pnpm run mobile:build && cap sync",
     "mobile:android": "pnpm run mobile:sync && cap open android",
     "mobile:ios": "pnpm run mobile:sync && cap open ios",
-    "mobile:debug:android": "pnpm run mobile:sync && (cd android && ./gradlew assembleDebug)",
-    "mobile:release:android": "pnpm run mobile:sync && cap build android",
+    "mobile:debug:android": "pnpm run mobile:sync && pnpm run mobile:verify && (cd android && ./gradlew assembleDebug)",
+    "mobile:release:android": "pnpm run mobile:sync && pnpm run mobile:verify && cap build android",
     "mobile:release:ios": "pnpm run mobile:sync && cap build ios"
   },
   "devDependencies": {

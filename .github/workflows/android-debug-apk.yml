@@ -60,10 +60,18 @@ jobs:
       - name: Verify API server
         run: pnpm --filter @workspace/api-server run test:clean
 
-      - name: Build debug APK
+      - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-        run: pnpm --filter @workspace/trailtribe run mobile:debug:android
+        run: pnpm --filter @workspace/trailtribe run mobile:sync
+
+      - name: Verify native web bundle
+        run: pnpm --filter @workspace/trailtribe run mobile:verify
+
+      - name: Build debug APK
+        run: |
+          cd artifacts/trailtribe/android
+          ./gradlew assembleDebug
 
       - name: Verify APK contents and create checksum
         id: apk
