@@ -133,6 +133,7 @@ vi.mock("../middlewares/requireAuth", () => ({
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
   requireApproved: (_req: unknown, _res: unknown, next: () => void) => next(),
   requireCoachOrAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
+  requireSuperAdmin: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 vi.mock("./board", () => ({ createEventThread: vi.fn(() => Promise.resolve()) }));
 vi.mock("../lib/rsvpEmailBatches", () => ({ queueRsvpConfirmationBatch: vi.fn() }));
