@@ -59,6 +59,7 @@ import type {
   DeleteSeriesParams,
   ErrorResponse,
   EventAttachment,
+  EventCancellationOptions,
   EventRsvp,
   EventRsvpWithUser,
   EventTask,
@@ -2589,12 +2590,15 @@ export const getDeleteSeriesUrl = (
 
 export const deleteSeries = async (
   seriesId: string,
+  eventCancellationOptions?: EventCancellationOptions,
   params?: DeleteSeriesParams,
   options?: RequestInit,
 ): Promise<DeleteSeries200> => {
   return customFetch<DeleteSeries200>(getDeleteSeriesUrl(seriesId, params), {
     ...options,
     method: "DELETE",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eventCancellationOptions),
   });
 };
 
@@ -2605,14 +2609,22 @@ export const getDeleteSeriesMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteSeries>>,
     TError,
-    { seriesId: string; params?: DeleteSeriesParams },
+    {
+      seriesId: string;
+      data: BodyType<EventCancellationOptions>;
+      params?: DeleteSeriesParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteSeries>>,
   TError,
-  { seriesId: string; params?: DeleteSeriesParams },
+  {
+    seriesId: string;
+    data: BodyType<EventCancellationOptions>;
+    params?: DeleteSeriesParams;
+  },
   TContext
 > => {
   const mutationKey = ["deleteSeries"];
@@ -2626,11 +2638,15 @@ export const getDeleteSeriesMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteSeries>>,
-    { seriesId: string; params?: DeleteSeriesParams }
+    {
+      seriesId: string;
+      data: BodyType<EventCancellationOptions>;
+      params?: DeleteSeriesParams;
+    }
   > = (props) => {
-    const { seriesId, params } = props ?? {};
+    const { seriesId, data, params } = props ?? {};
 
-    return deleteSeries(seriesId, params, requestOptions);
+    return deleteSeries(seriesId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2639,7 +2655,7 @@ export const getDeleteSeriesMutationOptions = <
 export type DeleteSeriesMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteSeries>>
 >;
-
+export type DeleteSeriesMutationBody = BodyType<EventCancellationOptions>;
 export type DeleteSeriesMutationError = ErrorType<unknown>;
 
 /**
@@ -2652,14 +2668,22 @@ export const useDeleteSeries = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteSeries>>,
     TError,
-    { seriesId: string; params?: DeleteSeriesParams },
+    {
+      seriesId: string;
+      data: BodyType<EventCancellationOptions>;
+      params?: DeleteSeriesParams;
+    },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof deleteSeries>>,
   TError,
-  { seriesId: string; params?: DeleteSeriesParams },
+  {
+    seriesId: string;
+    data: BodyType<EventCancellationOptions>;
+    params?: DeleteSeriesParams;
+  },
   TContext
 > => {
   return useMutation(getDeleteSeriesMutationOptions(options));
@@ -2917,11 +2941,14 @@ export const getDeleteEventUrl = (id: number) => {
 
 export const deleteEvent = async (
   id: number,
+  eventCancellationOptions?: EventCancellationOptions,
   options?: RequestInit,
 ): Promise<void> => {
   return customFetch<void>(getDeleteEventUrl(id), {
     ...options,
     method: "DELETE",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(eventCancellationOptions),
   });
 };
 
@@ -2932,14 +2959,14 @@ export const getDeleteEventMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteEvent>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<EventCancellationOptions> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteEvent>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<EventCancellationOptions> },
   TContext
 > => {
   const mutationKey = ["deleteEvent"];
@@ -2953,11 +2980,11 @@ export const getDeleteEventMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteEvent>>,
-    { id: number }
+    { id: number; data: BodyType<EventCancellationOptions> }
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, data } = props ?? {};
 
-    return deleteEvent(id, requestOptions);
+    return deleteEvent(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -2966,7 +2993,7 @@ export const getDeleteEventMutationOptions = <
 export type DeleteEventMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteEvent>>
 >;
-
+export type DeleteEventMutationBody = BodyType<EventCancellationOptions>;
 export type DeleteEventMutationError = ErrorType<unknown>;
 
 export const useDeleteEvent = <
@@ -2976,14 +3003,14 @@ export const useDeleteEvent = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteEvent>>,
     TError,
-    { id: number },
+    { id: number; data: BodyType<EventCancellationOptions> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof deleteEvent>>,
   TError,
-  { id: number },
+  { id: number; data: BodyType<EventCancellationOptions> },
   TContext
 > => {
   return useMutation(getDeleteEventMutationOptions(options));

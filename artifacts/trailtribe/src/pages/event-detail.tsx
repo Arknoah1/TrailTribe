@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn, formatEventType } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
@@ -209,6 +210,8 @@ export default function EventDetail() {
 
   const [showEdit, setShowEdit] = useState(false);
   const [notifyFamilies, setNotifyFamilies] = useState(true);
+  const [showCancelEvent, setShowCancelEvent] = useState(false);
+  const [notifyCancellation, setNotifyCancellation] = useState(true);
   const [editData, setEditData] = useState<{
     title: string;
     description: string;
@@ -541,6 +544,22 @@ export default function EventDetail() {
         queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
       },
       onError: () => toast({ title: "Failed to update event", variant: "destructive" }),
+    });
+  };
+
+  const handleCancelEvent = () => {
+    updateEvent.mutate({
+      id: eventId,
+      data: { isArchived: true, notifyFamilies: notifyCancellation },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Event canceled" });
+        setShowCancelEvent(false);
+        setShowEdit(false);
+        queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+        window.location.assign(`${BASE_URL}/calendar`);
+      },
+      onError: () => toast({ title: "Failed to cancel event", variant: "destructive" }),
     });
   };
 
@@ -1461,8 +1480,48 @@ export default function EventDetail() {
             </Button>
             <Button variant="outline" onClick={() => setShowEdit(false)} disabled={updateEvent.isPending}>Cancel</Button>
           </div>
+          {new Date(event.startTime).getTime() > Date.now() && (
+            <div className="border-t pt-4 mt-2">
+              <Button
+                variant="outline"
+                className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => { setNotifyCancellation(true); setShowCancelEvent(true); }}
+                disabled={updateEvent.isPending}
+              >
+                Cancel event
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showCancelEvent} onOpenChange={setShowCancelEvent}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this event?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{event.title}” will be removed from family calendars.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm cursor-pointer">
+            <span>
+              <span className="font-medium block">Notify affected families</span>
+              <span className="text-xs text-muted-foreground">Sends a cancellation alert using each family's enabled channels.</span>
+            </span>
+            <Switch checked={notifyCancellation} onCheckedChange={setNotifyCancellation} />
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep event</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleCancelEvent}
+              disabled={updateEvent.isPending}
+            >
+              {notifyCancellation ? "Cancel and notify" : "Cancel without notifying"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ─── ADD FROM TEMPLATES DIALOG ─────────────────────────────────────────── */}
       <Dialog open={showTemplateSelector} onOpenChange={open => {

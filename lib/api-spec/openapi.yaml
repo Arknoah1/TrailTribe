@@ -783,6 +783,12 @@ paths:
           schema:
             type: string
             format: date
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCancellationOptions"
       responses:
         "200":
           description: Deletion result
@@ -885,6 +891,12 @@ paths:
           required: true
           schema:
             type: integer
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventCancellationOptions"
       responses:
         "204":
           description: Deleted
@@ -3158,6 +3170,14 @@ components:
           type: boolean
           default: true
           description: Send change notifications for material updates. Omitted values default to true.
+
+    EventCancellationOptions:
+      type: object
+      properties:
+        notifyFamilies:
+          type: boolean
+          default: true
+          description: Send an audience-safe cancellation notification. Omitted values default to true.
 
     # ─── RSVP ─────────────────────────────────────────────────────────────────
 

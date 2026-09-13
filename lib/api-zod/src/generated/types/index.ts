@@ -70,6 +70,7 @@ export * from "./deleteSeriesParams";
 export * from "./errorResponse";
 export * from "./event";
 export * from "./eventAttachment";
+export * from "./eventCancellationOptions";
 export * from "./eventEventType";
 export * from "./eventRsvp";
 export * from "./eventRsvpStatus";

@@ -206,6 +206,67 @@ export function buildEventChangeMessage(
   };
 }
 
+export function buildEventCancellationMessage(event: EventRecord): DeliveryMessage {
+  return {
+    title: `Event canceled: ${event.title}`,
+    body: `${event.title} on ${formatEventDateTime(event.startTime)} has been canceled.`,
+    link: "/calendar",
+  };
+}
+
+export function buildSeriesCancellationMessage(
+  events: EventRecord[],
+  user: Pick<Recipient, "role" | "podId">,
+): DeliveryMessage | null {
+  const visibleEvents = events
+    .filter((event) => isEventAudienceMember(event, user))
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+  if (visibleEvents.length === 0) return null;
+  const first = visibleEvents[0];
+  return {
+    title: "Event series canceled",
+    body: [
+      `${visibleEvents.length} upcoming event${visibleEvents.length === 1 ? "" : "s"} ${visibleEvents.length === 1 ? "has" : "have"} been canceled.`,
+      `First canceled event: ${first.title}`,
+      `Starts: ${formatEventDateTime(first.startTime)}`,
+    ].join("\n"),
+    link: "/calendar",
+  };
+}
+
+export async function notifyEventCanceled(event: EventRecord): Promise<void> {
+  if (event.startTime.getTime() <= Date.now()) return;
+  const users = await db.select().from(usersTable);
+  const recipients = users.filter((user) =>
+    Object.values(getEventChangeDeliveryChannels(user)).some(Boolean)
+    && isEventAudienceMember(event, user));
+  const orgPrefix = await getShortNamePrefix();
+  const message = buildEventCancellationMessage(event);
+  await Promise.allSettled(recipients.map(async (user) => {
+    try {
+      await deliver(user, message.title, message.body, message.link, `${orgPrefix}${message.title}`);
+    } catch (err) {
+      logger.error({ err, eventId: event.id, userId: user.id }, "[event-cancellations] delivery failed");
+    }
+  }));
+}
+
+export async function notifySeriesCanceled(events: EventRecord[]): Promise<void> {
+  if (events.length === 0) return;
+  const users = await db.select().from(usersTable);
+  const orgPrefix = await getShortNamePrefix();
+  await Promise.allSettled(users.map(async (user) => {
+    if (!Object.values(getEventChangeDeliveryChannels(user)).some(Boolean)) return;
+    const message = buildSeriesCancellationMessage(events, user);
+    if (!message) return;
+    try {
+      await deliver(user, message.title, message.body, message.link, `${orgPrefix}${message.title}`);
+    } catch (err) {
+      logger.error({ err, seriesId: events[0].seriesId, userId: user.id }, "[event-cancellations] series delivery failed");
+    }
+  }));
+}
+
 export function buildSeriesRescheduleMessage(
   beforeEvents: EventRecord[],
   afterEvents: EventRecord[],

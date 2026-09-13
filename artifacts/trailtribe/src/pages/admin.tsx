@@ -343,6 +343,10 @@ export default function Admin() {
   const [shiftDaysInputs, setShiftDaysInputs] = useState<Record<string, string>>({});
   const [shiftNotifyFamilies, setShiftNotifyFamilies] = useState<Record<string, boolean>>({});
   const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
+  const [eventCancellation, setEventCancellation] = useState<
+    { kind: "event"; id: number; title: string } | { kind: "series"; seriesId: string; count: number } | null
+  >(null);
+  const [notifyCancellation, setNotifyCancellation] = useState(true);
   const createEvent = useCreateEvent();
   const [showAddEvent, setShowAddEvent] = useState(false);
   const emptyNewEvent: { title: string; description: string; eventType: CreateEventBodyEventType; startDate: string; startTime: string; endTime: string; trailheadId: string; isAllTeam: boolean; podId: string } = {
@@ -2351,15 +2355,37 @@ export default function Admin() {
             });
             const seriesIds = Object.keys(seriesGroups);
 
-            const handleDelete = (id: number) => {
-              if (!confirm("Delete this event?")) return;
-              deleteEvent.mutate({ id }, {
-                onSuccess: () => {
-                  toast({ title: "Event deleted" });
+            const handleDelete = (id: number, title: string) => {
+              setNotifyCancellation(true);
+              setEventCancellation({ kind: "event", id, title });
+            };
+
+            const confirmCancellation = () => {
+              if (!eventCancellation) return;
+              if (eventCancellation.kind === "event") {
+                deleteEvent.mutate({ id: eventCancellation.id, data: { notifyFamilies: notifyCancellation } }, {
+                  onSuccess: () => {
+                    toast({ title: "Event canceled" });
+                    setEventCancellation(null);
+                    queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
+                    refetchEvents();
+                  },
+                  onError: () => toast({ title: "Failed to cancel event", variant: "destructive" }),
+                });
+                return;
+              }
+              deleteSeries.mutate({
+                seriesId: eventCancellation.seriesId,
+                params: { fromDate: toLocalDateISO(now) },
+                data: { notifyFamilies: notifyCancellation },
+              }, {
+                onSuccess: (data) => {
+                  toast({ title: `${data.deleted} upcoming event${data.deleted === 1 ? "" : "s"} canceled` });
+                  setEventCancellation(null);
                   queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
                   refetchEvents();
                 },
-                onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+                onError: () => toast({ title: "Failed to cancel series", variant: "destructive" }),
               });
             };
 
@@ -2411,16 +2437,9 @@ export default function Admin() {
 
             const handleDeleteSeries = (seriesId: string) => {
               const group = seriesGroups[seriesId];
-              const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
-              if (!confirm(`Delete ${futureCount} upcoming event${futureCount !== 1 ? "s" : ""} in this series?`)) return;
-              deleteSeries.mutate({ seriesId, params: { fromDate: toLocalDateISO(now) } }, {
-                onSuccess: (data) => {
-                  toast({ title: `${(data as any).deleted} events deleted` });
-                  refetchEvents();
-                  queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
-                },
-                onError: () => toast({ title: "Failed to delete series", variant: "destructive" }),
-              });
+              const futureCount = group.filter(e => !e.isArchived && new Date(e.startTime) >= now).length;
+              setNotifyCancellation(true);
+              setEventCancellation({ kind: "series", seriesId, count: futureCount });
             };
 
             const handleRescheduleSeries = (seriesId: string) => {
@@ -2567,7 +2586,14 @@ export default function Admin() {
                                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(ev)}>
                                           <Pencil className="h-3.5 w-3.5" />
                                         </Button>
-                                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(ev.id)}>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                          onClick={() => handleDelete(ev.id, ev.title)}
+                                          aria-label={ev.isArchived ? `${ev.title} is already canceled` : `Cancel ${ev.title}`}
+                                          disabled={ev.isArchived}
+                                        >
                                           <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                       </>
@@ -2826,7 +2852,7 @@ export default function Admin() {
                     <div className="space-y-2">
                       {seriesIds.map(sid => {
                         const group = seriesGroups[sid];
-                        const futureCount = group.filter(e => new Date(e.startTime) >= now).length;
+                        const futureCount = group.filter(e => !e.isArchived && new Date(e.startTime) >= now).length;
                         const earliest = group.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
                         const latest = group[group.length - 1];
                         const isExpanded = expandedSeries[sid] ?? false;
@@ -2923,6 +2949,38 @@ export default function Admin() {
                     </div>
                   </div>
                 )}
+
+                <AlertDialog open={eventCancellation !== null} onOpenChange={(open) => { if (!open) setEventCancellation(null); }}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {eventCancellation?.kind === "series" ? "Cancel upcoming series events?" : "Cancel this event?"}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {eventCancellation?.kind === "series"
+                          ? `${eventCancellation.count} upcoming event${eventCancellation.count === 1 ? "" : "s"} will be removed from family calendars.`
+                          : `"${eventCancellation?.title ?? "This event"}" will be removed from family calendars.`}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <label className="flex items-center justify-between gap-4 rounded-md border p-3 text-sm cursor-pointer">
+                      <span>
+                        <span className="font-medium block">Notify affected families</span>
+                        <span className="text-xs text-muted-foreground">Sends a cancellation alert using each family's enabled channels.</span>
+                      </span>
+                      <Switch checked={notifyCancellation} onCheckedChange={setNotifyCancellation} />
+                    </label>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep event</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={confirmCancellation}
+                        disabled={deleteEvent.isPending || deleteSeries.isPending}
+                      >
+                        {notifyCancellation ? "Cancel and notify" : "Cancel without notifying"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             );
           })()}

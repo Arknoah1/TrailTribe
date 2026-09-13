@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEventChangeMessage,
+  buildEventCancellationMessage,
+  buildSeriesCancellationMessage,
   buildSeriesRescheduleMessage,
   getEventChangeDeliveryChannels,
   getMaterialEventChanges,
@@ -117,6 +119,30 @@ describe("event change summaries", () => {
     );
     expect(message?.body).toContain("1 upcoming event was moved 1 day later");
     expect(message?.body).toContain("First event: Tuesday Ride");
+    expect(message?.body).not.toContain("Blue Pod Private Ride");
+  });
+
+  it("builds an audience-safe cancellation notice from pre-cancellation details", () => {
+    const message = buildEventCancellationMessage(event);
+    expect(message.title).toBe("Event canceled: Tuesday Ride");
+    expect(message.body).toContain("Tuesday Ride");
+    expect(message.link).toBe("/calendar");
+  });
+
+  it("summarizes only the canceled series events visible to each recipient", () => {
+    const blueEvent = {
+      ...event,
+      id: 2,
+      title: "Blue Pod Private Ride",
+      podIds: ["blue"],
+      startTime: new Date("2026-09-15T01:00:00.000Z"),
+    };
+    const message = buildSeriesCancellationMessage(
+      [blueEvent, event],
+      { role: "parent", podId: "green" },
+    );
+    expect(message?.body).toContain("1 upcoming event has been canceled");
+    expect(message?.body).toContain("First canceled event: Tuesday Ride");
     expect(message?.body).not.toContain("Blue Pod Private Ride");
   });
 });

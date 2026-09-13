@@ -418,6 +418,11 @@ export interface UpdateEventBody {
   notifyFamilies?: boolean;
 }
 
+export interface EventCancellationOptions {
+  /** Send an audience-safe cancellation notification. Omitted values default to true. */
+  notifyFamilies?: boolean;
+}
+
 export type RsvpBodyStatus =
   (typeof RsvpBodyStatus)[keyof typeof RsvpBodyStatus];
 

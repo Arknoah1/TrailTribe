@@ -20,7 +20,12 @@ import { logger } from "../lib/logger";
 import { createEventThread } from "./board";
 import { queueRsvpConfirmationBatch } from "../lib/rsvpEmailBatches";
 import { shouldQueueRsvpConfirmation } from "../lib/rsvpEmailContent";
-import { notifyEventChanged, notifySeriesRescheduled } from "../lib/eventChangeNotifications";
+import {
+  notifyEventCanceled,
+  notifyEventChanged,
+  notifySeriesCanceled,
+  notifySeriesRescheduled,
+} from "../lib/eventChangeNotifications";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -186,12 +191,23 @@ router.post("/events/batch", requireCoachOrAdmin, async (req, res) => {
 router.delete("/series/:seriesId", requireCoachOrAdmin, async (req, res) => {
   const sid = str(req.params.seriesId);
   const fromDate = (req.query as any).fromDate;
+  const notifyFamilies = req.body?.notifyFamilies !== false;
   const cutoff = fromDate ? new Date(fromDate) : new Date();
-  const toDelete = await db.select({ id: eventsTable.id })
+  const now = new Date();
+  const toDelete = await db.select()
     .from(eventsTable)
-    .where(and(eq(eventsTable.seriesId, sid), gte(eventsTable.startTime, cutoff)));
+    .where(and(
+      eq(eventsTable.seriesId, sid),
+      gte(eventsTable.startTime, cutoff),
+      gt(eventsTable.startTime, now),
+      eq(eventsTable.isArchived, false),
+    ));
   if (toDelete.length > 0) {
     await db.delete(eventsTable).where(inArray(eventsTable.id, toDelete.map(r => r.id)));
+    if (notifyFamilies) {
+      notifySeriesCanceled(toDelete)
+        .catch((err) => logger.error({ err, seriesId: sid }, "[events] failed to notify series cancellation"));
+    }
   }
   res.json({ deleted: toDelete.length });
 });
@@ -381,8 +397,9 @@ router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
 
   const [event] = await db.update(eventsTable).set(updates).where(eq(eventsTable.id, id)).returning();
   if (notifyFamilies !== false) {
-    notifyEventChanged(existing, event)
-      .catch((err) => logger.error({ err, eventId: id }, "[events] failed to notify event change"));
+    const wasCanceled = !existing.isArchived && event.isArchived;
+    (wasCanceled ? notifyEventCanceled(existing) : notifyEventChanged(existing, event))
+      .catch((err) => logger.error({ err, eventId: id }, `[events] failed to notify event ${wasCanceled ? "cancellation" : "change"}`));
   }
   const result = await buildEventWithDetails(event, clerkUserId);
   res.json(result);
@@ -390,7 +407,16 @@ router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
 
 router.delete("/events/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  await db.delete(eventsTable).where(eq(eventsTable.id, id));
+  const notifyFamilies = req.body?.notifyFamilies !== false;
+  const [deleted] = await db.delete(eventsTable).where(eq(eventsTable.id, id)).returning();
+  if (!deleted) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
+  if (notifyFamilies && !deleted.isArchived) {
+    notifyEventCanceled(deleted)
+      .catch((err) => logger.error({ err, eventId: id }, "[events] failed to notify event deletion"));
+  }
   res.status(204).send();
 });
 

@@ -1123,6 +1123,17 @@ export const DeleteSeriesQueryParams = zod.object({
     .describe("Delete events on or after this date (ISO). Defaults to now."),
 });
 
+export const deleteSeriesBodyNotifyFamiliesDefault = true;
+
+export const DeleteSeriesBody = zod.object({
+  notifyFamilies: zod
+    .boolean()
+    .default(deleteSeriesBodyNotifyFamiliesDefault)
+    .describe(
+      "Send an audience-safe cancellation notification. Omitted values default to true.",
+    ),
+});
+
 export const DeleteSeriesResponse = zod.object({
   deleted: zod.number(),
 });
@@ -1327,6 +1338,17 @@ export const UpdateEventResponse = zod
 
 export const DeleteEventParams = zod.object({
   id: zod.coerce.number(),
+});
+
+export const deleteEventBodyNotifyFamiliesDefault = true;
+
+export const DeleteEventBody = zod.object({
+  notifyFamilies: zod
+    .boolean()
+    .default(deleteEventBodyNotifyFamiliesDefault)
+    .describe(
+      "Send an audience-safe cancellation notification. Omitted values default to true.",
+    ),
 });
 
 /**
