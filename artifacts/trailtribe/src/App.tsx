@@ -228,6 +228,20 @@ function SessionExpiryHandler() {
   return null;
 }
 
+function ClerkStartupGate({ children }: { children: React.ReactNode }) {
+  const { isLoaded } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function Home() {
   return (
     <div className="min-h-[100dvh] w-full flex flex-col bg-background overflow-hidden">
@@ -413,45 +427,47 @@ function ClerkProviderWithRoutes() {
         <ClerkAuthSyncer />
         <ClerkQueryClientCacheInvalidator />
         <SessionExpiryHandler />
-        <Suspense fallback={
-          <div className="flex min-h-[60vh] items-center justify-center">
-            <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        }>
-          <Switch>
-            <Route path="/" component={HomeRedirect} />
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            <Route path="/privacy" component={() => <LegalPage page="privacy" />} />
-            <Route path="/terms" component={() => <LegalPage page="terms" />} />
-            <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
-            <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
-            <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
-            <Route path="/carpools" component={() => <ProtectedRoute component={CarpoolHub} />} />
-            <Route path="/carpools/:eventId" component={() => <ProtectedRoute component={CarpoolBoard} />} />
-            <Route path="/messages" component={() => <ProtectedRoute component={Messages} />} />
-            <Route path="/messages/thread/:id" component={() => <ProtectedRoute component={BoardThread} />} />
-            <Route path="/messages/new" component={() => <ProtectedRoute component={NewBroadcast} />} />
-            <Route path="/messages/contact" component={() => <ProtectedRoute component={ContactCoach} />} />
-            <Route path="/roster" component={() => <ProtectedRoute component={Roster} />} />
-            <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
-            <Route path="/volunteer" component={() => <ProtectedRoute component={Volunteer} />} />
-            <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
-            <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
-            <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
-            <Route path="/onboarding" component={OnboardingRoute} />
-            <Route path="/reenroll" component={() => (
-              <>
-                <Show when="signed-in"><Reenroll /></Show>
-                <Show when="signed-out"><SignInRedirect /></Show>
-              </>
-            )} />
-            <Route path="/join/:code" component={Join} />
-            <Route path="/family-invite/:token" component={FamilyInvite} />
-            <Route path="/rider-invite/:token" component={RiderInvite} />
-            <Route component={NotFound} />
-          </Switch>
-        </Suspense>
+        <ClerkStartupGate>
+          <Suspense fallback={
+            <div className="flex min-h-[60vh] items-center justify-center">
+              <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <Switch>
+              <Route path="/" component={HomeRedirect} />
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
+              <Route path="/privacy" component={() => <LegalPage page="privacy" />} />
+              <Route path="/terms" component={() => <LegalPage page="terms" />} />
+              <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
+              <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
+              <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
+              <Route path="/carpools" component={() => <ProtectedRoute component={CarpoolHub} />} />
+              <Route path="/carpools/:eventId" component={() => <ProtectedRoute component={CarpoolBoard} />} />
+              <Route path="/messages" component={() => <ProtectedRoute component={Messages} />} />
+              <Route path="/messages/thread/:id" component={() => <ProtectedRoute component={BoardThread} />} />
+              <Route path="/messages/new" component={() => <ProtectedRoute component={NewBroadcast} />} />
+              <Route path="/messages/contact" component={() => <ProtectedRoute component={ContactCoach} />} />
+              <Route path="/roster" component={() => <ProtectedRoute component={Roster} />} />
+              <Route path="/roster/:householdId" component={() => <ProtectedRoute component={HouseholdDetail} />} />
+              <Route path="/volunteer" component={() => <ProtectedRoute component={Volunteer} />} />
+              <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
+              <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
+              <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
+              <Route path="/onboarding" component={OnboardingRoute} />
+              <Route path="/reenroll" component={() => (
+                <>
+                  <Show when="signed-in"><Reenroll /></Show>
+                  <Show when="signed-out"><SignInRedirect /></Show>
+                </>
+              )} />
+              <Route path="/join/:code" component={Join} />
+              <Route path="/family-invite/:token" component={FamilyInvite} />
+              <Route path="/rider-invite/:token" component={RiderInvite} />
+              <Route component={NotFound} />
+            </Switch>
+          </Suspense>
+        </ClerkStartupGate>
       </QueryClientProvider>
     </ClerkProvider>
   );
