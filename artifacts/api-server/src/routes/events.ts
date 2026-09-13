@@ -13,7 +13,7 @@ import {
   EventAudienceConflictError,
   normalizeEventAudience,
 } from "@workspace/db";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, or, gte, lte, gt, sql, inArray, arrayContains, desc } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { randomUUID } from "crypto";
 import { logger } from "../lib/logger";
@@ -232,17 +232,43 @@ router.patch("/series/:seriesId/reschedule", requireCoachOrAdmin, async (req, re
 });
 
 router.get("/events", requireApproved, async (req, res) => {
-  const { startDate, endDate, eventType, podId, archived } = req.query as Record<string, string>;
+  const { startDate, endDate, eventType, podId, archived, completionStatus } = req.query as Record<string, string>;
+  const requestedLimit = Number.parseInt(String(req.query.limit ?? ""), 10);
+  const requestedOffset = Number.parseInt(String(req.query.offset ?? ""), 10);
   const clerkUserId = (req as any).clerkUserId;
   const conditions: any[] = [];
   if (startDate) conditions.push(gte(eventsTable.startTime, new Date(startDate)));
   if (endDate) conditions.push(lte(eventsTable.startTime, new Date(endDate)));
   if (eventType) conditions.push(eq(eventsTable.eventType, eventType as any));
   if (archived !== "true") conditions.push(eq(eventsTable.isArchived, false));
+  if (podId === "allteam") {
+    conditions.push(eq(eventsTable.isAllTeam, true));
+  } else if (podId) {
+    conditions.push(or(
+      eq(eventsTable.isAllTeam, true),
+      arrayContains(eventsTable.podIds, [podId]),
+    ));
+  }
+  const now = new Date();
+  const completionTime = sql`coalesce(${eventsTable.endTime}, ${eventsTable.startTime})`;
+  if (completionStatus === "upcoming") conditions.push(gt(completionTime, now));
+  if (completionStatus === "completed") conditions.push(lte(completionTime, now));
 
-  const events = conditions.length > 0
-    ? await db.select().from(eventsTable).where(and(...conditions)).orderBy(eventsTable.startTime)
-    : await db.select().from(eventsTable).where(eq(eventsTable.isArchived, false)).orderBy(eventsTable.startTime);
+  let query = db.select().from(eventsTable)
+    .where(and(...conditions))
+    .orderBy(
+      completionStatus === "completed" ? desc(eventsTable.startTime) : eventsTable.startTime,
+      completionStatus === "completed" ? desc(eventsTable.id) : eventsTable.id,
+    );
+  if (completionStatus === "completed") {
+    query = query.limit(Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 50) as typeof query;
+    if (Number.isFinite(requestedOffset)) {
+      query = query.offset(Math.max(0, requestedOffset)) as typeof query;
+    }
+  } else if (Number.isFinite(requestedLimit)) {
+    query = query.limit(Math.min(100, Math.max(1, requestedLimit))) as typeof query;
+  }
+  const events = await query;
 
   const result = await Promise.all(events.map((e) => buildEventWithDetails(e, clerkUserId)));
   res.json(result);

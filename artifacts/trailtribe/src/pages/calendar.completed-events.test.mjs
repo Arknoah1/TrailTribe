@@ -36,17 +36,26 @@ test("completed events are hidden by default and the preference is persisted", (
   assert.match(calendarSource, /localStorage\.setItem\(SHOW_COMPLETED_STORAGE_KEY, String\(checked\)\)/);
 });
 
+test("List view requests upcoming events by default and bounded history on demand", () => {
+  assert.match(calendarSource, /completionStatus: "upcoming" as const/);
+  assert.match(calendarSource, /limit: COMPLETED_EVENT_PAGE_SIZE \+ 1/);
+  assert.match(calendarSource, /offset: completedEventPage \* COMPLETED_EVENT_PAGE_SIZE/);
+  assert.match(calendarSource, /\.\.\.\(podFilter !== "all" \? \{ podId: podFilter \} : \{\}\)/);
+  assert.match(calendarSource, /enabled: view === "list" && showCompleted/);
+  assert.match(calendarSource, /const COMPLETED_EVENT_PAGE_SIZE = 50/);
+  assert.match(calendarSource, /Older completed events/);
+  assert.match(calendarSource, /Newer completed events/);
+});
+
 test("list filtering can reveal completed events without changing Month view data", () => {
   assert.match(calendarSource, /const podFilteredEvents = useMemo/);
-  assert.match(calendarSource, /if \(showCompleted\) return podFilteredEvents/);
   assert.match(calendarSource, /view === "month" \? \(/);
   assert.match(calendarSource, /events=\{events \?\? \[\]\}/);
   assert.match(calendarSource, /id="calendar-show-completed"/);
   assert.match(calendarSource, /Show completed events/);
 });
 
-test("empty state explains when completed events are hidden", () => {
-  assert.match(calendarSource, /const hasHiddenCompletedEvents = !showCompleted/);
-  assert.match(calendarSource, /No upcoming events\. Completed events are hidden\./);
+test("empty state can load completed events when upcoming results are empty", () => {
+  assert.match(calendarSource, /\{!showCompleted && \(/);
   assert.match(calendarSource, /onClick=\{\(\) => toggleShowCompleted\(true\)\}/);
 });

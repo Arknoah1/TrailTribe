@@ -964,6 +964,10 @@ export const ReorderPodsBody = zod.object({
 /**
  * @summary List events
  */
+export const listEventsQueryLimitMax = 100;
+
+export const listEventsQueryOffsetMin = 0;
+
 export const ListEventsQueryParams = zod.object({
   startDate: zod.date().optional(),
   endDate: zod.date().optional(),
@@ -972,6 +976,27 @@ export const ListEventsQueryParams = zod.object({
     .optional(),
   podId: zod.coerce.string().optional(),
   archived: zod.coerce.boolean().optional(),
+  completionStatus: zod
+    .enum(["upcoming", "completed"])
+    .optional()
+    .describe(
+      "Filter by whether the event has completed. Completion uses endTime when present, otherwise startTime.",
+    ),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(listEventsQueryLimitMax)
+    .optional()
+    .describe(
+      "Maximum number of events to return. Completed-event requests are capped at 100.",
+    ),
+  offset: zod.coerce
+    .number()
+    .min(listEventsQueryOffsetMin)
+    .optional()
+    .describe(
+      "Number of completed events to skip for bounded history pagination.",
+    ),
 });
 
 export const ListEventsResponseItem = zod

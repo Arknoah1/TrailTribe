@@ -45,6 +45,7 @@ const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 type CalendarView = "list" | "month";
 
 const SHOW_COMPLETED_STORAGE_KEY = "tt-calendar-show-completed";
+const COMPLETED_EVENT_PAGE_SIZE = 50;
 
 function getStoredView(): CalendarView {
   try {
@@ -84,6 +85,7 @@ export default function Calendar() {
   const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showCompleted, setShowCompleted] = useState<boolean>(getStoredShowCompleted);
+  const [completedEventPage, setCompletedEventPage] = useState(0);
   const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
   const queryClient = useQueryClient();
@@ -258,12 +260,14 @@ export default function Calendar() {
 
   const setPodFilter = (val: string) => {
     setPodFilterState(val);
+    setCompletedEventPage(0);
     hadStoredFilter.current = true;
     try { localStorage.setItem("tt-calendar-pod-filter", val); } catch {}
   };
 
   const toggleShowCompleted = (checked: boolean) => {
     setShowCompleted(checked);
+    if (!checked) setCompletedEventPage(0);
     try { localStorage.setItem(SHOW_COMPLETED_STORAGE_KEY, String(checked)); } catch {}
   };
 
@@ -287,25 +291,60 @@ export default function Calendar() {
     };
   }, [currentMonth]);
 
+  const listParams = useMemo(() => (
+    view === "month"
+      ? monthParams
+      : {
+          completionStatus: "upcoming" as const,
+          ...(podFilter !== "all" ? { podId: podFilter } : {}),
+        }
+  ), [monthParams, podFilter, view]);
+  const completedListParams = useMemo(() => (
+    {
+      completionStatus: "completed" as const,
+      limit: COMPLETED_EVENT_PAGE_SIZE + 1,
+      offset: completedEventPage * COMPLETED_EVENT_PAGE_SIZE,
+      ...(podFilter !== "all" ? { podId: podFilter } : {}),
+    }
+  ), [completedEventPage, podFilter]);
   const { data: events, isLoading, isError, error, refetch } = useListEvents(
-    view === "month" ? monthParams : undefined
+    listParams
+  );
+  const {
+    data: completedEvents,
+    isLoading: completedEventsLoading,
+    isError: completedEventsError,
+    refetch: refetchCompletedEvents,
+  } = useListEvents(
+    completedListParams,
+    { query: {
+      enabled: view === "list" && showCompleted,
+      queryKey: getListEventsQueryKey(completedListParams),
+    } },
   );
   useRoutePerformance("calendar", events !== undefined, events !== undefined && !isLoading);
 
+  const visibleCompletedEvents = completedEvents?.slice(0, COMPLETED_EVENT_PAGE_SIZE) ?? [];
+  const hasOlderCompletedEvents = (completedEvents?.length ?? 0) > COMPLETED_EVENT_PAGE_SIZE;
+  const listEvents = useMemo(() => (
+    view === "list" && showCompleted
+      ? [...(events ?? []), ...visibleCompletedEvents]
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+      : events
+  ), [events, showCompleted, view, visibleCompletedEvents]);
+
   const podFilteredEvents = useMemo(() => {
-    if (!events) return [];
-    if (podFilter === "all") return events;
-    if (podFilter === "allteam") return events.filter(e => e.isAllTeam);
-    return events.filter(e => e.isAllTeam || (e.podIds && e.podIds.some(pid => String(pid) === podFilter)));
-  }, [events, podFilter]);
+    if (!listEvents) return [];
+    if (podFilter === "all") return listEvents;
+    if (podFilter === "allteam") return listEvents.filter(e => e.isAllTeam);
+    return listEvents.filter(e => e.isAllTeam || (e.podIds && e.podIds.some(pid => String(pid) === podFilter)));
+  }, [listEvents, podFilter]);
 
   const filteredEvents = useMemo(() => {
     if (showCompleted) return podFilteredEvents;
     const now = new Date();
     return podFilteredEvents.filter(event => !isCalendarEventCompleted(event, now));
   }, [podFilteredEvents, showCompleted]);
-
-  const hasHiddenCompletedEvents = !showCompleted && podFilteredEvents.length > 0 && filteredEvents.length === 0;
 
   const { data: subscribeData, isLoading: subscribeLoading } = useGetCalendarSubscribeUrl({
     query: { enabled: subscribeOpen, queryKey: getGetCalendarSubscribeUrlQueryKey() },
@@ -323,14 +362,21 @@ export default function Calendar() {
     } catch {}
   };
 
-  if (isLoading) {
+  if (isLoading || (view === "list" && showCompleted && completedEventsLoading)) {
     return <CalendarSkeleton />;
   }
 
-  if (isError) {
+  if (isError || (view === "list" && showCompleted && completedEventsError)) {
     return (
       <div className="max-w-6xl mx-auto pt-4 md:pt-8 px-6 md:px-8">
-        <LoadErrorCard feature="the calendar" error={error} onRetry={() => { void refetch(); }} />
+        <LoadErrorCard
+          feature="the calendar"
+          error={error}
+          onRetry={() => {
+            void refetch();
+            if (view === "list" && showCompleted) void refetchCompletedEvents();
+          }}
+        />
       </div>
     );
   }
@@ -469,7 +515,8 @@ export default function Calendar() {
       ) : (
         <div className="space-y-4">
           {filteredEvents.length > 0 ? (
-            filteredEvents.map(event => (
+            <>
+            {filteredEvents.map(event => (
               <Card key={event.id} className="cel-hover transition-all cursor-pointer overflow-hidden">
                 <Link href={`/events/${event.id}`} className="block">
                   <CardContent className="p-0">
@@ -531,18 +578,17 @@ export default function Calendar() {
                   </CardContent>
                 </Link>
               </Card>
-            ))
+            ))}
+            </>
           ) : (
             <EmptyTrailState message={
-              hasHiddenCompletedEvents
-                ? "No upcoming events. Completed events are hidden."
-                : podFilter !== "all"
+              podFilter !== "all"
                 ? "No upcoming events for this filter."
                 : me?.role === "student"
                   ? "No upcoming events are assigned to your pod yet. Your coach will post them here."
                   : "No upcoming events yet."
             }>
-              {hasHiddenCompletedEvents && (
+              {!showCompleted && (
                 <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => toggleShowCompleted(true)}>
                   Show completed events
                 </button>
@@ -551,6 +597,27 @@ export default function Calendar() {
                 <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => setPodFilter("all")}>Show all events</button>
               )}
             </EmptyTrailState>
+          )}
+          {showCompleted && (completedEventPage > 0 || hasOlderCompletedEvents) && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={completedEventPage === 0}
+                onClick={() => setCompletedEventPage(page => Math.max(0, page - 1))}
+              >
+                Newer completed events
+              </Button>
+              <span className="text-sm text-muted-foreground">History page {completedEventPage + 1}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!hasOlderCompletedEvents}
+                onClick={() => setCompletedEventPage(page => page + 1)}
+              >
+                Older completed events
+              </Button>
+            </div>
           )}
         </div>
       )}

@@ -1038,6 +1038,21 @@ export type ListEventsParams = {
   eventType?: ListEventsEventType;
   podId?: string;
   archived?: boolean;
+  /**
+   * Filter by whether the event has completed. Completion uses endTime when present, otherwise startTime.
+   */
+  completionStatus?: ListEventsCompletionStatus;
+  /**
+   * Maximum number of events to return. Completed-event requests are capped at 100.
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  /**
+   * Number of completed events to skip for bounded history pagination.
+   * @minimum 0
+   */
+  offset?: number;
 };
 
 export type ListEventsEventType =
@@ -1049,6 +1064,14 @@ export const ListEventsEventType = {
   social: "social",
   volunteer: "volunteer",
   other: "other",
+} as const;
+
+export type ListEventsCompletionStatus =
+  (typeof ListEventsCompletionStatus)[keyof typeof ListEventsCompletionStatus];
+
+export const ListEventsCompletionStatus = {
+  upcoming: "upcoming",
+  completed: "completed",
 } as const;
 
 export type DeleteSeriesParams = {

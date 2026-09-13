@@ -702,6 +702,25 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: completionStatus
+          in: query
+          description: Filter by whether the event has completed. Completion uses endTime when present, otherwise startTime.
+          schema:
+            type: string
+            enum: [upcoming, completed]
+        - name: limit
+          in: query
+          description: Maximum number of events to return. Completed-event requests are capped at 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of completed events to skip for bounded history pagination.
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: List of events

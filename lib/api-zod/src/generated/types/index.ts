@@ -98,6 +98,7 @@ export * from "./linkPreviewResult";
 export * from "./listBoardThreadsParams";
 export * from "./listBoardThreadsScope";
 export * from "./listBroadcastsParams";
+export * from "./listEventsCompletionStatus";
 export * from "./listEventsEventType";
 export * from "./listEventsParams";
 export * from "./listUsersParams";
