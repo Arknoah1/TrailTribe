@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CalendarIcon, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,17 @@ import { trackEvent } from "@/lib/analytics";
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 type CalendarView = "list" | "month";
+type CalendarEventTiming = {
+  startTime: string;
+  endTime?: string | null;
+};
+
+const SHOW_COMPLETED_STORAGE_KEY = "tt-calendar-show-completed";
+
+export function isCalendarEventCompleted(event: CalendarEventTiming, now = new Date()): boolean {
+  const completionTime = event.endTime ?? event.startTime;
+  return new Date(completionTime).getTime() <= now.getTime();
+}
 
 function getStoredView(): CalendarView {
   try {
@@ -55,6 +67,13 @@ function getStoredPodFilter(): string | null {
     return localStorage.getItem("tt-calendar-pod-filter");
   } catch {}
   return null;
+}
+
+function getStoredShowCompleted(): boolean {
+  try {
+    return localStorage.getItem(SHOW_COMPLETED_STORAGE_KEY) === "true";
+  } catch {}
+  return false;
 }
 
 const emptyNewEvent: {
@@ -72,6 +91,7 @@ export default function Calendar() {
   const [copiedWhich, setCopiedWhich] = useState<"webcal" | "https" | null>(null);
   const [regenConfirmOpen, setRegenConfirmOpen] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showCompleted, setShowCompleted] = useState<boolean>(getStoredShowCompleted);
   const [newEvent, setNewEvent] = useState(emptyNewEvent);
 
   const queryClient = useQueryClient();
@@ -250,6 +270,11 @@ export default function Calendar() {
     try { localStorage.setItem("tt-calendar-pod-filter", val); } catch {}
   };
 
+  const toggleShowCompleted = (checked: boolean) => {
+    setShowCompleted(checked);
+    try { localStorage.setItem(SHOW_COMPLETED_STORAGE_KEY, String(checked)); } catch {}
+  };
+
   useEffect(() => {
     if (!hadStoredFilter.current && me !== undefined && !isCoach && me?.podId) {
       setPodFilter(String(me.podId));
@@ -275,12 +300,20 @@ export default function Calendar() {
   );
   useRoutePerformance("calendar", events !== undefined, events !== undefined && !isLoading);
 
-  const filteredEvents = useMemo(() => {
+  const podFilteredEvents = useMemo(() => {
     if (!events) return [];
     if (podFilter === "all") return events;
     if (podFilter === "allteam") return events.filter(e => e.isAllTeam);
     return events.filter(e => e.isAllTeam || (e.podIds && e.podIds.some(pid => String(pid) === podFilter)));
   }, [events, podFilter]);
+
+  const filteredEvents = useMemo(() => {
+    if (showCompleted) return podFilteredEvents;
+    const now = new Date();
+    return podFilteredEvents.filter(event => !isCalendarEventCompleted(event, now));
+  }, [podFilteredEvents, showCompleted]);
+
+  const hasHiddenCompletedEvents = !showCompleted && podFilteredEvents.length > 0 && filteredEvents.length === 0;
 
   const { data: subscribeData, isLoading: subscribeLoading } = useGetCalendarSubscribeUrl({
     query: { enabled: subscribeOpen, queryKey: getGetCalendarSubscribeUrlQueryKey() },
@@ -380,41 +413,54 @@ export default function Calendar() {
       </div>
 
       {view === "list" && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none flex-nowrap sm:flex-wrap">
-          {(["all", "allteam"] as const).map((val) => {
-            const label = val === "all" ? "All Events" : "All Team";
-            const active = podFilter === val;
-            return (
-              <button
-                key={val}
-                onClick={() => setPodFilter(val)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-          {(pods ?? []).map((pod: PodWithStats) => {
-            const val = String(pod.id);
-            const active = podFilter === val;
-            return (
-              <button
-                key={val}
-                onClick={() => setPodFilter(val)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {pod.name}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-nowrap sm:flex-wrap">
+          <div className="flex items-center gap-2 shrink-0">
+            {(["all", "allteam"] as const).map((val) => {
+              const label = val === "all" ? "All Events" : "All Team";
+              const active = podFilter === val;
+              return (
+                <button
+                  key={val}
+                  onClick={() => setPodFilter(val)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {(pods ?? []).map((pod: PodWithStats) => {
+              const val = String(pod.id);
+              const active = podFilter === val;
+              return (
+                <button
+                  key={val}
+                  onClick={() => setPodFilter(val)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {pod.name}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ml-auto flex items-center gap-2 shrink-0 rounded-full border border-border bg-background px-3 py-1.5">
+            <Switch
+              id="calendar-show-completed"
+              checked={showCompleted}
+              onCheckedChange={toggleShowCompleted}
+              aria-label={showCompleted ? "Hide completed events" : "Show completed events"}
+            />
+            <Label htmlFor="calendar-show-completed" className="cursor-pointer text-sm font-medium whitespace-nowrap">
+              {showCompleted ? "Hide completed" : "Show completed"}
+            </Label>
+          </div>
         </div>
       )}
 
@@ -496,12 +542,19 @@ export default function Calendar() {
             ))
           ) : (
             <EmptyTrailState message={
-              podFilter !== "all"
+              hasHiddenCompletedEvents
+                ? "No upcoming events. Completed events are hidden."
+                : podFilter !== "all"
                 ? "No upcoming events for this filter."
                 : me?.role === "student"
                   ? "No upcoming events are assigned to your pod yet. Your coach will post them here."
                   : "No upcoming events yet."
             }>
+              {hasHiddenCompletedEvents && (
+                <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => toggleShowCompleted(true)}>
+                  Show completed events
+                </button>
+              )}
               {podFilter !== "all" && (
                 <button className="mt-2 underline text-primary text-sm font-medium" onClick={() => setPodFilter("all")}>Show all events</button>
               )}
