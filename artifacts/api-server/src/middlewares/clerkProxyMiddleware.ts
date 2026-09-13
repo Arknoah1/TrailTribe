@@ -50,6 +50,15 @@ export function clerkProxyMiddleware(): RequestHandler {
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", secretKey);
 
+        // The native app's WebView origin (https://localhost) never matches this
+        // proxy's public domain, so Clerk rejects it with origin_invalid. Normalize
+        // the outbound Origin/Referer to the proxy's own domain — this endpoint is
+        // already gated by CLERK_SECRET_KEY server-side, so this isn't bypassing a
+        // real security boundary.
+        const originHeader = `${protocol}://${host}`;
+        proxyReq.setHeader("Origin", originHeader);
+        proxyReq.setHeader("Referer", `${originHeader}/`);
+
         const xff = req.headers["x-forwarded-for"];
         const clientIp =
           (Array.isArray(xff) ? xff[0] : xff)?.split(",")[0]?.trim() ||
@@ -58,6 +67,19 @@ export function clerkProxyMiddleware(): RequestHandler {
         if (clientIp) {
           proxyReq.setHeader("X-Forwarded-For", clientIp);
         }
+
+        console.log(
+          `[clerk-proxy] incoming Origin=${req.headers.origin ?? "(none)"} Host=${host} X-Forwarded-Host=${req.headers["x-forwarded-host"] ?? "(none)"} computedProxyUrl=${proxyUrl}`,
+        );
+      },
+      proxyRes: (proxyRes, req) => {
+        const protocol = req.headers["x-forwarded-proto"] || "https";
+        const host = req.headers.host || "";
+        const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
+
+        console.log(
+          `[clerk-proxy] upstreamStatus=${proxyRes.statusCode ?? "(unknown)"} incoming Origin=${req.headers.origin ?? "(none)"} Host=${host} X-Forwarded-Host=${req.headers["x-forwarded-host"] ?? "(none)"} computedProxyUrl=${proxyUrl}`,
+        );
       },
     },
   }) as RequestHandler;
