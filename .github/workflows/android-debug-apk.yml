@@ -108,8 +108,8 @@ jobs:
             echo "Development Clerk key found in APK"
             exit 1
           fi
-          if grep -a -q "https://trailteam.app/api/__clerk" "$apk_contents"; then
-            echo "Unverified Clerk proxy URL found in APK"
+          if ! grep -a -q "https://trailteam.app/api/__clerk" "$apk_contents"; then
+            echo "Expected Clerk proxy URL missing from APK"
             exit 1
           fi
           if grep -a -q "com.trailtribemtb.trailtribe" "$apk_contents"; then
