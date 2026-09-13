@@ -25,6 +25,65 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (() => {
+        let startupErrorWritten = false;
+
+        const formatStartupError = (error, fallbackMessage) => {
+          const candidate = error ?? fallbackMessage;
+          if (candidate && typeof candidate === "object") {
+            const stack = typeof candidate.stack === "string" ? candidate.stack : "";
+            if (stack) {
+              return stack;
+            }
+
+            const message = typeof candidate.message === "string" ? candidate.message : "";
+            if (message) {
+              return message;
+            }
+          }
+
+          if (candidate !== undefined && candidate !== null) {
+            return String(candidate);
+          }
+
+          return "(unknown startup error)";
+        };
+
+        const showStartupError = (error, fallbackMessage) => {
+          if (startupErrorWritten) {
+            return;
+          }
+
+          const root = document.getElementById("root");
+          if (!root || root.childElementCount !== 0) {
+            return;
+          }
+
+          startupErrorWritten = true;
+          const output = document.createElement("pre");
+          output.textContent = `TrailTeam failed to start\n\n${formatStartupError(error, fallbackMessage)}`;
+          output.style.margin = "0";
+          output.style.minHeight = "100vh";
+          output.style.boxSizing = "border-box";
+          output.style.overflow = "auto";
+          output.style.padding = "24px";
+          output.style.background = "#111827";
+          output.style.color = "#f9fafb";
+          output.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+          output.style.whiteSpace = "pre-wrap";
+          root.appendChild(output);
+        };
+
+        window.addEventListener("error", (event) => {
+          showStartupError(event.error, event.message);
+        });
+
+        window.addEventListener("unhandledrejection", (event) => {
+          showStartupError(event.reason, event.message);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
