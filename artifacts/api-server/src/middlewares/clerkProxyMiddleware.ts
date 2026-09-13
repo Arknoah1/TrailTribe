@@ -73,12 +73,17 @@ export function clerkProxyMiddleware(): RequestHandler {
         );
       },
       proxyRes: (proxyRes, req) => {
-        const protocol = req.headers["x-forwarded-proto"] || "https";
-        const host = req.headers.host || "";
-        const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
+        const requestOrigin = req.headers.origin;
+        if (requestOrigin) {
+          proxyRes.headers["access-control-allow-origin"] = requestOrigin;
+          proxyRes.headers["access-control-allow-credentials"] = "true";
+          proxyRes.headers["vary"] = proxyRes.headers["vary"]
+            ? `${proxyRes.headers["vary"]}, Origin`
+            : "Origin";
+        }
 
         console.log(
-          `[clerk-proxy] upstreamStatus=${proxyRes.statusCode ?? "(unknown)"} incoming Origin=${req.headers.origin ?? "(none)"} Host=${host} X-Forwarded-Host=${req.headers["x-forwarded-host"] ?? "(none)"} computedProxyUrl=${proxyUrl}`,
+          `[clerk-proxy] upstreamStatus=${proxyRes.statusCode ?? "(unknown)"} incoming Origin=${req.headers.origin ?? "(none)"} Host=${req.headers.host ?? ""} rewroteAllowOrigin=${Boolean(requestOrigin)}`,
         );
       },
     },
