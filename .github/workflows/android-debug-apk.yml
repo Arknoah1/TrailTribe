@@ -75,6 +75,9 @@ jobs:
           pnpm --filter @workspace/trailtribe run typecheck
           pnpm --filter @workspace/trailtribe run test
 
+      - name: Provision test database schema
+        run: pnpm --filter @workspace/db run push-force
+
       - name: Verify API server
         run: pnpm --filter @workspace/api-server run test:clean
 
