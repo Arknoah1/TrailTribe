@@ -21,3 +21,4 @@
 - [Private image regression fixtures](private-image-regression-fixtures.md) — security tests must model parent visibility and immutable object versions, not only ACL ownership
 - [Discussion image lifecycle lock](discussion-image-lifecycle-lock.md) — cleanup and attachment claiming must share a transaction advisory lock
 - [Native bundle credential checks](native-bundle-credential-checks.md) — match complete encoded keys and scan extracted archives to avoid SDK-prefix and pipefail false results
+- [Event-change audience privacy](event-change-audience-privacy.md) — audience changes require old/new recipient handling; removed users must never receive post-change private details

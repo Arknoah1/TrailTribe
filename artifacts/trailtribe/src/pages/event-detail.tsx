@@ -208,6 +208,7 @@ export default function EventDetail() {
   const isSuperAdmin = (me as { role?: string } | undefined)?.role === "super_admin";
 
   const [showEdit, setShowEdit] = useState(false);
+  const [notifyFamilies, setNotifyFamilies] = useState(true);
   const [editData, setEditData] = useState<{
     title: string;
     description: string;
@@ -498,6 +499,7 @@ export default function EventDetail() {
       isAllTeam: event.isAllTeam ?? true,
       podId: (event.podIds && event.podIds.length > 0) ? String(event.podIds[0]) : "",
     });
+    setNotifyFamilies(true);
     setShowEdit(true);
   };
 
@@ -529,6 +531,7 @@ export default function EventDetail() {
         ...(editData.trailheadId ? { trailheadId: Number(editData.trailheadId) } : { trailheadId: undefined }),
         isAllTeam: editData.isAllTeam,
         ...(!editData.isAllTeam && editData.podId ? { podIds: [editData.podId] } : {}),
+        notifyFamilies,
       },
     }, {
       onSuccess: () => {
@@ -1122,6 +1125,13 @@ export default function EventDetail() {
                   />
                 </div>
               )}
+            </div>
+            <div className="sm:col-span-2 flex items-center justify-between gap-4 rounded-lg border p-3">
+              <div>
+                <Label htmlFor="edit-event-notify-families" className="text-sm font-medium">Notify families about these changes</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Sends an alert for schedule, location, title, or audience changes.</p>
+              </div>
+              <Switch id="edit-event-notify-families" checked={notifyFamilies} onCheckedChange={setNotifyFamilies} />
             </div>
           </div>
 

@@ -801,6 +801,10 @@ paths:
                   type: string
                   format: date
                   description: Only reschedule events on or after this date. Defaults to now.
+                notifyFamilies:
+                  type: boolean
+                  default: true
+                  description: Send a summarized change notification. Omitted values default to true.
               required: [shiftDays]
       responses:
         "200":
@@ -3105,10 +3109,16 @@ components:
         endTime:
           type: string
           format: date-time
+          nullable: true
         trailheadId:
           type: integer
+          nullable: true
         locationOverride:
           type: string
+          nullable: true
+        googleMapsUrlOverride:
+          type: string
+          nullable: true
         podIds:
           type: array
           items:
@@ -3125,6 +3135,10 @@ components:
         seriesId:
           type: string
           nullable: true
+        notifyFamilies:
+          type: boolean
+          default: true
+          description: Send change notifications for material updates. Omitted values default to true.
 
     # ─── RSVP ─────────────────────────────────────────────────────────────────
 

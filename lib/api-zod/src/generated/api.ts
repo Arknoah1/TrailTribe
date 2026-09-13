@@ -1109,6 +1109,8 @@ export const RescheduleSeriesParams = zod.object({
   seriesId: zod.coerce.string(),
 });
 
+export const rescheduleSeriesBodyNotifyFamiliesDefault = true;
+
 export const RescheduleSeriesBody = zod.object({
   shiftDays: zod
     .number()
@@ -1119,6 +1121,12 @@ export const RescheduleSeriesBody = zod.object({
     .date()
     .optional()
     .describe("Only reschedule events on or after this date. Defaults to now."),
+  notifyFamilies: zod
+    .boolean()
+    .default(rescheduleSeriesBodyNotifyFamiliesDefault)
+    .describe(
+      "Send a summarized change notification. Omitted values default to true.",
+    ),
 });
 
 export const RescheduleSeriesResponse = zod.object({
@@ -1199,6 +1207,8 @@ export const UpdateEventParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const updateEventBodyNotifyFamiliesDefault = true;
+
 export const UpdateEventBody = zod.object({
   title: zod.string().optional(),
   description: zod.string().optional(),
@@ -1206,15 +1216,22 @@ export const UpdateEventBody = zod.object({
     .enum(["practice", "race", "social", "volunteer", "other"])
     .optional(),
   startTime: zod.coerce.date().optional(),
-  endTime: zod.coerce.date().optional(),
-  trailheadId: zod.number().optional(),
-  locationOverride: zod.string().optional(),
+  endTime: zod.coerce.date().nullish(),
+  trailheadId: zod.number().nullish(),
+  locationOverride: zod.string().nullish(),
+  googleMapsUrlOverride: zod.string().nullish(),
   podIds: zod.array(zod.string()).optional(),
   isAllTeam: zod.boolean().optional(),
   rsvpDeadline: zod.coerce.date().optional(),
   volunteerSlotsNeeded: zod.number().optional(),
   isArchived: zod.boolean().optional(),
   seriesId: zod.string().nullish(),
+  notifyFamilies: zod
+    .boolean()
+    .default(updateEventBodyNotifyFamiliesDefault)
+    .describe(
+      "Send change notifications for material updates. Omitted values default to true.",
+    ),
 });
 
 export const UpdateEventResponse = zod

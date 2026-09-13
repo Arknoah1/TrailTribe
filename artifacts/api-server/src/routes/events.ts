@@ -20,6 +20,7 @@ import { logger } from "../lib/logger";
 import { createEventThread } from "./board";
 import { queueRsvpConfirmationBatch } from "../lib/rsvpEmailBatches";
 import { shouldQueueRsvpConfirmation } from "../lib/rsvpEmailContent";
+import { notifyEventChanged, notifySeriesRescheduled } from "../lib/eventChangeNotifications";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -197,23 +198,36 @@ router.delete("/series/:seriesId", requireCoachOrAdmin, async (req, res) => {
 
 router.patch("/series/:seriesId/reschedule", requireCoachOrAdmin, async (req, res) => {
   const sid = str(req.params.seriesId);
-  const { shiftDays, fromDate } = req.body as { shiftDays: number; fromDate?: string };
+  const { shiftDays, fromDate, notifyFamilies } = req.body as { shiftDays: number; fromDate?: string; notifyFamilies?: boolean };
   if (typeof shiftDays !== "number" || shiftDays === 0) {
     res.status(400).json({ error: "shiftDays must be a non-zero integer" });
     return;
   }
   const cutoff = fromDate ? new Date(fromDate) : new Date();
   const toShift = await db.select().from(eventsTable)
-    .where(and(eq(eventsTable.seriesId, sid), gte(eventsTable.startTime, cutoff)));
+    .where(and(
+      eq(eventsTable.seriesId, sid),
+      gte(eventsTable.startTime, cutoff),
+      eq(eventsTable.isArchived, false),
+    ));
   const shiftMs = shiftDays * 86_400_000;
+  const shifted = toShift.map((e) => ({
+    ...e,
+    startTime: new Date(e.startTime.getTime() + shiftMs),
+    endTime: e.endTime ? new Date(e.endTime.getTime() + shiftMs) : null,
+  }));
   await Promise.all(
-    toShift.map((e) =>
+    shifted.map((e) =>
       db.update(eventsTable).set({
-        startTime: new Date(e.startTime.getTime() + shiftMs),
-        endTime: e.endTime ? new Date(e.endTime.getTime() + shiftMs) : null,
+        startTime: e.startTime,
+        endTime: e.endTime,
       }).where(eq(eventsTable.id, e.id))
     )
   );
+  if (notifyFamilies !== false) {
+    notifySeriesRescheduled(toShift, shifted, shiftDays)
+      .catch((err) => logger.error({ err, seriesId: sid }, "[events] failed to notify series reschedule"));
+  }
   res.json({ rescheduled: toShift.length });
 });
 
@@ -293,24 +307,26 @@ router.get("/events/:id", requireApproved, async (req, res) => {
 router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const clerkUserId = (req as any).clerkUserId;
+  const existing = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
+  if (!existing) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
   const {
     title, description, eventType, startTime, endTime, trailheadId,
-    locationOverride, podIds, isAllTeam, rsvpDeadline, volunteerSlotsNeeded, isArchived, seriesId
+    locationOverride, googleMapsUrlOverride, podIds, isAllTeam, rsvpDeadline,
+    volunteerSlotsNeeded, isArchived, seriesId, notifyFamilies,
   } = req.body;
   const updates: Record<string, any> = {};
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
   if (eventType !== undefined) updates.eventType = eventType;
   if (startTime !== undefined) updates.startTime = new Date(startTime);
-  if (endTime !== undefined) updates.endTime = new Date(endTime);
+  if (endTime !== undefined) updates.endTime = endTime === null ? null : new Date(endTime);
   if (trailheadId !== undefined) updates.trailheadId = trailheadId;
   if (locationOverride !== undefined) updates.locationOverride = locationOverride;
+  if (googleMapsUrlOverride !== undefined) updates.googleMapsUrlOverride = googleMapsUrlOverride;
   if (podIds !== undefined || isAllTeam !== undefined) {
-    const existing = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, id) });
-    if (!existing) {
-      res.status(404).json({ error: "Event not found" });
-      return;
-    }
     try {
       const effectivePodIds = podIds !== undefined
         ? podIds
@@ -338,6 +354,10 @@ router.patch("/events/:id", requireCoachOrAdmin, async (req, res) => {
   if (seriesId !== undefined) updates.seriesId = seriesId;
 
   const [event] = await db.update(eventsTable).set(updates).where(eq(eventsTable.id, id)).returning();
+  if (notifyFamilies !== false) {
+    notifyEventChanged(existing, event)
+      .catch((err) => logger.error({ err, eventId: id }, "[events] failed to notify event change"));
+  }
   const result = await buildEventWithDetails(event, clerkUserId);
   res.json(result);
 });

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { formatEventType, formatPhone } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -340,6 +341,7 @@ export default function Admin() {
   const [editingEventData, setEditingEventData] = useState<Record<string, any>>({});
   const [eventFilter, setEventFilter] = useState<"upcoming" | "all">("upcoming");
   const [shiftDaysInputs, setShiftDaysInputs] = useState<Record<string, string>>({});
+  const [shiftNotifyFamilies, setShiftNotifyFamilies] = useState<Record<string, boolean>>({});
   const [expandedSeries, setExpandedSeries] = useState<Record<string, boolean>>({});
   const createEvent = useCreateEvent();
   const [showAddEvent, setShowAddEvent] = useState(false);
@@ -2372,6 +2374,7 @@ export default function Admin() {
                 description: e.description ?? "",
                 isAllTeam: e.isAllTeam ?? true,
                 podId: (e.podIds && e.podIds.length > 0) ? String(e.podIds[0]) : "",
+                notifyFamilies: true,
               });
             };
 
@@ -2393,6 +2396,7 @@ export default function Admin() {
                   description: (description ?? "").trim(),
                   isAllTeam: isAllTeam ?? true,
                   podIds: (!isAllTeam && podId) ? [podId] : [],
+                  notifyFamilies: editingEventData.notifyFamilies !== false,
                 },
               }, {
                 onSuccess: () => {
@@ -2427,11 +2431,12 @@ export default function Admin() {
                 return;
               }
               rescheduleSeries.mutate(
-                { seriesId, data: { shiftDays: days, fromDate: toLocalDateISO(now) } },
+                { seriesId, data: { shiftDays: days, fromDate: toLocalDateISO(now), notifyFamilies: shiftNotifyFamilies[seriesId] !== false } },
                 {
                   onSuccess: (data) => {
                     toast({ title: `${(data as any).rescheduled} events shifted by ${days > 0 ? "+" : ""}${days} day${Math.abs(days) !== 1 ? "s" : ""}` });
                     setShiftDaysInputs(prev => { const n = {...prev}; delete n[seriesId]; return n; });
+                    setShiftNotifyFamilies(prev => { const n = {...prev}; delete n[seriesId]; return n; });
                     refetchEvents();
                     queryClient.invalidateQueries({ queryKey: getListEventsQueryKey() });
                   },
@@ -2554,8 +2559,8 @@ export default function Admin() {
                                   <div className="flex items-center gap-1">
                                     {isEditing ? (
                                       <>
-                                        <Button size="sm" className="h-7 text-xs px-2" onClick={() => saveEdit(ev.id)}>Save</Button>
-                                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingEventId(null)}>Cancel</Button>
+                                        <Button size="sm" className="h-7 text-xs px-2" onClick={() => saveEdit(ev.id)} disabled={updateEvent.isPending}>Save</Button>
+                                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingEventId(null)} disabled={updateEvent.isPending}>Cancel</Button>
                                       </>
                                     ) : (
                                       <>
@@ -2613,6 +2618,16 @@ export default function Admin() {
                                           )}
                                         </div>
                                       </div>
+                                      <label className="sm:col-span-2 flex items-center justify-between gap-3 rounded-md border p-2.5 text-sm cursor-pointer">
+                                        <span>
+                                          <span className="font-medium block">Notify families about these changes</span>
+                                          <span className="text-xs text-muted-foreground">Sends an alert for important event updates.</span>
+                                        </span>
+                                        <Switch
+                                          checked={editingEventData.notifyFamilies !== false}
+                                          onCheckedChange={checked => setEditingEventData((p: any) => ({ ...p, notifyFamilies: checked }))}
+                                        />
+                                      </label>
                                     </div>
                                   </td>
                                 </tr>
@@ -2872,23 +2887,33 @@ export default function Admin() {
                               )}
 
                               {futureCount > 0 && (
-                                <div className="flex items-center gap-2 pt-1 border-t border-border">
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">Shift upcoming by</span>
-                                  <Input
-                                    type="number"
-                                    placeholder="days (e.g. +7 or -3)"
-                                    value={shiftDaysInputs[sid] ?? ""}
-                                    onChange={e => setShiftDaysInputs(prev => ({ ...prev, [sid]: e.target.value }))}
-                                    className="h-7 text-xs w-36"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs shrink-0"
-                                    onClick={() => handleRescheduleSeries(sid)}
-                                  >
-                                    Shift dates
-                                  </Button>
+                                <div className="space-y-2 pt-2 border-t border-border">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">Shift upcoming by</span>
+                                    <Input
+                                      type="number"
+                                      placeholder="days (e.g. +7 or -3)"
+                                      value={shiftDaysInputs[sid] ?? ""}
+                                      onChange={e => setShiftDaysInputs(prev => ({ ...prev, [sid]: e.target.value }))}
+                                      className="h-7 text-xs w-36"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 text-xs shrink-0"
+                                      onClick={() => handleRescheduleSeries(sid)}
+                                      disabled={rescheduleSeries.isPending}
+                                    >
+                                      Shift dates
+                                    </Button>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                    <Switch
+                                      checked={shiftNotifyFamilies[sid] !== false}
+                                      onCheckedChange={checked => setShiftNotifyFamilies(prev => ({ ...prev, [sid]: checked }))}
+                                    />
+                                    Notify families about these changes
+                                  </label>
                                 </div>
                               )}
                             </CardContent>

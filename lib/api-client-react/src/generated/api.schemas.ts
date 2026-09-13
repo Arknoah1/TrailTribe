@@ -404,15 +404,18 @@ export interface UpdateEventBody {
   description?: string;
   eventType?: UpdateEventBodyEventType;
   startTime?: string;
-  endTime?: string;
-  trailheadId?: number;
-  locationOverride?: string;
+  endTime?: string | null;
+  trailheadId?: number | null;
+  locationOverride?: string | null;
+  googleMapsUrlOverride?: string | null;
   podIds?: string[];
   isAllTeam?: boolean;
   rsvpDeadline?: string;
   volunteerSlotsNeeded?: number;
   isArchived?: boolean;
   seriesId?: string | null;
+  /** Send change notifications for material updates. Omitted values default to true. */
+  notifyFamilies?: boolean;
 }
 
 export type RsvpBodyStatus =
@@ -1064,6 +1067,8 @@ export type RescheduleSeriesBody = {
   shiftDays: number;
   /** Only reschedule events on or after this date. Defaults to now. */
   fromDate?: string;
+  /** Send a summarized change notification. Omitted values default to true. */
+  notifyFamilies?: boolean;
 };
 
 export type RescheduleSeries200 = {

@@ -11,4 +11,6 @@ export type RescheduleSeriesBody = {
   shiftDays: number;
   /** Only reschedule events on or after this date. Defaults to now. */
   fromDate?: Date;
+  /** Send a summarized change notification. Omitted values default to true. */
+  notifyFamilies?: boolean;
 };

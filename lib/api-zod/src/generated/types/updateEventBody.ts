@@ -12,13 +12,16 @@ export interface UpdateEventBody {
   description?: string;
   eventType?: UpdateEventBodyEventType;
   startTime?: Date;
-  endTime?: Date;
-  trailheadId?: number;
-  locationOverride?: string;
+  endTime?: Date | null;
+  trailheadId?: number | null;
+  locationOverride?: string | null;
+  googleMapsUrlOverride?: string | null;
   podIds?: string[];
   isAllTeam?: boolean;
   rsvpDeadline?: Date;
   volunteerSlotsNeeded?: number;
   isArchived?: boolean;
   seriesId?: string | null;
+  /** Send change notifications for material updates. Omitted values default to true. */
+  notifyFamilies?: boolean;
 }

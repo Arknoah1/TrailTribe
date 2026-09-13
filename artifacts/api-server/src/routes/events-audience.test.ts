@@ -17,6 +17,7 @@ const existingEvent = {
   isAllTeam: false,
 };
 const writes: Array<{ kind: string; values: any }> = [];
+const notifyEventChanged = vi.fn(() => Promise.resolve());
 
 function returningWrite(kind: string) {
   const query: any = {
@@ -87,6 +88,10 @@ vi.mock("../middlewares/requireAuth", () => ({
 vi.mock("./board", () => ({ createEventThread: vi.fn(() => Promise.resolve()) }));
 vi.mock("../lib/rsvpEmailBatches", () => ({ queueRsvpConfirmationBatch: vi.fn() }));
 vi.mock("../lib/rsvpEmailContent", () => ({ shouldQueueRsvpConfirmation: vi.fn() }));
+vi.mock("../lib/eventChangeNotifications", () => ({
+  notifyEventChanged,
+  notifySeriesRescheduled: vi.fn(() => Promise.resolve()),
+}));
 
 const { default: eventsRouter } = await import("./events");
 const app = express();
@@ -110,6 +115,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   writes.length = 0;
+  notifyEventChanged.mockClear();
 });
 
 async function request(path: string, method: string, body: unknown) {
@@ -194,5 +200,20 @@ describe("event audience writes", () => {
 
     expect(response.status).toBe(400);
     expect(writes).toHaveLength(0);
+  });
+
+  it("notifies by default when older clients omit the notification choice", async () => {
+    const response = await request("/events/42", "PATCH", { title: "Updated ride" });
+    expect(response.status).toBe(200);
+    expect(notifyEventChanged).toHaveBeenCalledOnce();
+  });
+
+  it("supports an explicit silent save", async () => {
+    const response = await request("/events/42", "PATCH", {
+      title: "Updated ride",
+      notifyFamilies: false,
+    });
+    expect(response.status).toBe(200);
+    expect(notifyEventChanged).not.toHaveBeenCalled();
   });
 });
