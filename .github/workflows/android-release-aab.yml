@@ -103,7 +103,10 @@ jobs:
             echo "Development Clerk key found in release bundle"
             exit 1
           fi
-          grep -a -q "https://trailteam.app/api/__clerk" "$aab_contents"
+          if grep -a -q "https://trailteam.app/api/__clerk" "$aab_contents"; then
+            echo "Unverified Clerk proxy URL found in release bundle"
+            exit 1
+          fi
           mkdir -p "$release_dir"
           cp "$source_aab" "$release_dir/trailteam-release.aab"
           sha256sum "$release_dir/trailteam-release.aab" > "$release_dir/trailteam-release.aab.sha256"

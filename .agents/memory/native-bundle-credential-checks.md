@@ -15,5 +15,7 @@ the archive process receive SIGPIPE, causing the pipeline result to be
 misleading.
 
 **How to apply:** For native release gates, search the extracted archive bytes
-for a sufficiently long full key pattern and required production endpoints.
-Avoid `unzip -p ... | grep -q ...` when `pipefail` is active.
+for a sufficiently long full key pattern and enforce the current allowed or
+forbidden endpoint policy. Keep these assertions aligned whenever build-time
+authentication configuration changes. Avoid `unzip -p ... | grep -q ...` when
+`pipefail` is active.
