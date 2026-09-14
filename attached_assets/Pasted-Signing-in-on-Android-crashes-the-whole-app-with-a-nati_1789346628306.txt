@@ -1,0 +1,21 @@
+Signing in on Android crashes the whole app with a native FATAL EXCEPTION, confirmed via adb logcat:
+
+java.lang.IllegalStateException: Default FirebaseApp is not initialized in this process app.trailteam.trailteam. Make sure to call FirebaseApp.initializeApp(Context) first.
+	at com.google.firebase.FirebaseApp.getInstance(FirebaseApp.java:179)
+	at com.google.firebase.messaging.FirebaseMessaging.getInstance(FirebaseMessaging.java:120)
+	at com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin.register(PushNotificationsPlugin.java:103)
+
+This happens because artifacts/trailtribe/src/lib/native-app.ts calls PushNotifications.register() as soon as a user signs in, but there is no real google-services.json in the Android project, so Firebase was never initialized. The crash happens natively, on a different thread than the calling JS, so the existing .catch() around registerPush() cannot prevent it — the whole app process is killed before any rejection reaches JavaScript.
+
+Fix: in artifacts/trailtribe/src/lib/native-app.ts, disable the push registration call for now so sign-in no longer crashes. In the useEffect that defines registerPush() (the one gated on isSignedIn && user), change the body of registerPush so it returns immediately without calling checkPermissions/requestPermissions/register, with a comment explaining why:
+
+const registerPush = async () => {
+  // Push notifications are not yet configured for Android — there is no real
+  // google-services.json in the native project, so calling
+  // PushNotifications.register() crashes the whole app natively (Firebase is
+  // never initialized). Re-enable this once a real Firebase project and
+  // google-services.json have been added to artifacts/trailtribe/android/app/.
+  return;
+};
+
+Keep the tokenListener/errorListener wiring and the rest of the file exactly as-is — only replace the body of registerPush with the early return above. Do not touch any other file. Bump artifacts/trailtribe/android/app/build.gradle: versionCode 16 → 17, versionName "1.1.13" → "1.1.14".

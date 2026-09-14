@@ -93,13 +93,12 @@ export function NativeAppBridge() {
     let cancelled = false;
 
     const registerPush = async () => {
-      let permission = await PushNotifications.checkPermissions();
-      if (permission.receive !== "granted") {
-        permission = await PushNotifications.requestPermissions();
-      }
-      if (permission.receive !== "granted" || cancelled) return;
-
-      await PushNotifications.register();
+      // Push notifications are not yet configured for Android — there is no real
+      // google-services.json in the native project, so calling
+      // PushNotifications.register() crashes the whole app natively (Firebase is
+      // never initialized). Re-enable this once a real Firebase project and
+      // google-services.json have been added to artifacts/trailtribe/android/app/.
+      return;
     };
 
     const tokenListener = PushNotifications.addListener("registration", (token: Token) => {
