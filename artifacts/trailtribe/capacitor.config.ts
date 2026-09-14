@@ -10,7 +10,7 @@ const config: CapacitorConfig = {
     // supplied without changing source code via CAP_SERVER_URL.
     url: process.env.CAP_SERVER_URL,
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
-    hostname: "trailteam.app",
+    hostname: "app.trailteam.app",
     androidScheme: "https",
     allowNavigation: [
       "trailteam.app",
