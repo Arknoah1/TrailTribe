@@ -1,0 +1,72 @@
+Fix a CORS bug in the API server that's blocking the production web app.
+
+File: artifacts/api-server/src/app.ts
+
+Problem: The Express app's CORS allowlist is built entirely from the ALLOWED_ORIGINS and REPLIT_DEV_DOMAIN env vars. ALLOWED_ORIGINS does not currently include https://app.trailteam.app, so every /api/* request from the production dashboard at that domain is being blocked by CORS, which is why the dashboard hangs on its loading spinner.
+
+Fix: Add "https://app.trailteam.app" as an always-allowed origin, hardcoded in the source, independent of the ALLOWED_ORIGINS env var — so a missing or misconfigured env var can't lock out the production app. Keep the existing "open CORS" fallback used for local dev when no env vars are configured, but key that fallback specifically off whether ALLOWED_ORIGINS/REPLIT_DEV_DOMAIN are set, not off the full allowlist (since the full allowlist will now always contain at least the hardcoded production origin).
+
+Replace this block:
+
+const allowedOrigins: string[] = [];
+if (process.env.ALLOWED_ORIGINS) {
+  allowedOrigins.push(
+    ...process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+  );
+}
+if (process.env.REPLIT_DEV_DOMAIN) {
+  allowedOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
+
+app.use(
+  cors({
+    credentials: true,
+    origin:
+      allowedOrigins.length > 0
+        ? (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+            // Allow same-origin and server-to-server requests (no Origin header)
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(null, false);
+            }
+          }
+        : true, // No env vars configured — open during early local dev only
+  })
+);
+
+With this:
+
+// The production web app domain is always allowed regardless of ALLOWED_ORIGINS
+// configuration, so a missing/misconfigured env var can't lock out the live app.
+const PRODUCTION_ORIGINS = ["https://app.trailteam.app"];
+
+const envOrigins: string[] = [];
+if (process.env.ALLOWED_ORIGINS) {
+  envOrigins.push(
+    ...process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+  );
+}
+if (process.env.REPLIT_DEV_DOMAIN) {
+  envOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
+const allowedOrigins: string[] = [...PRODUCTION_ORIGINS, ...envOrigins];
+
+app.use(
+  cors({
+    credentials: true,
+    origin:
+      envOrigins.length > 0
+        ? (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+            // Allow same-origin and server-to-server requests (no Origin header)
+            if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+            } else {
+              callback(null, false);
+            }
+          }
+        : true, // No env vars configured — open during early local dev only
+  })
+);
+
+This is server-side only — no rebuild needed, just redeploy after the change. Commit and push the change once applied.

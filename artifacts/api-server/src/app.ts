@@ -38,22 +38,26 @@ app.use(
 // Security headers
 app.use(helmet());
 
-// CORS — lock to an explicit origin allowlist; falls back to the Replit dev domain in development
-const allowedOrigins: string[] = [];
+// CORS — keep the production web app allowed even if deployment env vars are
+// missing or misconfigured, while retaining the local development fallback.
+const PRODUCTION_ORIGINS = ["https://app.trailteam.app"];
+
+const envOrigins: string[] = [];
 if (process.env.ALLOWED_ORIGINS) {
-  allowedOrigins.push(
+  envOrigins.push(
     ...process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
   );
 }
 if (process.env.REPLIT_DEV_DOMAIN) {
-  allowedOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+  envOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
 }
+const allowedOrigins: string[] = [...PRODUCTION_ORIGINS, ...envOrigins];
 
 app.use(
   cors({
     credentials: true,
     origin:
-      allowedOrigins.length > 0
+      envOrigins.length > 0
         ? (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
             // Allow same-origin and server-to-server requests (no Origin header)
             if (!origin || allowedOrigins.includes(origin)) {
