@@ -24,3 +24,4 @@
 - [Event-change audience privacy](event-change-audience-privacy.md) — audience changes require old/new recipient handling; removed users must never receive post-change private details
 - [Carpool capacity semantics](carpool-capacity-semantics.md) — every rider source consumes advertised capacity; never fabricate bike trays for a match
 - [Scoped pnpm installs](scoped-pnpm-installs.md) — package installer targets the workspace root; use a filtered pnpm add when a dependency belongs to one artifact
+- [Drizzle PostgreSQL errors](drizzle-postgres-errors.md) — transaction failures may wrap PostgreSQL codes under cause; inspect the cause chain before classifying conflicts

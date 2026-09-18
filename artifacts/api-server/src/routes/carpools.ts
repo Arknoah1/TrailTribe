@@ -46,7 +46,14 @@ function sendCapacityConflict(res: any, err: CapacityConflict) {
 }
 
 function isUniqueViolation(err: unknown): boolean {
-  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
+  let current = err;
+  const seen = new Set<unknown>();
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    if ("code" in current && (current as { code?: string }).code === "23505") return true;
+    seen.add(current);
+    current = "cause" in current ? (current as { cause?: unknown }).cause : null;
+  }
+  return false;
 }
 
 async function buildOfferWithClaims(offer: any) {
