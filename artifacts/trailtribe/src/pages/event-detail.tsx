@@ -755,7 +755,7 @@ export default function EventDetail() {
               {event.description && (
                 <div className="pt-4 border-t">
                   <h3 className="font-semibold mb-2">Details</h3>
-                  <div className="text-sm prose dark:prose-invert max-w-none break-words">
+                  <div className="text-sm prose dark:prose-invert max-w-none break-words overflow-x-auto">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {event.description}
                     </ReactMarkdown>
