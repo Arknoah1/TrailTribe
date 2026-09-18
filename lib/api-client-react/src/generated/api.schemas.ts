@@ -177,10 +177,34 @@ export interface CoParentInviteInput {
   email: string;
 }
 
-export interface CoParentInviteDelivery {
+export type CoParentInviteStatus =
+  (typeof CoParentInviteStatus)[keyof typeof CoParentInviteStatus];
+
+export const CoParentInviteStatus = {
+  pending: "pending",
+  accepted: "accepted",
+  expired: "expired",
+  canceled: "canceled",
+  email_not_sent: "email_not_sent",
+} as const;
+
+export interface CoParentInvite {
+  id: number;
   email: string;
+  status: CoParentInviteStatus;
+  createdAt: string;
   expiresAt: string;
+  /** @nullable */
+  acceptedAt: string | null;
+  /** @nullable */
+  canceledAt: string | null;
+  /** @nullable */
+  lastEmailAttemptAt: string | null;
+  /** @nullable */
+  lastEmailSentAt: string | null;
 }
+
+export type CoParentInviteDelivery = CoParentInvite;
 
 export interface CreateHouseholdBody {
   name: string;

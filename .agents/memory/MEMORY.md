@@ -25,3 +25,4 @@
 - [Carpool capacity semantics](carpool-capacity-semantics.md) — every rider source consumes advertised capacity; never fabricate bike trays for a match
 - [Scoped pnpm installs](scoped-pnpm-installs.md) — package installer targets the workspace root; use a filtered pnpm add when a dependency belongs to one artifact
 - [Drizzle PostgreSQL errors](drizzle-postgres-errors.md) — transaction failures may wrap PostgreSQL codes under cause; inspect the cause chain before classifying conflicts
+- [Household invite lifecycle boundaries](household-invite-lifecycle-boundaries.md) — shared invite storage requires strict route isolation and atomic, serialized lifecycle transitions

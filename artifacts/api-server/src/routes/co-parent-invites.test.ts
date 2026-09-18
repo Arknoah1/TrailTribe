@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   household: { id: 42, name: "Smith Family", podId: "trailblazers" } as Record<string, unknown> | null,
   activeInvite: null as Record<string, unknown> | null,
+  invites: [] as Record<string, unknown>[],
   delivery: { status: "sent" } as { status: "sent" | "skipped" | "failed"; reason?: string; error?: Error },
   inserts: [] as Record<string, unknown>[],
   updates: [] as Record<string, unknown>[],
@@ -24,42 +25,62 @@ vi.mock("drizzle-orm", () => ({
   eq: vi.fn(() => ({})),
   and: vi.fn(() => ({})),
   isNull: vi.fn(() => ({})),
+  isNotNull: vi.fn(() => ({})),
   gt: vi.fn(() => ({})),
   desc: vi.fn(() => ({})),
   inArray: vi.fn(() => ({})),
   or: vi.fn(() => ({})),
+  sql: vi.fn(() => ({})),
 }));
 
 vi.mock("@workspace/db", () => {
   const updateChain = () => {
     const chain: any = {};
+    let updateValues: Record<string, unknown> = {};
     chain.set = vi.fn((values) => {
+      updateValues = values;
       state.updates.push(values);
       return chain;
     });
-    chain.where = vi.fn().mockResolvedValue(undefined);
-    chain.returning = vi.fn().mockResolvedValue([]);
+    chain.where = vi.fn(() => chain);
+    chain.returning = vi.fn(async () => state.activeInvite ? [{ ...state.activeInvite, ...updateValues }] : []);
     return chain;
   };
 
-  return {
-    db: {
+  const mockDb: any = {
       query: {
         usersTable: { findFirst: vi.fn(() => Promise.resolve(state.requester)) },
         householdsTable: { findFirst: vi.fn(() => Promise.resolve(state.household)) },
-        familyInvitesTable: { findFirst: vi.fn(() => Promise.resolve(state.activeInvite)) },
+        familyInvitesTable: {
+          findFirst: vi.fn(() => Promise.resolve(state.activeInvite)),
+          findMany: vi.fn(() => Promise.resolve(state.invites)),
+        },
       },
       insert: vi.fn(() => ({
-        values: vi.fn(async (values) => {
+        values: vi.fn((values) => {
           state.inserts.push(values);
-          return undefined;
+          return {
+            returning: vi.fn().mockResolvedValue([{
+              id: 77,
+              createdAt: new Date("2026-09-18T10:00:00Z"),
+              acceptedAt: null,
+              revokedAt: null,
+              lastEmailAttemptAt: null,
+              lastEmailSentAt: null,
+              lastEmailStatus: null,
+              ...values,
+            }]),
+          };
         }),
       })),
       update: vi.fn(() => updateChain()),
       delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
       select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })) })),
-      transaction: vi.fn(),
-    },
+      execute: vi.fn().mockResolvedValue(undefined),
+    };
+  mockDb.transaction = vi.fn(async (callback) => callback(mockDb));
+  return {
+    db: mockDb,
     householdsTable: {},
     usersTable: {},
     familyInvitesTable: {},
@@ -125,6 +146,7 @@ beforeEach(() => {
   };
   state.household = { id: 42, name: "Smith Family", podId: "trailblazers" };
   state.activeInvite = null;
+  state.invites = [];
   state.delivery = { status: "sent" };
   state.inserts.length = 0;
   state.updates.length = 0;
@@ -137,6 +159,14 @@ async function send(body: unknown, householdId = 42) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+async function list(householdId = 42) {
+  return fetch(`${baseUrl}/households/${householdId}/co-parent-invites`);
+}
+
+async function cancel(inviteId: number, householdId = 42) {
+  return fetch(`${baseUrl}/households/${householdId}/co-parent-invites/${inviteId}`, { method: "DELETE" });
 }
 
 describe("POST /households/:id/co-parent-invites", () => {
@@ -188,6 +218,11 @@ describe("POST /households/:id/co-parent-invites", () => {
     expect(state.emails).toHaveLength(1);
     expect(state.emails[0].subject).toContain("Smith Family");
     expect(state.emails[0].text).toMatch(/https:\/\/trailtribe\.test\/family-invite\/[a-f0-9]{48}/);
+    expect(state.updates.at(-1)).toMatchObject({
+      lastEmailStatus: "sent",
+      lastEmailAttemptAt: expect.any(Date),
+      lastEmailSentAt: expect.any(Date),
+    });
   });
 
   it("refreshes an active invite for the same household and email instead of creating another", async () => {
@@ -201,7 +236,7 @@ describe("POST /households/:id/co-parent-invites", () => {
 
     expect(response.status).toBe(201);
     expect(state.inserts).toEqual([]);
-    expect(state.updates).toHaveLength(1);
+    expect(state.updates).toHaveLength(2);
     expect(state.updates[0]).toMatchObject({ invitedByUserId: 7 });
     expect(state.emails[0].text).toContain(`family-invite/${"a".repeat(48)}`);
   });
@@ -216,5 +251,74 @@ describe("POST /households/:id/co-parent-invites", () => {
 
     expect(response.status).toBe(expectedStatus);
     expect((await response.json()).error).toMatch(/Email delivery|couldn't send/i);
+  });
+});
+
+describe("household parent or guardian invitation lifecycle", () => {
+  it("lists sanitized lifecycle states without exposing tokens", async () => {
+    state.invites = [
+      {
+        id: 10,
+        email: "pending@example.com",
+        token: "private-token",
+        createdAt: new Date("2026-09-18T10:00:00Z"),
+        expiresAt: new Date("2099-09-25T10:00:00Z"),
+        acceptedAt: null,
+        revokedAt: null,
+        lastEmailAttemptAt: new Date("2026-09-18T10:01:00Z"),
+        lastEmailSentAt: new Date("2026-09-18T10:01:00Z"),
+        lastEmailStatus: "sent",
+      },
+      {
+        id: 11,
+        email: "failed@example.com",
+        token: "also-private",
+        createdAt: new Date("2026-09-18T10:00:00Z"),
+        expiresAt: new Date("2099-09-25T10:00:00Z"),
+        acceptedAt: null,
+        revokedAt: null,
+        lastEmailAttemptAt: new Date("2026-09-18T10:01:00Z"),
+        lastEmailSentAt: null,
+        lastEmailStatus: "failed",
+      },
+    ];
+
+    const response = await list();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject([
+      { id: 10, email: "pending@example.com", status: "pending" },
+      { id: 11, email: "failed@example.com", status: "email_not_sent" },
+    ]);
+    expect(JSON.stringify(body)).not.toContain("private-token");
+  });
+
+  it("cancels an invitation in the requester's household", async () => {
+    state.activeInvite = {
+      id: 12,
+      email: "parent@example.com",
+      createdAt: new Date("2026-09-18T10:00:00Z"),
+      expiresAt: new Date("2099-09-25T10:00:00Z"),
+      acceptedAt: null,
+      revokedAt: null,
+      lastEmailAttemptAt: new Date("2026-09-18T10:01:00Z"),
+      lastEmailSentAt: new Date("2026-09-18T10:01:00Z"),
+      lastEmailStatus: "sent",
+    };
+
+    const response = await cancel(12);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: 12, status: "canceled" });
+    expect(state.updates.at(-1)).toMatchObject({ revokedAt: expect.any(Date) });
+  });
+
+  it.each([
+    ["a student in the household", { id: 8, role: "student", householdId: 42 }],
+    ["a coach from another household", { id: 9, role: "coach", householdId: 99 }],
+  ])("does not let %s list invitations", async (_description, requester) => {
+    state.requester = requester;
+    expect((await list()).status).toBe(403);
   });
 });

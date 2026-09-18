@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser, useClerk } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mountain, Mail, ShieldAlert, CheckCircle2, Loader2 } from "lucide-react";
@@ -11,7 +11,7 @@ import { APP_BASE_URL } from "@/lib/api-origin";
 
 const BASE_URL = APP_BASE_URL;
 
-type Status = "loading" | "invalid" | "ready" | "accepting" | "done" | "already-used" | "error";
+type Status = "loading" | "invalid" | "ready" | "accepting" | "done" | "already-used" | "error" | "email-mismatch";
 
 export default function FamilyInvite() {
   const params = useParams<{ token: string }>();
@@ -21,9 +21,12 @@ export default function FamilyInvite() {
   const authedFetch = useAuthedFetch();
   const queryClient = useQueryClient();
 
+  const { signOut } = useClerk();
   const [status, setStatus] = useState<Status>("loading");
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
+  const [mismatchExpectedEmail, setMismatchExpectedEmail] = useState<string | null>(null);
   const [householdName, setHouseholdName] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   // Step 1: Validate the token (public endpoint)
@@ -55,8 +58,15 @@ export default function FamilyInvite() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
+
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        if (res.status === 409 && data.code === "EMAIL_MISMATCH") {
+          setMismatchExpectedEmail(data.expectedEmail || null);
+          setStatus("email-mismatch");
+          return;
+        }
         if (res.status === 404) {
           // Could be already accepted (someone already used this link)
           setStatus("already-used");
@@ -68,9 +78,16 @@ export default function FamilyInvite() {
       }
       // Invalidate user data so onboarding sees the approved flag
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      setNeedsOnboarding(Boolean(data.needsOnboarding));
       setStatus("done");
-      // Small delay for the success state to render, then go to onboarding
-      setTimeout(() => setLocation("/onboarding"), 1800);
+      // Small delay for the success state to render, then go to onboarding or dashboard
+      setTimeout(() => {
+        if (data.needsOnboarding) {
+          setLocation("/onboarding");
+        } else {
+          setLocation("/dashboard");
+        }
+      }, 1800);
     } catch {
       setErrorMsg("Network error — please try again");
       setStatus("error");
@@ -120,7 +137,9 @@ export default function FamilyInvite() {
               {status === "accepting" ? "Activating your invite…" : "You're in!"}
             </h2>
             {status === "done" && (
-              <p className="text-muted-foreground">Your account is pre-approved. Taking you to set up your profile…</p>
+              <p className="text-muted-foreground">
+                {needsOnboarding ? "Taking you to finish your profile…" : "Taking you to your household…"}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -138,6 +157,34 @@ export default function FamilyInvite() {
             <p className="text-muted-foreground">This invite link has already been accepted. If you think this is an error, ask your coach to send a new one.</p>
             <Button asChild className="w-full">
               <a href={`${BASE_URL}/dashboard`}>Go to Dashboard</a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === "email-mismatch") {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center pb-2">
+            <ShieldAlert className="h-12 w-12 mx-auto text-destructive mb-2" />
+            <CardTitle className="text-2xl">Wrong Account</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              This invite was sent to <strong>{mismatchExpectedEmail || inviteEmail || "another email"}</strong>, but you're currently signed in with a different account.
+            </p>
+            <Button
+              className="w-full"
+              onClick={() => signOut({ redirectUrl: window.location.href })}
+              data-testid="button-switch-account"
+            >
+              Switch Account
+            </Button>
+            <Button variant="outline" asChild className="w-full">
+              <a href={`${BASE_URL}/`}>Return to Home</a>
             </Button>
           </CardContent>
         </Card>

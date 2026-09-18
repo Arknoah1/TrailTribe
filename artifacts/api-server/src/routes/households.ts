@@ -27,13 +27,17 @@ import {
   inviteLinksTable,
   podsTable,
 } from "@workspace/db";
-import { eq, and, isNull, desc, gt, inArray, or } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, desc, gt, inArray, or, sql } from "drizzle-orm";
 import {
   GetHouseholdFamilyLinkParams,
   GetHouseholdFamilyLinkResponse,
   RotateHouseholdFamilyLinkBody,
   RotateHouseholdFamilyLinkParams,
   RotateHouseholdFamilyLinkResponse,
+  CancelCoParentInviteParams,
+  CancelCoParentInviteResponse,
+  ListCoParentInvitesParams,
+  ListCoParentInvitesResponse,
   SendCoParentInviteBody,
   SendCoParentInviteParams,
 } from "@workspace/api-zod";
@@ -65,6 +69,35 @@ function coParentInviteExpiresAt(): Date {
   const date = new Date();
   date.setDate(date.getDate() + CO_PARENT_INVITE_TTL_DAYS);
   return date;
+}
+
+function canManageCoParentInvites(requester: any, householdId: number): boolean {
+  return !!requester
+    && requester.householdId === householdId
+    && (requester.role === "parent" || requester.role === "coach");
+}
+
+function sanitizedCoParentInvite(invite: any, now = new Date()) {
+  const status = invite.acceptedAt
+    ? "accepted"
+    : invite.revokedAt
+      ? "canceled"
+      : invite.expiresAt <= now
+        ? "expired"
+        : invite.lastEmailStatus && invite.lastEmailStatus !== "sent"
+          ? "email_not_sent"
+          : "pending";
+  return {
+    id: invite.id,
+    email: invite.email,
+    status,
+    createdAt: invite.createdAt,
+    expiresAt: invite.expiresAt,
+    acceptedAt: invite.acceptedAt ?? null,
+    canceledAt: invite.revokedAt ?? null,
+    lastEmailAttemptAt: invite.lastEmailAttemptAt ?? null,
+    lastEmailSentAt: invite.lastEmailSentAt ?? null,
+  };
 }
 
 const createHouseholdSchema = z.object({
@@ -495,6 +528,28 @@ router.delete("/households/:householdId/admin/members/:memberId/duplicate", requ
   res.status(204).end();
 });
 
+router.get("/households/:id/co-parent-invites", requireAuth, async (req, res): Promise<void> => {
+  const params = ListCoParentInvitesParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid household." });
+    return;
+  }
+  const requester = await getRequester(req);
+  if (!canManageCoParentInvites(requester, params.data.id)) {
+    res.status(403).json({ error: "Only a parent or coach in this household can view parent or guardian invitations." });
+    return;
+  }
+  const invites = await db.query.familyInvitesTable.findMany({
+    where: and(
+      eq(familyInvitesTable.householdId, params.data.id),
+      isNotNull(familyInvitesTable.email),
+    ),
+    orderBy: [desc(familyInvitesTable.createdAt)],
+    limit: 25,
+  });
+  res.json(ListCoParentInvitesResponse.parse(invites.map((invite) => sanitizedCoParentInvite(invite))));
+});
+
 router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): Promise<void> => {
   const params = SendCoParentInviteParams.safeParse(req.params);
   const body = SendCoParentInviteBody.safeParse(req.body);
@@ -505,11 +560,8 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
 
   const householdId = params.data.id;
   const requester = await getRequester(req);
-  const canInviteCoParent = requester
-    && requester.householdId === householdId
-    && (requester.role === "parent" || requester.role === "coach");
-  if (!canInviteCoParent) {
-    res.status(403).json({ error: "Only a parent or coach in this household can send a co-parent invitation." });
+  if (!requester || !canManageCoParentInvites(requester, householdId)) {
+    res.status(403).json({ error: "Only a parent or coach in this household can send a parent or guardian invitation." });
     return;
   }
 
@@ -530,35 +582,46 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
   const email = body.data.email.trim().toLowerCase();
   const now = new Date();
   const expiresAt = coParentInviteExpiresAt();
-  const existing = await db.query.familyInvitesTable.findFirst({
-    where: and(
-      eq(familyInvitesTable.householdId, householdId),
-      eq(familyInvitesTable.email, email),
-      isNull(familyInvitesTable.acceptedAt),
-      isNull(familyInvitesTable.revokedAt),
-      gt(familyInvitesTable.expiresAt, now),
-    ),
-  });
-
-  let token: string;
-  if (existing) {
-    token = existing.token;
-    await db.update(familyInvitesTable)
-      .set({ expiresAt, invitedByUserId: requester.id })
-      .where(eq(familyInvitesTable.id, existing.id));
-  } else {
-    token = randomBytes(24).toString("hex");
-    await db.insert(familyInvitesTable).values({
+  let invite = await db.transaction(async (tx) => {
+    // Serialize send/resend for one household+email across server processes.
+    // The matching partial unique index is a second line of defense.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${"household-invite:" + householdId + ":" + email}))`);
+    const existing = await tx.query.familyInvitesTable.findFirst({
+      where: and(
+        eq(familyInvitesTable.householdId, householdId),
+        eq(familyInvitesTable.email, email),
+        isNull(familyInvitesTable.acceptedAt),
+        isNull(familyInvitesTable.revokedAt),
+      ),
+    });
+    if (existing) {
+      const [updated] = await tx.update(familyInvitesTable)
+        .set({
+          token: existing.expiresAt <= now ? randomBytes(24).toString("hex") : existing.token,
+          expiresAt,
+          invitedByUserId: requester.id,
+          lastEmailAttemptAt: now,
+          lastEmailStatus: "attempting",
+        })
+        .where(eq(familyInvitesTable.id, existing.id))
+        .returning();
+      return updated ?? { ...existing, expiresAt, invitedByUserId: requester.id };
+    }
+    const token = randomBytes(24).toString("hex");
+    const [created] = await tx.insert(familyInvitesTable).values({
       email,
       token,
       householdId,
       invitedByUserId: requester.id,
       expiresAt,
-    });
-  }
+      lastEmailAttemptAt: now,
+      lastEmailStatus: "attempting",
+    }).returning();
+    return created;
+  });
 
   const inviterName = `${requester.firstName} ${requester.lastName}`.trim() || "A parent";
-  const inviteUrl = buildAppUrl(`/family-invite/${token}`);
+  const inviteUrl = buildAppUrl(`/family-invite/${invite.token}`);
   if (!inviteUrl) {
     res.status(503).json({ error: "Email invitations are not configured right now. You can still copy and share the link." });
     return;
@@ -585,6 +648,26 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
     subject: `${inviterName} invited you to join the ${household.name} household on TrailTeam`,
     ...message,
   });
+  const attemptedAt = new Date();
+  const lastEmailStatus = emailResult.status === "sent"
+    ? "sent"
+    : emailResult.status === "skipped"
+      ? "unavailable"
+      : "failed";
+  const [inviteWithDelivery] = await db.update(familyInvitesTable)
+    .set({
+      lastEmailAttemptAt: attemptedAt,
+      lastEmailSentAt: emailResult.status === "sent" ? attemptedAt : invite.lastEmailSentAt ?? null,
+      lastEmailStatus,
+    })
+    .where(eq(familyInvitesTable.id, invite.id))
+    .returning();
+  invite = inviteWithDelivery ?? {
+    ...invite,
+    lastEmailAttemptAt: attemptedAt,
+    lastEmailSentAt: emailResult.status === "sent" ? attemptedAt : invite.lastEmailSentAt ?? null,
+    lastEmailStatus,
+  };
 
   if (emailResult.status === "skipped") {
     res.status(503).json({ error: "Email delivery is unavailable right now. You can still copy and share the link." });
@@ -595,7 +678,51 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
     return;
   }
 
-  res.status(201).json({ email, expiresAt });
+  res.status(201).json(sanitizedCoParentInvite(invite));
+});
+
+router.delete("/households/:id/co-parent-invites/:inviteId", requireAuth, async (req, res): Promise<void> => {
+  const params = CancelCoParentInviteParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid invitation." });
+    return;
+  }
+  const requester = await getRequester(req);
+  if (!canManageCoParentInvites(requester, params.data.id)) {
+    res.status(403).json({ error: "Only a parent or coach in this household can cancel parent or guardian invitations." });
+    return;
+  }
+  const invite = await db.query.familyInvitesTable.findFirst({
+    where: and(
+      eq(familyInvitesTable.id, params.data.inviteId),
+      eq(familyInvitesTable.householdId, params.data.id),
+      isNotNull(familyInvitesTable.email),
+    ),
+  });
+  if (!invite) {
+    res.status(404).json({ error: "Invitation not found." });
+    return;
+  }
+  if (invite.acceptedAt) {
+    res.status(400).json({ error: "An accepted invitation cannot be canceled." });
+    return;
+  }
+  const canceledAt = new Date();
+  const [updated] = await db.update(familyInvitesTable)
+    .set({ revokedAt: canceledAt })
+    .where(and(
+      eq(familyInvitesTable.id, invite.id),
+      eq(familyInvitesTable.householdId, params.data.id),
+      isNull(familyInvitesTable.acceptedAt),
+      isNull(familyInvitesTable.revokedAt),
+      gt(familyInvitesTable.expiresAt, canceledAt),
+    ))
+    .returning();
+  if (!updated) {
+    res.status(409).json({ error: "This invitation is no longer pending." });
+    return;
+  }
+  res.json(CancelCoParentInviteResponse.parse(sanitizedCoParentInvite(updated)));
 });
 
 /** Verbatim text shown to the user and stored in the audit log */

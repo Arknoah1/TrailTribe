@@ -912,6 +912,43 @@ const migrations: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    name: "add_delivery_lifecycle_to_family_invites",
+    sql: `
+      ALTER TABLE family_invites
+        ADD COLUMN IF NOT EXISTS last_email_attempt_at timestamptz,
+        ADD COLUMN IF NOT EXISTS last_email_sent_at timestamptz,
+        ADD COLUMN IF NOT EXISTS last_email_status text;
+    `,
+  },
+  {
+    name: "enforce_one_unresolved_household_invite_per_email",
+    sql: `
+      WITH duplicates AS (
+        SELECT id,
+          row_number() OVER (
+            PARTITION BY household_id, lower(email)
+            ORDER BY created_at DESC, id DESC
+          ) AS duplicate_rank
+        FROM family_invites
+        WHERE household_id IS NOT NULL
+          AND email IS NOT NULL
+          AND accepted_at IS NULL
+          AND revoked_at IS NULL
+      )
+      UPDATE family_invites
+      SET revoked_at = now()
+      WHERE id IN (
+        SELECT id FROM duplicates WHERE duplicate_rank > 1
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS family_invites_one_unresolved_household_email_idx
+        ON family_invites (household_id, lower(email))
+        WHERE household_id IS NOT NULL
+          AND accepted_at IS NULL
+          AND revoked_at IS NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

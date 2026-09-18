@@ -42,7 +42,9 @@ vi.mock("@workspace/db", () => {
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })),
     })),
     select: vi.fn(() => ({
-      from: vi.fn(() => ({ orderBy: vi.fn().mockResolvedValue([]) })),
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({ orderBy: vi.fn().mockResolvedValue([]) })),
+      })),
     })),
   };
   return {

@@ -1,7 +1,7 @@
 import {
   useGetMe, useUpdateMe, useGetHousehold, useUpdateHousehold,
   getGetHouseholdQueryKey, useGetCalendarSubscribeUrl, getGetCalendarSubscribeUrlQueryKey, useRegenerateCalendarToken,
-  useSendCoParentInvite,
+  useSendCoParentInvite, useListCoParentInvites, useCancelCoParentInvite, getListCoParentInvitesQueryKey
 } from "@workspace/api-client-react";
 import type { User, UserNotificationPreferences } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useClerk } from "@clerk/react";
-import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, ShieldCheck, AlertTriangle, UserPlus, Lock } from "lucide-react";
+import { UserCircle, Home, Bike, ClipboardCheck, Link2, Plus, Trash2, Pencil, CheckCircle2, Copy, Check, LogOut, Users, Bell, Car, Rss, ExternalLink, RefreshCw, ShieldCheck, AlertTriangle, UserPlus, Lock, Mail } from "lucide-react";
 import { useAdminView } from "@/hooks/use-admin-view";
 import {
   AlertDialog,
@@ -611,6 +611,10 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
   });
   const updateHousehold = useUpdateHousehold();
   const sendCoParentInvite = useSendCoParentInvite();
+  const cancelCoParentInvite = useCancelCoParentInvite();
+  const { data: coParentInvites, isLoading: coParentInvitesLoading } = useListCoParentInvites(householdId, {
+    query: { queryKey: getListCoParentInvitesQueryKey(householdId), enabled: canInviteCoParent }
+  });
   // updateCompliance retained for compatibility; signing now goes through DocumentConsentModal
 
   const [riders, setRiders] = useState<any[]>([]);
@@ -619,6 +623,7 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
   const [copied, setCopied] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [coParentEmail, setCoParentEmail] = useState("");
+  const [inviteToCancel, setInviteToCancel] = useState<{ id: number; email: string } | null>(null);
   const [memberToRemove, setMemberToRemove] = useState<any | null>(null);
   const [sendingInviteForRider, setSendingInviteForRider] = useState<number | null>(null);
   const [consentModal, setConsentModal] = useState<{
@@ -727,6 +732,43 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
     }
   };
 
+  const resendInvite = (email: string) => {
+    sendCoParentInvite.mutate(
+      { id: householdId, data: { email } },
+      {
+        onSuccess: () => {
+          toast({ title: `Invitation resent to ${email}` });
+          queryClient.invalidateQueries({ queryKey: getListCoParentInvitesQueryKey(householdId) });
+        },
+        onError: (error: any) => {
+          queryClient.invalidateQueries({ queryKey: getListCoParentInvitesQueryKey(householdId) });
+          toast({
+            title: error?.data?.error ?? "Failed to resend invitation.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
+  const handleCancelInvite = (inviteId: number) => {
+    cancelCoParentInvite.mutate(
+      { id: householdId, inviteId },
+      {
+        onSuccess: () => {
+          toast({ title: "Invitation canceled" });
+          queryClient.invalidateQueries({ queryKey: getListCoParentInvitesQueryKey(householdId) });
+        },
+        onError: (error: any) => {
+          toast({
+            title: error?.data?.error ?? "Failed to cancel invitation.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
   const removeMember = async () => {
     if (!memberToRemove) return;
     const target = memberToRemove;
@@ -764,9 +806,12 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
       {
         onSuccess: ({ email }) => {
           setCoParentEmail("");
+          setInviteOpen(false);
           toast({ title: `Invitation emailed to ${email}` });
+          queryClient.invalidateQueries({ queryKey: getListCoParentInvitesQueryKey(householdId) });
         },
         onError: (error: any) => {
+          queryClient.invalidateQueries({ queryKey: getListCoParentInvitesQueryKey(householdId) });
           toast({
             title: error?.data?.error ?? "We couldn't send that invitation. You can still copy the link instead.",
             variant: "destructive",
@@ -933,18 +978,18 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
         return (
           <>
             <Card>
-              <CardHeader className="flex flex-row items-start justify-between space-y-0">
+              <CardHeader className="flex flex-col gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Family Members</CardTitle>
-                  <CardDescription className="mt-1">Adults who have access to this household.</CardDescription>
+                  <CardDescription className="mt-1">Responsible adults with full access to this household.</CardDescription>
                 </div>
                 {canInviteCoParent ? (
-                  <Button size="sm" variant="outline" className="shrink-0 ml-4" onClick={() => setInviteOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1.5" /> Add Parent
+                  <Button size="sm" className="w-full shrink-0 sm:w-auto" onClick={() => setInviteOpen(true)} data-testid="button-invite-parent-guardian">
+                    <Plus className="h-4 w-4 mr-1.5" /> Invite parent or guardian
                   </Button>
                 ) : !readOnly ? (
                   <p className="max-w-40 text-right text-xs text-muted-foreground">
-                    Only a parent or coach in this household can invite a co-parent.
+                    Only a parent or coach in this household can invite a parent or guardian.
                   </p>
                 ) : null}
               </CardHeader>
@@ -986,6 +1031,85 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
               </CardContent>
             </Card>
 
+            {canInviteCoParent && (coParentInvitesLoading || (coParentInvites && coParentInvites.length > 0)) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Invitations</CardTitle>
+                  <CardDescription>Pending and past invitations for parents or guardians.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {coParentInvitesLoading && (
+                    <p className="py-3 text-sm text-muted-foreground">Loading invitations…</p>
+                  )}
+                  {coParentInvites?.map((invite) => (
+                    <div key={invite.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg border bg-card text-sm">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate" data-testid={`text-invite-email-${invite.id}`}>{invite.email}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {invite.status === "pending" && "Sent on " + format(new Date(invite.lastEmailSentAt ?? invite.createdAt), "MMM d, yyyy")}
+                          {invite.status === "accepted" && "Accepted on " + (invite.acceptedAt ? format(new Date(invite.acceptedAt), "MMM d, yyyy") : "")}
+                          {invite.status === "expired" && "Expired on " + format(new Date(invite.expiresAt), "MMM d, yyyy")}
+                          {invite.status === "canceled" && "Canceled on " + (invite.canceledAt ? format(new Date(invite.canceledAt), "MMM d, yyyy") : "")}
+                          {invite.status === "email_not_sent" && "Failed to send email"}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="capitalize" data-testid={`badge-invite-status-${invite.id}`}>{invite.status.replace("_", " ")}</Badge>
+                        {["pending", "email_not_sent"].includes(invite.status) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setInviteToCancel({ id: invite.id, email: invite.email })}
+                            disabled={cancelCoParentInvite.isPending}
+                            data-testid={`button-cancel-invite-${invite.id}`}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                        {["pending", "expired", "email_not_sent"].includes(invite.status) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => resendInvite(invite.email)}
+                            disabled={sendCoParentInvite.isPending}
+                            data-testid={`button-resend-invite-${invite.id}`}
+                          >
+                            Resend
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            <AlertDialog open={!!inviteToCancel} onOpenChange={(open) => { if (!open) setInviteToCancel(null); }}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this invitation?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    The private invitation sent to {inviteToCancel?.email} will stop working. You can send a new invitation later.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep invitation</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      if (inviteToCancel) handleCancelInvite(inviteToCancel.id);
+                      setInviteToCancel(null);
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    data-testid="button-confirm-cancel-invite"
+                  >
+                    Cancel invitation
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
             <AlertDialog open={!!memberToRemove} onOpenChange={(o) => { if (!o) setMemberToRemove(null); }}>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -1012,12 +1136,12 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
             }}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Co-Parent</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> Invite a Parent or Guardian</DialogTitle>
                   <DialogDescription>Send a private invitation by email, or copy a link to share yourself.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-5 pt-1">
                   <form onSubmit={sendCoParentInviteEmail} className="space-y-2">
-                    <Label htmlFor="co-parent-email">Co-parent email</Label>
+                    <Label htmlFor="co-parent-email">Parent or guardian email</Label>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
                         id="co-parent-email"

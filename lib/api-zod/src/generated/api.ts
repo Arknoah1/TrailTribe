@@ -736,6 +736,34 @@ export const UpdateHouseholdResponse = zod.object({
 });
 
 /**
+ * @summary List sanitized parent or guardian invitations for a household
+ */
+export const ListCoParentInvitesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListCoParentInvitesResponseItem = zod.object({
+  id: zod.number(),
+  email: zod.string().email(),
+  status: zod.enum([
+    "pending",
+    "accepted",
+    "expired",
+    "canceled",
+    "email_not_sent",
+  ]),
+  createdAt: zod.coerce.date(),
+  expiresAt: zod.coerce.date(),
+  acceptedAt: zod.coerce.date().nullable(),
+  canceledAt: zod.coerce.date().nullable(),
+  lastEmailAttemptAt: zod.coerce.date().nullable(),
+  lastEmailSentAt: zod.coerce.date().nullable(),
+});
+export const ListCoParentInvitesResponse = zod.array(
+  ListCoParentInvitesResponseItem,
+);
+
+/**
  * @summary Email a co-parent a secure household invitation
  */
 export const SendCoParentInviteParams = zod.object({
@@ -744,6 +772,32 @@ export const SendCoParentInviteParams = zod.object({
 
 export const SendCoParentInviteBody = zod.object({
   email: zod.string().email(),
+});
+
+/**
+ * @summary Cancel a pending parent or guardian invitation
+ */
+export const CancelCoParentInviteParams = zod.object({
+  id: zod.coerce.number(),
+  inviteId: zod.coerce.number(),
+});
+
+export const CancelCoParentInviteResponse = zod.object({
+  id: zod.number(),
+  email: zod.string().email(),
+  status: zod.enum([
+    "pending",
+    "accepted",
+    "expired",
+    "canceled",
+    "email_not_sent",
+  ]),
+  createdAt: zod.coerce.date(),
+  expiresAt: zod.coerce.date(),
+  acceptedAt: zod.coerce.date().nullable(),
+  canceledAt: zod.coerce.date().nullable(),
+  lastEmailAttemptAt: zod.coerce.date().nullable(),
+  lastEmailSentAt: zod.coerce.date().nullable(),
 });
 
 /**

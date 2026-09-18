@@ -412,6 +412,31 @@ paths:
                 $ref: "#/components/schemas/Household"
 
   /households/{id}/co-parent-invites:
+    get:
+      operationId: listCoParentInvites
+      tags: [households]
+      summary: List sanitized parent or guardian invitations for a household
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Household invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CoParentInvite"
+        "403":
+          description: Only an eligible adult in this household can view invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       operationId: sendCoParentInvite
       tags: [households]
@@ -461,6 +486,48 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: Email delivery is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /households/{id}/co-parent-invites/{inviteId}:
+    delete:
+      operationId: cancelCoParentInvite
+      tags: [households]
+      summary: Cancel a pending parent or guardian invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: inviteId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Canceled invitation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoParentInvite"
+        "400":
+          description: Invalid or already accepted invitation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Only an eligible adult in this household can cancel invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Invitation not found
           content:
             application/json:
               schema:
@@ -2820,16 +2887,40 @@ components:
           format: email
       required: [email]
 
-    CoParentInviteDelivery:
+    CoParentInvite:
       type: object
       properties:
+        id:
+          type: integer
         email:
           type: string
           format: email
+        status:
+          type: string
+          enum: [pending, accepted, expired, canceled, email_not_sent]
+        createdAt:
+          type: string
+          format: date-time
         expiresAt:
           type: string
           format: date-time
-      required: [email, expiresAt]
+        acceptedAt:
+          type: ["string", "null"]
+          format: date-time
+        canceledAt:
+          type: ["string", "null"]
+          format: date-time
+        lastEmailAttemptAt:
+          type: ["string", "null"]
+          format: date-time
+        lastEmailSentAt:
+          type: ["string", "null"]
+          format: date-time
+      required: [id, email, status, createdAt, expiresAt, acceptedAt, canceledAt, lastEmailAttemptAt, lastEmailSentAt]
+
+    CoParentInviteDelivery:
+      allOf:
+        - $ref: "#/components/schemas/CoParentInvite"
 
     CreateHouseholdBody:
       type: object

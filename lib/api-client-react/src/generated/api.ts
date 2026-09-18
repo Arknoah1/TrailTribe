@@ -45,6 +45,7 @@ import type {
   ClaimCarpoolBody,
   CloneEventTasksFromTemplate201,
   CloneEventTasksFromTemplateBody,
+  CoParentInvite,
   CoParentInviteDelivery,
   CoParentInviteInput,
   ContactCoachBody,
@@ -1499,6 +1500,93 @@ export const useUpdateHousehold = <
 };
 
 /**
+ * @summary List sanitized parent or guardian invitations for a household
+ */
+export const getListCoParentInvitesUrl = (id: number) => {
+  return `/api/households/${id}/co-parent-invites`;
+};
+
+export const listCoParentInvites = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CoParentInvite[]> => {
+  return customFetch<CoParentInvite[]>(getListCoParentInvitesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCoParentInvitesQueryKey = (id: number) => {
+  return [`/api/households/${id}/co-parent-invites`] as const;
+};
+
+export const getListCoParentInvitesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCoParentInvites>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCoParentInvites>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListCoParentInvitesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCoParentInvites>>
+  > = ({ signal }) => listCoParentInvites(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCoParentInvites>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCoParentInvitesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCoParentInvites>>
+>;
+export type ListCoParentInvitesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary List sanitized parent or guardian invitations for a household
+ */
+
+export function useListCoParentInvites<
+  TData = Awaited<ReturnType<typeof listCoParentInvites>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCoParentInvites>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCoParentInvitesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Email a co-parent a secure household invitation
  */
 export const getSendCoParentInviteUrl = (id: number) => {
@@ -1583,6 +1671,91 @@ export const useSendCoParentInvite = <
   TContext
 > => {
   return useMutation(getSendCoParentInviteMutationOptions(options));
+};
+
+/**
+ * @summary Cancel a pending parent or guardian invitation
+ */
+export const getCancelCoParentInviteUrl = (id: number, inviteId: number) => {
+  return `/api/households/${id}/co-parent-invites/${inviteId}`;
+};
+
+export const cancelCoParentInvite = async (
+  id: number,
+  inviteId: number,
+  options?: RequestInit,
+): Promise<CoParentInvite> => {
+  return customFetch<CoParentInvite>(getCancelCoParentInviteUrl(id, inviteId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getCancelCoParentInviteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelCoParentInvite>>,
+    TError,
+    { id: number; inviteId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelCoParentInvite>>,
+  TError,
+  { id: number; inviteId: number },
+  TContext
+> => {
+  const mutationKey = ["cancelCoParentInvite"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelCoParentInvite>>,
+    { id: number; inviteId: number }
+  > = (props) => {
+    const { id, inviteId } = props ?? {};
+
+    return cancelCoParentInvite(id, inviteId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelCoParentInviteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelCoParentInvite>>
+>;
+
+export type CancelCoParentInviteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Cancel a pending parent or guardian invitation
+ */
+export const useCancelCoParentInvite = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelCoParentInvite>>,
+    TError,
+    { id: number; inviteId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelCoParentInvite>>,
+  TError,
+  { id: number; inviteId: number },
+  TContext
+> => {
+  return useMutation(getCancelCoParentInviteMutationOptions(options));
 };
 
 /**

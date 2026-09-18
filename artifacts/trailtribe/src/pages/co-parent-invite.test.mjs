@@ -12,7 +12,7 @@ test("the co-parent dialog offers email delivery and retains the copy-link alter
   assert.match(profile, /coParentInviteSchema/);
   assert.match(profile, /canInviteCoParent: boolean/);
   assert.match(profile, /canInviteCoParent=\{user\.role === "parent" \|\| user\.role === "coach"\}/);
-  assert.match(profile, /Only a parent or coach in this household can invite a co-parent\./);
+  assert.match(profile, /Only a parent or coach in this household can invite a parent or guardian\./);
   assert.match(profile, /id="co-parent-email"/);
   assert.match(profile, /Send invite/);
   assert.match(profile, /Or share the household link/);
@@ -23,4 +23,13 @@ test("co-parent delivery gives a sender-visible success or failure result", () =
   assert.match(profile, /Invitation emailed to \$\{email\}/);
   assert.match(profile, /You can still copy the link instead/);
   assert.match(profile, /sendCoParentInvite\.isPending/);
+});
+
+test("co-parent invitations are listed and can be managed", () => {
+  assert.match(profile, /useListCoParentInvites/);
+  assert.match(profile, /useCancelCoParentInvite/);
+  assert.match(profile, /Pending and past invitations/);
+  assert.match(profile, /button-cancel-invite/);
+  assert.match(profile, /button-resend-invite/);
+  assert.match(profile, /queryClient\.invalidateQueries/);
 });

@@ -5,8 +5,6 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CoParentInvite } from "./coParentInvite";
 
-export interface CoParentInviteDelivery {
-  email: string;
-  expiresAt: Date;
-}
+export type CoParentInviteDelivery = CoParentInvite;

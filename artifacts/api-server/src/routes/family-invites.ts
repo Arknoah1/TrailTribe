@@ -27,6 +27,15 @@ const DEFAULT_NOTIFICATION_PREFS = {
   boardReplies: true,
 };
 
+class InviteAcceptanceError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: Record<string, unknown>,
+  ) {
+    super(String(body.error ?? "Invitation could not be accepted."));
+  }
+}
+
 function expiresAt(): Date {
   const d = new Date();
   d.setDate(d.getDate() + INVITE_TTL_DAYS);
@@ -45,7 +54,10 @@ const sendInviteSchema = z.object({
 
 // GET /family-invites — list all invites (coach/admin)
 router.get("/family-invites", requireCoachOrAdmin, async (_req, res) => {
-  const invites = await db.select().from(familyInvitesTable).orderBy(familyInvitesTable.createdAt);
+  const invites = await db.select()
+    .from(familyInvitesTable)
+    .where(isNull(familyInvitesTable.householdId))
+    .orderBy(familyInvitesTable.createdAt);
 
   // For accepted invites, look up the actual email used (may differ from invited email)
   const acceptedClerkIds = invites
@@ -101,6 +113,7 @@ router.post("/family-invites", requireCoachOrAdmin, async (req, res) => {
     const existing = await db.query.familyInvitesTable.findFirst({
       where: and(
         eq(familyInvitesTable.email, email),
+        isNull(familyInvitesTable.householdId),
         isNull(familyInvitesTable.acceptedAt),
         isNull(familyInvitesTable.revokedAt),
       ),
@@ -199,6 +212,10 @@ router.delete("/family-invites/:id", requireCoachOrAdmin, async (req, res) => {
     res.status(404).json({ error: "Invite not found" });
     return;
   }
+  if (invite.householdId) {
+    res.status(404).json({ error: "Invite not found" });
+    return;
+  }
   if (invite.acceptedAt) {
     res.status(400).json({ error: "Cannot revoke an already-accepted invite" });
     return;
@@ -217,6 +234,10 @@ router.delete("/family-invites/:id/purge", requireCoachOrAdmin, async (req, res)
     where: eq(familyInvitesTable.id, id),
   });
   if (!invite) {
+    res.status(404).json({ error: "Invite not found" });
+    return;
+  }
+  if (invite.householdId) {
     res.status(404).json({ error: "Invite not found" });
     return;
   }
@@ -309,7 +330,11 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
   if (invite.email) {
     const clerkEmails = clerkUser.emailAddresses.map((e) => e.emailAddress.toLowerCase());
     if (invite.householdId && !clerkEmails.includes(invite.email.toLowerCase())) {
-      res.status(403).json({ error: "Sign in with the email address this co-parent invitation was sent to." });
+      res.status(409).json({
+        code: "EMAIL_MISMATCH",
+        expectedEmail: invite.email,
+        error: `This invitation was sent to ${invite.email}. Sign in with that email address to continue.`,
+      });
       return;
     }
     if (!clerkEmails.includes(invite.email.toLowerCase())) {
@@ -320,68 +345,89 @@ router.post("/family-invites/accept", requireAuth, async (req, res) => {
     }
   }
 
-  // Get or create the user record and mark them approved
-  let user = await db.query.usersTable.findFirst({
-    where: eq(usersTable.clerkUserId, clerkUserId),
-  });
   const householdAssignment = invitedHousehold
     ? { householdId: invitedHousehold.id, podId: invitedHousehold.podId ?? null }
     : {};
 
-  if (invitedHousehold && user?.householdId && user.householdId !== invitedHousehold.id) {
-    res.status(409).json({ error: "Your account already belongs to a different household." });
-    return;
-  }
-
-  if (user) {
-    const [updated] = await db.update(usersTable)
-      .set({ approved: true, ...householdAssignment })
-      .where(eq(usersTable.id, user.id))
-      .returning();
-    user = updated ?? user;
-  } else {
-    // Check if a stub user exists by email
-    const byEmail = await db.query.usersTable.findFirst({
-      where: eq(usersTable.email, primaryEmail),
-    });
-    if (byEmail) {
-      if (invitedHousehold && byEmail.householdId && byEmail.householdId !== invitedHousehold.id) {
-        res.status(409).json({ error: "Your account already belongs to a different household." });
-        return;
-      }
-      const [updated] = await db.update(usersTable)
-        .set({ clerkUserId, approved: true, ...householdAssignment })
-        .where(eq(usersTable.id, byEmail.id))
+  let user: any;
+  try {
+    user = await db.transaction(async (tx) => {
+      // Claim the invite first. This row update serializes acceptance against
+      // cancellation and rolls back if account setup fails.
+      const [claimedInvite] = await tx.update(familyInvitesTable)
+        .set({ acceptedAt: now, acceptedByClerkUserId: clerkUserId })
+        .where(and(
+          eq(familyInvitesTable.id, invite.id),
+          eq(familyInvitesTable.token, token),
+          isNull(familyInvitesTable.acceptedAt),
+          isNull(familyInvitesTable.revokedAt),
+          gt(familyInvitesTable.expiresAt, now),
+        ))
         .returning();
-      user = updated ?? byEmail;
-    } else {
-      const [created] = await db.insert(usersTable).values({
-        clerkUserId,
-        firstName,
-        lastName,
-        email: primaryEmail,
-        role: "parent",
-        approved: true,
-        ...householdAssignment,
-        notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
-      }).returning();
-      user = created ?? null;
-    }
-  }
+      if (!claimedInvite) {
+        throw new InviteAcceptanceError(409, {
+          error: "This invitation is no longer available. Ask the person who invited you to send a fresh one.",
+        });
+      }
 
-  // Guard: only consume the invite after user creation/update succeeded
-  if (!user) {
-    logger.error({ clerkUserId, inviteId: invite.id }, "[family-invites] user creation failed; invite NOT consumed");
+      let account = await tx.query.usersTable.findFirst({
+        where: eq(usersTable.clerkUserId, clerkUserId),
+      });
+      if (invitedHousehold && account?.householdId && account.householdId !== invitedHousehold.id) {
+        throw new InviteAcceptanceError(409, { error: "Your account already belongs to a different household." });
+      }
+
+      if (account) {
+        const [updated] = await tx.update(usersTable)
+          .set({ approved: true, ...householdAssignment })
+          .where(eq(usersTable.id, account.id))
+          .returning();
+        account = updated ?? account;
+      } else {
+        const byEmail = await tx.query.usersTable.findFirst({
+          where: eq(usersTable.email, primaryEmail),
+        });
+        if (byEmail) {
+          if (invitedHousehold && byEmail.householdId && byEmail.householdId !== invitedHousehold.id) {
+            throw new InviteAcceptanceError(409, { error: "Your account already belongs to a different household." });
+          }
+          const [updated] = await tx.update(usersTable)
+            .set({ clerkUserId, approved: true, ...householdAssignment })
+            .where(eq(usersTable.id, byEmail.id))
+            .returning();
+          account = updated ?? byEmail;
+        } else {
+          const [created] = await tx.insert(usersTable).values({
+            clerkUserId,
+            firstName,
+            lastName,
+            email: primaryEmail,
+            role: "parent",
+            approved: true,
+            ...householdAssignment,
+            notificationPreferences: DEFAULT_NOTIFICATION_PREFS,
+          }).returning();
+          account = created ?? null;
+        }
+      }
+
+      if (!account) {
+        throw new InviteAcceptanceError(500, { error: "Failed to set up your account. Please try again." });
+      }
+      return account;
+    });
+  } catch (err) {
+    if (err instanceof InviteAcceptanceError) {
+      res.status(err.status).json(err.body);
+      return;
+    }
+    logger.error({ err, clerkUserId, inviteId: invite.id }, "[family-invites] atomic invite acceptance failed");
     res.status(500).json({ error: "Failed to set up your account. Please try again." });
     return;
   }
 
-  // Mark invite accepted — only reached after successful user creation/approval
-  await db.update(familyInvitesTable)
-    .set({ acceptedAt: now, acceptedByClerkUserId: clerkUserId })
-    .where(eq(familyInvitesTable.id, invite.id));
-
-  res.json({ ok: true, autoApproved: true });
+  const needsOnboarding = !user.firstName?.trim() || !user.lastName?.trim();
+  res.json({ ok: true, autoApproved: true, needsOnboarding });
 });
 
 export default router;
