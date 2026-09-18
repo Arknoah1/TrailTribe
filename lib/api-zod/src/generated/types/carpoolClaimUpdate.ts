@@ -6,9 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface ClaimCarpoolBody {
+export interface CarpoolClaimUpdate {
   needsSeat?: boolean;
   needsBikeTray?: boolean;
   notes?: string;
-  riderUserId?: number;
 }

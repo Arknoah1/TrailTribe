@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, boolean, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -22,6 +22,8 @@ export const carpoolOffersTable = pgTable("carpool_offers", {
 }, (t) => [
   index("carpool_offers_event_id_idx").on(t.eventId),
   index("carpool_offers_driver_user_id_idx").on(t.driverUserId),
+  check("carpool_offers_available_seats_nonnegative_check", sql`${t.availableSeats} >= 0`),
+  check("carpool_offers_bike_tray_count_nonnegative_check", sql`${t.bikeTrayCount} >= 0`),
 ]);
 
 export const insertCarpoolOfferSchema = createInsertSchema(carpoolOffersTable).omit({
@@ -42,10 +44,8 @@ export const carpoolClaimsTable = pgTable("carpool_claims", {
   needsBikeTray: boolean("needs_bike_tray").notNull().default(false),
   notes: text("notes"),
   /**
-   * True when the driver manually matched this rider via the "I'll Take Them" flow.
-   * Driver-matched claims are tracked for trip logistics but do NOT consume the
-   * offer's advertised seat/tray capacity in the UI — the driver made room for
-   * this rider outside of the self-serve claim flow.
+   * Historical source marker for claims created through "I'll Take Them".
+   * All claims consume the same advertised seat and bike-tray capacity.
    */
   matchedByDriver: boolean("matched_by_driver").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

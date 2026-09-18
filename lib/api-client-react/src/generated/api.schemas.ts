@@ -619,10 +619,17 @@ export type CarpoolOfferWithClaims = CarpoolOffer & {
   claims: CarpoolClaimWithUser[];
   seatsRemaining: number;
   bikeTraysRemaining: number;
+  seatsClaimed: number;
+  bikeTraysClaimed: number;
+  seatsOverCapacity: number;
+  bikeTraysOverCapacity: number;
+  isOverCapacity: boolean;
 };
 
 export interface CreateCarpoolOfferBody {
+  /** @minimum 0 */
   availableSeats: number;
+  /** @minimum 0 */
   bikeTrayCount: number;
   departureLocation?: string;
   departureTime?: string;
@@ -630,7 +637,9 @@ export interface CreateCarpoolOfferBody {
 }
 
 export interface UpdateCarpoolOfferBody {
+  /** @minimum 0 */
   availableSeats?: number;
+  /** @minimum 0 */
   bikeTrayCount?: number;
   departureLocation?: string;
   departureTime?: string;
@@ -638,8 +647,15 @@ export interface UpdateCarpoolOfferBody {
 }
 
 export interface ClaimCarpoolBody {
-  needsSeat: boolean;
-  needsBikeTray: boolean;
+  needsSeat?: boolean;
+  needsBikeTray?: boolean;
+  notes?: string;
+  riderUserId?: number;
+}
+
+export interface CarpoolClaimUpdate {
+  needsSeat?: boolean;
+  needsBikeTray?: boolean;
   notes?: string;
 }
 
@@ -684,30 +700,46 @@ export interface CreateCarpoolRequestBody {
 }
 
 /**
- * Allowed transitions from open - cancelled or matched (requires matchedOfferId)
+ * Generic edits may only cancel an open request; matching uses the match endpoint
  */
 export type UpdateCarpoolRequestBodyStatus =
   (typeof UpdateCarpoolRequestBodyStatus)[keyof typeof UpdateCarpoolRequestBodyStatus];
 
 export const UpdateCarpoolRequestBodyStatus = {
   cancelled: "cancelled",
-  matched: "matched",
 } as const;
 
 export interface UpdateCarpoolRequestBody {
   needsBikeTray?: boolean;
   notes?: string;
-  /** Allowed transitions from open - cancelled or matched (requires matchedOfferId) */
+  /** Generic edits may only cancel an open request; matching uses the match endpoint */
   status?: UpdateCarpoolRequestBodyStatus;
-  /** Required when setting status to matched */
-  matchedOfferId?: number | null;
 }
 
+/**
+ * When offerId is omitted, the server atomically creates an offer using the driver's defaults and matches the request in the same transaction.
+
+ */
 export interface MatchCarpoolRequestBody {
-  offerId: number;
-  /** True when the client auto-created this offer specifically for the match. When true the matched rider consumes a seat (reducing displayed availability). When false (default) the driver is extending their existing offer capacity and the displayed seat count remains unchanged.
+  offerId?: number;
+  /** May be false to confirm matching the rider without their bike when no bike tray remains. Omitting it preserves the request's bike requirement.
    */
-  autoCreated?: boolean;
+  needsBikeTray?: boolean;
+}
+
+export type CarpoolCapacityConflictCode =
+  (typeof CarpoolCapacityConflictCode)[keyof typeof CarpoolCapacityConflictCode];
+
+export const CarpoolCapacityConflictCode = {
+  NO_SEATS: "NO_SEATS",
+  NO_BIKE_TRAYS: "NO_BIKE_TRAYS",
+  OFFER_OVER_CAPACITY: "OFFER_OVER_CAPACITY",
+} as const;
+
+export interface CarpoolCapacityConflict {
+  error: string;
+  code: CarpoolCapacityConflictCode;
+  riderOnlyAvailable: boolean;
 }
 
 export interface CreateTrailheadBody {
@@ -1021,6 +1053,11 @@ export interface RequestUploadUrlResponse {
   uploadURL: string;
   objectPath: string;
 }
+
+/**
+ * The offer cannot accommodate the requested seat or bike tray
+ */
+export type CarpoolCapacityConflictResponse = CarpoolCapacityConflict;
 
 export type ListUsersParams = {
   role?: ListUsersRole;

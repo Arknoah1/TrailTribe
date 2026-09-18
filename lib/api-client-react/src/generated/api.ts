@@ -35,7 +35,10 @@ import type {
   BulkSignupForEventTasks201,
   BulkSignupForEventTasksBody,
   CalendarSubscribeUrl,
+  CarpoolCapacityConflict,
+  CarpoolCapacityConflictResponse,
   CarpoolClaim,
+  CarpoolClaimUpdate,
   CarpoolOffer,
   CarpoolOfferWithClaims,
   CarpoolRequestWithUsers,
@@ -5425,7 +5428,7 @@ export const createCarpoolOffer = async (
 };
 
 export const getCreateCarpoolOfferMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5466,13 +5469,13 @@ export type CreateCarpoolOfferMutationResult = NonNullable<
   Awaited<ReturnType<typeof createCarpoolOffer>>
 >;
 export type CreateCarpoolOfferMutationBody = BodyType<CreateCarpoolOfferBody>;
-export type CreateCarpoolOfferMutationError = ErrorType<unknown>;
+export type CreateCarpoolOfferMutationError = ErrorType<void>;
 
 /**
  * @summary Offer to drive (post available seats and bike tray slots)
  */
 export const useCreateCarpoolOffer = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<void>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5509,7 +5512,7 @@ export const updateCarpoolOffer = async (
 };
 
 export const getUpdateCarpoolOfferMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<CarpoolCapacityConflict | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5550,10 +5553,12 @@ export type UpdateCarpoolOfferMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateCarpoolOffer>>
 >;
 export type UpdateCarpoolOfferMutationBody = BodyType<UpdateCarpoolOfferBody>;
-export type UpdateCarpoolOfferMutationError = ErrorType<unknown>;
+export type UpdateCarpoolOfferMutationError = ErrorType<
+  CarpoolCapacityConflict | ErrorResponse
+>;
 
 export const useUpdateCarpoolOffer = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<CarpoolCapacityConflict | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5671,7 +5676,7 @@ export const claimCarpool = async (
 };
 
 export const getClaimCarpoolMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<CarpoolCapacityConflictResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5712,13 +5717,14 @@ export type ClaimCarpoolMutationResult = NonNullable<
   Awaited<ReturnType<typeof claimCarpool>>
 >;
 export type ClaimCarpoolMutationBody = BodyType<ClaimCarpoolBody>;
-export type ClaimCarpoolMutationError = ErrorType<unknown>;
+export type ClaimCarpoolMutationError =
+  ErrorType<CarpoolCapacityConflictResponse>;
 
 /**
  * @summary Claim a seat and/or bike tray in a carpool
  */
 export const useClaimCarpool = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<CarpoolCapacityConflictResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5735,6 +5741,89 @@ export const useClaimCarpool = <
   TContext
 > => {
   return useMutation(getClaimCarpoolMutationOptions(options));
+};
+
+export const getUpdateCarpoolClaimUrl = (offerId: number, claimId: number) => {
+  return `/api/carpools/${offerId}/claims/${claimId}`;
+};
+
+export const updateCarpoolClaim = async (
+  offerId: number,
+  claimId: number,
+  carpoolClaimUpdate: CarpoolClaimUpdate,
+  options?: RequestInit,
+): Promise<CarpoolClaim> => {
+  return customFetch<CarpoolClaim>(getUpdateCarpoolClaimUrl(offerId, claimId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(carpoolClaimUpdate),
+  });
+};
+
+export const getUpdateCarpoolClaimMutationOptions = <
+  TError = ErrorType<CarpoolCapacityConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCarpoolClaim>>,
+    TError,
+    { offerId: number; claimId: number; data: BodyType<CarpoolClaimUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCarpoolClaim>>,
+  TError,
+  { offerId: number; claimId: number; data: BodyType<CarpoolClaimUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateCarpoolClaim"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCarpoolClaim>>,
+    { offerId: number; claimId: number; data: BodyType<CarpoolClaimUpdate> }
+  > = (props) => {
+    const { offerId, claimId, data } = props ?? {};
+
+    return updateCarpoolClaim(offerId, claimId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCarpoolClaimMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCarpoolClaim>>
+>;
+export type UpdateCarpoolClaimMutationBody = BodyType<CarpoolClaimUpdate>;
+export type UpdateCarpoolClaimMutationError =
+  ErrorType<CarpoolCapacityConflictResponse>;
+
+export const useUpdateCarpoolClaim = <
+  TError = ErrorType<CarpoolCapacityConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCarpoolClaim>>,
+    TError,
+    { offerId: number; claimId: number; data: BodyType<CarpoolClaimUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCarpoolClaim>>,
+  TError,
+  { offerId: number; claimId: number; data: BodyType<CarpoolClaimUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateCarpoolClaimMutationOptions(options));
 };
 
 export const getCancelCarpoolClaimUrl = (offerId: number, claimId: number) => {
@@ -6189,7 +6278,7 @@ export const matchCarpoolRequest = async (
 };
 
 export const getMatchCarpoolRequestMutationOptions = <
-  TError = ErrorType<void>,
+  TError = ErrorType<void | CarpoolCapacityConflict | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -6230,13 +6319,15 @@ export type MatchCarpoolRequestMutationResult = NonNullable<
   Awaited<ReturnType<typeof matchCarpoolRequest>>
 >;
 export type MatchCarpoolRequestMutationBody = BodyType<MatchCarpoolRequestBody>;
-export type MatchCarpoolRequestMutationError = ErrorType<void>;
+export type MatchCarpoolRequestMutationError = ErrorType<
+  void | CarpoolCapacityConflict | ErrorResponse
+>;
 
 /**
  * @summary Driver accepts a ride request and creates a claim
  */
 export const useMatchCarpoolRequest = <
-  TError = ErrorType<void>,
+  TError = ErrorType<void | CarpoolCapacityConflict | ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<

@@ -7,7 +7,9 @@
  */
 
 export interface UpdateCarpoolOfferBody {
+  /** @minimum 0 */
   availableSeats?: number;
+  /** @minimum 0 */
   bikeTrayCount?: number;
   departureLocation?: string;
   departureTime?: Date;

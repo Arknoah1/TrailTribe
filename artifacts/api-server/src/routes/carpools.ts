@@ -7,7 +7,7 @@ import {
   usersTable,
   eventsTable,
 } from "@workspace/db";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { requireAuth, requireApproved } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { sendEmail } from "../lib/email";
@@ -18,6 +18,32 @@ import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 const CLAIM_CONFLICT_MESSAGE = "This rider already has a driver for this event";
+const CARPOOL_CAPACITY_LOCK_NAMESPACE = 410;
+const CARPOOL_REQUEST_LOCK_NAMESPACE = 411;
+
+type CapacityConflictCode = "NO_SEATS" | "NO_BIKE_TRAYS" | "OFFER_OVER_CAPACITY";
+
+class CapacityConflict extends Error {
+  constructor(
+    readonly code: CapacityConflictCode,
+    message: string,
+    readonly riderOnlyAvailable = false,
+  ) {
+    super(message);
+  }
+}
+
+function isCapacityConflict(err: unknown): err is CapacityConflict {
+  return err instanceof CapacityConflict;
+}
+
+function sendCapacityConflict(res: any, err: CapacityConflict) {
+  res.status(409).json({
+    error: err.message,
+    code: err.code,
+    riderOnlyAvailable: err.riderOnlyAvailable,
+  });
+}
 
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "23505";
@@ -32,19 +58,84 @@ async function buildOfferWithClaims(offer: any) {
       return { ...c, rider };
     })
   );
-  // Only self-claimed seats/trays (matchedByDriver = false) consume advertised
-  // capacity. Driver-initiated matches via "I'll Take Them" are tracked for trip
-  // logistics but don't reduce the displayed availability.
-  const advertisedClaims = claims.filter((c) => !c.matchedByDriver);
-  const seatsClaimed = advertisedClaims.filter((c) => c.needsSeat).length;
-  const bikeTraysClaimed = advertisedClaims.filter((c) => c.needsBikeTray).length;
+  const seatsClaimed = claims.filter((c) => c.needsSeat).length;
+  const bikeTraysClaimed = claims.filter((c) => c.needsBikeTray).length;
+  const seatsOverCapacity = Math.max(0, seatsClaimed - offer.availableSeats);
+  const bikeTraysOverCapacity = Math.max(0, bikeTraysClaimed - offer.bikeTrayCount);
   return {
     ...offer,
     driver,
     claims: claimsWithUsers,
+    seatsClaimed,
+    bikeTraysClaimed,
     seatsRemaining: Math.max(0, offer.availableSeats - seatsClaimed),
     bikeTraysRemaining: Math.max(0, offer.bikeTrayCount - bikeTraysClaimed),
+    seatsOverCapacity,
+    bikeTraysOverCapacity,
+    isOverCapacity: seatsOverCapacity > 0 || bikeTraysOverCapacity > 0,
   };
+}
+
+async function lockOffer(tx: any, offerId: number) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${CARPOOL_CAPACITY_LOCK_NAMESPACE}, ${offerId})`);
+}
+
+async function lockRequest(tx: any, requestId: number) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${CARPOOL_REQUEST_LOCK_NAMESPACE}, ${requestId})`);
+}
+
+function isValidCapacity(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
+}
+
+async function getOfferCapacity(tx: any, offerId: number) {
+  const [offer] = await tx
+    .select()
+    .from(carpoolOffersTable)
+    .where(eq(carpoolOffersTable.id, offerId))
+    .limit(1);
+  if (!offer) return null;
+
+  const claims = await tx
+    .select()
+    .from(carpoolClaimsTable)
+    .where(eq(carpoolClaimsTable.carpoolOfferId, offerId));
+  const seatsClaimed = claims.filter((claim: any) => claim.needsSeat).length;
+  const bikeTraysClaimed = claims.filter((claim: any) => claim.needsBikeTray).length;
+
+  return {
+    offer,
+    claims,
+    seatsClaimed,
+    bikeTraysClaimed,
+    isOverCapacity:
+      seatsClaimed > offer.availableSeats ||
+      bikeTraysClaimed > offer.bikeTrayCount,
+  };
+}
+
+function assertCapacityForNewClaim(
+  capacity: NonNullable<Awaited<ReturnType<typeof getOfferCapacity>>>,
+  needsSeat: boolean,
+  needsBikeTray: boolean,
+) {
+  if (capacity.isOverCapacity) {
+    throw new CapacityConflict(
+      "OFFER_OVER_CAPACITY",
+      "This offer is already over capacity. The driver must increase capacity or remove a claim before adding another rider.",
+    );
+  }
+  const seatAvailable = capacity.seatsClaimed < capacity.offer.availableSeats;
+  if (needsSeat && !seatAvailable) {
+    throw new CapacityConflict("NO_SEATS", "This carpool no longer has an available seat.");
+  }
+  if (needsBikeTray && capacity.bikeTraysClaimed >= capacity.offer.bikeTrayCount) {
+    throw new CapacityConflict(
+      "NO_BIKE_TRAYS",
+      "This carpool no longer has an available bike tray.",
+      seatAvailable,
+    );
+  }
 }
 
 async function getRequester(req: any) {
@@ -84,6 +175,10 @@ router.post("/events/:id/carpools", requireApproved, async (req, res) => {
     return;
   }
   const { availableSeats, bikeTrayCount, departureLocation, departureTime, notes } = req.body;
+  if (!isValidCapacity(availableSeats) || !isValidCapacity(bikeTrayCount)) {
+    res.status(400).json({ error: "Seats and bike trays must be non-negative whole numbers" });
+    return;
+  }
   const [offer] = await db.insert(carpoolOffersTable).values({
     eventId,
     driverUserId: me.id,
@@ -132,10 +227,58 @@ router.patch("/carpools/:offerId", requireApproved, async (req, res) => {
     return;
   }
   const { availableSeats, bikeTrayCount, departureLocation, departureTime, notes } = req.body;
-  const [updated] = await db.update(carpoolOffersTable)
-    .set({ availableSeats, bikeTrayCount, departureLocation, departureTime: departureTime ? new Date(departureTime) : undefined, notes })
-    .where(eq(carpoolOffersTable.id, offerId))
-    .returning();
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      await lockOffer(tx, offerId);
+      const capacity = await getOfferCapacity(tx, offerId);
+      if (!capacity) throw new Error("OFFER_NOT_FOUND");
+
+      const nextSeats = availableSeats ?? capacity.offer.availableSeats;
+      const nextTrays = bikeTrayCount ?? capacity.offer.bikeTrayCount;
+      if (!Number.isInteger(nextSeats) || nextSeats < 0 || !Number.isInteger(nextTrays) || nextTrays < 0) {
+        throw new Error("INVALID_CAPACITY");
+      }
+      if (nextSeats < capacity.seatsClaimed && nextSeats < capacity.offer.availableSeats) {
+        throw new CapacityConflict(
+          "NO_SEATS",
+          `This offer already has ${capacity.seatsClaimed} claimed seat${capacity.seatsClaimed === 1 ? "" : "s"}. Remove claims before lowering the seat count.`,
+        );
+      }
+      if (nextTrays < capacity.bikeTraysClaimed && nextTrays < capacity.offer.bikeTrayCount) {
+        throw new CapacityConflict(
+          "NO_BIKE_TRAYS",
+          `This offer already has ${capacity.bikeTraysClaimed} claimed bike tray${capacity.bikeTraysClaimed === 1 ? "" : "s"}. Remove claims before lowering the tray count.`,
+        );
+      }
+
+      const [result] = await tx.update(carpoolOffersTable)
+        .set({
+          ...(availableSeats !== undefined ? { availableSeats } : {}),
+          ...(bikeTrayCount !== undefined ? { bikeTrayCount } : {}),
+          ...(departureLocation !== undefined ? { departureLocation } : {}),
+          ...(departureTime !== undefined ? { departureTime: departureTime ? new Date(departureTime) : null } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        })
+        .where(eq(carpoolOffersTable.id, offerId))
+        .returning();
+      return result;
+    });
+  } catch (err) {
+    if (isCapacityConflict(err)) {
+      sendCapacityConflict(res, err);
+      return;
+    }
+    if (err instanceof Error && err.message === "INVALID_CAPACITY") {
+      res.status(400).json({ error: "Seats and bike trays must be non-negative whole numbers" });
+      return;
+    }
+    if (err instanceof Error && err.message === "OFFER_NOT_FOUND") {
+      res.status(404).json({ error: "Offer not found" });
+      return;
+    }
+    throw err;
+  }
   res.json(updated);
 });
 
@@ -184,15 +327,29 @@ router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
   }
   let claim;
   try {
-    [claim] = await db.insert(carpoolClaimsTable).values({
-      eventId: offer.eventId,
-      carpoolOfferId: offerId,
-      riderUserId,
-      needsSeat: needsSeat ?? true,
-      needsBikeTray: needsBikeTray ?? false,
-      notes: notes ?? null,
-    }).returning();
+    claim = await db.transaction(async (tx) => {
+      await lockOffer(tx, offerId);
+      const capacity = await getOfferCapacity(tx, offerId);
+      if (!capacity) throw new Error("OFFER_NOT_FOUND");
+      const claimNeedsSeat = needsSeat ?? true;
+      const claimNeedsBikeTray = needsBikeTray ?? false;
+      assertCapacityForNewClaim(capacity, claimNeedsSeat, claimNeedsBikeTray);
+      const [created] = await tx.insert(carpoolClaimsTable).values({
+        eventId: capacity.offer.eventId,
+        carpoolOfferId: offerId,
+        riderUserId,
+        needsSeat: claimNeedsSeat,
+        needsBikeTray: claimNeedsBikeTray,
+        notes: notes ?? null,
+        matchedByDriver: false,
+      }).returning();
+      return created;
+    });
   } catch (err) {
+    if (isCapacityConflict(err)) {
+      sendCapacityConflict(res, err);
+      return;
+    }
     if (isUniqueViolation(err)) {
       res.status(409).json({ error: CLAIM_CONFLICT_MESSAGE });
       return;
@@ -248,14 +405,50 @@ router.patch("/carpools/:offerId/claims/:claimId", requireApproved, async (req, 
     return;
   }
   const { needsSeat, needsBikeTray, notes } = req.body;
-  const [updated] = await db.update(carpoolClaimsTable)
-    .set({
-      ...(needsSeat !== undefined ? { needsSeat } : {}),
-      ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
-      ...(notes !== undefined ? { notes } : {}),
-    })
-    .where(eq(carpoolClaimsTable.id, claimId))
-    .returning();
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      await lockOffer(tx, offerId);
+      const capacity = await getOfferCapacity(tx, offerId);
+      if (!capacity) throw new Error("OFFER_NOT_FOUND");
+      const currentClaim = capacity.claims.find((item: any) => item.id === claimId);
+      if (!currentClaim) throw new Error("CLAIM_NOT_FOUND");
+
+      const nextNeedsSeat = needsSeat ?? currentClaim.needsSeat;
+      const nextNeedsBikeTray = needsBikeTray ?? currentClaim.needsBikeTray;
+      const increasesCapacity =
+        (nextNeedsSeat && !currentClaim.needsSeat) ||
+        (nextNeedsBikeTray && !currentClaim.needsBikeTray);
+      if (increasesCapacity) {
+        const capacityWithoutClaim = {
+          ...capacity,
+          seatsClaimed: capacity.seatsClaimed - (currentClaim.needsSeat ? 1 : 0),
+          bikeTraysClaimed: capacity.bikeTraysClaimed - (currentClaim.needsBikeTray ? 1 : 0),
+        };
+        assertCapacityForNewClaim(capacityWithoutClaim, nextNeedsSeat, nextNeedsBikeTray);
+      }
+
+      const [result] = await tx.update(carpoolClaimsTable)
+        .set({
+          ...(needsSeat !== undefined ? { needsSeat } : {}),
+          ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+        })
+        .where(eq(carpoolClaimsTable.id, claimId))
+        .returning();
+      return result;
+    });
+  } catch (err) {
+    if (isCapacityConflict(err)) {
+      sendCapacityConflict(res, err);
+      return;
+    }
+    if (err instanceof Error && err.message === "CLAIM_NOT_FOUND") {
+      res.status(404).json({ error: "Claim not found" });
+      return;
+    }
+    throw err;
+  }
   res.json(updated);
 });
 
@@ -404,29 +597,61 @@ router.patch("/carpool-requests/:id", requireApproved, async (req, res) => {
     return;
   }
 
-  const { needsBikeTray, notes, status, matchedOfferId } = req.body;
+  const { needsBikeTray, notes, status } = req.body;
 
-  // Validate status transitions: open -> cancelled or open -> matched (with matchedOfferId)
+  if ("matchedOfferId" in req.body) {
+    res.status(409).json({ error: "matchedOfferId can only be set by the match endpoint" });
+    return;
+  }
+
+  // Matching must go through the capacity-checked match endpoint.
   if (status !== undefined) {
-    if (status !== "cancelled" && status !== "matched") {
+    if (status !== "cancelled") {
       res.status(409).json({ error: "Invalid status transition" });
-      return;
-    }
-    if (status === "matched" && !matchedOfferId) {
-      res.status(400).json({ error: "matchedOfferId is required when setting status to matched" });
       return;
     }
   }
 
-  const [updated] = await db.update(carpoolRequestsTable)
-    .set({
-      ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
-      ...(notes !== undefined ? { notes } : {}),
-      ...(status !== undefined ? { status } : {}),
-      ...(matchedOfferId !== undefined ? { matchedOfferId } : {}),
-    })
-    .where(eq(carpoolRequestsTable.id, requestId))
-    .returning();
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      await lockRequest(tx, requestId);
+      const [current] = await tx
+        .select()
+        .from(carpoolRequestsTable)
+        .where(eq(carpoolRequestsTable.id, requestId))
+        .limit(1);
+      if (!current) throw new Error("REQUEST_NOT_FOUND");
+      if (current.requestedByUserId !== me.id) throw new Error("REQUEST_FORBIDDEN");
+      if (current.status !== "open") throw new Error("REQUEST_NOT_OPEN");
+
+      const [result] = await tx
+        .update(carpoolRequestsTable)
+        .set({
+          ...(needsBikeTray !== undefined ? { needsBikeTray } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+          ...(status !== undefined ? { status } : {}),
+        })
+        .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
+        .returning();
+      if (!result) throw new Error("REQUEST_NOT_OPEN");
+      return result;
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "REQUEST_NOT_FOUND") {
+      res.status(404).json({ error: "Request not found" });
+      return;
+    }
+    if (err instanceof Error && err.message === "REQUEST_FORBIDDEN") {
+      res.status(403).json({ error: "You do not own this request" });
+      return;
+    }
+    if (err instanceof Error && err.message === "REQUEST_NOT_OPEN") {
+      res.status(409).json({ error: "Only open requests can be edited" });
+      return;
+    }
+    throw err;
+  }
   const result = await buildRequestWithUsers(updated);
   res.json(result);
 });
@@ -454,7 +679,39 @@ router.delete("/carpool-requests/:id", requireApproved, async (req, res) => {
     return;
   }
 
-  await db.delete(carpoolRequestsTable).where(eq(carpoolRequestsTable.id, requestId));
+  try {
+    await db.transaction(async (tx) => {
+      await lockRequest(tx, requestId);
+      const [current] = await tx
+        .select()
+        .from(carpoolRequestsTable)
+        .where(eq(carpoolRequestsTable.id, requestId))
+        .limit(1);
+      if (!current) throw new Error("REQUEST_NOT_FOUND");
+      if (current.requestedByUserId !== me.id) throw new Error("REQUEST_FORBIDDEN");
+      if (current.status !== "open") throw new Error("REQUEST_NOT_OPEN");
+
+      const [deleted] = await tx
+        .delete(carpoolRequestsTable)
+        .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
+        .returning();
+      if (!deleted) throw new Error("REQUEST_NOT_OPEN");
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === "REQUEST_NOT_FOUND") {
+      res.status(404).json({ error: "Request not found" });
+      return;
+    }
+    if (err instanceof Error && err.message === "REQUEST_FORBIDDEN") {
+      res.status(403).json({ error: "You do not own this request" });
+      return;
+    }
+    if (err instanceof Error && err.message === "REQUEST_NOT_OPEN") {
+      res.status(409).json({ error: "Only open requests can be deleted" });
+      return;
+    }
+    throw err;
+  }
   res.status(204).send();
 });
 
@@ -466,27 +723,27 @@ router.post("/carpool-requests/:id/match", requireApproved, async (req, res) => 
     res.status(401).json({ error: "User not found" });
     return;
   }
-
-  const { offerId, autoCreated } = req.body;
-  if (!offerId) {
-    res.status(400).json({ error: "offerId is required" });
+  if (me.role === "student") {
+    res.status(403).json({ error: "Students cannot offer rides or match ride requests" });
     return;
   }
-  // When the client auto-created the offer specifically for this match, the
-  // matched rider SHOULD consume a seat (matchedByDriver=false). When matching
-  // a rider to a pre-existing offer, the driver is going beyond their advertised
-  // capacity so we don't deduct from the displayed count (matchedByDriver=true).
-  const claimMatchedByDriver = !autoCreated;
 
-  // Verify driver owns the offer
-  const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
-  if (!offer) {
-    res.status(404).json({ error: "Offer not found" });
-    return;
-  }
-  if (offer.driverUserId !== me.id) {
-    res.status(403).json({ error: "You do not own this offer" });
-    return;
+  const offerId = req.body.offerId == null ? null : Number(req.body.offerId);
+  let ownedOffer = null;
+  if (offerId !== null) {
+    if (!Number.isInteger(offerId)) {
+      res.status(400).json({ error: "offerId must be an integer" });
+      return;
+    }
+    ownedOffer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
+    if (!ownedOffer) {
+      res.status(404).json({ error: "Offer not found" });
+      return;
+    }
+    if (ownedOffer.driverUserId !== me.id) {
+      res.status(403).json({ error: "You do not own this offer" });
+      return;
+    }
   }
 
   // Verify request exists and is open
@@ -501,52 +758,102 @@ router.post("/carpool-requests/:id/match", requireApproved, async (req, res) => 
   }
 
   // Ensure offer and request are for the same event
-  if (offer.eventId !== request.eventId) {
+  if (ownedOffer && ownedOffer.eventId !== request.eventId) {
     res.status(409).json({ error: "Offer and request are not for the same event" });
     return;
   }
 
-  // Atomically create a claim and mark the request matched in a transaction.
-  // Capacity is NOT enforced here — the driver owns the offer and explicitly
-  // accepted this request, so we trust their judgement on seat availability.
-  // The claim is flagged matchedByDriver=true so it doesn't reduce the offer's
-  // displayed seat/tray availability in the UI.
   let conflictReason: "already-matched" | "rider-claimed" | null = null;
-  const updated = await db.transaction(async (tx) => {
-    // Claim the request with a conditional update. Two concurrent drivers cannot
-    // both transition the same request from open to matched.
-    const [matched] = await tx
-      .update(carpoolRequestsTable)
-      .set({ status: "matched", matchedOfferId: offerId })
-      .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
-      .returning();
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      await lockRequest(tx, requestId);
+      const [currentRequest] = await tx
+        .select()
+        .from(carpoolRequestsTable)
+        .where(eq(carpoolRequestsTable.id, requestId))
+        .limit(1);
+      if (!currentRequest || currentRequest.status !== "open") {
+        throw new Error("ALREADY_MATCHED");
+      }
 
-    if (!matched) {
-      throw new Error("ALREADY_MATCHED");
-    }
+      const claimNeedsBikeTray =
+        req.body.needsBikeTray === false ? false : currentRequest.needsBikeTray;
+      let activeOfferId = offerId;
 
-    await tx.insert(carpoolClaimsTable).values({
-      eventId: matched.eventId,
-      carpoolOfferId: offerId,
-      riderUserId: matched.riderUserId,
-      needsSeat: true,
-      needsBikeTray: matched.needsBikeTray,
-      notes: matched.notes ?? null,
-      matchedByDriver: claimMatchedByDriver,
+      if (activeOfferId === null) {
+        const defaultSeats = isValidCapacity(me.defaultCarpoolSeats)
+          ? Math.max(1, me.defaultCarpoolSeats)
+          : 1;
+        const defaultTrays = isValidCapacity(me.defaultCarpoolTrays)
+          ? me.defaultCarpoolTrays
+          : 0;
+        const [createdOffer] = await tx
+          .insert(carpoolOffersTable)
+          .values({
+            eventId: currentRequest.eventId,
+            driverUserId: me.id,
+            availableSeats: defaultSeats,
+            bikeTrayCount: defaultTrays,
+          })
+          .returning();
+        activeOfferId = createdOffer.id;
+      }
+
+      await lockOffer(tx, activeOfferId);
+      const capacity = await getOfferCapacity(tx, activeOfferId);
+      if (!capacity) throw new Error("OFFER_NOT_FOUND");
+      if (capacity.offer.driverUserId !== me.id) throw new Error("OFFER_FORBIDDEN");
+      if (capacity.offer.eventId !== currentRequest.eventId) throw new Error("EVENT_MISMATCH");
+      assertCapacityForNewClaim(capacity, true, claimNeedsBikeTray);
+
+      const [matched] = await tx
+        .update(carpoolRequestsTable)
+        .set({
+          status: "matched",
+          matchedOfferId: activeOfferId,
+          ...(claimNeedsBikeTray !== currentRequest.needsBikeTray
+            ? { needsBikeTray: claimNeedsBikeTray }
+            : {}),
+        })
+        .where(and(eq(carpoolRequestsTable.id, requestId), eq(carpoolRequestsTable.status, "open")))
+        .returning();
+      if (!matched) throw new Error("ALREADY_MATCHED");
+
+      await tx.insert(carpoolClaimsTable).values({
+        eventId: matched.eventId,
+        carpoolOfferId: activeOfferId,
+        riderUserId: matched.riderUserId,
+        needsSeat: true,
+        needsBikeTray: claimNeedsBikeTray,
+        notes: matched.notes ?? null,
+        matchedByDriver: true,
+      });
+
+      return matched;
     });
-
-    return matched;
-  }).catch((err) => {
+  } catch (err) {
+    if (isCapacityConflict(err)) {
+      sendCapacityConflict(res, err);
+      return;
+    }
     if (err instanceof Error && err.message === "ALREADY_MATCHED") {
       conflictReason = "already-matched";
-      return null;
-    }
-    if (isUniqueViolation(err)) {
+    } else if (isUniqueViolation(err)) {
       conflictReason = "rider-claimed";
-      return null;
+    } else if (err instanceof Error && err.message === "OFFER_NOT_FOUND") {
+      res.status(404).json({ error: "Offer not found" });
+      return;
+    } else if (err instanceof Error && err.message === "OFFER_FORBIDDEN") {
+      res.status(403).json({ error: "You do not own this offer" });
+      return;
+    } else if (err instanceof Error && err.message === "EVENT_MISMATCH") {
+      res.status(409).json({ error: "Offer and request are not for the same event" });
+      return;
+    } else {
+      throw err;
     }
-    throw err;
-  });
+  }
 
   if (!updated) {
     res.status(409).json({

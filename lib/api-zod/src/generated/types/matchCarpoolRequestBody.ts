@@ -6,9 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * When offerId is omitted, the server atomically creates an offer using the driver's defaults and matches the request in the same transaction.
+
+ */
 export interface MatchCarpoolRequestBody {
-  offerId: number;
-  /** True when the client auto-created this offer specifically for the match. When true the matched rider consumes a seat (reducing displayed availability). When false (default) the driver is extending their existing offer capacity and the displayed seat count remains unchanged.
+  offerId?: number;
+  /** May be false to confirm matching the rider without their bike when no bike tray remains. Omitting it preserves the request's bike requirement.
    */
-  autoCreated?: boolean;
+  needsBikeTray?: boolean;
 }

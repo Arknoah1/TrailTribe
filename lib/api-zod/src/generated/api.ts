@@ -1918,6 +1918,11 @@ export const ListEventCarpoolsResponseItem = zod
       ),
       seatsRemaining: zod.number(),
       bikeTraysRemaining: zod.number(),
+      seatsClaimed: zod.number(),
+      bikeTraysClaimed: zod.number(),
+      seatsOverCapacity: zod.number(),
+      bikeTraysOverCapacity: zod.number(),
+      isOverCapacity: zod.boolean(),
     }),
   );
 export const ListEventCarpoolsResponse = zod.array(
@@ -1931,9 +1936,13 @@ export const CreateCarpoolOfferParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const createCarpoolOfferBodyAvailableSeatsMin = 0;
+
+export const createCarpoolOfferBodyBikeTrayCountMin = 0;
+
 export const CreateCarpoolOfferBody = zod.object({
-  availableSeats: zod.number(),
-  bikeTrayCount: zod.number(),
+  availableSeats: zod.number().min(createCarpoolOfferBodyAvailableSeatsMin),
+  bikeTrayCount: zod.number().min(createCarpoolOfferBodyBikeTrayCountMin),
   departureLocation: zod.string().optional(),
   departureTime: zod.coerce.date().optional(),
   notes: zod.string().optional(),
@@ -1943,9 +1952,19 @@ export const UpdateCarpoolOfferParams = zod.object({
   offerId: zod.coerce.number(),
 });
 
+export const updateCarpoolOfferBodyAvailableSeatsMin = 0;
+
+export const updateCarpoolOfferBodyBikeTrayCountMin = 0;
+
 export const UpdateCarpoolOfferBody = zod.object({
-  availableSeats: zod.number().optional(),
-  bikeTrayCount: zod.number().optional(),
+  availableSeats: zod
+    .number()
+    .min(updateCarpoolOfferBodyAvailableSeatsMin)
+    .optional(),
+  bikeTrayCount: zod
+    .number()
+    .min(updateCarpoolOfferBodyBikeTrayCountMin)
+    .optional(),
   departureLocation: zod.string().optional(),
   departureTime: zod.coerce.date().optional(),
   notes: zod.string().optional(),
@@ -1975,9 +1994,31 @@ export const ClaimCarpoolParams = zod.object({
 });
 
 export const ClaimCarpoolBody = zod.object({
+  needsSeat: zod.boolean().optional(),
+  needsBikeTray: zod.boolean().optional(),
+  notes: zod.string().optional(),
+  riderUserId: zod.number().optional(),
+});
+
+export const UpdateCarpoolClaimParams = zod.object({
+  offerId: zod.coerce.number(),
+  claimId: zod.coerce.number(),
+});
+
+export const UpdateCarpoolClaimBody = zod.object({
+  needsSeat: zod.boolean().optional(),
+  needsBikeTray: zod.boolean().optional(),
+  notes: zod.string().optional(),
+});
+
+export const UpdateCarpoolClaimResponse = zod.object({
+  id: zod.number(),
+  carpoolOfferId: zod.number(),
+  riderUserId: zod.number(),
   needsSeat: zod.boolean(),
   needsBikeTray: zod.boolean(),
-  notes: zod.string().optional(),
+  notes: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
 });
 
 export const CancelCarpoolClaimParams = zod.object({
@@ -2147,15 +2188,11 @@ export const UpdateCarpoolRequestBody = zod.object({
   needsBikeTray: zod.boolean().optional(),
   notes: zod.string().optional(),
   status: zod
-    .enum(["cancelled", "matched"])
+    .enum(["cancelled"])
     .optional()
     .describe(
-      "Allowed transitions from open - cancelled or matched (requires matchedOfferId)",
+      "Generic edits may only cancel an open request; matching uses the match endpoint",
     ),
-  matchedOfferId: zod
-    .number()
-    .nullish()
-    .describe("Required when setting status to matched"),
 });
 
 export const UpdateCarpoolRequestResponse = zod
@@ -2297,15 +2334,19 @@ export const MatchCarpoolRequestParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const MatchCarpoolRequestBody = zod.object({
-  offerId: zod.number(),
-  autoCreated: zod
-    .boolean()
-    .optional()
-    .describe(
-      "True when the client auto-created this offer specifically for the match. When true the matched rider consumes a seat (reducing displayed availability). When false (default) the driver is extending their existing offer capacity and the displayed seat count remains unchanged.\n",
-    ),
-});
+export const MatchCarpoolRequestBody = zod
+  .object({
+    offerId: zod.number().optional(),
+    needsBikeTray: zod
+      .boolean()
+      .optional()
+      .describe(
+        "May be false to confirm matching the rider without their bike when no bike tray remains. Omitting it preserves the request's bike requirement.\n",
+      ),
+  })
+  .describe(
+    "When offerId is omitted, the server atomically creates an offer using the driver's defaults and matches the request in the same transaction.\n",
+  );
 
 export const MatchCarpoolRequestResponse = zod
   .object({

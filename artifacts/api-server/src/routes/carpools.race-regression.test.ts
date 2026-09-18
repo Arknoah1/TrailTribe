@@ -31,7 +31,13 @@ const rider = {
   role: "student",
   householdId: 1,
 };
-const offer = { id: OFFER_ID, eventId: EVENT_ID, driverUserId: DRIVER_ID };
+const offer = {
+  id: OFFER_ID,
+  eventId: EVENT_ID,
+  driverUserId: DRIVER_ID,
+  availableSeats: 2,
+  bikeTrayCount: 1,
+};
 const openRequest = {
   id: 51,
   eventId: EVENT_ID,
@@ -46,30 +52,61 @@ const state = vi.hoisted(() => ({
   clerkUserId: "rider-clerk",
   insertError: null as any,
   matchTransitionRejected: false,
+  requestNeedsBikeTray: false,
   insertedClaims: [] as any[],
+  createdOffers: [] as any[],
+  deletedRequests: [] as any[],
+  existingClaims: [] as any[],
+  capacityLock: vi.fn().mockResolvedValue(undefined),
   notification: vi.fn().mockResolvedValue(undefined),
   email: vi.fn().mockResolvedValue({ status: "sent" }),
 }));
 
 vi.mock("@workspace/db", () => {
+  const table = (name: string) => new Proxy({ __name: name } as any, {
+    get(target, property) {
+      if (property === "__name") return target.__name;
+      return {};
+    },
+  });
+  const usersTable = table("users");
+  const carpoolOffersTable = table("offers");
+  const carpoolClaimsTable = table("claims");
+  const carpoolRequestsTable = table("requests");
+  const eventsTable = table("events");
   const findUser = vi.fn(() =>
     Promise.resolve(state.clerkUserId === "driver-clerk" ? driver : rider),
   );
   const findOffer = vi.fn().mockResolvedValue(offer);
-  const findRequest = vi.fn().mockResolvedValue(openRequest);
+  const currentRequest = () => ({
+    ...openRequest,
+    needsBikeTray: state.requestNeedsBikeTray,
+  });
+  const findRequest = vi.fn(() => Promise.resolve(currentRequest()));
 
   const selectChain = () => {
     const chain: any = {};
-    chain.from = vi.fn(() => chain);
+    let selectedTable: any;
+    chain.from = vi.fn((value: any) => {
+      selectedTable = value;
+      return chain;
+    });
     chain.where = vi.fn(() => chain);
-    chain.limit = vi.fn().mockResolvedValue([openRequest]);
-    chain.then = (resolve: any, reject: any) => Promise.resolve([]).then(resolve, reject);
+    chain.limit = vi.fn(() => Promise.resolve(
+      selectedTable?.__name === "offers"
+        ? [state.createdOffers.at(-1) ?? offer]
+        : [currentRequest()],
+    ));
+    chain.then = (resolve: any, reject: any) => Promise.resolve(
+      selectedTable?.__name === "claims" ? state.existingClaims : [],
+    ).then(resolve, reject);
     return chain;
   };
-  const insert = vi.fn(() => ({
+  const insert = vi.fn((selectedTable: any) => ({
     values: vi.fn((values: any) => {
-      if (values.carpoolOfferId) state.insertedClaims.push(values);
-      if (state.insertError) {
+      if (selectedTable?.__name === "offers") state.createdOffers.push({ id: 81, ...values });
+      if (selectedTable?.__name === "claims") state.insertedClaims.push(values);
+      if (state.insertError && selectedTable?.__name === "claims") {
         const failingQuery: any = {
           returning: vi.fn().mockRejectedValue(state.insertError),
         };
@@ -77,11 +114,19 @@ vi.mock("@workspace/db", () => {
           Promise.reject(state.insertError).then(resolve, reject);
         return failingQuery;
       }
-      return { returning: vi.fn().mockResolvedValue([{ id: 61, ...values }]) };
+      return {
+        returning: vi.fn().mockResolvedValue([{
+          id: selectedTable?.__name === "offers" ? 81 : 61,
+          ...values,
+        }]),
+      };
     }),
   }));
   const transaction = vi.fn(async (callback: any) => {
+    const createdOffersLength = state.createdOffers.length;
+    const insertedClaimsLength = state.insertedClaims.length;
     const tx = {
+      execute: state.capacityLock,
       select: vi.fn(selectChain),
       insert,
       update: vi.fn(() => {
@@ -93,8 +138,23 @@ vi.mock("@workspace/db", () => {
         );
         return chain;
       }),
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn().mockImplementation(async () => {
+            const request = currentRequest();
+            state.deletedRequests.push(request);
+            return [request];
+          }),
+        })),
+      })),
     };
-    return callback(tx);
+    try {
+      return await callback(tx);
+    } catch (error) {
+      state.createdOffers.length = createdOffersLength;
+      state.insertedClaims.length = insertedClaimsLength;
+      throw error;
+    }
   });
 
   return {
@@ -108,11 +168,11 @@ vi.mock("@workspace/db", () => {
       insert,
       transaction,
     },
-    usersTable: new Proxy({}, { get: () => ({}) }),
-    carpoolOffersTable: new Proxy({}, { get: () => ({}) }),
-    carpoolClaimsTable: new Proxy({}, { get: () => ({}) }),
-    carpoolRequestsTable: new Proxy({}, { get: () => ({}) }),
-    eventsTable: new Proxy({}, { get: () => ({}) }),
+    usersTable,
+    carpoolOffersTable,
+    carpoolClaimsTable,
+    carpoolRequestsTable,
+    eventsTable,
   };
 });
 
@@ -151,7 +211,12 @@ beforeEach(() => {
   state.clerkUserId = "rider-clerk";
   state.insertError = null;
   state.matchTransitionRejected = false;
+  state.requestNeedsBikeTray = false;
   state.insertedClaims.length = 0;
+  state.createdOffers.length = 0;
+  state.deletedRequests.length = 0;
+  state.existingClaims.length = 0;
+  state.capacityLock.mockClear();
   state.notification.mockClear();
   state.email.mockClear();
 });
@@ -185,6 +250,52 @@ describe("carpool claim duplicate protection", () => {
     expect((await response.json()).error).toMatch(/already|claim|ride/i);
     expect(state.email).not.toHaveBeenCalled();
   });
+
+  it("counts driver-matched claims and rejects a stale request when no seat remains", async () => {
+    state.existingClaims.push({
+      id: 70,
+      needsSeat: true,
+      needsBikeTray: false,
+      matchedByDriver: true,
+    }, {
+      id: 71,
+      needsSeat: true,
+      needsBikeTray: false,
+      matchedByDriver: false,
+    });
+
+    const response = await fetch(`${baseUrl}/carpools/${OFFER_ID}/claims`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ needsSeat: true, needsBikeTray: false }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "NO_SEATS" });
+    expect(state.insertedClaims).toHaveLength(0);
+  });
+
+  it("offers rider-only fallback when the seat remains but the bike tray is full", async () => {
+    state.existingClaims.push({
+      id: 72,
+      needsSeat: true,
+      needsBikeTray: true,
+      matchedByDriver: true,
+    });
+
+    const response = await fetch(`${baseUrl}/carpools/${OFFER_ID}/claims`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ needsSeat: true, needsBikeTray: true }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "NO_BIKE_TRAYS",
+      riderOnlyAvailable: true,
+    });
+    expect(state.insertedClaims).toHaveLength(0);
+  });
 });
 
 describe("carpool request match races", () => {
@@ -202,6 +313,103 @@ describe("carpool request match races", () => {
       eventId: EVENT_ID,
       riderUserId: RIDER_ID,
     }));
+    expect(state.capacityLock).toHaveBeenCalledTimes(2);
+  });
+
+  it("atomically creates an offer when the driver has none", async () => {
+    state.clerkUserId = "driver-clerk";
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}/match`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(200);
+    expect(state.createdOffers).toContainEqual(expect.objectContaining({
+      eventId: EVENT_ID,
+      driverUserId: DRIVER_ID,
+    }));
+    expect(state.insertedClaims).toContainEqual(expect.objectContaining({
+      carpoolOfferId: 81,
+      riderUserId: RIDER_ID,
+    }));
+  });
+
+  it("rolls back an auto-created offer when inserting the claim fails", async () => {
+    state.clerkUserId = "driver-clerk";
+    state.insertError = Object.assign(new Error("duplicate key"), { code: "23505" });
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}/match`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(409);
+    expect(state.createdOffers).toHaveLength(0);
+    expect(state.insertedClaims).toHaveLength(0);
+    expect(state.notification).not.toHaveBeenCalled();
+  });
+
+  it("does not invent a bike tray when auto-creating an offer", async () => {
+    state.clerkUserId = "driver-clerk";
+    state.requestNeedsBikeTray = true;
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}/match`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "NO_BIKE_TRAYS",
+      riderOnlyAvailable: true,
+    });
+    expect(state.createdOffers).toHaveLength(0);
+    expect(state.insertedClaims).toHaveLength(0);
+  });
+
+  it("forbids students from matching or auto-creating driving offers", async () => {
+    state.clerkUserId = "rider-clerk";
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}/match`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(403);
+    expect(state.createdOffers).toHaveLength(0);
+  });
+
+  it("rejects bypassing matching through the generic request edit endpoint", async () => {
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "matched", matchedOfferId: OFFER_ID }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(state.insertedClaims).toHaveLength(0);
+  });
+
+  it("rejects setting matchedOfferId without a status transition", async () => {
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ matchedOfferId: OFFER_ID }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(state.insertedClaims).toHaveLength(0);
+  });
+
+  it("locks an open request before deleting it", async () => {
+    const response = await fetch(`${baseUrl}/carpool-requests/${openRequest.id}`, {
+      method: "DELETE",
+    });
+
+    expect(response.status).toBe(204);
+    expect(state.capacityLock).toHaveBeenCalledOnce();
+    expect(state.deletedRequests).toHaveLength(1);
   });
 
   it("returns conflict and does not notify when its conditional open-to-matched transition loses", async () => {

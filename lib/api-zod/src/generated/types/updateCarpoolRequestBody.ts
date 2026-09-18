@@ -10,8 +10,6 @@ import type { UpdateCarpoolRequestBodyStatus } from "./updateCarpoolRequestBodyS
 export interface UpdateCarpoolRequestBody {
   needsBikeTray?: boolean;
   notes?: string;
-  /** Allowed transitions from open - cancelled or matched (requires matchedOfferId) */
+  /** Generic edits may only cancel an open request; matching uses the match endpoint */
   status?: UpdateCarpoolRequestBodyStatus;
-  /** Required when setting status to matched */
-  matchedOfferId?: number | null;
 }

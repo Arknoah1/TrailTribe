@@ -14,4 +14,9 @@ export type CarpoolOfferWithClaims = CarpoolOffer & {
   claims: CarpoolClaimWithUser[];
   seatsRemaining: number;
   bikeTraysRemaining: number;
+  seatsClaimed: number;
+  bikeTraysClaimed: number;
+  seatsOverCapacity: number;
+  bikeTraysOverCapacity: number;
+  isOverCapacity: boolean;
 };

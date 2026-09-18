@@ -1558,6 +1558,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CarpoolOffer"
+        "400":
+          description: Invalid capacity
 
   /carpools/{offerId}:
     patch:
@@ -1582,6 +1584,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CarpoolOffer"
+        "409":
+          description: Capacity unavailable or the rider already has a claim
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CarpoolCapacityConflict"
+                  - $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteCarpoolOffer
       tags: [carpools]
@@ -1619,8 +1629,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CarpoolClaim"
+        "409":
+          $ref: "#/components/responses/CarpoolCapacityConflict"
 
   /carpools/{offerId}/claims/{claimId}:
+    patch:
+      operationId: updateCarpoolClaim
+      tags: [carpools]
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: claimId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarpoolClaimUpdate"
+      responses:
+        "200":
+          description: Updated carpool claim
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarpoolClaim"
+        "409":
+          $ref: "#/components/responses/CarpoolCapacityConflict"
     delete:
       operationId: cancelCarpoolClaim
       tags: [carpools]
@@ -1747,10 +1788,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CarpoolRequestWithUsers"
+        "409":
+          description: Capacity unavailable or request already matched
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CarpoolCapacityConflict"
+                  - $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Not the offer owner
-        "409":
-          description: Request already matched
 
   # ─── TRAILHEADS ──────────────────────────────────────────────────────────────
 
@@ -2443,6 +2490,14 @@ paths:
 # ─── SCHEMAS ─────────────────────────────────────────────────────────────────
 
 components:
+  responses:
+    CarpoolCapacityConflict:
+      description: The offer cannot accommodate the requested seat or bike tray
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CarpoolCapacityConflict"
+
   schemas:
     CalendarSubscribeUrl:
       type: object
@@ -3539,7 +3594,17 @@ components:
               type: integer
             bikeTraysRemaining:
               type: integer
-          required: [driver, claims, seatsRemaining, bikeTraysRemaining]
+            seatsClaimed:
+              type: integer
+            bikeTraysClaimed:
+              type: integer
+            seatsOverCapacity:
+              type: integer
+            bikeTraysOverCapacity:
+              type: integer
+            isOverCapacity:
+              type: boolean
+          required: [driver, claims, seatsRemaining, bikeTraysRemaining, seatsClaimed, bikeTraysClaimed, seatsOverCapacity, bikeTraysOverCapacity, isOverCapacity]
 
     CarpoolClaim:
       type: object
@@ -3576,8 +3641,10 @@ components:
       properties:
         availableSeats:
           type: integer
+          minimum: 0
         bikeTrayCount:
           type: integer
+          minimum: 0
         departureLocation:
           type: string
         departureTime:
@@ -3592,8 +3659,10 @@ components:
       properties:
         availableSeats:
           type: integer
+          minimum: 0
         bikeTrayCount:
           type: integer
+          minimum: 0
         departureLocation:
           type: string
         departureTime:
@@ -3611,7 +3680,18 @@ components:
           type: boolean
         notes:
           type: string
-      required: [needsSeat, needsBikeTray]
+        riderUserId:
+          type: integer
+
+    CarpoolClaimUpdate:
+      type: object
+      properties:
+        needsSeat:
+          type: boolean
+        needsBikeTray:
+          type: boolean
+        notes:
+          type: string
 
     CarpoolRequest:
       type: object
@@ -3685,26 +3765,34 @@ components:
           type: string
         status:
           type: string
-          enum: [cancelled, matched]
-          description: Allowed transitions from open - cancelled or matched (requires matchedOfferId)
-        matchedOfferId:
-          type: integer
-          nullable: true
-          description: Required when setting status to matched
+          enum: [cancelled]
+          description: Generic edits may only cancel an open request; matching uses the match endpoint
 
     MatchCarpoolRequestBody:
       type: object
       properties:
         offerId:
           type: integer
-        autoCreated:
+        needsBikeTray:
           type: boolean
           description: >
-            True when the client auto-created this offer specifically for the match.
-            When true the matched rider consumes a seat (reducing displayed availability).
-            When false (default) the driver is extending their existing offer capacity and
-            the displayed seat count remains unchanged.
-      required: [offerId]
+            May be false to confirm matching the rider without their bike when no
+            bike tray remains. Omitting it preserves the request's bike requirement.
+      description: >
+        When offerId is omitted, the server atomically creates an offer using the
+        driver's defaults and matches the request in the same transaction.
+
+    CarpoolCapacityConflict:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [NO_SEATS, NO_BIKE_TRAYS, OFFER_OVER_CAPACITY]
+        riderOnlyAvailable:
+          type: boolean
+      required: [error, code, riderOnlyAvailable]
 
     # ─── TRAILHEAD ────────────────────────────────────────────────────────────
 

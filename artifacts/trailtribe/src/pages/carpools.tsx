@@ -13,7 +13,7 @@ import {
 import { useParams, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Car, MapPin, Clock, Plus, Bike, Pencil, Trash2, Users } from "lucide-react";
+import { ChevronLeft, Car, MapPin, Clock, Plus, Bike, Pencil, Trash2, Users, AlertTriangle } from "lucide-react";
 import { EmptyTrailState } from "@/components/illustrations";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,14 @@ interface Rider {
   id: number;
   firstName: string;
   lastName: string;
+}
+
+interface ClaimConfirmation {
+  offerId: number;
+  riderIds: (number | null)[];
+  needsTray: boolean;
+  title: string;
+  description: string;
 }
 
 export default function CarpoolBoard() {
@@ -72,6 +80,7 @@ export default function CarpoolBoard() {
   const [claimNeedsTray, setClaimNeedsTray] = useState(false);
   const [selectedRiderIds, setSelectedRiderIds] = useState<Set<number>>(new Set());
   const [isClaiming, setIsClaiming] = useState(false);
+  const [claimConfirmation, setClaimConfirmation] = useState<ClaimConfirmation | null>(null);
 
   // Edit claim dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -95,6 +104,7 @@ export default function CarpoolBoard() {
   const [matchingRequest, setMatchingRequest] = useState<any>(null);
   const [selectedOfferId, setSelectedOfferId] = useState<number | "">("");
   const [isMatching, setIsMatching] = useState(false);
+  const [matchWithoutBike, setMatchWithoutBike] = useState(false);
 
   // Edit offer dialog
   const [editOfferOpen, setEditOfferOpen] = useState(false);
@@ -191,13 +201,63 @@ export default function CarpoolBoard() {
   const myOpenOffers = offers?.filter((o: any) => o.driverUserId === me?.id && o.seatsRemaining > 0) ?? [];
   const myAllOffers = offers?.filter((o: any) => o.driverUserId === me?.id) ?? [];
 
+  const riderNames = (riderIds: (number | null)[]) => riderIds
+    .map(id => {
+      if (id === null) return "you";
+      const rider = requestableRiders.find(item => item.id === id);
+      return rider ? `${rider.firstName} ${rider.lastName}` : "selected rider";
+    })
+    .join(", ");
+
+  const prepareClaims = (offer: any, riderIds: (number | null)[], needsTray: boolean) => {
+    const fitCount = Math.max(
+      0,
+      needsTray
+        ? Math.min(offer.seatsRemaining, offer.bikeTraysRemaining)
+        : offer.seatsRemaining,
+    );
+    if (fitCount >= riderIds.length) {
+      void claimForRiders(offer.id, riderIds, needsTray);
+      return;
+    }
+
+    if (needsTray && offer.seatsRemaining > 0 && offer.bikeTraysRemaining <= 0) {
+      const fittingRiders = riderIds.slice(0, offer.seatsRemaining);
+      setClaimConfirmation({
+        offerId: offer.id,
+        riderIds: fittingRiders,
+        needsTray: false,
+        title: "No bike trays remain",
+        description: `${riderNames(fittingRiders)} can still claim ${fittingRiders.length === 1 ? "a seat" : "seats"} without bike transport. Continue as rider-only?`,
+      });
+      return;
+    }
+
+    if (fitCount > 0) {
+      const fittingRiders = riderIds.slice(0, fitCount);
+      setClaimConfirmation({
+        offerId: offer.id,
+        riderIds: fittingRiders,
+        needsTray,
+        title: `Only ${fitCount} rider${fitCount === 1 ? "" : "s"} fit`,
+        description: `${riderNames(fittingRiders)} can fit with the remaining capacity. No claims will be made for the other selected riders. Continue?`,
+      });
+      return;
+    }
+
+    toast({
+      title: needsTray ? "No seat and bike-tray combination remains" : "No seats remain",
+      variant: "destructive",
+    });
+  };
+
   const handleClaimClick = (offer: any, needsTray: boolean) => {
     if (requestableRiders.length === 0 && !claimedRiderIds.has(me?.id)) {
-      claimForRiders(offer.id, [null], needsTray);
+      prepareClaims(offer, [null], needsTray);
     } else if (claimableRiders.length === 0) {
       toast({ title: "Your riders already have a driver for this event" });
     } else if (claimableRiders.length === 1) {
-      claimForRiders(offer.id, [claimableRiders[0].id], needsTray);
+      prepareClaims(offer, [claimableRiders[0].id], needsTray);
     } else {
       setClaimingOffer(offer);
       setClaimNeedsTray(needsTray);
@@ -210,6 +270,7 @@ export default function CarpoolBoard() {
     setIsClaiming(true);
     let successCount = 0;
     let firstError = "";
+    const riderOnlyFallbackIds: (number | null)[] = [];
     for (const riderId of riderIds) {
       const body: any = { needsSeat: true, needsBikeTray: needsTray };
       if (riderId !== null) body.riderUserId = riderId;
@@ -224,6 +285,9 @@ export default function CarpoolBoard() {
         } else {
           const data = await res.json().catch(() => ({}));
           firstError ||= data.error || "Failed to claim seat";
+          if (needsTray && data.code === "NO_BIKE_TRAYS" && data.riderOnlyAvailable) {
+            riderOnlyFallbackIds.push(riderId);
+          }
         }
       } catch {
         firstError ||= "Failed to claim seat";
@@ -239,6 +303,15 @@ export default function CarpoolBoard() {
       }
     } else {
       toast({ title: firstError || "Failed to claim seat", variant: "destructive" });
+    }
+    if (riderOnlyFallbackIds.length > 0) {
+      setClaimConfirmation({
+        offerId,
+        riderIds: riderOnlyFallbackIds,
+        needsTray: false,
+        title: "Availability changed",
+        description: `${riderNames(riderOnlyFallbackIds)} can still claim ${riderOnlyFallbackIds.length === 1 ? "a seat" : "seats"} without bike transport. Continue as rider-only?`,
+      });
     }
   };
 
@@ -278,7 +351,8 @@ export default function CarpoolBoard() {
         queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
         setEditDialogOpen(false);
       } else {
-        toast({ title: "Failed to update claim", variant: "destructive" });
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data.error || "Failed to update claim", variant: "destructive" });
       }
     } catch {
       toast({ title: "Failed to update claim", variant: "destructive" });
@@ -303,6 +377,7 @@ export default function CarpoolBoard() {
   const handleMatchClick = (request: any) => {
     setMatchingRequest(request);
     setSelectedOfferId(myAllOffers.length === 1 ? myAllOffers[0].id : "");
+    setMatchWithoutBike(false);
     setMatchDialogOpen(true);
   };
 
@@ -310,36 +385,36 @@ export default function CarpoolBoard() {
     if (!matchingRequest) return;
     setIsMatching(true);
     try {
-      let offerId = selectedOfferId as number;
-      if (myAllOffers.length === 0) {
-        const seats = me?.defaultCarpoolSeats ?? 1;
-        const trays = me?.defaultCarpoolTrays ?? 1;
-        const res = await authedFetch(`${BASE_URL}/api/events/${eventId}/carpools`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ availableSeats: seats, bikeTrayCount: trays }),
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          toast({ title: d.error || "Failed to create offer", variant: "destructive" });
-          return;
-        }
-        const newOffer = await res.json();
-        offerId = newOffer.id;
-      } else if (selectedOfferId) {
-        offerId = selectedOfferId as number;
-      } else {
-        offerId = myAllOffers[0].id;
+      const offerId = selectedOfferId || myAllOffers[0]?.id;
+      const selectedOffer = myAllOffers.find((item: any) => item.id === offerId);
+      if (
+        !matchWithoutBike &&
+        matchingRequest.needsBikeTray &&
+        selectedOffer &&
+        selectedOffer.seatsRemaining > 0 &&
+        selectedOffer.bikeTraysRemaining <= 0
+      ) {
+        setMatchWithoutBike(true);
+        return;
       }
-      const wasAutoCreated = myAllOffers.length === 0;
       const matchRes = await authedFetch(`${BASE_URL}/api/carpool-requests/${matchingRequest.id}/match`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ offerId, autoCreated: wasAutoCreated }),
+        body: JSON.stringify({
+          ...(offerId ? { offerId } : {}),
+          ...(matchWithoutBike ? { needsBikeTray: false } : {}),
+        }),
       });
       if (!matchRes.ok) {
         const d = await matchRes.json().catch(() => ({}));
+        if (d.code === "NO_BIKE_TRAYS" && d.riderOnlyAvailable && !matchWithoutBike) {
+          setMatchWithoutBike(true);
+          queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+          return;
+        }
         toast({ title: d.error || "Failed to match", variant: "destructive" });
+        queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
+        queryClient.invalidateQueries({ queryKey: getListEventCarpoolRequestsQueryKey(eventId) });
         return;
       }
       toast({ title: `You're picking up ${matchingRequest.rider?.firstName ?? "them"}!` });
@@ -379,7 +454,8 @@ export default function CarpoolBoard() {
       setEditOfferOpen(false);
       queryClient.invalidateQueries({ queryKey: getListEventCarpoolsQueryKey(eventId) });
     } else {
-      toast({ title: "Failed to update offer", variant: "destructive" });
+      const data = await res.json().catch(() => ({}));
+      toast({ title: data.error || "Failed to update offer", variant: "destructive" });
     }
   };
 
@@ -484,10 +560,36 @@ export default function CarpoolBoard() {
           <Button
             className="w-full"
             disabled={selectedRiderIds.size === 0 || isClaiming}
-            onClick={() => claimForRiders(claimingOffer?.id, Array.from(selectedRiderIds), claimNeedsTray)}
+            onClick={() => prepareClaims(claimingOffer, Array.from(selectedRiderIds), claimNeedsTray)}
           >
             {isClaiming ? "Claiming..." : `Claim for ${selectedRiderIds.size} rider${selectedRiderIds.size !== 1 ? "s" : ""}`}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!claimConfirmation} onOpenChange={(open) => { if (!open) setClaimConfirmation(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{claimConfirmation?.title}</DialogTitle>
+            <DialogDescription>{claimConfirmation?.description}</DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setClaimConfirmation(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={isClaiming}
+              onClick={() => {
+                if (!claimConfirmation) return;
+                const pending = claimConfirmation;
+                setClaimConfirmation(null);
+                void claimForRiders(pending.offerId, pending.riderIds, pending.needsTray);
+              }}
+            >
+              {claimConfirmation?.needsTray ? "Claim available spots" : "Continue rider-only"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -690,16 +792,31 @@ export default function CarpoolBoard() {
                 <select
                   className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                   value={selectedOfferId}
-                  onChange={e => setSelectedOfferId(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={e => {
+                    setSelectedOfferId(e.target.value === "" ? "" : Number(e.target.value));
+                    setMatchWithoutBike(false);
+                  }}
                 >
                   <option value="">Select an offer...</option>
                   {myAllOffers.map((o: any) => (
                     <option key={o.id} value={o.id}>
-                      {o.seatsRemaining} seat{o.seatsRemaining !== 1 ? "s" : ""} remaining
+                      {o.seatsRemaining} seat{o.seatsRemaining !== 1 ? "s" : ""}, {o.bikeTraysRemaining} tray{o.bikeTraysRemaining !== 1 ? "s" : ""} remaining
+                      {o.isOverCapacity ? " · over capacity" : ""}
                       {o.departureLocation ? ` · ${o.departureLocation}` : ""}
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+            {matchWithoutBike && (
+              <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="font-semibold">No bike tray remains</p>
+                  <p className="text-muted-foreground">
+                    A seat is still available. Confirm only if the rider can travel without their bike.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -710,7 +827,7 @@ export default function CarpoolBoard() {
               disabled={isMatching || (myAllOffers.length > 1 && selectedOfferId === "")}
               onClick={handleTakeThem}
             >
-              {isMatching ? "Confirming..." : "I'll Take Them"}
+              {isMatching ? "Confirming..." : matchWithoutBike ? "Take Rider Without Bike" : "I'll Take Them"}
             </Button>
           </div>
         </DialogContent>
@@ -886,7 +1003,7 @@ export default function CarpoolBoard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {offers && offers.length > 0 ? (
             offers.map(offer => (
-              <Card key={offer.id} className="overflow-hidden">
+              <Card key={offer.id} className={cn("overflow-hidden", offer.isOverCapacity && "border-amber-500")}>
                 <CardHeader className="pb-3 border-b-2 border-[#0a0c10]">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
@@ -946,6 +1063,21 @@ export default function CarpoolBoard() {
                     </div>
                   )}
 
+                  {offer.isOverCapacity && (
+                    <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                      <div>
+                        <p className="font-semibold">Offer is over capacity</p>
+                        <p className="text-muted-foreground">
+                          {offer.seatsOverCapacity > 0 && `${offer.seatsOverCapacity} extra seat claim${offer.seatsOverCapacity === 1 ? "" : "s"}`}
+                          {offer.seatsOverCapacity > 0 && offer.bikeTraysOverCapacity > 0 && " and "}
+                          {offer.bikeTraysOverCapacity > 0 && `${offer.bikeTraysOverCapacity} extra bike claim${offer.bikeTraysOverCapacity === 1 ? "" : "s"}`}
+                          . Increase capacity or remove a claim before adding another rider.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {offer.claims && offer.claims.length > 0 && (
                     <div className="bg-muted/50 p-3 rounded-lg space-y-2">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Riders</h4>
@@ -987,7 +1119,7 @@ export default function CarpoolBoard() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={(offer.seatsRemaining <= 0 && offer.bikeTraysRemaining <= 0) || isClaiming}
+                      disabled={offer.isOverCapacity || offer.seatsRemaining <= 0 || offer.bikeTraysRemaining <= 0 || isClaiming}
                       onClick={() => handleClaimClick(offer, true)}
                     >
                       Seat + Bike
@@ -995,7 +1127,7 @@ export default function CarpoolBoard() {
                     <Button
                       variant="outline"
                       className="flex-1"
-                      disabled={offer.seatsRemaining <= 0 || isClaiming}
+                      disabled={offer.isOverCapacity || offer.seatsRemaining <= 0 || isClaiming}
                       onClick={() => handleClaimClick(offer, false)}
                     >
                       Rider only

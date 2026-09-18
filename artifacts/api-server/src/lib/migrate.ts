@@ -776,6 +776,33 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "enforce_nonnegative_carpool_capacity",
+    sql: `
+      UPDATE carpool_offers SET available_seats = 0 WHERE available_seats < 0;
+      UPDATE carpool_offers SET bike_tray_count = 0 WHERE bike_tray_count < 0;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'carpool_offers_available_seats_nonnegative_check'
+        ) THEN
+          ALTER TABLE carpool_offers
+            ADD CONSTRAINT carpool_offers_available_seats_nonnegative_check
+            CHECK (available_seats >= 0);
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'carpool_offers_bike_tray_count_nonnegative_check'
+        ) THEN
+          ALTER TABLE carpool_offers
+            ADD CONSTRAINT carpool_offers_bike_tray_count_nonnegative_check
+            CHECK (bike_tray_count >= 0);
+        END IF;
+      END $$;
+    `,
+  },
+  {
     name: "add_rider_season_participation",
     sql: `
       ALTER TABLE users

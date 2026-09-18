@@ -67,10 +67,24 @@ let currentClerkUserId: string | null = null;
 // Tracks how many times usersTable.findFirst has been called within the
 // current HTTP request so we can return the right entity each time.
 let userFindFirstCallIndex = 0;
+const capacityState = vi.hoisted(() => ({
+  claims: [] as any[],
+}));
 
 /* ─── module mocks ─────────────────────────────────────────────────────── */
 
 vi.mock("@workspace/db", () => {
+  const table = (name: string) => new Proxy({ __name: name } as any, {
+    get(target, property) {
+      if (property === "__name") return target.__name;
+      return {};
+    },
+  });
+  const usersTable = table("users");
+  const carpoolOffersTable = table("offers");
+  const carpoolClaimsTable = table("claims");
+  const carpoolRequestsTable = table("requests");
+  const eventsTable = table("events");
   const makeUpdateChain = () => {
     const c: any = {};
     c.set = vi.fn(() => c);
@@ -80,6 +94,26 @@ vi.mock("@workspace/db", () => {
     return c;
   };
   const makeDeleteChain = () => ({ where: vi.fn().mockResolvedValue(undefined) });
+  const makeSelectChain = () => {
+    const chain: any = {};
+    let selectedTable: any;
+    chain.from = vi.fn((value: any) => {
+      selectedTable = value;
+      return chain;
+    });
+    chain.where = vi.fn(() => chain);
+    chain.limit = vi.fn(() => Promise.resolve(selectedTable?.__name === "offers" ? [mockOffer] : []));
+    chain.then = (resolve: any, reject: any) => Promise.resolve(
+      selectedTable?.__name === "claims" ? capacityState.claims : [],
+    ).then(resolve, reject);
+    return chain;
+  };
+  const transaction = vi.fn(async (callback: any) => callback({
+    execute: vi.fn().mockResolvedValue(undefined),
+    select: vi.fn(makeSelectChain),
+    update: vi.fn(() => makeUpdateChain()),
+    insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([mockClaim]) })) })),
+  }));
 
   return {
     db: {
@@ -92,13 +126,14 @@ vi.mock("@workspace/db", () => {
       update: vi.fn(() => makeUpdateChain()),
       delete: vi.fn(() => makeDeleteChain()),
       insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([mockClaim]) })) })),
-      select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })) })),
+      select: vi.fn(makeSelectChain),
+      transaction,
     },
-    usersTable:           new Proxy({}, { get: () => ({}) }),
-    carpoolOffersTable:   new Proxy({}, { get: () => ({}) }),
-    carpoolClaimsTable:   new Proxy({}, { get: () => ({}) }),
-    carpoolRequestsTable: new Proxy({}, { get: () => ({}) }),
-    eventsTable:          new Proxy({}, { get: () => ({}) }),
+    usersTable,
+    carpoolOffersTable,
+    carpoolClaimsTable,
+    carpoolRequestsTable,
+    eventsTable,
   };
 });
 
@@ -151,6 +186,7 @@ afterAll(() => server.close());
 
 beforeEach(() => {
   userFindFirstCallIndex = 0;
+  capacityState.claims.splice(0, capacityState.claims.length, mockClaim);
 });
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -166,6 +202,15 @@ async function patchClaim(userId: number) {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ notes: "updated" }),
+  });
+}
+
+async function patchClaimWithBody(userId: number, body: Record<string, unknown>) {
+  setUser(userId);
+  return fetch(`${baseUrl}/carpools/${OFFER_ID}/claims/${CLAIM_ID}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
 }
 
@@ -185,6 +230,15 @@ async function patchOffer(userId: number) {
   });
 }
 
+async function patchOfferWithBody(userId: number, body: Record<string, unknown>) {
+  setUser(userId);
+  return fetch(`${baseUrl}/carpools/${OFFER_ID}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 async function deleteOffer(userId: number) {
   setUser(userId);
   return fetch(`${baseUrl}/carpools/${OFFER_ID}`, { method: "DELETE" });
@@ -194,7 +248,7 @@ async function deleteOffer(userId: number) {
 
 describe("PATCH /carpools/:offerId/claims/:claimId — authorization", () => {
   it("allows the rider to edit their own claim", async () => {
-    expect((await patchClaim(RIDER_ID)).status).not.toBe(403);
+    expect((await patchClaim(RIDER_ID)).status).toBe(200);
   });
 
   it("allows a parent in the rider's household to edit the claim", async () => {
@@ -219,6 +273,11 @@ describe("PATCH /carpools/:offerId/claims/:claimId — authorization", () => {
 
   it("forbids an unrelated user from editing a claim", async () => {
     expect((await patchClaim(UNRELATED_ID)).status).toBe(403);
+  });
+  it("rejects adding a bike when the offer has no bike trays", async () => {
+    const response = await patchClaimWithBody(RIDER_ID, { needsBikeTray: true });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "NO_BIKE_TRAYS" });
   });
 });
 
@@ -258,7 +317,7 @@ describe("DELETE /carpools/:offerId/claims/:claimId — authorization", () => {
 
 describe("PATCH /carpools/:offerId — offer ownership", () => {
   it("allows the driver to edit their own offer", async () => {
-    expect((await patchOffer(DRIVER_ID)).status).not.toBe(403);
+    expect((await patchOffer(DRIVER_ID)).status).toBe(200);
   });
 
   it("allows a coach to edit any offer", async () => {
@@ -267,6 +326,11 @@ describe("PATCH /carpools/:offerId — offer ownership", () => {
 
   it("forbids a non-driver from editing another user's offer", async () => {
     expect((await patchOffer(UNRELATED_ID)).status).toBe(403);
+  });
+  it("rejects lowering seats below the number of active claims", async () => {
+    const response = await patchOfferWithBody(DRIVER_ID, { availableSeats: 0 });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "NO_SEATS" });
   });
 });
 

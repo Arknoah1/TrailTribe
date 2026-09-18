@@ -7,12 +7,11 @@
  */
 
 /**
- * Allowed transitions from open - cancelled or matched (requires matchedOfferId)
+ * Generic edits may only cancel an open request; matching uses the match endpoint
  */
 export type UpdateCarpoolRequestBodyStatus =
   (typeof UpdateCarpoolRequestBodyStatus)[keyof typeof UpdateCarpoolRequestBodyStatus];
 
 export const UpdateCarpoolRequestBodyStatus = {
   cancelled: "cancelled",
-  matched: "matched",
 } as const;
