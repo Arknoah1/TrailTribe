@@ -1,0 +1,73 @@
+Fix: event descriptions render raw markdown instead of formatted text (artifacts/trailtribe)
+
+ROOT CAUSE
+`src/pages/event-detail.tsx` lines 634–641 renders `event.description` as a raw
+interpolated string, but already wraps it in Tailwind Typography classes meant
+for rendered markdown:
+
+    {event.description && (
+      <div className="pt-4 border-t">
+        <h3 className="font-semibold mb-2">Details</h3>
+        <div className="text-sm prose dark:prose-invert max-w-none">
+          {event.description}
+        </div>
+      </div>
+    )}
+
+No markdown renderer is installed anywhere in this workspace (checked
+package.json). So any coach who pastes a markdown table or link into an
+event's description field — e.g. the current "WSCL Race - Gig Harbor" (Sep 20)
+event, which has a full pipe-table schedule — gets it rendered as literal
+`| Staging Time | Race Start | ... |` text to parents, both in this Details
+section and truncated in the Calendar list preview.
+
+FIX
+1. Add a markdown renderer scoped to this workspace:
+   `pnpm --filter @workspace/trailtribe add react-markdown remark-gfm`
+   (remark-gfm is required for pipe-table support — that's what's in the
+   live "broken" event right now.)
+
+2. In `src/pages/event-detail.tsx` (~line 634), replace the raw string
+   interpolation with `<ReactMarkdown remarkPlugins={[remarkGfm]}>`, keeping
+   the existing `prose dark:prose-invert max-w-none` wrapper — that class was
+   already there for exactly this purpose:
+
+    <div className="text-sm prose dark:prose-invert max-w-none">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.description}</ReactMarkdown>
+    </div>
+
+   Do NOT add `rehype-raw` or otherwise enable raw HTML passthrough — this is
+   coach-entered content and react-markdown's default (markdown-only, no raw
+   HTML) is the safe behavior we want to keep.
+
+3. In `src/pages/calendar.tsx` (~line 402-404), the list preview currently
+   line-clamps the raw description to 2 lines:
+
+    {event.description && (
+      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{event.description}</p>
+    )}
+
+   Rendering full markdown into a 2-line-clamped preview will break on tables
+   and multi-line content, so instead strip markdown syntax to plain text for
+   this preview specifically (a small `stripMarkdown(text)` helper — strip
+   table pipes/rows, link syntax `[text](url)` -> `text`, header `#` markers,
+   bold/italic markers — is enough; it doesn't need to be a full parser to
+   plain-text renderer). Use that helper's output in the `line-clamp-2` <p>,
+   and leave the full markdown render for the detail page.
+
+4. No data migration needed: the existing "WSCL Race - Gig Harbor" event's
+   description is a real markdown table pasted by a coach — once rendering
+   is fixed it should just display correctly as a table, so verify that
+   specific event (id can be found via the calendar / carpools list for
+   Sep 20) renders as an actual table after the fix, not just any dummy data.
+
+VERIFY
+- `pnpm --filter @workspace/trailtribe typecheck` clean
+- Existing test suite for calendar/event-detail still passes
+- Manually check: the Sep 20 "WSCL Race - Gig Harbor" event's Details section
+  now renders as a real table with clickable schedule PDF link, not literal
+  pipe characters
+- Calendar list preview for that same event shows a clean plain-text
+  truncation, not raw table syntax
+- A description with no markdown (the common case) still displays identically
+  to before
