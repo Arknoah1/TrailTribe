@@ -14,6 +14,7 @@ import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
 import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
+import { notifyDriversOfCarpoolRequest } from "../lib/carpoolRequestNotifications";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -554,28 +555,13 @@ router.post("/events/:id/carpool-requests", requireApproved, async (req, res) =>
     status: "open",
   }).returning();
 
-  (async () => {
-    try {
-      const activeOffers = await db
-        .select()
-        .from(carpoolOffersTable)
-        .where(eq(carpoolOffersTable.eventId, eventId));
-      const requesterName = `${me.firstName} ${me.lastName}`;
-      for (const offer of activeOffers) {
-        if (offer.driverUserId !== me.id) {
-          await createNotification(
-            offer.driverUserId,
-            "carpool_request_posted",
-            "New Ride Request",
-            `${requesterName} posted a ride request for this event.`,
-            `/carpools/${eventId}`
-          );
-        }
-      }
-    } catch (err) {
-      console.error("[notifications] request trigger failed:", err);
-    }
-  })();
+  void notifyDriversOfCarpoolRequest({
+    eventId,
+    riderId,
+    requester: me,
+  }).catch((err) => {
+    logger.error({ err, eventId }, "[carpools] ride request notification trigger failed");
+  });
 
   const result = await buildRequestWithUsers(request);
   res.status(201).json(result);
