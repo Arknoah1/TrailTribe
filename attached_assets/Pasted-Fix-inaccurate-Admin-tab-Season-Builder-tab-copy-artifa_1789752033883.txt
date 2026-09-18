@@ -1,0 +1,60 @@
+Fix inaccurate "Admin tab" / "Season Builder tab" copy (artifacts/trailtribe)
+
+CONTEXT — two locations say something that isn't true on every platform:
+
+1. src/pages/dashboard.tsx lines 116-122 (coach/admin upgrade banner):
+
+    <p className="font-semibold text-sm text-foreground">You have coach/admin access</p>
+    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+      Your account was upgraded. You can manage the team roster, events, pods, and more from the Admin section.
+      To show the Admin tab in your navigation, go to{" "}
+      <strong className="text-foreground">Profile → Admin Mode</strong>{" "}
+      and turn on "Show admin tabs".
+    </p>
+
+   "the Admin tab in your navigation" is only true on desktop's sidebar.
+   On mobile (components/layout.tsx line 83's mobileItems, confirmed
+   intentional — heavy-entry admin tools shouldn't crowd the mobile bottom
+   bar), turning the toggle on adds Admin to the "..." overflow menu, never
+   a bottom-bar tab.
+
+2. src/pages/profile.tsx lines 1522-1539 (Admin Mode card):
+
+    <CardDescription>
+      Show or hide the Admin and Season Builder tabs in your navigation.
+    </CardDescription>
+    ...
+    <div className="text-xs text-muted-foreground">
+      Enables the Admin and Season Builder tabs. Turn off for a cleaner view during day-to-day use.
+    </div>
+
+   This one is wrong on every platform, not just mobile: Season Builder has
+   never had its own nav tab anywhere — it's only reachable as a tab inside
+   Admin (see the tab-grouping fix). "the Admin and Season Builder tabs" (and
+   "Enables the Admin and Season Builder tabs") should just say "Admin"
+   generally, described as a section, not the specific word "tab" — since
+   whether it renders as a sidebar link, a bottom tab, or a "..." menu entry
+   depends on platform.
+
+FIX
+1. In dashboard.tsx, make the copy platform-generic rather than promising a
+   specific nav element:
+   "You can manage the team roster, events, pods, and more from Admin.
+   Turn it on in Profile → Admin Mode → 'Show admin tabs' — look for Admin
+   in the sidebar (desktop) or the ••• menu (mobile)."
+   If the app already has a way to detect mobile vs. desktop at render time,
+   prefer showing the exact right instruction for the current platform
+   instead of listing both.
+2. In profile.tsx, change both the CardDescription and the helper text to
+   refer to "Admin" only, drop "and Season Builder" from both (Season
+   Builder is reached inside Admin, it doesn't get its own toggle-controlled
+   nav presence):
+   - CardDescription: "Show or hide Admin in your navigation."
+   - Helper text: "Enables Admin. Turn off for a cleaner view during
+     day-to-day use."
+
+VERIFY
+- Re-read both edited strings in context to confirm they don't reference a
+  "tab" that won't exist for the reader's platform
+- No functional change — this is copy only, `adminViewEnabled` /
+  `showAdminTabs` logic in layout.tsx is untouched

@@ -1,0 +1,54 @@
+Group Admin Dashboard's 10 flat tabs into 3 categories (artifacts/trailtribe)
+
+CONTEXT
+src/pages/admin.tsx lines 952-969 renders all 10 admin sections as one
+horizontally-scrolling TabsList:
+
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <TabsList className="flex-nowrap w-max h-auto">
+        <TabsTrigger value="roster">Roster</TabsTrigger>
+        <TabsTrigger value="approvals">Pending Approvals</TabsTrigger>
+        <TabsTrigger value="events">Events</TabsTrigger>
+        <TabsTrigger value="documents">Documents</TabsTrigger>
+        <TabsTrigger value="pods">Pods</TabsTrigger>
+        <TabsTrigger value="trailheads">Trailheads</TabsTrigger>
+        <TabsTrigger value="volunteer-templates">Volunteer Templates</TabsTrigger>
+        <TabsTrigger value="season-builder">...</TabsTrigger>
+        <TabsTrigger value="seasons">...</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
+      </TabsList>
+
+About half of these sit off-screen with no "more" indicator beyond a thin
+scroll arrow. `activeTab` already defaults to "roster" (line 327) — that
+part doesn't need to change.
+
+FIX — SCOPE THIS TO LINES ~944-970 ONLY. Do not touch anything from line 972
+onward (the TabsContent blocks — ~180KB of admin logic keyed by these same
+`value` strings — must stay completely untouched; only how the trigger list
+is organized and displayed changes).
+
+1. Add a small group-switcher above (or replacing) the flat TabsList, with
+   3 groups:
+   - People: Roster, Pending Approvals
+   - Schedule: Events, Season Builder, Seasons
+   - Configuration: Documents, Pods, Trailheads, Volunteer Templates, Settings
+2. Add `const [activeGroup, setActiveGroup] = useState<"people"|"schedule"|"configuration">("people")`
+   near the existing `activeTab` state (line 327).
+3. Render only the TabsTriggers belonging to `activeGroup` inside the
+   TabsList — same TabsTrigger elements, same `value` props, just filtered
+   by group instead of all rendered at once.
+4. When the group changes, don't force-change `activeTab` — but if the
+   currently active tab isn't in the newly selected group, switch
+   `activeTab` to that group's first tab so the content shown always matches
+   a visible, highlighted trigger.
+5. Keep the existing shadcn Tabs/TabsList/TabsTrigger/TabsContent components
+   — this is a reorganization of the trigger list, not a new tab system.
+
+VERIFY
+- pnpm --filter @workspace/trailtribe typecheck clean
+- All 10 admin sections are still reachable and render their existing
+  content unchanged
+- Opening Admin lands on People > Roster by default, matching today's
+  behavior
+- No group's trigger row requires horizontal scrolling at common phone
+  widths (375-430px)
