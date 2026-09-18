@@ -9,7 +9,7 @@ const ALLOWED_PATHS = [
   /^\/events\/\d+(?:\?focus=volunteer)?$/,
   /^\/messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?$/,
   /^\/carpools(?:\/\d+)?$/,
-  /^\/profile(?:\?tab=family)?$/,
+  /^\/profile(?:\?tab=(?:family|notifications))?$/,
   /^\/admin$/,
   /^\/reenroll$/,
   /^\/dashboard$/,
@@ -80,4 +80,29 @@ export function addEmailLinks(
     text: `${text}\n\n${textLinks}`,
     html: `<!doctype html><html><body style="margin:0;padding:24px;background:#f4f5f6;color:#0a0c10;font-family:Arial,sans-serif;line-height:1.5"><main style="max-width:600px;margin:0 auto;background:#fff;padding:24px;border:1px solid #d9dde2;border-radius:12px">${htmlBody}${htmlLinks}<p style="font-size:12px;color:#59636e">If the button does not work, copy and paste the link from the plain-text version of this email.</p></main></body></html>`,
   };
+}
+
+const NOTIFICATION_PREFERENCES_TEXT =
+  "To update your notification preferences, update your notification settings in the TrailTeam app.";
+
+/**
+ * Adds action links plus a consistent preferences footer to user-facing
+ * notification emails. Invitation and operational email paths should continue
+ * using addEmailLinks directly.
+ */
+export function addNotificationEmailLinks(
+  text: string,
+  links: Array<EmailLink | null>,
+): { text: string; html?: string } {
+  const settingsLink = createEmailLink(
+    "/profile?tab=notifications",
+    "Update notification settings",
+  );
+  const linksWithoutDuplicateSettings = links.filter(
+    (link) => link === null || link.href !== settingsLink?.href,
+  );
+  return addEmailLinks(
+    `${text}\n\n${NOTIFICATION_PREFERENCES_TEXT}`,
+    [...linksWithoutDuplicateSettings, settingsLink],
+  );
 }

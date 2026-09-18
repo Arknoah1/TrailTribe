@@ -3,7 +3,7 @@ import { notificationsTable, usersTable } from "@workspace/db";
 import { eq, or, and } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { getShortNamePrefix } from "../routes/settings";
-import { addEmailLinks, createEmailLink } from "./emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 
 export async function createNotification(
   recipientUserId: number,
@@ -65,7 +65,7 @@ export async function notifyCoachesOfReturningFamily(user: {
 
     if (emailRecipients.length > 0) {
       const orgPrefix = await getShortNamePrefix();
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `Hi,`,
           ``,
@@ -129,7 +129,7 @@ export async function notifyCoachesOfNewFamily(newUser: {
 
     if (emailRecipients.length > 0) {
       const orgPrefix = await getShortNamePrefix();
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `Hi,`,
           ``,

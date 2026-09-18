@@ -14,6 +14,7 @@ test("native deep links only claim TrailTeam routes", () => {
   assert.match(source, /messages/);
   assert.match(source, /volunteer/);
   assert.match(source, /admin/);
+  assert.match(source, /profile\(\?:\\\?tab=\(\?:family\|notifications\)\)\?/);
 });
 
 test("pending links survive signed-out native launches until sign-in", () => {

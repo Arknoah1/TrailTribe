@@ -12,7 +12,7 @@ import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { sendEmail } from "../lib/email";
 import { getShortNamePrefix } from "./settings";
 import { z } from "zod";
-import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -442,7 +442,7 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
       ``,
       `— The TrailTeam`,
     ].join("\n");
-    return addEmailLinks(text, [
+    return addNotificationEmailLinks(text, [
       createEmailLink("/reenroll", "Re-enroll in TrailTeam"),
     ]);
   };
@@ -530,7 +530,7 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
   }
 
   const orgPrefix = await getShortNamePrefix();
-  const message = addEmailLinks(
+  const message = addNotificationEmailLinks(
     [
       `Hi,`,
       ``,

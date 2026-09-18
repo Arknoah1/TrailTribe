@@ -7,7 +7,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { addEmailLinks, createEmailLink } from "./emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 import { isDeliverableEmailAddress, sendEmail } from "./email";
 import { formatEventDateTime } from "./eventTime";
 import { logger } from "./logger";
@@ -134,7 +134,7 @@ async function deliver(
   }
   if (channels.email) {
     try {
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [`Hi ${user.firstName},`, "", body, "", "— TrailTeam"].join("\n"),
         [createEmailLink(link, "View in TrailTeam")],
       );

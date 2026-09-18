@@ -17,7 +17,7 @@ import {
 } from "../lib/objectAcl";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
-import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
@@ -422,7 +422,7 @@ async function notifyUnsignedFamilies(
     `— The TrailTeam`,
   ].join("\n");
 
-  const message = addEmailLinks(body, [profileLink]);
+  const message = addNotificationEmailLinks(body, [profileLink]);
 
   // Send individually so each recipient sees their own To: address
   for (const target of emailTargets) {

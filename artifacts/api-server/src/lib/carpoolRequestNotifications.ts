@@ -1,7 +1,7 @@
 import { db, carpoolOffersTable, eventsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sendEmail, isDeliverableEmailAddress } from "./email";
-import { addEmailLinks, createEmailLink } from "./emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 import { logger } from "./logger";
 import { createNotification } from "./notifications";
 import { getShortNamePrefix } from "../routes/settings";
@@ -73,7 +73,7 @@ export async function notifyDriversOfCarpoolRequest({
       const requestDescription = riderId === requester.id
         ? `${riderName} posted a ride request for ${eventName}.`
         : `${riderName} needs a ride to ${eventName}. ${requesterName} posted the request.`;
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `Hi ${driver.firstName},`,
           "",

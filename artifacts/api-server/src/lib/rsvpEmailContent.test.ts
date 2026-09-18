@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("./config", () => ({ getAppBase: () => "https://trailteam.app" }));
 import {
   buildRsvpConfirmationContent,
   formatRsvpEventTime,
@@ -42,6 +44,12 @@ describe("RSVP confirmation batching rules", () => {
     expect(content.text).toContain("  Casey Smith");
     expect(content.text.match(/Event: Evergreen Dig Day/g)).toHaveLength(1);
     expect(content.text.match(/Where: Loop Loop Trails/g)).toHaveLength(1);
+    expect(content.text).toContain(
+      "Update notification settings: https://trailteam.app/profile?tab=notifications",
+    );
+    expect(content.html).toContain(
+      'href="https://trailteam.app/profile?tab=notifications"',
+    );
   });
 
   it("uses the latest RSVP snapshot, so canceled family members are not rendered", () => {

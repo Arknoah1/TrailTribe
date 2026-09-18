@@ -13,7 +13,7 @@ import { createNotification } from "../lib/notifications";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
-import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "../lib/emailLinks";
 import { notifyDriversOfCarpoolRequest } from "../lib/carpoolRequestNotifications";
 
 const router = Router();
@@ -376,7 +376,7 @@ router.post("/carpools/:offerId/claims", requireApproved, async (req, res) => {
       const riderName = rider ? `${rider.firstName} ${rider.lastName}` : "Someone";
       const eventName = event?.title ?? "your event";
       const orgPrefix = await getShortNamePrefix();
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `Hi ${driver.firstName},`,
           ``,

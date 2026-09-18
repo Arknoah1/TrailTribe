@@ -20,7 +20,7 @@ function appRoute(rawUrl: string | null | undefined): string | null {
     if (url.origin !== "https://trailteam.app") return null;
     const path = `${url.pathname}${url.search}${url.hash}`;
     const normalized = path.replace(/^\/+/, "/");
-    const knownRoute = /^\/(events\/\d+(?:\?focus=volunteer)?|messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?|carpools(?:\/\d+)?|volunteer|family-invite\/[^/]+|rider-invite\/[^/]+|join\/[^/]+|dashboard|calendar|profile(?:\?tab=family)?|admin|onboarding|reenroll|sign-in|sign-up)(?:[/?#]|$)/;
+    const knownRoute = /^\/(events\/\d+(?:\?focus=volunteer)?|messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?|carpools(?:\/\d+)?|volunteer|family-invite\/[^/]+|rider-invite\/[^/]+|join\/[^/]+|dashboard|calendar|profile(?:\?tab=(?:family|notifications))?|admin|onboarding|reenroll|sign-in|sign-up)(?:[/?#]|$)/;
     return knownRoute.test(normalized) ? normalized : null;
   } catch {
     return null;

@@ -5,7 +5,7 @@ import { isDeliverableEmailAddress, sendEmail } from "./email";
 import { logger } from "./logger";
 import { getShortNamePrefix } from "../routes/settings";
 import { formatEventDateTime } from "./eventTime";
-import { addEmailLinks, createEmailLink } from "./emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 
 const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
 const OUTAGE_RECOVERY_MS = 6 * 60 * 60 * 1000;
@@ -149,7 +149,7 @@ export async function sendEventReminders(): Promise<void> {
           `See you on the trail!`,
           `— TrailTeam`,
         ];
-        const message = addEmailLinks(lines.join("\n"), [
+        const message = addNotificationEmailLinks(lines.join("\n"), [
           createEmailLink(`/events/${event.id}`, "View event in TrailTeam"),
         ]);
 

@@ -1,5 +1,5 @@
 import { formatEventDateTime } from "./eventTime";
-import { addEmailLinks, createEmailLink } from "./emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 
 export interface RsvpEmailEvent {
   title: string;
@@ -49,7 +49,7 @@ export function buildRsvpConfirmationContent(
 
   return {
     subject: `You're set for ${event.title}`,
-    ...addEmailLinks(text, [
+    ...addNotificationEmailLinks(text, [
       eventPath ? createEmailLink(eventPath, "View event in TrailTeam") : null,
     ]),
   };

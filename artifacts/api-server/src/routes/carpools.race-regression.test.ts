@@ -187,7 +187,7 @@ vi.mock("../lib/notifications", () => ({ createNotification: state.notification 
 vi.mock("../lib/email", () => ({ sendEmail: state.email }));
 vi.mock("./settings", () => ({ getShortNamePrefix: vi.fn().mockResolvedValue("") }));
 vi.mock("../lib/emailLinks", () => ({
-  addEmailLinks: vi.fn((message: string) => ({ text: message, html: message })),
+  addNotificationEmailLinks: vi.fn((message: string) => ({ text: message, html: message })),
   createEmailLink: vi.fn(),
 }));
 vi.mock("../lib/logger", () => ({ logger: { error: vi.fn() } }));

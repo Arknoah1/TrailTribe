@@ -15,7 +15,7 @@ vi.mock("../lib/notifications", () => ({ createNotification: vi.fn().mockResolve
 vi.mock("../lib/email", () => ({ sendEmail: vi.fn().mockResolvedValue({ status: "sent" }) }));
 vi.mock("./settings", () => ({ getShortNamePrefix: vi.fn().mockResolvedValue("") }));
 vi.mock("../lib/emailLinks", () => ({
-  addEmailLinks: vi.fn((message: string) => ({ text: message, html: message })),
+  addNotificationEmailLinks: vi.fn((message: string) => ({ text: message, html: message })),
   createEmailLink: vi.fn(),
 }));
 

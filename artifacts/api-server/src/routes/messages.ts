@@ -19,7 +19,7 @@ import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middleware
 import { isDeliverableEmailAddress, sendEmail, emailHealthy } from "../lib/email";
 import { logger } from "../lib/logger";
 import { getShortNamePrefix } from "./settings";
-import { addEmailLinks, createEmailLink } from "../lib/emailLinks";
+import { addNotificationEmailLinks, createEmailLink } from "../lib/emailLinks";
 
 const router = Router();
 
@@ -169,7 +169,7 @@ router.post("/messages", requireCoachOrAdmin, async (req, res) => {
     let delivered = 0;
     let failed = 0;
     for (const user of emailRecipients) {
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `Message from ${senderName}:`,
           ``,
@@ -254,7 +254,7 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
   (async () => {
     let sent = 0;
     for (const coach of coaches) {
-      const message = addEmailLinks(
+      const message = addNotificationEmailLinks(
         [
           `${senderName} sent you a message via TrailTeam:`,
           ``,

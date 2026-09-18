@@ -2,7 +2,7 @@ const SAFE_REDIRECT_PATHS = [
   /^\/events\/\d+(?:\?focus=volunteer)?$/,
   /^\/messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?$/,
   /^\/carpools(?:\/\d+)?$/,
-  /^\/profile(?:\?tab=family)?$/,
+  /^\/profile(?:\?tab=(?:family|notifications))?$/,
   /^\/admin$/,
   /^\/reenroll$/,
   /^\/dashboard$/,

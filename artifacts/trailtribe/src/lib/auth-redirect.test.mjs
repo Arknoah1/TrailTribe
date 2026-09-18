@@ -16,6 +16,16 @@ test("auth return destinations are allowlisted", () => {
   assert.match(source, /new Set\(\[currentOrigin\]\)/);
 });
 
+test("notification settings survives sign-in without allowing unknown profile tabs", () => {
+  const profileRoute = /^\/profile(?:\?tab=(?:family|notifications))?$/;
+
+  assert.match(source, /profile\(\?:\\\?tab=\(\?:family\|notifications\)\)\?/);
+  assert.equal(profileRoute.test("/profile?tab=notifications"), true);
+  assert.equal(profileRoute.test("/profile?tab=family"), true);
+  assert.equal(profileRoute.test("/profile?tab=unknown"), false);
+  assert.equal(profileRoute.test("/profile?tab=notifications&redirect=https://example.com"), false);
+});
+
 test("sign-in and sign-up pages pass the email destination to Clerk", () => {
   assert.match(app, /getRedirectUrlFromSearch/);
   assert.match(app, /forceRedirectUrl=\{redirectUrl \?\? undefined\}/);

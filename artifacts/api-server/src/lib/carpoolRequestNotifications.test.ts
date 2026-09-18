@@ -60,7 +60,7 @@ vi.mock("./email", () => ({
 
 vi.mock("./emailLinks", () => ({
   createEmailLink: (path: string, label: string) => ({ path, label }),
-  addEmailLinks: (text: string, links: Array<{ path: string; label: string }>) => ({
+  addNotificationEmailLinks: (text: string, links: Array<{ path: string; label: string }>) => ({
     text: `${text}\n\n${links.map((link) => `${link.label}: ${link.path}`).join("\n")}`,
   }),
 }));
