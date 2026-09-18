@@ -86,4 +86,51 @@ describe("team calendar iCal feed", () => {
     expect(ics).toContain("DTSTART:20260710T160000Z");
     expect(ics).toContain("DTSTAMP:20260601T000000Z");
   });
+
+  it("converts Markdown descriptions to readable calendar text with usable links", () => {
+    const ics = buildTeamCalendarIcs([
+      event({
+        description: [
+          "# Race day",
+          "",
+          "| Staging Time | Race Start |",
+          "| --- | :---: |",
+          "| **8:00 AM** | `9:00 AM` |",
+          "",
+          "[Schedule PDF](https://example.com/my_route/file_name.pdf)",
+        ].join("\n"),
+      }),
+    ], {}, feedDate);
+    const unfolded = ics.replace(/\r\n /g, "");
+
+    expect(unfolded).toContain(
+      "DESCRIPTION:Type: practice\\nRace day\\nStaging Time Race Start\\n8:00 AM 9:00 AM",
+    );
+    expect(unfolded).toContain("Schedule PDF (https://example.com/my_route/file_name.pdf)");
+    expect(unfolded).not.toContain("practice\\\\nRace day");
+    expect(unfolded).not.toContain("| --- |");
+    expect(unfolded).not.toContain("**8:00 AM**");
+    expect(unfolded).not.toContain("[Schedule PDF]");
+  });
+
+  it("keeps iCalendar escaping and line folding valid after Markdown conversion", () => {
+    const ics = buildTeamCalendarIcs([
+      event({
+        description:
+          "Bring **water**, snacks; and a very long checklist with [details](https://example.com/calendar/checklist).",
+      }),
+    ], {}, feedDate);
+    const unfolded = ics.replace(/\r\n /g, "");
+    const descriptionLines = ics
+      .split("\r\n")
+      .filter((line, index, lines) =>
+        line.startsWith("DESCRIPTION:") ||
+        (line.startsWith(" ") && lines[index - 1]?.startsWith("DESCRIPTION:")),
+      );
+
+    expect(unfolded).toContain("Bring water\\, snacks\\;");
+    expect(unfolded).toContain("details (https://example.com/calendar/checklist)");
+    expect(descriptionLines.length).toBeGreaterThan(1);
+    expect(descriptionLines.every(line => Buffer.byteLength(line, "utf8") <= 75)).toBe(true);
+  });
 });

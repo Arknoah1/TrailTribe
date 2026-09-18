@@ -38,6 +38,35 @@ function escapeICalText(val: string): string {
     .replace(/\n/g, "\\n");
 }
 
+export function markdownToCalendarText(text: string): string {
+  const urls: string[] = [];
+  const withProtectedUrls = text.replace(/https?:\/\/[^\s)]+/g, url => {
+    const index = urls.push(url) - 1;
+    return `\u0000URL${index}\u0000`;
+  });
+
+  const plainText = withProtectedUrls
+    .replace(/\r\n?/g, "\n")
+    .replace(/^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/gm, "")
+    .replace(/^\s*\|/gm, "")
+    .replace(/\|\s*$/gm, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    .replace(/^ {0,3}#{1,6}\s+/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .replace(/~~(.*?)~~/g, "$1")
+    .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, "")
+    .replace(/\s*\|\s*/g, "  ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return plainText.replace(/\u0000URL(\d+)\u0000/g, (_match, index: string) => urls[Number(index)]);
+}
+
 function foldICalLine(line: string): string {
   const bytes = Buffer.from(line, "utf8");
   if (bytes.length <= 75) return line;
@@ -81,7 +110,10 @@ export function buildTeamCalendarIcs(
     const descParts: string[] = [
       `Type: ${event.eventType}`,
     ];
-    if (event.description) descParts.push(event.description);
+    if (event.description) {
+      const plainDescription = markdownToCalendarText(event.description);
+      if (plainDescription) descParts.push(plainDescription);
+    }
 
     const lines = [
       "BEGIN:VEVENT",
@@ -91,7 +123,7 @@ export function buildTeamCalendarIcs(
       foldICalLine(`DTEND:${dtend}`),
       foldICalLine(`LAST-MODIFIED:${fmtICalDate(new Date(event.updatedAt))}`),
       foldICalLine(`SUMMARY:${escapeICalText(event.title)}`),
-      foldICalLine(`DESCRIPTION:${escapeICalText(descParts.join("\\n"))}`),
+      foldICalLine(`DESCRIPTION:${escapeICalText(descParts.join("\n"))}`),
     ];
 
     if (location) {
