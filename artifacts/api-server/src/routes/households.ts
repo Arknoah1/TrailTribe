@@ -74,7 +74,7 @@ function coParentInviteExpiresAt(): Date {
 function canManageCoParentInvites(requester: any, householdId: number): boolean {
   return !!requester
     && requester.householdId === householdId
-    && (requester.role === "parent" || requester.role === "coach");
+    && (requester.role === "parent" || requester.role === "coach" || requester.role === "super_admin");
 }
 
 function sanitizedCoParentInvite(invite: any, now = new Date()) {
@@ -536,7 +536,7 @@ router.get("/households/:id/co-parent-invites", requireAuth, async (req, res): P
   }
   const requester = await getRequester(req);
   if (!canManageCoParentInvites(requester, params.data.id)) {
-    res.status(403).json({ error: "Only a parent or coach in this household can view parent or guardian invitations." });
+    res.status(403).json({ error: "Only a responsible adult in this household can view parent or guardian invitations." });
     return;
   }
   const invites = await db.query.familyInvitesTable.findMany({
@@ -561,7 +561,7 @@ router.post("/households/:id/co-parent-invites", requireAuth, async (req, res): 
   const householdId = params.data.id;
   const requester = await getRequester(req);
   if (!requester || !canManageCoParentInvites(requester, householdId)) {
-    res.status(403).json({ error: "Only a parent or coach in this household can send a parent or guardian invitation." });
+    res.status(403).json({ error: "Only a responsible adult in this household can send a parent or guardian invitation." });
     return;
   }
 
@@ -689,7 +689,7 @@ router.delete("/households/:id/co-parent-invites/:inviteId", requireAuth, async 
   }
   const requester = await getRequester(req);
   if (!canManageCoParentInvites(requester, params.data.id)) {
-    res.status(403).json({ error: "Only a parent or coach in this household can cancel parent or guardian invitations." });
+    res.status(403).json({ error: "Only a responsible adult in this household can cancel parent or guardian invitations." });
     return;
   }
   const invite = await db.query.familyInvitesTable.findFirst({

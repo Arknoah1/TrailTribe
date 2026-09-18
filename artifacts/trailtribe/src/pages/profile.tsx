@@ -989,7 +989,7 @@ function MyFamilyTab({ householdId, currentUserId, canInviteCoParent, readOnly =
                   </Button>
                 ) : !readOnly ? (
                   <p className="max-w-40 text-right text-xs text-muted-foreground">
-                    Only a parent or coach in this household can invite a parent or guardian.
+                    Only a responsible adult in this household can invite a parent or guardian.
                   </p>
                 ) : null}
               </CardHeader>
@@ -1693,7 +1693,7 @@ export default function Profile() {
             <MyFamilyTab
               householdId={user.householdId}
               currentUserId={user.id}
-              canInviteCoParent={user.role === "parent" || user.role === "coach"}
+              canInviteCoParent={user.role === "parent" || user.role === "coach" || user.role === "super_admin"}
               readOnly={isStudent}
             />
           ) : (

@@ -181,7 +181,8 @@ describe("POST /households/:id/co-parent-invites", () => {
   it.each([
     ["a student in the household", { id: 8, role: "student", householdId: 42 }],
     ["a coach from a different household", { id: 9, role: "coach", householdId: 99 }],
-    ["a super admin in the household", { id: 10, role: "super_admin", householdId: 42 }],
+    ["a super admin from a different household", { id: 10, role: "super_admin", householdId: 99 }],
+    ["a super admin without a household", { id: 11, role: "super_admin", householdId: null }],
   ])("rejects %s", async (_description, requester) => {
     state.requester = requester;
     const response = await send({ email: "coparent@example.com" });
@@ -201,6 +202,19 @@ describe("POST /households/:id/co-parent-invites", () => {
     expect(response.status).toBe(201);
     expect(state.inserts).toHaveLength(1);
     expect(state.inserts[0]).toMatchObject({ householdId: 42, invitedByUserId: 8 });
+    expect(state.emails).toHaveLength(1);
+  });
+
+  it("allows a super admin in the requested household to invite a co-parent", async () => {
+    state.requester = {
+      id: 10, role: "super_admin", householdId: 42, clerkUserId: "admin_parent_clerk", firstName: "Alex", lastName: "Smith",
+    };
+
+    const response = await send({ email: "coparent@example.com" });
+
+    expect(response.status).toBe(201);
+    expect(state.inserts).toHaveLength(1);
+    expect(state.inserts[0]).toMatchObject({ householdId: 42, invitedByUserId: 10 });
     expect(state.emails).toHaveLength(1);
   });
 
@@ -255,6 +269,26 @@ describe("POST /households/:id/co-parent-invites", () => {
 });
 
 describe("household parent or guardian invitation lifecycle", () => {
+  it("lets a household-linked super admin list and cancel invitations", async () => {
+    state.requester = {
+      id: 10, role: "super_admin", householdId: 42, clerkUserId: "admin_parent_clerk", firstName: "Alex", lastName: "Smith",
+    };
+    state.activeInvite = {
+      id: 12,
+      email: "parent@example.com",
+      createdAt: new Date("2026-09-18T10:00:00Z"),
+      expiresAt: new Date("2099-09-25T10:00:00Z"),
+      acceptedAt: null,
+      revokedAt: null,
+      lastEmailAttemptAt: new Date("2026-09-18T10:01:00Z"),
+      lastEmailSentAt: new Date("2026-09-18T10:01:00Z"),
+      lastEmailStatus: "sent",
+    };
+
+    expect((await list()).status).toBe(200);
+    expect((await cancel(12)).status).toBe(200);
+  });
+
   it("lists sanitized lifecycle states without exposing tokens", async () => {
     state.invites = [
       {
@@ -317,6 +351,8 @@ describe("household parent or guardian invitation lifecycle", () => {
   it.each([
     ["a student in the household", { id: 8, role: "student", householdId: 42 }],
     ["a coach from another household", { id: 9, role: "coach", householdId: 99 }],
+    ["a super admin from another household", { id: 10, role: "super_admin", householdId: 99 }],
+    ["a super admin without a household", { id: 11, role: "super_admin", householdId: null }],
   ])("does not let %s list invitations", async (_description, requester) => {
     state.requester = requester;
     expect((await list()).status).toBe(403);
