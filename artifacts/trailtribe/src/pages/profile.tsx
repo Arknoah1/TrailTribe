@@ -1650,7 +1650,7 @@ export default function Profile() {
                   <ShieldCheck className="h-5 w-5" /> Admin Mode
                 </CardTitle>
                 <CardDescription>
-                  Show or hide the Admin and Season Builder tabs in your navigation.
+                  Show or hide Admin in your navigation.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1658,7 +1658,7 @@ export default function Profile() {
                   <div className="space-y-0.5 flex-1 mr-4">
                     <div className="text-sm font-medium">Show admin tabs</div>
                     <div className="text-xs text-muted-foreground">
-                      Enables the Admin and Season Builder tabs. Turn off for a cleaner view during day-to-day use.
+                      Enables Admin. Turn off for a cleaner view during day-to-day use.
                     </div>
                   </div>
                   <Switch

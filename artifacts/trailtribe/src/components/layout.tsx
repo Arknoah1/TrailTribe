@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
-import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, Layers, MoreHorizontal, ClipboardCheck } from "lucide-react";
+import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, MoreHorizontal, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "./notification-bell";
@@ -33,7 +33,6 @@ const baseNavItems: NavigationItem[] = [
 ];
 
 const adminNavItem: NavigationItem = { href: "/admin", label: "Admin", icon: ShieldCheck };
-const seasonBuilderNavItem: NavigationItem = { href: "/season-builder", label: "Season", icon: Layers };
 const getPathname = (location: string) => location.split("?")[0];
 const volunteerNavItem: NavigationItem = {
   href: "/volunteer",

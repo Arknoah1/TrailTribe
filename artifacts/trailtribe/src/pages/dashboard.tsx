@@ -116,7 +116,7 @@ export default function Dashboard() {
               <p className="font-semibold text-sm text-foreground">You have coach/admin access</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                 Your account was upgraded. You can manage the team roster, events, pods, and more from the Admin section.
-                To show the Admin tab in your navigation, go to{" "}
+                Admin appears in the desktop sidebar or the mobile overflow menu. To show it, go to{" "}
                 <strong className="text-foreground">Profile → Admin Mode</strong>{" "}
                 and turn on "Show admin tabs".
               </p>

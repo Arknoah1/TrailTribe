@@ -28,6 +28,33 @@ import { FamilyLinkAction } from "@/components/family-link-action";
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 type DocType = "liability_waiver" | "media_release" | "code_of_conduct";
+type AdminTab = "roster" | "approvals" | "events" | "season-builder" | "seasons" | "documents" | "pods" | "trailheads" | "volunteer-templates" | "settings";
+type AdminGroup = "people" | "schedule" | "configuration";
+
+const ADMIN_GROUPS: Record<AdminGroup, ReadonlyArray<{ value: AdminTab; label: string }>> = {
+  people: [
+    { value: "roster", label: "Roster" },
+    { value: "approvals", label: "Pending Approvals" },
+  ],
+  schedule: [
+    { value: "events", label: "Events" },
+    { value: "season-builder", label: "Season Builder" },
+    { value: "seasons", label: "Seasons" },
+  ],
+  configuration: [
+    { value: "documents", label: "Documents" },
+    { value: "pods", label: "Pods" },
+    { value: "trailheads", label: "Trailheads" },
+    { value: "volunteer-templates", label: "Volunteer Templates" },
+    { value: "settings", label: "Settings" },
+  ],
+};
+
+const ADMIN_GROUP_LABELS: Record<AdminGroup, string> = {
+  people: "People",
+  schedule: "Schedule",
+  configuration: "Configuration",
+};
 
 interface TeamDocument {
   id: number;
@@ -397,7 +424,15 @@ export default function Admin() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Tab navigation state
-  const [activeTab, setActiveTab] = useState("roster");
+  const [activeTab, setActiveTab] = useState<AdminTab>("roster");
+  const [activeGroup, setActiveGroup] = useState<AdminGroup>("people");
+
+  const selectAdminGroup = (group: AdminGroup) => {
+    setActiveGroup(group);
+    if (!ADMIN_GROUPS[group].some((section) => section.value === activeTab)) {
+      setActiveTab(ADMIN_GROUPS[group][0].value);
+    }
+  };
 
   // Account Cleanup state
   const [cleanupEmail, setCleanupEmail] = useState("");
@@ -1310,23 +1345,46 @@ export default function Admin() {
         </div>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
-          <TabsList className="flex-nowrap w-max h-auto">
-            <TabsTrigger value="roster" className="whitespace-nowrap">Roster</TabsTrigger>
-            <TabsTrigger value="approvals" className="whitespace-nowrap">Pending Approvals</TabsTrigger>
-            <TabsTrigger value="events" className="whitespace-nowrap">Events</TabsTrigger>
-            <TabsTrigger value="documents" className="whitespace-nowrap">Documents</TabsTrigger>
-            <TabsTrigger value="pods" className="whitespace-nowrap">Pods</TabsTrigger>
-            <TabsTrigger value="trailheads" className="whitespace-nowrap">Trailheads</TabsTrigger>
-            <TabsTrigger value="volunteer-templates" className="whitespace-nowrap">Volunteer Templates</TabsTrigger>
-            <TabsTrigger value="season-builder" className="flex items-center gap-1.5 whitespace-nowrap">
-              <Layers className="h-3.5 w-3.5" /> Season Builder
-            </TabsTrigger>
-            <TabsTrigger value="seasons" className="flex items-center gap-1.5 whitespace-nowrap">
-              <Calendar className="h-3.5 w-3.5" /> Seasons
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="whitespace-nowrap">Settings</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AdminTab)}>
+        <div className="space-y-3" data-testid="admin-navigation">
+          <div className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/50 p-1" aria-label="Admin groups">
+            {(Object.keys(ADMIN_GROUP_LABELS) as AdminGroup[]).map((group) => (
+              <Button
+                key={group}
+                type="button"
+                variant={activeGroup === group ? "default" : "ghost"}
+                size="sm"
+                className="min-h-10 px-2 text-xs sm:text-sm"
+                onClick={() => selectAdminGroup(group)}
+                aria-pressed={activeGroup === group}
+                data-testid={`admin-group-${group}`}
+              >
+                {ADMIN_GROUP_LABELS[group]}
+              </Button>
+            ))}
+          </div>
+
+          <TabsList
+            className={`grid h-auto w-full gap-1 ${
+              activeGroup === "people"
+                ? "grid-cols-2"
+                : activeGroup === "schedule"
+                  ? "grid-cols-3"
+                  : "grid-cols-2 sm:grid-cols-5"
+            }`}
+            aria-label={`${ADMIN_GROUP_LABELS[activeGroup]} sections`}
+            data-testid={`admin-sections-${activeGroup}`}
+          >
+            {ADMIN_GROUPS[activeGroup].map((section) => (
+              <TabsTrigger
+                key={section.value}
+                value={section.value}
+                className="min-h-10 whitespace-normal px-2 text-center text-xs leading-tight sm:text-sm"
+                data-testid={`admin-section-${section.value}`}
+              >
+                {section.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
