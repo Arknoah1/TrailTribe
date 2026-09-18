@@ -1,0 +1,63 @@
+name: Claude Weekly Codebase Audit
+
+# Optional companion to claude-code-review.yml. The PR workflow reviews diffs;
+# this sweeps the whole main branch on a schedule to catch drift that no
+# single PR introduced (a secret that slipped in over several small commits,
+# a threat_model.md assumption that quietly stopped holding, dependency rot).
+# Weekly is enough for a low-commit-volume team project — tighten the cron if
+# the repo's pace picks up.
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Monday 06:00 America/Los_Angeles (UTC-7)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Claude Code audit
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            This is a scheduled full-repo audit of TrailTeam's main branch, not
+            a PR review — there is no <pr_diff> or <ticket_context>. Read
+            threat_model.md as <project_rules> and .github/claude/code-review-instructions.md
+            for the Layer A and Layer B checklists, then apply only those two
+            layers (skip Layer C, which needs a diff and a ticket) to the
+            current state of artifacts/api-server/src and artifacts/trailtribe/src:
+              - hardcoded credentials matching artifacts/api-server/.env.example's shapes
+              - any route missing requireApproved/requireCoachOrAdmin per threat_model.md's
+                "Highest-risk areas" and "Threat Categories" sections
+              - dependency/lockfile drift (pnpm-lock.yaml vs each package.json)
+              - anything reverting the SSRF DNS-pinning behavior in board.ts's link-preview route
+            If you find nothing actionable, open no issue at all — do not file
+            a "no findings" report. If you do find something, open one GitHub
+            issue per distinct finding, tagged with a `claude-audit` label,
+            including the exact file:line and a corrected code block.
+          claude_args: |
+            --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(git log*)"
