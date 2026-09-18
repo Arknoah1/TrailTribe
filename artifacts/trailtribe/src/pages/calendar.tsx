@@ -39,6 +39,7 @@ import { CalendarSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
 import { trackEvent } from "@/lib/analytics";
 import { isCalendarEventCompleted } from "@/lib/calendar-events";
+import { stripMarkdown } from "@/lib/markdown.mjs";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -559,7 +560,7 @@ export default function Calendar() {
                         </div>
                         <h3 className="text-xl font-bold mb-2">{event.title}</h3>
                         {event.description && (
-                          <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{event.description}</p>
+                          <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{stripMarkdown(event.description)}</p>
                         )}
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-auto">
                           {event.trailhead && (
