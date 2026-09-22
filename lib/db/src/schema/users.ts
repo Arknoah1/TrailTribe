@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, jsonb, index, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -99,6 +99,15 @@ export const usersTable = pgTable("users", {
   index("users_household_id_idx").on(t.householdId),
   index("users_pod_id_idx").on(t.podId),
   index("users_role_idx").on(t.role),
+  check("users_roles_valid_check", sql`
+    cardinality(${t.roles}) = 0
+    OR (
+      cardinality(${t.roles}) > 0
+      AND ${t.roles} <@ ARRAY['super_admin', 'coach', 'parent', 'student']::text[]
+      AND ${t.role} = ANY(${t.roles})
+      AND NOT ('student' = ANY(${t.roles}) AND cardinality(${t.roles}) > 1)
+    )
+  `),
 ]);
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({

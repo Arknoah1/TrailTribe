@@ -58,4 +58,15 @@ describe("user multi-role migration", () => {
       constraint: "users_roles_valid_check",
     });
   });
+
+  it("keeps the publish-safe legacy empty-array fallback in the database constraint", async () => {
+    const result = await pool.query<{ definition: string }>(
+      `SELECT pg_get_constraintdef(oid) AS definition
+       FROM pg_constraint
+       WHERE conrelid = 'users'::regclass
+         AND conname = 'users_roles_valid_check'`,
+    );
+
+    expect(result.rows[0]?.definition).toContain("cardinality(roles) = 0");
+  });
 });

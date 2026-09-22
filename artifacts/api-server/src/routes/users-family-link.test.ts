@@ -22,7 +22,7 @@ describe("combined parent responsibilities", () => {
       /if \(!hasUserRole\(user, "parent"\)\) \{ res\.status\(403\)\.json\(\{ error: "Only parents can re-enroll" \}\)/,
     );
     expect(source).toMatch(
-      /if \(role\) conditions\.push\(sql`\$\{role\} = ANY\(\$\{usersTable\.roles\}\)`\)/,
+      /if \(role\) conditions\.push\(sql`\$\{usersTable\.role\} = \$\{role\} OR \$\{role\} = ANY\(\$\{usersTable\.roles\}\)`\)/,
     );
   });
 });

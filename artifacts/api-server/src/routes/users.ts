@@ -324,7 +324,7 @@ router.patch("/users/:id/role", requireSuperAdmin, async (req, res) => {
     if (targetRoles.includes("super_admin") && !normalizedRoles.includes("super_admin")) {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-super-admin-lifecycle'))`);
       const superAdmins = await tx.select({ id: usersTable.id }).from(usersTable)
-        .where(sql`'super_admin' = ANY(${usersTable.roles})`);
+        .where(sql`${usersTable.role} = 'super_admin' OR 'super_admin' = ANY(${usersTable.roles})`);
       if (superAdmins.length <= 1) return [null] as const;
     }
     const [after] = await tx.update(usersTable)
@@ -724,7 +724,7 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
 router.get("/users", requireApproved, async (req, res) => {
   const { role, podId, search } = req.query as Record<string, string>;
   const conditions = [];
-  if (role) conditions.push(sql`${role} = ANY(${usersTable.roles})`);
+  if (role) conditions.push(sql`${usersTable.role} = ${role} OR ${role} = ANY(${usersTable.roles})`);
   if (podId) conditions.push(eq(usersTable.podId, podId));
   if (search) {
     conditions.push(

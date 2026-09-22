@@ -994,10 +994,13 @@ const migrations: { name: string; sql: string }[] = [
           ALTER TABLE users
             ADD CONSTRAINT users_roles_valid_check
             CHECK (
-              cardinality(roles) > 0
-              AND roles <@ ARRAY['super_admin', 'coach', 'parent', 'student']::text[]
-              AND role = ANY(roles)
-              AND NOT ('student' = ANY(roles) AND cardinality(roles) > 1)
+              cardinality(roles) = 0
+              OR (
+                cardinality(roles) > 0
+                AND roles <@ ARRAY['super_admin', 'coach', 'parent', 'student']::text[]
+                AND role = ANY(roles)
+                AND NOT ('student' = ANY(roles) AND cardinality(roles) > 1)
+              )
             );
         END IF;
       END $$;

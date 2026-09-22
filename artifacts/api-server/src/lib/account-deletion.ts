@@ -59,7 +59,7 @@ export async function permanentlyDeleteLocalAccount(user: LocalUser): Promise<Ac
         const superAdmins = await tx
           .select({ id: usersTable.id })
           .from(usersTable)
-          .where(sql`'super_admin' = ANY(${usersTable.roles})`);
+          .where(sql`${usersTable.role} = 'super_admin' OR 'super_admin' = ANY(${usersTable.roles})`);
         if (superAdmins.length <= 1) {
           return { ok: false, stage: "last_super_admin" };
         }
