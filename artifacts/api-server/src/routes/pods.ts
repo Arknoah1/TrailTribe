@@ -105,9 +105,11 @@ router.patch("/pods/:id", requireCoachOrAdmin, async (req, res) => {
 
 router.delete("/pods/:id", requireCoachOrAdmin, async (req, res) => {
   const id = parseInt(str(req.params.id));
-  await db.update(usersTable).set({ podId: null }).where(eq(usersTable.podId, String(id)));
-  await db.update(householdsTable).set({ podId: null }).where(eq(householdsTable.podId, String(id)));
-  await db.delete(podsTable).where(eq(podsTable.id, id));
+  await db.transaction(async (tx) => {
+    await tx.update(usersTable).set({ podId: null }).where(eq(usersTable.podId, String(id)));
+    await tx.update(householdsTable).set({ podId: null }).where(eq(householdsTable.podId, String(id)));
+    await tx.delete(podsTable).where(eq(podsTable.id, id));
+  });
   res.status(204).send();
 });
 

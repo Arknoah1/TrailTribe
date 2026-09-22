@@ -740,6 +740,9 @@ router.delete("/board/threads/:id", requireApproved, async (req, res) => {
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
   if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
 
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
   if (!getThreadPermissions(me, thread).canDelete) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
@@ -758,6 +761,10 @@ router.delete("/board/posts/:id", requireApproved, async (req, res) => {
   const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, postId) });
   if (!post) { res.status(404).json({ error: "Post not found" }); return; }
 
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) });
+  if (!thread || !(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" }); return;
+  }
   if (!getPostPermissions(me, post).canDelete) {
     res.status(403).json({ error: "Forbidden" }); return;
   }

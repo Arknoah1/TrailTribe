@@ -27,3 +27,4 @@
 - [Drizzle PostgreSQL errors](drizzle-postgres-errors.md) — transaction failures may wrap PostgreSQL codes under cause; inspect the cause chain before classifying conflicts
 - [Household invite lifecycle boundaries](household-invite-lifecycle-boundaries.md) — shared invite storage requires strict route isolation and atomic, serialized lifecycle transitions
 - [Combined account responsibilities](combined-account-responsibilities.md) — treat role as legacy primary identity and roles as the complete authorization source
+- [Household pod audience sync](household-pod-audience-sync.md) — household pod corrections must update every member's denormalized pod before event access is evaluated

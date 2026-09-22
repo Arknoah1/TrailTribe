@@ -149,6 +149,19 @@ describe("household admin correction workflow", () => {
     expect(rows.audit).toHaveLength(1);
   });
 
+  it("keeps every household member in sync when an admin changes the household pod", async () => {
+    expect(rows.users.filter((user) => user.householdId === 10).every((user) => user.podId === undefined)).toBe(true);
+
+    const response = await request("/households/10/admin", "PATCH", { podId: "blue" });
+
+    expect(response.status).toBe(200);
+    expect(rows.households[0].podId).toBe("blue");
+    expect(rows.users.filter((user) => user.householdId === 10).map((user) => user.podId))
+      .toEqual(["blue", "blue", "blue"]);
+    expect(rows.audit).toHaveLength(1);
+    expect(writes).toEqual(["households", "users", "audit"]);
+  });
+
   it("patches role-appropriate member fields safely and validates invalid fields without writes", async () => {
     const ok = await request("/households/10/admin/members/4", "PATCH", { firstName: "Student", grade: 8, allergies: "nuts" });
     expect(ok.status).toBe(200); expect(await ok.json()).toMatchObject({ firstName: "Student", grade: 8, hasAppAccess: false });

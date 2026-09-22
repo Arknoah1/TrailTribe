@@ -385,6 +385,15 @@ router.patch("/households/:householdId/admin", requireSuperAdmin, async (req, re
     const [before] = await tx.select().from(householdsTable).where(eq(householdsTable.id, householdId));
     if (!before) return null;
     const [after] = await tx.update(householdsTable).set(parsed.data).where(eq(householdsTable.id, householdId)).returning();
+    // A household's pod is the default audience assignment for every family
+    // member. Keep the denormalized user value in sync in the same correction
+    // transaction so event-discussion access changes with the household move.
+    if (parsed.data.podId !== undefined) {
+      await tx.update(usersTable)
+        .set({ podId: parsed.data.podId })
+        .where(eq(usersTable.householdId, householdId))
+        .returning();
+    }
     await writeHouseholdAdminAudit(tx, administrator.id, "household.patch", householdId, null, before, after);
     return after;
   });

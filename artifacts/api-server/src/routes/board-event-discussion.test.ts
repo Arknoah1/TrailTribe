@@ -240,10 +240,17 @@ vi.mock("@workspace/db", () => {
           const source = (query as any)._source;
           if (source === boardPostsTable) return posts;
           if (source === usersTable) return users;
-          return threads;
+          const eventId = currentEventId ?? (query as any)._where?.right;
+          return eventId != null
+            ? threads.filter((thread) => thread.eventId === eventId)
+            : threads;
         });
         query.from.mockImplementation((source: object) => {
           query._source = source;
+          return query;
+        });
+        query.where.mockImplementation((condition: unknown) => {
+          query._where = condition;
           return query;
         });
         return query;
@@ -372,7 +379,12 @@ vi.mock("@workspace/db", () => {
           findFirst: vi.fn().mockImplementation(({ where }: any) => {
             // The route's equality expressions are opaque in this mock; there is
             // only one event in direct-lookup enrichment at a time in practice.
-            return Promise.resolve(events.find((event) => event.id === where?.right) ?? events[0] ?? null);
+            return Promise.resolve(
+              events.find((event) => event.id === where?.right)
+              ?? events.find((event) => event.id === currentEventId)
+              ?? events[0]
+              ?? null,
+            );
           }),
         },
         boardThreadsTable: {
@@ -438,6 +450,7 @@ vi.mock("@workspace/db", () => {
 
 let currentClerkUserId = COACH.clerkUserId;
 let currentTargetId: number | null = null;
+let currentEventId: number | null = null;
 let currentAttachmentPath: string | null = null;
 let currentReaction = "helpful";
 function currentUser() {
@@ -498,11 +511,13 @@ beforeEach(() => {
   nextAttachmentId = 1;
   currentClerkUserId = COACH.clerkUserId;
   currentTargetId = null;
+  currentEventId = null;
   currentAttachmentPath = null;
   currentReaction = "helpful";
   nextPostId = 1000;
   notificationMock.createNotification.mockClear();
   selectCallIndex = 0;
+  PARENT.podId = "pod-a";
 });
 
 function addEvent(id: number, startTime: Date, endTime: Date) {
@@ -580,6 +595,13 @@ async function getThreads(path: string, user: DiscussionUser = COACH) {
   currentClerkUserId = user.clerkUserId;
   const threadId = path.match(/\/board\/threads\/(\d+)/)?.[1];
   currentTargetId = threadId ? Number(threadId) : null;
+  const eventId = path.match(/[?&]eventId=(\d+)/)?.[1];
+  currentEventId = eventId
+    ? Number(eventId)
+    : threadId
+      ? threads.find((thread) => thread.id === Number(threadId))?.eventId ?? null
+      : null;
+  currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}${path}`, {
     headers: { "x-test-user": user.clerkUserId },
   });
@@ -589,6 +611,7 @@ async function getThreads(path: string, user: DiscussionUser = COACH) {
 async function createReply(user: DiscussionUser, threadId: number, body = "A reply") {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = threadId;
+  currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}/board/threads/${threadId}/posts`, {
     method: "POST",
     headers: {
@@ -643,6 +666,7 @@ async function toggleReaction(user: DiscussionUser, targetType: "thread" | "post
   currentClerkUserId = user.clerkUserId;
   currentTargetId = targetId;
   currentReaction = reaction;
+  currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}/board/reactions`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
@@ -652,9 +676,10 @@ async function toggleReaction(user: DiscussionUser, targetType: "thread" | "post
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
-async function getReactionView(user: typeof COACH, targetType: "thread" | "post", targetId: number) {
+async function getReactionView(user: DiscussionUser, targetType: "thread" | "post", targetId: number) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = targetId;
+  currentAttachmentPath = null;
   const path = targetType === "thread"
     ? `/board/threads/${targetId}`
     : `/board/threads/${posts.find((post) => post.id === targetId)?.threadId}/posts`;
@@ -664,10 +689,11 @@ async function getReactionView(user: typeof COACH, targetType: "thread" | "post"
   return { status: response.status, body: await response.json() };
 }
 
-async function getReactionMembers(user: typeof COACH, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
+async function getReactionMembers(user: DiscussionUser, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = targetId;
   currentReaction = reaction;
+  currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}/board/reactions/${targetType}/${targetId}?reaction=${reaction}`, {
     headers: { "x-test-user": user.clerkUserId },
   });
@@ -720,7 +746,7 @@ describe("discussion image security boundaries", () => {
     const paths = Array.from({ length: 5 }, (_, index) => `/objects/discussion-images/photo-${index}`);
     for (const path of paths) addDiscussionObject(path, RIDER);
 
-    const response = await toggleReaction(OTHER_RIDER, "post", 200);
+    const response = await createThreadWithImages(RIDER, paths);
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: "Attach no more than 4 images" });
@@ -740,7 +766,7 @@ describe("discussion image security boundaries", () => {
 
     const eventPath = "/objects/discussion-images/event-photo";
     addDiscussionObject(eventPath, RIDER);
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(601, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(601, event.id, NOW);
@@ -751,7 +777,7 @@ describe("discussion image security boundaries", () => {
   });
 
   it("stops serving pictures attached to deleted replies", async () => {
-    const objectPath = "/objects/discussion-images/versioned";
+    const objectPath = "/objects/discussion-images/deleted-reply";
     addDiscussionObject(objectPath, RIDER);
     addThread(700, 0, NOW);
     addPost(701, 700);
@@ -771,16 +797,16 @@ describe("discussion image security boundaries", () => {
     addThread(800, 0, NOW);
     addAttachment(objectPath, { threadId: 800 }, "generation-1", "image/jpeg", 8);
 
-    const response = await toggleReaction(OTHER_RIDER, "post", 200);
-    expect(response.status).toBe(403);
-    expect(response.body).toEqual({ error: "Forbidden" });
+    const response = await getDiscussionAttachment(RIDER, objectPath);
+    expect(response.status).toBe(200);
+    expect(response.body).toBe("original");
+    expect(discussionStorageMock.getObjectEntityFile).toHaveBeenLastCalledWith(objectPath, "generation-1");
   });
 
-  it("rejects reactions on deleted replies and leaves their existing count unchanged", async () => {
-    await toggleReaction(RIDER, "post", 200);
-    posts[0].isDeleted = true;
-
-    const response = await toggleReaction(OTHER_RIDER, "post", 200);
+  it("refuses discussion-image paths through the generic storage route", async () => {
+    const response = await fetch(`${baseUrl}/storage/objects/discussion-images/private-photo`, {
+      headers: { "x-test-user": RIDER.clerkUserId },
+    });
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Object not found" });
@@ -789,15 +815,15 @@ describe("discussion image security boundaries", () => {
 
 describe("event discussion board visibility and ordering", () => {
   it("lets an audience parent start and reply to a pod-scoped event discussion", async () => {
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
-    event.podIds = [];
-    event.isAllTeam = true;
+    const event = addEvent(71, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
 
     const created = await createThreadWithImages(PARENT, undefined, { eventId: event.id });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ eventId: event.id, authorUserId: PARENT.id });
 
-    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, OTHER_PARENT);
+    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, PARENT);
     expect(listed.status).toBe(200);
     expect(listed.body.map((thread: ThreadFixture) => thread.id)).toContain(created.body.id);
 
@@ -806,7 +832,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("keeps parents outside a pod event audience from discussing it", async () => {
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(72, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(72, event.id, NOW);
@@ -831,7 +857,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("lets an audience parent discuss a team-wide event", async () => {
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(73, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = [];
     event.isAllTeam = true;
 
@@ -841,7 +867,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("uses the shared pod, team-wide, and staff audience rules", async () => {
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(70, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(70, event.id, NOW);
@@ -854,8 +880,59 @@ describe("event discussion board visibility and ordering", () => {
     expect((await getThreads("/board/threads/70", OTHER_RIDER)).status).toBe(200);
   });
 
+  it("updates every discussion route when a parent moves into and out of an invited pod", async () => {
+    // Add the team-wide event first because the lightweight event lookup mock
+    // uses the first event when it cannot decode an opaque equality expression.
+    const teamEvent = addEvent(81, new Date("2026-08-21T14:00:00Z"), new Date("2026-08-21T15:00:00Z"));
+    teamEvent.podIds = [];
+    teamEvent.isAllTeam = true;
+    addThread(81, teamEvent.id, NOW);
+
+    const invitedEvent = addEvent(80, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    invitedEvent.podIds = ["pod-b"];
+    invitedEvent.isAllTeam = false;
+    const imagePath = "/objects/discussion-images/pod-move-photo";
+    addDiscussionObject(imagePath, PARENT);
+    addThread(80, invitedEvent.id, NOW);
+    addPost(801, 80);
+    addAttachment(imagePath, { threadId: 80 });
+
+    // The parent starts outside the invited pod and cannot use a saved link or
+    // discover the discussion through the event list.
+    expect((await getThreads(`/board/threads?scope=event&eventId=${invitedEvent.id}`, PARENT)).body).toEqual([]);
+    expect((await getThreads("/board/threads/80", PARENT)).status).toBe(403);
+
+    PARENT.podId = "pod-b";
+    expect((await getThreads(`/board/threads?scope=event&eventId=${invitedEvent.id}`, PARENT)).body.map((thread: ThreadFixture) => thread.id))
+      .toEqual([80]);
+    expect((await getThreads("/board/threads/80", PARENT)).status).toBe(200);
+    expect((await getReactionView(PARENT, "post", 801)).status).toBe(200);
+    expect((await createReply(PARENT, 80)).status).toBe(201);
+    expect((await toggleReaction(PARENT, "thread", 80)).status).toBe(200);
+    expect((await toggleReaction(PARENT, "post", 801)).status).toBe(200);
+    expect((await getReactionMembers(PARENT, "thread", 80)).status).toBe(200);
+    expect((await getDiscussionAttachment(PARENT, imagePath)).status).toBe(200);
+
+    PARENT.podId = "pod-a";
+    expect((await getThreads(`/board/threads?scope=event&eventId=${invitedEvent.id}`, PARENT)).body).toEqual([]);
+    expect((await getThreads("/board/threads/80", PARENT)).status).toBe(403);
+    expect((await getReactionView(PARENT, "post", 801)).status).toBe(403);
+    expect((await createReply(PARENT, 80)).status).toBe(403);
+    expect((await toggleReaction(PARENT, "thread", 80)).status).toBe(403);
+    expect((await toggleReaction(PARENT, "post", 801)).status).toBe(403);
+    expect((await getReactionMembers(PARENT, "thread", 80)).status).toBe(403);
+    expect((await getDiscussionAttachment(PARENT, imagePath)).status).toBe(404);
+
+    // Team-wide discussions do not change visibility as the parent changes
+    // pods, including through a direct saved-thread lookup and reply.
+    expect((await getThreads("/board/threads/81", PARENT)).status).toBe(200);
+    PARENT.podId = "pod-b";
+    expect((await getThreads("/board/threads/81", PARENT)).status).toBe(200);
+    expect((await createReply(PARENT, 81)).status).toBe(201);
+  });
+
   it("uses current event names in reply notifications and stored titles elsewhere", async () => {
-    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(60, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     addThread(60, event.id, NOW);
     threads[0].title = "Discussion: Old Event Name";
     event.title = "Renamed Event";
@@ -933,7 +1010,7 @@ describe("event discussion board visibility and ordering", () => {
     addThread(30, 30, new Date("2026-08-18T01:00:00Z"));
 
     const board = await getThreads("/board/threads?scope=event");
-    const detail = await getReactionView(COACH, "thread", 100);
+    const detail = await getThreads("/board/threads?scope=event&eventId=30");
 
     expect(board.body).toEqual([]);
     expect(detail.body.map((thread: ThreadFixture) => thread.id)).toEqual([30]);
@@ -965,13 +1042,13 @@ describe("event discussion reactions", () => {
     expect(authorView.status).toBe(200);
     expect(authorView.body[0].permissions).toEqual({ canDelete: true });
 
-    const otherView = await getReactionView(OTHER_RIDER, "thread", 100);
+    const otherView = await getReactionView(OTHER_RIDER, "post", 200);
     expect(otherView.body[0].permissions).toEqual({ canDelete: false });
 
     const denied = await deletePost(OTHER_RIDER, 200);
     expect(denied.status).toBe(403);
 
-    const deleted = await deleteThread(COACH, 100);
+    const deleted = await deletePost(RIDER, 200);
     expect(deleted.status).toBe(204);
 
     const authorAfterRefresh = await getReactionView(RIDER, "post", 200);
@@ -986,10 +1063,10 @@ describe("event discussion reactions", () => {
   });
 
   it("keeps thread counts and each member's reacted state correct when members add and remove reactions", async () => {
-    const riderAdded = await toggleReaction(RIDER, "post", 200);
+    const riderAdded = await toggleReaction(RIDER, "thread", 100);
     expect(riderAdded.body.reactions.helpful).toEqual({ count: 1, reacted: true });
 
-    const otherAdded = await toggleReaction(OTHER_RIDER, "post", 200);
+    const otherAdded = await toggleReaction(OTHER_RIDER, "thread", 100);
     expect(otherAdded.body.reactions.helpful).toEqual({ count: 2, reacted: true });
 
     const riderView = await toggleReaction(RIDER, "thread", 100);
@@ -1012,7 +1089,7 @@ describe("event discussion reactions", () => {
 
   it("denies reactions on a thread outside the member's pod", async () => {
     threads[0].podId = "pod-a";
-    const response = await toggleReaction(OTHER_RIDER, "post", 200);
+    const response = await toggleReaction(OTHER_RIDER, "thread", 100);
     expect(response.status).toBe(403);
     expect(response.body).toEqual({ error: "Forbidden" });
   });
