@@ -59,3 +59,11 @@ test("empty state can load completed events when upcoming results are empty", ()
   assert.match(calendarSource, /\{!showCompleted && \(/);
   assert.match(calendarSource, /onClick=\{\(\) => toggleShowCompleted\(true\)\}/);
 });
+
+test("calendar header controls stay contained on narrow screens", () => {
+  assert.match(calendarSource, /max-w-6xl min-w-0 mx-auto/);
+  assert.match(calendarSource, /flex w-full min-w-0 flex-wrap/);
+  assert.match(calendarSource, /basis-full items-center justify-center/);
+  assert.match(calendarSource, /min-w-0 max-w-full w-full overflow-x-auto/);
+  assert.match(calendarSource, /flex min-w-max items-center gap-2 sm:min-w-0 sm:flex-wrap/);
+});

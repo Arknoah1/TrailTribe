@@ -393,21 +393,21 @@ export default function Calendar() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pt-4 md:pt-8">
+    <div className="max-w-6xl min-w-0 mx-auto space-y-6 pt-4 md:pt-8">
 
-      <div className="px-6 md:px-8 space-y-6">
+      <div className="min-w-0 px-6 md:px-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl tracking-widest text-foreground leading-none">Calendar</h1>
           <p className="text-muted-foreground mt-1 text-sm">Upcoming practices, races, and events.</p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 self-start md:w-auto md:flex-nowrap md:self-auto">
           {isCoach && (
             <Button
               size="sm"
               onClick={() => setShowAddEvent(true)}
-              className="flex items-center gap-1.5"
+              className="min-w-0 flex-1 justify-center gap-1.5 sm:flex-none"
             >
               <Plus className="h-4 w-4" />
               Add Event
@@ -417,13 +417,13 @@ export default function Calendar() {
             variant="outline"
             size="sm"
             onClick={() => setSubscribeOpen(true)}
-            className="flex items-center gap-1.5"
+            className="min-w-0 flex-1 justify-center gap-1.5 sm:flex-none"
           >
             <Rss className="h-4 w-4" />
             Subscribe
           </Button>
 
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+          <div className="flex basis-full items-center justify-center gap-1 rounded-lg bg-muted p-1 md:basis-auto">
             <button
               onClick={() => switchView("list")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -453,7 +453,8 @@ export default function Calendar() {
       </div>
 
       {view === "list" && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-nowrap sm:flex-wrap">
+        <div className="min-w-0 max-w-full w-full overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex min-w-max items-center gap-2 sm:min-w-0 sm:flex-wrap">
           <div className="flex items-center gap-2 shrink-0">
             {(["all", "allteam"] as const).map((val) => {
               const label = val === "all" ? "All Events" : "All Team";
@@ -500,6 +501,7 @@ export default function Calendar() {
             <Label htmlFor="calendar-show-completed" className="cursor-pointer text-sm font-medium whitespace-nowrap">
               {showCompleted ? "Hide completed" : "Show completed"}
             </Label>
+          </div>
           </div>
         </div>
       )}
