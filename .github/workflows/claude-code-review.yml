@@ -1,0 +1,66 @@
+name: Claude Code Review
+
+# Runs the layered review agent (see .github/claude/code-review-instructions.md)
+# on every PR that changes code, plus on demand.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to (re-)review"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Uses the official Claude Code GitHub Action. Verify the exact input
+      # names against https://github.com/anthropics/claude-code-action before
+      # first use — this input surface has changed across versions.
+      - name: Run Claude Code review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Read and follow .github/claude/code-review-instructions.md exactly.
+            <project_rules> is the contents of threat_model.md at the repo root.
+            <pr_diff> is this pull request's diff against its base branch.
+            <ticket_context> is this PR's description plus the body of any
+            GitHub issue it references. You have a full checkout and a shell —
+            run the pnpm typecheck/test commands yourself rather than guessing.
+            Post your review as a single PR review comment on this pull request.
+          claude_args: |
+            --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*)"
