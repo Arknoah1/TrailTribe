@@ -77,6 +77,11 @@ jobs:
             --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*)"
 
   review-push:
+    # Uses the plain Claude Code CLI directly, NOT anthropics/claude-code-action.
+    # That action only supports GitHub-conversation events (pull_request, issues,
+    # issue_comment, schedule, workflow_dispatch, etc.) — it hard-rejects a plain
+    # push event with "Unsupported event type: push". The CLI has no such
+    # restriction: it doesn't know or care what triggered the workflow.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
@@ -99,38 +104,54 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install GitHub CLI
+        run: |
+          type gh >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y gh)
+
       - name: Run Claude Code review (direct push to main)
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: |
-            This ran because commits landed directly on main — either a direct
-            push, or a manual re-run — not through a reviewed pull request. The
-            code is already merged, so there is no PR to comment on.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          export BEFORE_SHA="${{ github.event.before || 'HEAD~1' }}"
+          export AFTER_SHA="${{ github.event.after || 'HEAD' }}"
+          export THIS_SHA="${{ github.sha }}"
 
-            Read and follow .github/claude/code-review-instructions.md exactly,
-            applying all three layers. Determine what changed with:
-              git diff ${{ github.event.before || 'HEAD~1' }} ${{ github.event.after || 'HEAD' }}
-            If `before` is all zeros (a new branch) or the diff command fails,
-            fall back to reviewing the single most recent commit
-            (git show HEAD) instead of erroring out.
+          claude -p "$(cat <<'PROMPT'
+          This ran because commits landed directly on main — either a direct
+          push, or a manual re-run — not through a reviewed pull request. The
+          code is already merged, so there is no PR to comment on.
 
-            <pr_diff> is that diff. <ticket_context> is the commit message(s)
-            in this push (git log <before>..<after>) — if that's not enough to
-            judge intent, pass Layer C with a WARNING per the instructions,
-            don't block on it.
+          Read and follow .github/claude/code-review-instructions.md exactly,
+          applying all three layers. The shell environment variables
+          BEFORE_SHA, AFTER_SHA, and THIS_SHA are already set. Determine what
+          changed with: git diff "$BEFORE_SHA" "$AFTER_SHA"
+          If BEFORE_SHA is all zeros (a new branch) or the diff command fails,
+          fall back to reviewing the single most recent commit
+          (git show "$THIS_SHA") instead of erroring out.
 
-            There is no PR to post a review comment on. Instead:
-              - If everything passes (no BLOCKER or WARNING in any layer), do
-                nothing at all — do not open an issue just to say "all good."
-              - If you find any BLOCKER or WARNING, open exactly ONE GitHub
-                issue for this push (not one issue per finding), titled
-                "Post-merge review: <short summary> (${{ github.sha }})",
-                labeled `claude-review` (create the label first with
-                `gh label create` if it doesn't exist, ignoring the error if
-                it already does), containing the full three-layer report in
-                the same format as a PR review, plus a one-line note that this
-                already landed on main and may need a follow-up fix commit.
-          claude_args: |
-            --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(gh issue create*),Bash(gh label create*)"
+          <pr_diff> is that diff. <ticket_context> is the commit message(s)
+          in this push (git log "$BEFORE_SHA".."$AFTER_SHA") — if that's not
+          enough to judge intent, pass Layer C with a WARNING per the
+          instructions, don't block on it.
+
+          There is no PR to post a review comment on. Instead:
+            - If everything passes (no BLOCKER or WARNING in any layer), do
+              nothing at all — do not open an issue just to say "all good."
+            - If you find any BLOCKER or WARNING, open exactly ONE GitHub
+              issue for this push (not one issue per finding), titled
+              "Post-merge review: <short summary> ($THIS_SHA)",
+              labeled claude-review (create the label first with
+              gh label create if it doesn't exist, ignoring the error if
+              it already does), containing the full three-layer report in
+              the same format as a PR review, plus a one-line note that this
+              already landed on main and may need a follow-up fix commit.
+          PROMPT
+          )" \
+            --bare \
+            --allowedTools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(gh issue create*),Bash(gh label create*)" \
+            --permission-mode dontAsk \
+            --permission-prompts none
