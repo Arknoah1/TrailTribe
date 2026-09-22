@@ -512,7 +512,12 @@ router.get("/board/threads/:id", requireApproved, async (req, res) => {
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, id) });
   if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
   if (!(await canAccessThread(me, thread))) {
-    res.status(403).json({ error: "Forbidden" }); return;
+    // Keep the denial in place, but let a saved event-thread link explain why
+    // it stopped working without returning any event or discussion details.
+    res.status(403).json(thread.eventId
+      ? { error: "Forbidden", code: "EVENT_DISCUSSION_ACCESS_REVOKED" }
+      : { error: "Forbidden" });
+    return;
   }
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.json(result);

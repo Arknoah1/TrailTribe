@@ -34,6 +34,18 @@ import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
 import { ComposerLinkPreview, LinkPreview } from "@/components/link-preview";
 import { DiscussionImagePicker, DiscussionImages } from "@/components/discussion-images";
 
+function isEventDiscussionAccessDenied(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = error as {
+    status?: unknown;
+    data?: unknown;
+  };
+  if (candidate.status !== 403 || !candidate.data || typeof candidate.data !== "object") return false;
+
+  return (candidate.data as { code?: unknown }).code === "EVENT_DISCUSSION_ACCESS_REVOKED";
+}
+
 function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean }) {
   if (isDeleted) {
     return <div className="text-muted-foreground italic bg-muted/50 px-3 py-2 rounded-md text-sm border border-dashed border-muted-foreground/30">[This message was deleted]</div>;
@@ -161,7 +173,13 @@ export default function BoardThread() {
   const { toast } = useToast();
   const { data: me } = useGetMe();
 
-  const { data: thread, isLoading: isThreadLoading, isError: isThreadError, refetch: refetchThread } = useGetBoardThread(id);
+  const {
+    data: thread,
+    isLoading: isThreadLoading,
+    isError: isThreadError,
+    error: threadError,
+    refetch: refetchThread,
+  } = useGetBoardThread(id);
   
   const { data: posts, isLoading: isPostsLoading, isError: isPostsError, refetch: refetchPosts } = useListBoardPosts(id, {
     query: { refetchInterval: 5000, queryKey: getListBoardPostsQueryKey(id) }
@@ -341,6 +359,26 @@ export default function BoardThread() {
 
   if (isThreadLoading) return <div className="p-6 max-w-3xl mx-auto space-y-5"><Skeleton className="h-14 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-2xl" /></div>;
   if (isThreadError) {
+    if (isEventDiscussionAccessDenied(threadError)) {
+      return (
+        <div className="max-w-xl mx-auto px-4 py-12">
+          <div
+            className="rounded-2xl border-2 border-[#0a0c10]/20 bg-card p-6 text-center shadow-cel-sm"
+            data-testid="event-discussion-access-error"
+          >
+            <Lock className="h-7 w-7 mx-auto text-muted-foreground" />
+            <h1 className="mt-3 font-bold text-lg">This discussion is no longer available</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This saved link no longer opens the event discussion because access has changed or been removed.
+            </p>
+            <Button asChild className="mt-4 border-2 border-[#0a0c10]">
+              <Link href="/messages?tab=events">View event discussions</Link>
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-xl mx-auto px-4 py-12">
         <div className="rounded-2xl border-2 border-destructive/60 bg-destructive/10 p-6 text-center">

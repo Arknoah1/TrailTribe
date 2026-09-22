@@ -818,7 +818,12 @@ describe("event discussion board visibility and ordering", () => {
     const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, OTHER_PARENT);
     expect(listed.status).toBe(200);
     expect(listed.body).toEqual([]);
-    expect((await getThreads(`/board/threads/${threadId}`, OTHER_PARENT)).status).toBe(403);
+    const deniedThread = await getThreads(`/board/threads/${threadId}`, OTHER_PARENT);
+    expect(deniedThread.status).toBe(403);
+    expect(deniedThread.body).toEqual({
+      error: "Forbidden",
+      code: "EVENT_DISCUSSION_ACCESS_REVOKED",
+    });
     expect((await createThreadWithImages(OTHER_PARENT, undefined, { eventId: event.id })).status).toBe(403);
     expect((await createReply(OTHER_PARENT, threadId)).status).toBe(403);
     expect((await getDiscussionAttachment(OTHER_PARENT, imagePath)).status).toBe(404);

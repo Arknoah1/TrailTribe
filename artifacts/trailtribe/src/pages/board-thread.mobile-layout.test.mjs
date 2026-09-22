@@ -148,3 +148,15 @@ test("thread and reply actions use server-provided permissions", () => {
   assert.match(threadSource, /const canDelete = post\.permissions\?\.canDelete === true;/);
   assert.doesNotMatch(threadSource, /const canDelete = isCoachOrAdmin \|\| post\.authorUserId === me\?\.id;/);
 });
+
+test("saved event discussion links explain access changes without exposing event details", () => {
+  assert.match(threadSource, /EVENT_DISCUSSION_ACCESS_REVOKED/);
+  assert.match(threadSource, /candidate\.status !== 403/);
+  assert.match(threadSource, /data-testid="event-discussion-access-error"/);
+  assert.match(
+    threadSource,
+    /This saved link no longer opens the event discussion because access has changed or been removed\./,
+  );
+  assert.match(threadSource, /href="\/messages\?tab=events"/);
+  assert.match(threadSource, /refetchThread\(\)/);
+});
