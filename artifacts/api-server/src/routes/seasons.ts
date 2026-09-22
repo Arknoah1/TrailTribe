@@ -6,6 +6,7 @@ import {
   householdsTable,
   usersTable,
   podsTable,
+  isResponsibleAdultRole,
 } from "@workspace/db";
 import { eq, and, or, desc, lt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -414,7 +415,7 @@ router.post("/seasons/active/remind-returning", requireCoachOrAdmin, async (req,
       .filter(
         (u) =>
           u.householdId === household.id &&
-          (u.role === "parent" || u.role === "coach") &&
+          isResponsibleAdultRole(u) &&
           u.email
       )
       .sort((a, b) => a.id - b.id)[0];
@@ -521,7 +522,7 @@ router.post("/seasons/active/remind-returning/:householdId", requireCoachOrAdmin
   // Find the primary contact (oldest parent/coach account with an email)
   const allMembers = await db.select().from(usersTable).where(eq(usersTable.householdId, householdId));
   const contact = allMembers
-    .filter((u) => (u.role === "parent" || u.role === "coach") && u.email)
+    .filter((u) => isResponsibleAdultRole(u) && u.email)
     .sort((a, b) => a.id - b.id)[0];
 
   if (!contact?.email) {

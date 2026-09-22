@@ -11,7 +11,7 @@ const source = await readFile(
 
 test("admin privileged controls require the super_admin role", () => {
   assert.match(source, /useGetMe/);
-  assert.match(source, /const isSuperAdmin = .*role.*=== "super_admin"/);
+  assert.match(source, /const isSuperAdmin = hasUserRole\(currentUser, "super_admin"\)/);
   assert.match(source, /\{isSuperAdmin && \(\s*<Button[\s\S]*?Manage Household/);
   assert.match(source, /\{isSuperAdmin && <AlertDialog open=\{deleteConfirmId !== null\}/);
   assert.match(source, /\{isSuperAdmin && <Card id="account-cleanup">/);
@@ -24,4 +24,11 @@ test("admin privileged controls require the super_admin role", () => {
 test("coaches retain archive and restore controls", () => {
   assert.match(source, /onClick=\{\(\) => setArchiveConfirmId\(household\.id\)\}/);
   assert.match(source, /onClick=\{\(\) => handleUnarchiveFamily\(household\.id\)\}/);
+});
+
+test("household coach controls preserve unrelated responsibilities", () => {
+  assert.match(source, /const isCoach = hasUserRole\(p, "coach"\)/);
+  assert.match(source, /body: JSON\.stringify\(\{ roles: nextRoles \}\)/);
+  assert.match(source, /adultRoles\.filter\(\(role: string\) => role !== "coach"\)/);
+  assert.doesNotMatch(source, /body: JSON\.stringify\(\{ role: newRole \}\)/);
 });

@@ -50,8 +50,9 @@ vi.mock("../middlewares/requireAuth", () => ({
 
 vi.mock("@workspace/db", () => ({
   db: mocks.db,
-  isOperationalStaffRole: (role: string | null | undefined) =>
-    role === "coach" || role === "super_admin",
+  isOperationalStaffRole: (user: any) =>
+    ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+  hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
   broadcastsTable: {
     createdAt: "broadcast_created_at",
     id: "broadcast_id",

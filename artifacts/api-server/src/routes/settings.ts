@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { createClerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
-import { teamSettingsTable, usersTable } from "@workspace/db";
+import { isSuperAdminRole, teamSettingsTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireCoachOrAdmin, requireSuperAdmin } from "../middlewares/requireAuth";
 import { logger } from "../lib/logger";
@@ -95,7 +95,7 @@ async function permanentlyDeleteAccountByEmail(req: any, res: any): Promise<void
     // must use their own
     // Profile deletion control so the stronger self-service confirmation is
     // always shown.
-    if (activeUser.role === "super_admin") {
+    if (isSuperAdminRole(activeUser)) {
       const requester = await db.query.usersTable.findFirst({
         where: eq(usersTable.clerkUserId, req.clerkUserId),
       });
@@ -103,7 +103,7 @@ async function permanentlyDeleteAccountByEmail(req: any, res: any): Promise<void
         res.status(403).json({ error: "Use your Profile page to permanently delete your own super-admin account." });
         return;
       }
-      if (requester?.role !== "super_admin") {
+      if (!isSuperAdminRole(requester)) {
         res.status(403).json({ error: "Only a super admin can permanently delete another super admin account." });
         return;
       }

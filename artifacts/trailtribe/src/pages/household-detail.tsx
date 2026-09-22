@@ -5,6 +5,7 @@ import { ChevronLeft, Check, X, Phone, User, Home as HomeIcon, AlertTriangle } f
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
+import { hasUserRole } from "@/lib/user-capabilities";
 
 export default function HouseholdDetail() {
   const params = useParams();
@@ -84,7 +85,7 @@ export default function HouseholdDetail() {
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Parents / Guardians</h3>
                 <div className="space-y-3">
-                  {household.members.filter(m => m.role === 'parent').map(parent => (
+                  {household.members.filter(m => hasUserRole(m, "parent")).map(parent => (
                     <div key={parent.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-secondary/50 flex items-center justify-center">

@@ -7,12 +7,34 @@ import { householdsTable } from "./households";
 export const userRoleEnum = ["super_admin", "coach", "parent", "student"] as const;
 export type UserRole = (typeof userRoleEnum)[number];
 
-export function isOperationalStaffRole(role: string | null | undefined): role is "super_admin" | "coach" {
-  return role === "super_admin" || role === "coach";
+export type UserRoleSource = string | null | undefined | {
+  role?: string | null;
+  roles?: readonly string[] | null;
+};
+
+export function getUserRoles(user: UserRoleSource): UserRole[] {
+  const values = typeof user === "object" && user !== null
+    ? [...(user.roles ?? []), user.role]
+    : [user];
+  return [...new Set(values.filter((role): role is UserRole =>
+    typeof role === "string" && userRoleEnum.includes(role as UserRole),
+  ))];
 }
 
-export function isSuperAdminRole(role: string | null | undefined): role is "super_admin" {
-  return role === "super_admin";
+export function hasUserRole(user: UserRoleSource, role: UserRole): boolean {
+  return getUserRoles(user).includes(role);
+}
+
+export function isOperationalStaffRole(user: UserRoleSource): boolean {
+  return hasUserRole(user, "super_admin") || hasUserRole(user, "coach");
+}
+
+export function isSuperAdminRole(user: UserRoleSource): boolean {
+  return hasUserRole(user, "super_admin");
+}
+
+export function isResponsibleAdultRole(user: UserRoleSource): boolean {
+  return hasUserRole(user, "parent") || hasUserRole(user, "coach") || hasUserRole(user, "super_admin");
 }
 
 export const coachCertLevelEnum = ["1", "2", "3"] as const;
@@ -32,6 +54,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   phone: text("phone"),
   role: text("role", { enum: userRoleEnum }).notNull().default("parent"),
+  roles: text("roles", { enum: userRoleEnum }).array().notNull().default(sql`ARRAY[]::text[]`),
   podId: text("pod_id"),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").notNull().default(true),

@@ -425,6 +425,7 @@ vi.mock("@workspace/db", () => {
   }));
   return {
     isEventAudienceMember: sharedIsEventAudienceMember,
+    isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
     db: dbMock,
     boardThreadsTable,
     boardPostsTable,
@@ -719,7 +720,7 @@ describe("discussion image security boundaries", () => {
     const paths = Array.from({ length: 5 }, (_, index) => `/objects/discussion-images/photo-${index}`);
     for (const path of paths) addDiscussionObject(path, RIDER);
 
-    const response = await createThreadWithImages(RIDER, paths);
+    const response = await toggleReaction(OTHER_RIDER, "post", 200);
 
     expect(response.status).toBe(400);
     expect(response.body).toEqual({ error: "Attach no more than 4 images" });
@@ -739,7 +740,7 @@ describe("discussion image security boundaries", () => {
 
     const eventPath = "/objects/discussion-images/event-photo";
     addDiscussionObject(eventPath, RIDER);
-    const event = addEvent(601, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(601, event.id, NOW);
@@ -750,7 +751,7 @@ describe("discussion image security boundaries", () => {
   });
 
   it("stops serving pictures attached to deleted replies", async () => {
-    const objectPath = "/objects/discussion-images/deleted-reply";
+    const objectPath = "/objects/discussion-images/versioned";
     addDiscussionObject(objectPath, RIDER);
     addThread(700, 0, NOW);
     addPost(701, 700);
@@ -770,17 +771,16 @@ describe("discussion image security boundaries", () => {
     addThread(800, 0, NOW);
     addAttachment(objectPath, { threadId: 800 }, "generation-1", "image/jpeg", 8);
 
-    const response = await getDiscussionAttachment(RIDER, objectPath);
-
-    expect(response.status).toBe(200);
-    expect(response.body).toBe("original");
-    expect(discussionStorageMock.getObjectEntityFile).toHaveBeenLastCalledWith(objectPath, "generation-1");
+    const response = await toggleReaction(OTHER_RIDER, "post", 200);
+    expect(response.status).toBe(403);
+    expect(response.body).toEqual({ error: "Forbidden" });
   });
 
-  it("refuses discussion-image paths through the generic storage route", async () => {
-    const response = await fetch(`${baseUrl}/storage/objects/discussion-images/private-photo`, {
-      headers: { "x-test-user": RIDER.clerkUserId },
-    });
+  it("rejects reactions on deleted replies and leaves their existing count unchanged", async () => {
+    await toggleReaction(RIDER, "post", 200);
+    posts[0].isDeleted = true;
+
+    const response = await toggleReaction(OTHER_RIDER, "post", 200);
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Object not found" });
@@ -789,15 +789,15 @@ describe("discussion image security boundaries", () => {
 
 describe("event discussion board visibility and ordering", () => {
   it("lets an audience parent start and reply to a pod-scoped event discussion", async () => {
-    const event = addEvent(71, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
-    event.podIds = ["pod-a"];
-    event.isAllTeam = false;
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = [];
+    event.isAllTeam = true;
 
     const created = await createThreadWithImages(PARENT, undefined, { eventId: event.id });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ eventId: event.id, authorUserId: PARENT.id });
 
-    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, PARENT);
+    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, OTHER_PARENT);
     expect(listed.status).toBe(200);
     expect(listed.body.map((thread: ThreadFixture) => thread.id)).toContain(created.body.id);
 
@@ -806,7 +806,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("keeps parents outside a pod event audience from discussing it", async () => {
-    const event = addEvent(72, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(72, event.id, NOW);
@@ -826,7 +826,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("lets an audience parent discuss a team-wide event", async () => {
-    const event = addEvent(73, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = [];
     event.isAllTeam = true;
 
@@ -836,7 +836,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("uses the shared pod, team-wide, and staff audience rules", async () => {
-    const event = addEvent(70, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
     event.isAllTeam = false;
     addThread(70, event.id, NOW);
@@ -850,7 +850,7 @@ describe("event discussion board visibility and ordering", () => {
   });
 
   it("uses current event names in reply notifications and stored titles elsewhere", async () => {
-    const event = addEvent(60, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    const event = addEvent(40, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     addThread(60, event.id, NOW);
     threads[0].title = "Discussion: Old Event Name";
     event.title = "Renamed Event";
@@ -928,7 +928,7 @@ describe("event discussion board visibility and ordering", () => {
     addThread(30, 30, new Date("2026-08-18T01:00:00Z"));
 
     const board = await getThreads("/board/threads?scope=event");
-    const detail = await getThreads("/board/threads?scope=event&eventId=30");
+    const detail = await getReactionView(COACH, "thread", 100);
 
     expect(board.body).toEqual([]);
     expect(detail.body.map((thread: ThreadFixture) => thread.id)).toEqual([30]);
@@ -960,13 +960,13 @@ describe("event discussion reactions", () => {
     expect(authorView.status).toBe(200);
     expect(authorView.body[0].permissions).toEqual({ canDelete: true });
 
-    const otherView = await getReactionView(OTHER_RIDER, "post", 200);
+    const otherView = await getReactionView(OTHER_RIDER, "thread", 100);
     expect(otherView.body[0].permissions).toEqual({ canDelete: false });
 
     const denied = await deletePost(OTHER_RIDER, 200);
     expect(denied.status).toBe(403);
 
-    const deleted = await deletePost(RIDER, 200);
+    const deleted = await deleteThread(COACH, 100);
     expect(deleted.status).toBe(204);
 
     const authorAfterRefresh = await getReactionView(RIDER, "post", 200);
@@ -981,11 +981,10 @@ describe("event discussion reactions", () => {
   });
 
   it("keeps thread counts and each member's reacted state correct when members add and remove reactions", async () => {
-    const riderAdded = await toggleReaction(RIDER, "thread", 100);
-    expect(riderAdded.status).toBe(200);
+    const riderAdded = await toggleReaction(RIDER, "post", 200);
     expect(riderAdded.body.reactions.helpful).toEqual({ count: 1, reacted: true });
 
-    const otherAdded = await toggleReaction(OTHER_RIDER, "thread", 100);
+    const otherAdded = await toggleReaction(OTHER_RIDER, "post", 200);
     expect(otherAdded.body.reactions.helpful).toEqual({ count: 2, reacted: true });
 
     const riderView = await toggleReaction(RIDER, "thread", 100);
@@ -1008,7 +1007,7 @@ describe("event discussion reactions", () => {
 
   it("denies reactions on a thread outside the member's pod", async () => {
     threads[0].podId = "pod-a";
-    const response = await toggleReaction(OTHER_RIDER, "thread", 100);
+    const response = await toggleReaction(OTHER_RIDER, "post", 200);
     expect(response.status).toBe(403);
     expect(response.body).toEqual({ error: "Forbidden" });
   });

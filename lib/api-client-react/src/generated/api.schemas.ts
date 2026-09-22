@@ -60,6 +60,15 @@ export const UserRole = {
   student: "student",
 } as const;
 
+export type UserRolesItem = (typeof UserRolesItem)[keyof typeof UserRolesItem];
+
+export const UserRolesItem = {
+  super_admin: "super_admin",
+  coach: "coach",
+  parent: "parent",
+  student: "student",
+} as const;
+
 export interface User {
   id: number;
   householdId?: number | null;
@@ -68,6 +77,8 @@ export interface User {
   email: string;
   phone?: string | null;
   role: UserRole;
+  /** All responsibilities assigned to this account. The legacy role remains the primary display role. */
+  roles: UserRolesItem[];
   podId?: string | null;
   avatarUrl?: string | null;
   isActive: boolean;
@@ -129,6 +140,9 @@ export interface ApproveUserBody {
   role: ApproveUserBodyRole;
 }
 
+/**
+ * Legacy single-role update. Prefer roles for combined responsibilities.
+ */
 export type StaffRoleUpdateRole =
   (typeof StaffRoleUpdateRole)[keyof typeof StaffRoleUpdateRole];
 
@@ -138,8 +152,20 @@ export const StaffRoleUpdateRole = {
   parent: "parent",
 } as const;
 
+export type StaffRoleUpdateRolesItem =
+  (typeof StaffRoleUpdateRolesItem)[keyof typeof StaffRoleUpdateRolesItem];
+
+export const StaffRoleUpdateRolesItem = {
+  super_admin: "super_admin",
+  coach: "coach",
+  parent: "parent",
+} as const;
+
 export interface StaffRoleUpdate {
-  role: StaffRoleUpdateRole;
+  /** Legacy single-role update. Prefer roles for combined responsibilities. */
+  role?: StaffRoleUpdateRole;
+  /** @minItems 1 */
+  roles?: StaffRoleUpdateRolesItem[];
 }
 
 export interface Household {

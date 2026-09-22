@@ -266,6 +266,11 @@ export const GetMeResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -327,6 +332,11 @@ export const UpdateMeResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -396,6 +406,11 @@ export const ListUsersResponseItem = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -434,6 +449,11 @@ export const GetUserResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -499,6 +519,11 @@ export const UpdateUserResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -532,7 +557,16 @@ export const UpdateStaffRoleParams = zod.object({
 });
 
 export const UpdateStaffRoleBody = zod.object({
-  role: zod.enum(["super_admin", "coach", "parent"]),
+  role: zod
+    .enum(["super_admin", "coach", "parent"])
+    .optional()
+    .describe(
+      "Legacy single-role update. Prefer roles for combined responsibilities.",
+    ),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent"]))
+    .min(1)
+    .optional(),
 });
 
 export const UpdateStaffRoleResponse = zod.object({
@@ -543,6 +577,11 @@ export const UpdateStaffRoleResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -610,6 +649,11 @@ export const ListHouseholdsResponseItem = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -679,6 +723,11 @@ export const GetHouseholdResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -917,6 +966,11 @@ export const GetPodResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -951,6 +1005,11 @@ export const GetPodResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -1453,6 +1512,11 @@ export const ListEventRsvpsResponseItem = zod
         email: zod.string(),
         phone: zod.string().nullish(),
         role: zod.enum(["super_admin", "coach", "parent", "student"]),
+        roles: zod
+          .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+          .describe(
+            "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+          ),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1504,6 +1568,11 @@ export const ListEventVolunteersResponseItem = zod
         email: zod.string(),
         phone: zod.string().nullish(),
         role: zod.enum(["super_admin", "coach", "parent", "student"]),
+        roles: zod
+          .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+          .describe(
+            "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+          ),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1617,6 +1686,13 @@ export const ListEventTasksResponseItem = zod
                 email: zod.string(),
                 phone: zod.string().nullish(),
                 role: zod.enum(["super_admin", "coach", "parent", "student"]),
+                roles: zod
+                  .array(
+                    zod.enum(["super_admin", "coach", "parent", "student"]),
+                  )
+                  .describe(
+                    "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+                  ),
                 podId: zod.string().nullish(),
                 avatarUrl: zod.string().nullish(),
                 isActive: zod.boolean(),
@@ -1898,6 +1974,11 @@ export const ListEventCarpoolsResponseItem = zod
         email: zod.string(),
         phone: zod.string().nullish(),
         role: zod.enum(["super_admin", "coach", "parent", "student"]),
+        roles: zod
+          .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+          .describe(
+            "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+          ),
         podId: zod.string().nullish(),
         avatarUrl: zod.string().nullish(),
         isActive: zod.boolean(),
@@ -1943,6 +2024,13 @@ export const ListEventCarpoolsResponseItem = zod
                 email: zod.string(),
                 phone: zod.string().nullish(),
                 role: zod.enum(["super_admin", "coach", "parent", "student"]),
+                roles: zod
+                  .array(
+                    zod.enum(["super_admin", "coach", "parent", "student"]),
+                  )
+                  .describe(
+                    "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+                  ),
                 podId: zod.string().nullish(),
                 avatarUrl: zod.string().nullish(),
                 isActive: zod.boolean(),
@@ -2111,6 +2199,11 @@ export const ListEventCarpoolRequestsResponseItem = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2145,6 +2238,11 @@ export const ListEventCarpoolRequestsResponseItem = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2182,6 +2280,11 @@ export const ListEventCarpoolRequestsResponseItem = zod
               email: zod.string(),
               phone: zod.string().nullish(),
               role: zod.enum(["super_admin", "coach", "parent", "student"]),
+              roles: zod
+                .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+                .describe(
+                  "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+                ),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2273,6 +2376,11 @@ export const UpdateCarpoolRequestResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2307,6 +2415,11 @@ export const UpdateCarpoolRequestResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2344,6 +2457,11 @@ export const UpdateCarpoolRequestResponse = zod
               email: zod.string(),
               phone: zod.string().nullish(),
               role: zod.enum(["super_admin", "coach", "parent", "student"]),
+              roles: zod
+                .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+                .describe(
+                  "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+                ),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2426,6 +2544,11 @@ export const MatchCarpoolRequestResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2460,6 +2583,11 @@ export const MatchCarpoolRequestResponse = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -2497,6 +2625,11 @@ export const MatchCarpoolRequestResponse = zod
               email: zod.string(),
               phone: zod.string().nullish(),
               role: zod.enum(["super_admin", "coach", "parent", "student"]),
+              roles: zod
+                .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+                .describe(
+                  "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+                ),
               podId: zod.string().nullish(),
               avatarUrl: zod.string().nullish(),
               isActive: zod.boolean(),
@@ -2633,6 +2766,11 @@ export const ListBroadcastsResponseItem = zod
           email: zod.string(),
           phone: zod.string().nullish(),
           role: zod.enum(["super_admin", "coach", "parent", "student"]),
+          roles: zod
+            .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+            .describe(
+              "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+            ),
           podId: zod.string().nullish(),
           avatarUrl: zod.string().nullish(),
           isActive: zod.boolean(),
@@ -3182,6 +3320,11 @@ export const ListPendingApprovalsResponseItem = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),
@@ -3231,6 +3374,11 @@ export const ApproveUserResponse = zod.object({
   email: zod.string(),
   phone: zod.string().nullish(),
   role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
   podId: zod.string().nullish(),
   avatarUrl: zod.string().nullish(),
   isActive: zod.boolean(),

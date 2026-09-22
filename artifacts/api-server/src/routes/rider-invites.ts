@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { riderInvitesTable, usersTable } from "@workspace/db";
+import { isOperationalStaffRole, riderInvitesTable, usersTable } from "@workspace/db";
 import { eq, and, isNull, gt } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
 import { publicLookupLimiter } from "../middlewares/rateLimiter";
@@ -38,7 +38,7 @@ router.post("/households/:id/riders/:riderId/invite", requireAuth, async (req, r
 
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== householdId) {
+  if (!isOperationalStaffRole(requester) && requester.householdId !== householdId) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 

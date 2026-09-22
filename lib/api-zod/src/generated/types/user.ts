@@ -7,6 +7,7 @@
  */
 import type { UserNotificationPreferences } from "./userNotificationPreferences";
 import type { UserRole } from "./userRole";
+import type { UserRolesItem } from "./userRolesItem";
 
 export interface User {
   id: number;
@@ -16,6 +17,8 @@ export interface User {
   email: string;
   phone?: string | null;
   role: UserRole;
+  /** All responsibilities assigned to this account. The legacy role remains the primary display role. */
+  roles: UserRolesItem[];
   podId?: string | null;
   avatarUrl?: string | null;
   isActive: boolean;

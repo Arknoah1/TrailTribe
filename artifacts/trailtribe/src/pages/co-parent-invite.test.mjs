@@ -11,7 +11,7 @@ test("the co-parent dialog offers email delivery and retains the copy-link alter
   assert.match(profile, /useSendCoParentInvite/);
   assert.match(profile, /coParentInviteSchema/);
   assert.match(profile, /canInviteCoParent: boolean/);
-  assert.match(profile, /canInviteCoParent=\{user\.role === "parent" \|\| user\.role === "coach" \|\| user\.role === "super_admin"\}/);
+  assert.match(profile, /canInviteCoParent=\{canManageOwnHousehold\(user\)\}/);
   assert.match(profile, /Only a responsible adult in this household can invite a parent or guardian\./);
   assert.match(profile, /id="co-parent-email"/);
   assert.match(profile, /Send invite/);

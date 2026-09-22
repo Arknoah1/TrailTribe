@@ -28,6 +28,7 @@ import { getGetEventQueryKey, getListEventsQueryKey, UpdateEventBodyEventType } 
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import { LoadErrorCard } from "@/components/network-status";
 import { EventDetailSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
@@ -235,8 +236,8 @@ export default function EventDetail() {
   const { data: pods } = useListPods();
   const updateEvent = useUpdateEvent();
 
-  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
-  const isSuperAdmin = (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoach = isOperationalStaff(me);
+  const isSuperAdmin = hasUserRole(me, "super_admin");
 
   const [showEdit, setShowEdit] = useState(false);
   const [notifyFamilies, setNotifyFamilies] = useState(true);
@@ -599,7 +600,7 @@ export default function EventDetail() {
   });
 
   // ─── RSVP STATE ────────────────────────────────────────────────────────────
-  const isParent = me?.role === "parent";
+  const isParent = hasUserRole(me, "parent");
   const isStudent = me?.role === "student";
   const [householdRiders, setHouseholdRiders] = useState<{ id: number; firstName: string }[]>([]);
   const [ridersLoaded, setRidersLoaded] = useState(false);
@@ -1051,7 +1052,7 @@ export default function EventDetail() {
                             </span>
                             {r.user && (
                               <Badge
-                                variant={r.user.role === "coach" || (r.user as { role?: string }).role === "super_admin" ? "default" : "outline"}
+                                variant={isOperationalStaff(r.user) ? "default" : "outline"}
                                 className="text-xs capitalize shrink-0"
                               >
                                 {r.user.role}
@@ -1092,7 +1093,7 @@ export default function EventDetail() {
                             </span>
                             {r.user && (
                               <Badge
-                                variant={r.user.role === "coach" || (r.user as { role?: string }).role === "super_admin" ? "default" : "outline"}
+                                variant={isOperationalStaff(r.user) ? "default" : "outline"}
                                 className="text-xs capitalize shrink-0"
                               >
                                 {r.user.role}

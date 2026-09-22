@@ -15,6 +15,7 @@ import {
   getListBroadcastsQueryKey,
 } from "@workspace/api-client-react";
 import type { BoardThreadWithDetails, BroadcastWithSender } from "@workspace/api-client-react";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   MessageSquare,
@@ -387,7 +388,7 @@ export default function Messages() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
-  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaff(me);
   const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(search));
   const [sheetOpen, setSheetOpen] = useState(false);
   const [threadImages, setThreadImages] = useState<string[]>([]);

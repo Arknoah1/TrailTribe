@@ -134,6 +134,8 @@ vi.mock("@workspace/db", () => {
     carpoolClaimsTable,
     carpoolRequestsTable,
     eventsTable,
+    isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+    hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
   };
 });
 

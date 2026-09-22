@@ -6,6 +6,7 @@ import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, Car, ShieldCheck, X }
 import { Link, useLocation } from "wouter";
 import { EmptyTrailState, TrailDot } from "@/components/illustrations";
 import { Button } from "@/components/ui/button";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 
 const COACH_WELCOMED_KEY = "trailtribe_coach_welcomed";
 
@@ -15,7 +16,7 @@ export default function Dashboard() {
   const { data: events, isLoading: isLoadingEvents, isError: isEventsError, refetch: refetchEvents } = useGetUpcomingEvents();
   const { data: summary } = useGetDashboardSummary();
 
-  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaff(me);
   const emailWarning = isCoachOrAdmin && summary != null && !summary.emailConfigured;
 
   const [coachWelcomeSeen, setCoachWelcomeSeen] = useState<boolean>(() => {
@@ -29,13 +30,13 @@ export default function Dashboard() {
   // Clear the welcome-seen flag when the user is demoted back to a non-coach role
   // so the banner will re-appear if they are ever promoted again.
   useEffect(() => {
-    if (me?.role === "parent" || me?.role === "student") {
+    if (me && !isOperationalStaff(me)) {
       try {
         localStorage.removeItem(COACH_WELCOMED_KEY);
       } catch {}
       setCoachWelcomeSeen(false);
     }
-  }, [me?.role]);
+  }, [me]);
 
   function dismissCoachWelcome() {
     try {

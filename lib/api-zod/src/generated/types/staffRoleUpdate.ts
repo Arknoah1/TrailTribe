@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { StaffRoleUpdateRole } from "./staffRoleUpdateRole";
+import type { StaffRoleUpdateRolesItem } from "./staffRoleUpdateRolesItem";
 
 export interface StaffRoleUpdate {
-  role: StaffRoleUpdateRole;
+  /** Legacy single-role update. Prefer roles for combined responsibilities. */
+  role?: StaffRoleUpdateRole;
+  /** @minItems 1 */
+  roles?: StaffRoleUpdateRolesItem[];
 }

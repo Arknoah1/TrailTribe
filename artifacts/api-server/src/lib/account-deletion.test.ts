@@ -69,6 +69,7 @@ vi.mock("@workspace/db", () => ({
   documentConsentsTable,
   familyInvitesTable,
   seasonRosterSnapshotsTable,
+  isSuperAdminRole: (user: any) => user?.role === "super_admin" || user?.roles?.includes("super_admin"),
 }));
 
 vi.mock("./logger", () => ({

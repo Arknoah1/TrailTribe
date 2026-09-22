@@ -17,9 +17,9 @@ const [profile, volunteer, carpools, dashboard, calendar, eventDetail] = await P
 ]);
 
 test("students retain profile access without household-management controls", () => {
-  assert.match(profile, /const isStudent = user\?\.role === "student"/);
+  assert.match(profile, /const isStudent = isStudentOnly\(user\)/);
   assert.match(profile, /<MyFamilyTab[\s\S]*?householdId=\{user\.householdId\}[\s\S]*?currentUserId=\{user\.id\}[\s\S]*?readOnly=\{isStudent\}/);
-  assert.match(profile, /canInviteCoParent=\{user\.role === "parent" \|\| user\.role === "coach"\}/);
+  assert.match(profile, /canInviteCoParent=\{canManageOwnHousehold\(user\)\}/);
   assert.match(profile, /Family information is view-only/);
   assert.match(profile, /disabled=\{readOnly\}/);
   assert.match(profile, /!readOnly && \(\s*<Dialog open=\{riderDialogOpen/);

@@ -6,6 +6,7 @@ import {
   householdsTable,
   seasonRosterSnapshotsTable,
   usersTable,
+  isSuperAdminRole,
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -53,12 +54,12 @@ export async function deleteClerkUserId(clerkUserId: string | null): Promise<boo
 export async function permanentlyDeleteLocalAccount(user: LocalUser): Promise<AccountDeletionResult> {
   try {
     return await db.transaction(async (tx): Promise<AccountDeletionResult> => {
-      if (user.role === "super_admin") {
+      if (isSuperAdminRole(user)) {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-super-admin-lifecycle'))`);
         const superAdmins = await tx
           .select({ id: usersTable.id })
           .from(usersTable)
-          .where(eq(usersTable.role, "super_admin"));
+          .where(sql`'super_admin' = ANY(${usersTable.roles})`);
         if (superAdmins.length <= 1) {
           return { ok: false, stage: "last_super_admin" };
         }

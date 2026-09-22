@@ -6,6 +6,8 @@ import {
   carpoolRequestsTable,
   usersTable,
   eventsTable,
+  isOperationalStaffRole,
+  hasUserRole,
 } from "@workspace/db";
 import { eq, and, ne, sql } from "drizzle-orm";
 import { requireAuth, requireApproved } from "../middlewares/requireAuth";
@@ -155,10 +157,10 @@ async function getRequester(req: any) {
 // A claim can be managed by: the rider themself, a parent in the rider's
 // household, the driver of the offer the claim is on, or a coach/admin.
 async function canManageClaim(requester: typeof usersTable.$inferSelect, claim: typeof carpoolClaimsTable.$inferSelect): Promise<boolean> {
-  if (requester.role === "coach" || requester.role === "super_admin") return true;
+  if (isOperationalStaffRole(requester)) return true;
   if (claim.riderUserId === requester.id) return true;
   // Only parents (not students) may manage claims on behalf of riders in their household.
-  if (requester.role === "parent" && requester.householdId != null) {
+  if (hasUserRole(requester, "parent") && requester.householdId != null) {
     const rider = await db.query.usersTable.findFirst({ where: eq(usersTable.id, claim.riderUserId) });
     if (rider && rider.householdId === requester.householdId) return true;
   }
@@ -229,7 +231,7 @@ router.patch("/carpools/:offerId", requireApproved, async (req, res) => {
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
   const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
   if (!offer) { res.status(404).json({ error: "Offer not found" }); return; }
-  const isCoachOrAdmin = requester.role === "coach" || requester.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(requester);
   if (!isCoachOrAdmin && offer.driverUserId !== requester.id) {
     res.status(403).json({ error: "You can only edit your own carpool offer" });
     return;
@@ -296,7 +298,7 @@ router.delete("/carpools/:offerId", requireApproved, async (req, res) => {
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
   const offer = await db.query.carpoolOffersTable.findFirst({ where: eq(carpoolOffersTable.id, offerId) });
   if (!offer) { res.status(404).json({ error: "Offer not found" }); return; }
-  const isCoachOrAdmin = requester.role === "coach" || requester.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(requester);
   if (!isCoachOrAdmin && offer.driverUserId !== requester.id) {
     res.status(403).json({ error: "You can only delete your own carpool offer" });
     return;

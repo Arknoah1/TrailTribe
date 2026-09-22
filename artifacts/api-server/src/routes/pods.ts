@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { podsTable, usersTable, householdsTable } from "@workspace/db";
+import { isOperationalStaffRole, podsTable, usersTable, householdsTable } from "@workspace/db";
 import { eq, asc, sql } from "drizzle-orm";
 import { requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { z } from "zod";
@@ -23,7 +23,7 @@ router.get("/pods", requireApproved, async (req, res) => {
     pods.map(async (pod) => {
       const members = await db.select().from(usersTable).where(eq(usersTable.podId, String(pod.id)));
       const students = members.filter((m) => m.role === "student");
-      const coaches = members.filter((m) => m.role === "coach" || m.role === "super_admin");
+      const coaches = members.filter((m) => isOperationalStaffRole(m));
       const households = await db.select().from(householdsTable).where(eq(householdsTable.podId, String(pod.id)));
       const totalHouseholds = households.length;
       const compliantHouseholds = households.filter(
@@ -84,7 +84,7 @@ router.get("/pods/:id", requireApproved, async (req, res) => {
     return;
   }
   const members = await db.select().from(usersTable).where(eq(usersTable.podId, String(id)));
-  const coaches = members.filter((m) => m.role === "coach" || m.role === "super_admin");
+  const coaches = members.filter((m) => isOperationalStaffRole(m));
   res.json({ ...pod, members, coaches });
 });
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
 import { PodBadgeShape, EmptyTrailState } from "@/components/illustrations";
 import { LoadErrorCard } from "@/components/network-status";
+import { hasUserRole } from "@/lib/user-capabilities";
 
 export default function Roster() {
   const { data: pods, isLoading: isLoadingPods, isError: isErrorPods, error: podsError, refetch: refetchPods } = useListPods();
@@ -102,7 +103,7 @@ export default function Roster() {
                             </div>
                             <div className="space-y-1 pt-2 border-t">
                               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Parents</div>
-                              {household.members.filter(m => m.role === 'parent').map(parent => (
+                              {household.members.filter(m => hasUserRole(m, "parent")).map(parent => (
                                 <div key={parent.id} className="flex items-center justify-between text-sm">
                                   <span>{parent.firstName} {parent.lastName}</span>
                                 </div>

@@ -949,6 +949,60 @@ const migrations: { name: string; sql: string }[] = [
           AND revoked_at IS NULL;
     `,
   },
+  {
+    name: "add_multi_role_capabilities_to_users",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS roles text[];
+
+      UPDATE users
+      SET roles = ARRAY[role]::text[]
+      WHERE roles IS NULL OR cardinality(roles) = 0;
+
+      ALTER TABLE users
+        ALTER COLUMN roles SET DEFAULT ARRAY[]::text[],
+        ALTER COLUMN roles SET NOT NULL;
+
+      CREATE OR REPLACE FUNCTION sync_user_primary_role()
+      RETURNS trigger AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' AND (NEW.roles IS NULL OR cardinality(NEW.roles) = 0) THEN
+          NEW.roles := ARRAY[NEW.role]::text[];
+        ELSIF TG_OP = 'UPDATE' AND NEW.role IS DISTINCT FROM OLD.role AND NEW.roles IS NOT DISTINCT FROM OLD.roles THEN
+          NEW.roles := array_replace(OLD.roles, OLD.role, NEW.role);
+          IF NOT (NEW.role = ANY(NEW.roles)) THEN
+            NEW.roles := array_append(NEW.roles, NEW.role);
+          END IF;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS users_sync_primary_role ON users;
+      CREATE TRIGGER users_sync_primary_role
+        BEFORE INSERT OR UPDATE OF role, roles ON users
+        FOR EACH ROW EXECUTE FUNCTION sync_user_primary_role();
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'users'::regclass
+            AND conname = 'users_roles_valid_check'
+        ) THEN
+          ALTER TABLE users
+            ADD CONSTRAINT users_roles_valid_check
+            CHECK (
+              cardinality(roles) > 0
+              AND roles <@ ARRAY['super_admin', 'coach', 'parent', 'student']::text[]
+              AND role = ANY(roles)
+              AND NOT ('student' = ANY(roles) AND cardinality(roles) > 1)
+            );
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

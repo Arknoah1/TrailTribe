@@ -35,6 +35,7 @@ import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
 import { NativeAppBridge } from "@/lib/native-app";
 import { hasRequiredUserName } from "@/lib/user-name";
+import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirect";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -295,9 +296,9 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
     if (!isLoading && me) {
       const meAny = me as any;
       if (!hasRequiredUserName(me)) {
-        const nameSetupRoute = me.role === "parent" ? "/onboarding" : "/profile";
+        const nameSetupRoute = hasUserRole(me, "parent") && !isOperationalStaff(me) ? "/onboarding" : "/profile";
         if (location !== nameSetupRoute) setLocation(nameSetupRoute);
-      } else if (me.role === "parent" && !me.householdId) {
+      } else if (hasUserRole(me, "parent") && !isOperationalStaff(me) && !me.householdId) {
         setLocation("/onboarding");
       } else if (!meAny.approved && meAny.isReturningFamily) {
         setLocation("/reenroll");
@@ -315,11 +316,11 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
 
   // Don't render the layout while redirecting
   if (me && !hasRequiredUserName(me)) {
-    const nameSetupRoute = me.role === "parent" ? "/onboarding" : "/profile";
+    const nameSetupRoute = hasUserRole(me, "parent") && !isOperationalStaff(me) ? "/onboarding" : "/profile";
     if (location !== nameSetupRoute) return null;
   }
 
-  if (me && me.role === "parent") {
+  if (me && hasUserRole(me, "parent") && !isOperationalStaff(me)) {
     const meAny = me as any;
     if (!hasRequiredUserName(me) || !me.householdId) return null;
     if (!meAny.approved && meAny.isReturningFamily) return null;

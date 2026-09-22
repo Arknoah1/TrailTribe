@@ -6,6 +6,7 @@ import {
   householdsTable,
   usersTable,
   seasonsTable,
+  isOperationalStaffRole,
 } from "@workspace/db";
 import { eq, and, isNull, desc, inArray, or, lt } from "drizzle-orm";
 import { requireAuth, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -37,7 +38,7 @@ router.get("/team-documents", requireAuth, async (req, res) => {
     return;
   }
   const docs = await db.select().from(teamDocumentsTable);
-  const canSeeUnsignedCounts = requester.role === "coach" || requester.role === "super_admin";
+  const canSeeUnsignedCounts = isOperationalStaffRole(requester);
   if (!canSeeUnsignedCounts) {
     res.json(docs.map((doc) => ({
       ...doc,

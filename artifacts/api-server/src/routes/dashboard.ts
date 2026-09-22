@@ -11,6 +11,8 @@ import {
   carpoolClaimsTable,
   eventAttachmentsTable,
   trailheadsTable,
+  isOperationalStaffRole,
+  hasUserRole,
 } from "@workspace/db";
 import { eq, gte, lte, and, isNull, inArray } from "drizzle-orm";
 import { requireApproved } from "../middlewares/requireAuth";
@@ -23,7 +25,7 @@ router.get("/dashboard/summary", requireApproved, async (req, res) => {
   const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const allUsers = await db.select().from(usersTable);
-  const coaches = allUsers.filter((u) => u.role === "coach" || u.role === "super_admin");
+  const coaches = allUsers.filter((u) => isOperationalStaffRole(u));
   // Only count active (non-archived) households and their members.
   const households = await db.select().from(householdsTable).where(isNull(householdsTable.archivedAt));
   const activeHouseholdIds = new Set(households.map((h) => h.id));
@@ -130,7 +132,7 @@ router.get("/dashboard/upcoming-events", requireApproved, async (req, res) => {
   let householdMembers: typeof usersTable.$inferSelect[] = [];
   if (clerkUserId) {
     me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-    if (me?.role === "parent" && me.householdId) {
+    if (me && hasUserRole(me, "parent") && me.householdId) {
       householdMembers = (await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId)))
         .filter((member) => member.role !== "student" || member.seasonParticipationStatus === "active");
     }
@@ -155,7 +157,7 @@ router.get("/dashboard/upcoming-events", requireApproved, async (req, res) => {
         const myRsvpRow = rsvps.find((r) => r.userId === me!.id);
         myRsvp = myRsvpRow?.status ?? null;
 
-        if (me.role === "parent" && householdMembers.length > 0) {
+        if (hasUserRole(me, "parent") && householdMembers.length > 0) {
           householdRsvps = householdMembers.map((member) => {
             const rsvpRow = rsvps.find((r) => r.userId === member.id);
             return {
@@ -211,7 +213,7 @@ router.get("/dashboard/carpool-events", requireApproved, async (req, res) => {
   let householdMembers: typeof usersTable.$inferSelect[] = [];
   if (clerkUserId) {
     me = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-    if (me?.role === "parent" && me.householdId) {
+    if (me && hasUserRole(me, "parent") && me.householdId) {
       householdMembers = (await db.select().from(usersTable).where(eq(usersTable.householdId, me.householdId)))
         .filter((member) => member.role !== "student" || member.seasonParticipationStatus === "active");
     }
@@ -236,7 +238,7 @@ router.get("/dashboard/carpool-events", requireApproved, async (req, res) => {
         const myRsvpRow = rsvps.find((r) => r.userId === me!.id);
         myRsvp = myRsvpRow?.status ?? null;
 
-        if (me.role === "parent" && householdMembers.length > 0) {
+        if (hasUserRole(me, "parent") && householdMembers.length > 0) {
           householdRsvps = householdMembers.map((member) => {
             const rsvpRow = rsvps.find((r) => r.userId === member.id);
             return {

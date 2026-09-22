@@ -6,14 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Legacy single-role update. Prefer roles for combined responsibilities.
- */
-export type StaffRoleUpdateRole =
-  (typeof StaffRoleUpdateRole)[keyof typeof StaffRoleUpdateRole];
+export type UserRolesItem = (typeof UserRolesItem)[keyof typeof UserRolesItem];
 
-export const StaffRoleUpdateRole = {
+export const UserRolesItem = {
   super_admin: "super_admin",
   coach: "coach",
   parent: "parent",
+  student: "student",
 } as const;

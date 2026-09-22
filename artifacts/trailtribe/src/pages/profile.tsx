@@ -41,6 +41,7 @@ import { DocumentConsentModal } from "@/components/document-consent-modal";
 import { LoadErrorCard, LoadingState } from "@/components/network-status";
 import { ProfileSkeleton } from "@/components/route-skeletons";
 import { useRoutePerformance } from "@/lib/route-performance";
+import { canManageOwnHousehold, isOperationalStaff, isStudentOnly } from "@/lib/user-capabilities";
 
 const profileSchema = z.object({
   firstName: z.string().trim().min(2),
@@ -101,8 +102,8 @@ function NotificationsTab({ user }: { user: User }) {
   const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(localUser.notificationPreferences ?? {}) };
   const masterOn: boolean = localUser.notificationsEnabled ?? true;
   const hasPhone = !!localUser.phone;
-  const isCoachOrAdmin = localUser.role === "coach" || (localUser as { role?: string }).role === "super_admin";
-  const prefsLocked = localUser.role === "student" && !!(localUser as any).notificationPreferencesLocked;
+  const isCoachOrAdmin = isOperationalStaff(localUser);
+  const prefsLocked = isStudentOnly(localUser) && !!(localUser as any).notificationPreferencesLocked;
 
   const save = async (patch: Record<string, any>, key: string) => {
     // Optimistically apply the patch to local state immediately
@@ -1387,8 +1388,8 @@ export default function Profile() {
 
   const { signOut } = useClerk();
   const { adminViewEnabled, setAdminView } = useAdminView();
-  const isCoachOrAdmin = user?.role === "coach" || (user as { role?: string } | undefined)?.role === "super_admin";
-  const isStudent = user?.role === "student";
+  const isCoachOrAdmin = isOperationalStaff(user);
+  const isStudent = isStudentOnly(user);
   useRoutePerformance("profile", user !== undefined, user !== undefined && !isLoading);
 
   const permanentlyDeleteMyAccount = async () => {
@@ -1693,7 +1694,7 @@ export default function Profile() {
             <MyFamilyTab
               householdId={user.householdId}
               currentUserId={user.id}
-              canInviteCoParent={user.role === "parent" || user.role === "coach" || user.role === "super_admin"}
+              canInviteCoParent={canManageOwnHousehold(user)}
               readOnly={isStudent}
             />
           ) : (

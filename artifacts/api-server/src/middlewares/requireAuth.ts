@@ -47,7 +47,7 @@ export async function requireSuperAdmin(req: Request, res: Response, next: NextF
   }
   (req as any).clerkUserId = clerkUserId;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || !isSuperAdminRole(user.role)) {
+  if (!user || !isSuperAdminRole(user)) {
     res.status(403).json({ error: "Forbidden: super admin role required" });
     return;
   }
@@ -63,7 +63,7 @@ export async function requireCoachOrAdmin(req: Request, res: Response, next: Nex
   }
   (req as any).clerkUserId = clerkUserId;
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
-  if (!user || !isOperationalStaffRole(user.role)) {
+  if (!user || !isOperationalStaffRole(user)) {
     res.status(403).json({ error: "Forbidden: coach or super admin role required" });
     return;
   }

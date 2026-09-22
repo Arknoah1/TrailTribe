@@ -14,7 +14,7 @@ import {
   type ObjectAclPolicy,
 } from "../lib/objectAcl";
 import { requireAuth } from "../middlewares/requireAuth";
-import { db, usersTable, teamDocumentsTable } from "@workspace/db";
+import { db, isOperationalStaffRole, usersTable, teamDocumentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -54,7 +54,7 @@ router.post("/storage/uploads/request-url", requireAuth, async (req: Request, re
 
     let aclPolicy: ObjectAclPolicy;
 
-    if (user && (user.role === "coach" || user.role === "super_admin")) {
+    if (user && isOperationalStaffRole(user)) {
       // Coach/admin uploads are readable by the whole team.
       aclPolicy = {
         owner: clerkUserId,

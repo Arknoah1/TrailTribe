@@ -84,6 +84,8 @@ vi.mock("@workspace/db", () => {
     carpoolOffersTable:   new Proxy({}, { get: () => ({}) }),
     carpoolClaimsTable:   new Proxy({}, { get: () => ({}) }),
     trailheadsTable:      new Proxy({}, { get: () => ({}) }),
+    isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+    hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
   };
 });
 

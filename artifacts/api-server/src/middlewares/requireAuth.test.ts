@@ -23,8 +23,14 @@ vi.mock("@workspace/db", () => ({
     update,
   },
   usersTable: new Proxy({}, { get: () => ({}) }),
-  isOperationalStaffRole: (role: string | null | undefined) => role === "coach" || role === "super_admin",
-  isSuperAdminRole: (role: string | null | undefined) => role === "super_admin",
+  isOperationalStaffRole: (user: { role?: string; roles?: string[] } | string | null | undefined) => {
+    const roles = typeof user === "object" && user ? [user.role, ...(user.roles ?? [])] : [user];
+    return roles.includes("coach") || roles.includes("super_admin");
+  },
+  isSuperAdminRole: (user: { role?: string; roles?: string[] } | string | null | undefined) => {
+    const roles = typeof user === "object" && user ? [user.role, ...(user.roles ?? [])] : [user];
+    return roles.includes("super_admin");
+  },
 }));
 
 const { requireApproved, requireCoachOrAdmin, requireSuperAdmin } = await import("./requireAuth");
@@ -97,6 +103,19 @@ describe("requireApproved student access", () => {
     currentUser = { id: 1, role: "super_admin", householdId: null, approved: true };
     expect((await fetch(`${baseUrl}/staff`)).status).toBe(200);
     expect((await fetch(`${baseUrl}/super-admin`)).status).toBe(200);
+  });
+
+  it("combines parent, coach, and super-admin access from the roles array", async () => {
+    currentUser = {
+      id: 3,
+      role: "parent",
+      roles: ["parent", "coach", "super_admin"],
+      householdId: 42,
+      approved: true,
+    };
+    expect((await fetch(`${baseUrl}/staff`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/super-admin`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/events`)).status).toBe(200);
   });
 
   it("keeps coach access operational while blocking protected actions", async () => {

@@ -15,6 +15,7 @@ import {
   getListBoardThreadsQueryKey
 } from "@workspace/api-client-react";
 import type { BoardReactionSummary } from "@workspace/api-client-react";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
   AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
@@ -275,7 +276,7 @@ export default function BoardThread() {
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [replyBody]);
 
-  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaff(me);
   // Thread permissions are computed by the API so this UI cannot drift from
   // the authorization rules enforced by the server.
   const canDeleteThread = thread?.permissions?.canDelete === true;

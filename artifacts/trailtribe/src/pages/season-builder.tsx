@@ -13,6 +13,7 @@ import { ArrowLeft, Plus, Trash2, Calendar, CheckCircle2, ChevronRight, ArrowUpD
 import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
 import { randomUUID, toLocalDateISO } from "@/lib/uuid";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -122,7 +123,7 @@ export default function SeasonBuilder() {
     if (sid) setExistingSeriesId(sid);
   }, [search]);
 
-  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoach = isOperationalStaff(me);
 
   const existingSeries = useMemo(() => {
     const map: Record<string, { seriesId: string; label: string; count: number }> = {};

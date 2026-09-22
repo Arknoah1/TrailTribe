@@ -9,6 +9,7 @@ import {
   eventsTable,
   boardReactionsTable,
   isEventAudienceMember,
+  isOperationalStaffRole,
 } from "@workspace/db";
 import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -285,7 +286,7 @@ function getThreadPermissions(
   me: typeof usersTable.$inferSelect,
   thread: typeof boardThreadsTable.$inferSelect,
 ) {
-  const isCoachOrAdmin = me.role === "coach" || me.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(me);
   return {
     canPin: isCoachOrAdmin,
     canDelete: isCoachOrAdmin || thread.authorUserId === me.id,
@@ -296,7 +297,7 @@ function getPostPermissions(
   me: typeof usersTable.$inferSelect,
   post: typeof boardPostsTable.$inferSelect,
 ) {
-  const isCoachOrAdmin = me.role === "coach" || me.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(me);
   return {
     canDelete: isCoachOrAdmin || post.authorUserId === me.id,
   };
@@ -304,7 +305,7 @@ function getPostPermissions(
 
 function canAccessPodThread(me: typeof usersTable.$inferSelect, threadPodId: string | null): boolean {
   if (!threadPodId) return true; // general or event threads — open to all
-  if (me.role === "coach" || me.role === "super_admin") return true;
+  if (isOperationalStaffRole(me)) return true;
   return me.podId === threadPodId;
 }
 
@@ -351,13 +352,13 @@ router.get("/board/threads", requireApproved, async (req, res) => {
 
   // Pod-scoped list: enforce pod membership
   if (scope === "pod" && podId) {
-    const isCoachOrAdmin = me.role === "coach" || me.role === "super_admin";
+    const isCoachOrAdmin = isOperationalStaffRole(me);
     if (!isCoachOrAdmin && me.podId !== podId) {
       res.status(403).json({ error: "Not a member of this pod" }); return;
     }
   }
 
-  const isCoachOrAdmin = me.role === "coach" || me.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(me);
 
   // Pod-access filter applied to every query: only show pod-scoped threads the user
   // belongs to. Event threads with no pod_id are always visible to all users.
@@ -549,7 +550,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   if (!(await canAccessThread(me, thread))) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
-  if (thread.isLocked && me.role !== "coach" && me.role !== "super_admin") {
+  if (thread.isLocked && !isOperationalStaffRole(me)) {
     res.status(403).json({ error: "Thread is locked" }); return;
   }
 
@@ -780,7 +781,7 @@ router.get("/board/unread-count", requireApproved, async (req, res) => {
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ count: 0 }); return; }
 
-  const isCoachOrAdmin = me.role === "coach" || me.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaffRole(me);
 
   // Step 1: Fetch all candidate threads respecting pod-level visibility.
   // Event threads (podId IS NULL + eventId set) pass this filter and are further

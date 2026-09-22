@@ -216,6 +216,9 @@ vi.mock("@workspace/db", () => {
     and:   vi.fn((...args: any[]) => args),
     isNull:vi.fn(() => ({})),
     desc:  vi.fn(() => ({})),
+    hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
+    isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+    isResponsibleAdultRole: (user: any) => ["parent", "coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
   };
 });
 

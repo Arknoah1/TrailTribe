@@ -95,6 +95,9 @@ vi.mock("@workspace/db", () => {
     eventTaskSignupsTable: {},
     boardThreadsTable: {},
     boardPostsTable: {},
+    hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
+    isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+    isResponsibleAdultRole: (user: any) => ["parent", "coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
   };
 });
 

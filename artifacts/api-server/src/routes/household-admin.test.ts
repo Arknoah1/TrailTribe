@@ -84,6 +84,9 @@ vi.mock("@workspace/db", () => ({
   eventRsvpsTable, eventsTable, rsvpEmailBatchesTable, familyInvitesTable, pushDevicesTable, boardReactionsTable, inviteLinksTable, podsTable,
   documentConsentsTable: t("consents"), teamDocumentsTable: t("docs"),
   seasonsTable: t("seasons"), seasonRosterSnapshotsTable: t("snapshots"),
+  hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
+  isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+  isResponsibleAdultRole: (user: any) => ["parent", "coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
 }));
 vi.mock("drizzle-orm", () => ({
   eq: (column: any, value: any) => ({ kind: "eq", column, value }),

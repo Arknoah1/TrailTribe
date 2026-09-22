@@ -3,6 +3,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import { Home, Calendar, Car, MessageSquare, User as UserIcon, ShieldCheck, Sun, Moon, MoreHorizontal, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGetMe, useGetBoardUnreadCount, getGetBoardUnreadCountQueryKey } from "@workspace/api-client-react";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 import { NotificationBell } from "./notification-bell";
 import { useTheme } from "@/lib/theme-context";
 import { useAdminView } from "@/hooks/use-admin-view";
@@ -66,7 +67,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { data: unreadData } = useGetBoardUnreadCount({ query: { refetchInterval: 30000, queryKey: getGetBoardUnreadCountQueryKey() } });
   const unreadCount = typeof unreadData === "number" ? unreadData : (unreadData as any)?.count ?? 0;
 
-  const isCoachOrAdmin = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoachOrAdmin = isOperationalStaff(me);
   const { adminViewEnabled } = useAdminView();
   const { theme, toggleTheme } = useTheme();
   const showAdminTabs = isCoachOrAdmin && adminViewEnabled;

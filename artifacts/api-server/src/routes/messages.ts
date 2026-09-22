@@ -4,6 +4,7 @@ import {
   broadcastRecipientsTable,
   broadcastsTable,
   isOperationalStaffRole,
+  hasUserRole,
   usersTable,
 } from "@workspace/db";
 import {
@@ -37,7 +38,7 @@ router.get("/messages", requireApproved, async (req, res) => {
   if (
     !viewer.isActive
     || (viewer.role === "student" && viewer.seasonParticipationStatus !== "active")
-    || (!isOperationalStaffRole(viewer.role) && viewer.role !== "parent" && viewer.role !== "student")
+    || (!isOperationalStaffRole(viewer) && !hasUserRole(viewer, "parent") && !hasUserRole(viewer, "student"))
   ) {
     res.json([]);
     return;
@@ -57,7 +58,7 @@ router.get("/messages", requireApproved, async (req, res) => {
     .from(broadcastsTable)
     .leftJoin(usersTable, eq(usersTable.id, broadcastsTable.senderUserId));
 
-  const rows = isOperationalStaffRole(viewer.role)
+  const rows = isOperationalStaffRole(viewer)
     ? await baseQuery.orderBy(broadcastsTable.createdAt)
     : await (async () => {
         const capturedBroadcastIds = (await db
@@ -232,7 +233,7 @@ router.post("/messages/contact-coach", requireAuth, async (req, res) => {
 
   const allUsers = await db.select().from(usersTable).where(eq(usersTable.isActive, true));
   const allCoaches = allUsers.filter(
-    (u) => (u.role === "coach" || u.role === "super_admin") && u.emailNotifications,
+    (u) => isOperationalStaffRole(u) && u.emailNotifications,
   );
 
   let coaches;

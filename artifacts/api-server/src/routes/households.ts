@@ -26,6 +26,9 @@ import {
   boardReactionsTable,
   inviteLinksTable,
   podsTable,
+  hasUserRole,
+  isOperationalStaffRole,
+  isResponsibleAdultRole,
 } from "@workspace/db";
 import { eq, and, isNull, isNotNull, desc, gt, inArray, or, sql } from "drizzle-orm";
 import {
@@ -74,7 +77,7 @@ function coParentInviteExpiresAt(): Date {
 function canManageCoParentInvites(requester: any, householdId: number): boolean {
   return !!requester
     && requester.householdId === householdId
-    && (requester.role === "parent" || requester.role === "coach" || requester.role === "super_admin");
+    && isResponsibleAdultRole(requester);
 }
 
 function sanitizedCoParentInvite(invite: any, now = new Date()) {
@@ -168,10 +171,6 @@ function safeAdminMember(user: typeof usersTable.$inferSelect) {
   return shapeHouseholdMember(user, true);
 }
 
-function isResponsibleAdult(user: { role: string }) {
-  return user.role === "parent" || user.role === "coach";
-}
-
 async function writeHouseholdAdminAudit(
   tx: any,
   administratorUserId: number,
@@ -201,7 +200,7 @@ type Requester = Awaited<ReturnType<typeof getRequester>>;
 
 function canSeeMedical(requester: Requester, householdId: number | null): boolean {
   if (!requester) return false;
-  if (requester.role === "coach" || requester.role === "super_admin") return true;
+  if (isOperationalStaffRole(requester)) return true;
   return householdId !== null && requester.householdId === householdId;
 }
 
@@ -352,7 +351,7 @@ router.patch("/households/:id", requireAuth, async (req, res) => {
   // IDOR guard: requester must belong to this household or be coach/admin
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
+  if (!isOperationalStaffRole(requester) && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }
@@ -432,7 +431,7 @@ router.post("/households/:householdId/admin/members/:memberId/reclassify", requi
     if (member.role === "parent") {
       const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
       const hasStudents = members.some((u: any) => u.role === "student");
-      const responsibleAdults = members.filter((u: any) => isResponsibleAdult(u)).length;
+      const responsibleAdults = members.filter((u: any) => isResponsibleAdultRole(u)).length;
       if (hasStudents && responsibleAdults <= 1) return { status: 409 as const, error: "Cannot reclassify the last responsible adult while students remain." };
     }
     const [after] = await tx.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, memberId)).returning();
@@ -460,9 +459,9 @@ router.post("/households/:householdId/admin/members/:memberId/move", requireSupe
     ]).then((rows: any[]) => [rows[0][0], rows[1][0], rows[2][0]]);
     if (!source || !target) return { status: 404 as const, error: "Source or target household not found" };
     if (!member) return { status: 404 as const, error: "Member not found in source household" };
-    if (isResponsibleAdult(member)) {
+    if (isResponsibleAdultRole(member)) {
       const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
-      if (members.some((u: any) => u.role === "student") && members.filter((u: any) => isResponsibleAdult(u)).length <= 1) {
+      if (members.some((u: any) => hasUserRole(u, "student")) && members.filter((u: any) => isResponsibleAdultRole(u)).length <= 1) {
         return { status: 409 as const, error: "Cannot move the last responsible adult while students remain." };
       }
     }
@@ -487,9 +486,9 @@ router.delete("/households/:householdId/admin/members/:memberId/duplicate", requ
     const [member] = await tx.select().from(usersTable).where(and(eq(usersTable.id, memberId), eq(usersTable.householdId, householdId)));
     if (!member) return { status: 404 as const, error: "Member not found in household" };
     if (member.clerkUserId) return { status: 409 as const, error: "Linked app accounts cannot be deleted as duplicates." };
-    if (isResponsibleAdult(member)) {
+    if (isResponsibleAdultRole(member)) {
       const members = await tx.select().from(usersTable).where(eq(usersTable.householdId, householdId));
-      if (members.some((u: any) => u.role === "student") && members.filter((u: any) => isResponsibleAdult(u)).length <= 1) {
+      if (members.some((u: any) => hasUserRole(u, "student")) && members.filter((u: any) => isResponsibleAdultRole(u)).length <= 1) {
         return { status: 409 as const, error: "Cannot delete the last responsible adult while students remain." };
       }
     }
@@ -816,7 +815,7 @@ router.get("/households/:id/compliance/status", requireAuth, async (req, res) =>
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
+  if (!isOperationalStaffRole(requester) && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
 
@@ -869,7 +868,7 @@ router.get("/households/:id/compliance/consents", requireAuth, async (req, res) 
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
+  if (!isOperationalStaffRole(requester) && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden" }); return;
   }
   const consents = await db
@@ -1032,7 +1031,7 @@ router.get("/households/:id/riders", requireAuth, async (req, res) => {
   const id = parseInt(str(req.params.id));
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (requester.role !== "coach" && requester.role !== "super_admin" && requester.householdId !== id) {
+  if (!isOperationalStaffRole(requester) && requester.householdId !== id) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }
@@ -1051,7 +1050,7 @@ router.post("/households/:id/riders", requireAuth, async (req, res) => {
   // IDOR guard: requester must belong to this household or be coach/admin
   const requester = await getRequester(req);
   if (!requester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (!canSeeMedical(requester, id) && requester.role !== "coach" && requester.role !== "super_admin") {
+  if (!canSeeMedical(requester, id) && !isOperationalStaffRole(requester)) {
     if (requester.householdId !== id) {
       res.status(403).json({ error: "Forbidden: you are not a member of this household" });
       return;
@@ -1109,7 +1108,7 @@ router.patch("/households/:id/riders/:riderId", requireAuth, async (req, res) =>
   // IDOR guard: requester must belong to this household or be coach/admin
   const patchRiderRequester = await getRequester(req);
   if (!patchRiderRequester) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (patchRiderRequester.role !== "coach" && patchRiderRequester.role !== "super_admin" && patchRiderRequester.householdId !== householdId) {
+  if (!isOperationalStaffRole(patchRiderRequester) && patchRiderRequester.householdId !== householdId) {
     res.status(403).json({ error: "Forbidden: you are not a member of this household" });
     return;
   }

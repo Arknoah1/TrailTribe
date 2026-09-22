@@ -49,6 +49,7 @@ vi.mock("@workspace/db", () => ({
   },
   teamSettingsTable: new Proxy({}, { get: () => ({}) }),
   usersTable,
+  isSuperAdminRole: (user: any) => user?.role === "super_admin" || user?.roles?.includes("super_admin"),
 }));
 
 vi.mock("../middlewares/requireAuth", () => ({

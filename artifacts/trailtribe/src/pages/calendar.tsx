@@ -14,6 +14,7 @@ import { CalendarIcon, Car, List, LayoutGrid, Rss, Copy, Check, ExternalLink, Pl
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { isOperationalStaff } from "@/lib/user-capabilities";
 import {
   Dialog,
   DialogContent,
@@ -120,7 +121,7 @@ export default function Calendar() {
     });
   };
 
-  const isCoach = me?.role === "coach" || (me as { role?: string } | undefined)?.role === "super_admin";
+  const isCoach = isOperationalStaff(me);
 
   useEffect(() => {
     if (!showAddEvent || !isCoach) return;

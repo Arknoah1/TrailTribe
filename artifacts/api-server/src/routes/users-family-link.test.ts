@@ -13,3 +13,16 @@ describe("household family-link redemption", () => {
     );
   });
 });
+
+describe("combined parent responsibilities", () => {
+  it("keeps parent-only enrollment and role filters available to a primary coach", async () => {
+    const source = await readFile(new URL("./users.ts", import.meta.url), "utf8");
+
+    expect(source).toMatch(
+      /if \(!hasUserRole\(user, "parent"\)\) \{ res\.status\(403\)\.json\(\{ error: "Only parents can re-enroll" \}\)/,
+    );
+    expect(source).toMatch(
+      /if \(role\) conditions\.push\(sql`\$\{role\} = ANY\(\$\{usersTable\.roles\}\)`\)/,
+    );
+  });
+});

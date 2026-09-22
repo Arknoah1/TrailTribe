@@ -12,6 +12,7 @@ import {
   carpoolClaimsTable,
   EventAudienceConflictError,
   normalizeEventAudience,
+  isResponsibleAdultRole,
 } from "@workspace/db";
 import { eq, and, or, gte, lte, gt, sql, inArray, arrayContains, desc } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
@@ -446,7 +447,7 @@ router.post("/events/:id/rsvp", requireApproved, async (req, res) => {
 
     const allowedIds = new Set<number>([me.id]);
     // Parents, coaches, and admins may all RSVP for riders in their own household
-    if ((me.role === "parent" || me.role === "coach" || me.role === "super_admin") && me.householdId) {
+    if (isResponsibleAdultRole(me) && me.householdId) {
       const householdStudents = await db
         .select({ id: usersTable.id })
         .from(usersTable)

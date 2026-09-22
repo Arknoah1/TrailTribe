@@ -22,6 +22,7 @@ import { LoadErrorCard } from "@/components/network-status";
 import { toLocalDateISO } from "@/lib/uuid";
 import { Link } from "wouter";
 import SeasonBuilder from "./season-builder";
+import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import SeasonsTab from "./admin-seasons";
 import { FamilyLinkAction } from "@/components/family-link-action";
 
@@ -353,7 +354,7 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
   const { data: currentUser } = useGetMe();
-  const isSuperAdmin = currentUser?.role === "super_admin";
+  const isSuperAdmin = hasUserRole(currentUser, "super_admin");
   const { data: allUsers = [] } = useListUsers(undefined, {
     query: { enabled: isSuperAdmin, queryKey: getListUsersQueryKey() },
   });
@@ -1504,7 +1505,7 @@ export default function Admin() {
                           {riders.length === 0 ? (
                             <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">No riders found</td></tr>
                           ) : riders.map((m: any) => {
-                            const parents = (m.household.members || []).filter((p: any) => p.role === "parent" || p.role === "coach");
+                            const parents = (m.household.members || []).filter((p: any) => hasUserRole(p, "parent") || hasUserRole(p, "coach"));
                             const pod = pods?.find((p: any) => String(p.id) === String(m.podId));
                             return (
                               <tr key={m.id} className="hover:bg-muted/30 transition-colors">
@@ -1624,7 +1625,7 @@ export default function Admin() {
                   );
                 })
                 .map((household: any) => {
-                  const parents = (household.members || []).filter((m: any) => m.role === "parent" || m.role === "coach");
+                  const parents = (household.members || []).filter((m: any) => hasUserRole(m, "parent") || hasUserRole(m, "coach"));
                   const riders = (household.members || [])
                     .filter((m: any) => m.role === "student")
                     .filter((m: any) => participationFilter === "all" || (participationFilter === "active" ? m.seasonParticipationStatus === "active" : m.seasonParticipationStatus !== "active"));
@@ -1656,6 +1657,13 @@ export default function Admin() {
                             {parents.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {parents.map((p: any) => (
+                                  (() => {
+                                    const isCoach = hasUserRole(p, "coach");
+                                    const adultRoles = (p.roles ?? [p.role]).filter((role: string) => role !== "student");
+                                    const nextRoles = isCoach
+                                      ? adultRoles.filter((role: string) => role !== "coach")
+                                      : [...new Set([...adultRoles, "coach"])];
+                                    return (
                                   <div key={p.id} className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                                     <span className="font-medium text-foreground">{p.firstName} {p.lastName}</span>
                                     {p.email && !p.email.includes("@trailtribe") && (
@@ -1667,28 +1675,29 @@ export default function Admin() {
                                     {isSuperAdmin ? (
                                       <button
                                         onClick={async () => {
-                                          const newRole = p.role === "coach" ? "parent" : "coach";
                                           const res = await authedFetch(`${BASE_URL}/api/users/${p.id}/role`, {
                                             method: "PATCH",
                                             headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ role: newRole }),
+                                             body: JSON.stringify({ roles: nextRoles }),
                                           });
                                           if (res.ok) {
-                                            toast({ title: `${p.firstName} is now a ${newRole}` });
+                                             toast({ title: `${p.firstName} ${isCoach ? "is no longer a coach" : "is now a coach"}` });
                                             fetchRoster();
                                           }
                                         }}
                                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-                                          p.role === "coach"
+                                           isCoach
                                             ? "bg-primary/10 text-primary border-primary/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
                                             : "bg-muted text-muted-foreground border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30"
                                         }`}
-                                        title={p.role === "coach" ? "Click to remove coach role" : "Click to make coach"}
+                                         title={isCoach ? "Click to remove coach role" : "Click to make coach"}
                                       >
-                                        {p.role === "coach" ? "Coach ✕" : "Parent → Coach?"}
+                                         {isCoach ? "Coach ✕" : "Parent → Coach?"}
                                       </button>
                                     ) : null}
                                   </div>
+                                    );
+                                  })()
                                 ))}
                               </div>
                             )}
@@ -1983,7 +1992,7 @@ export default function Admin() {
               {archivedSectionOpen && (
                 <div className="space-y-3 mt-3">
                   {archivedFamilies.map((household: any) => {
-                    const parents = (household.members || []).filter((m: any) => m.role === "parent" || m.role === "coach");
+                    const parents = (household.members || []).filter((m: any) => hasUserRole(m, "parent") || hasUserRole(m, "coach"));
                     const riders = (household.members || []).filter((m: any) => m.role === "student");
                     const archivedDate = household.archivedAt
                       ? new Date(household.archivedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
@@ -3905,17 +3914,21 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2"><Shield className="h-4 w-4" /> Staff Access</CardTitle>
-                <CardDescription>Promote a coach to super admin or return a super admin to coach access. The last super admin cannot be demoted.</CardDescription>
+                <CardDescription>Add or remove super-admin responsibility without taking away parent or coach access. The last super admin cannot be demoted.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
-                {allUsers.filter((user) => user.role === "coach" || user.role === "super_admin").map((user) => {
+                {allUsers.filter((user) => isOperationalStaff(user)).map((user) => {
                   const isCurrentUser = user.id === currentUser?.id;
-                  const nextRole = user.role === "super_admin" ? "coach" : "super_admin";
+                  const isAdmin = hasUserRole(user, "super_admin");
+                  const adultRoles = user.roles.filter((role): role is "parent" | "coach" | "super_admin" => role !== "student");
+                  const nextRoles = isAdmin
+                    ? adultRoles.filter((role) => role !== "super_admin")
+                    : [...new Set([...adultRoles, "coach" as const, "super_admin" as const])];
                   return (
                     <div key={user.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-medium">{user.firstName} {user.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{user.email} · {user.role === "super_admin" ? "Super admin" : "Coach"}</p>
+                        <p className="text-xs text-muted-foreground">{user.email} · {isAdmin ? "Super admin" : "Coach"}</p>
                       </div>
                       <Button
                         size="sm"
@@ -3923,10 +3936,10 @@ export default function Admin() {
                         disabled={isCurrentUser || updateStaffRole.isPending}
                         title={isCurrentUser ? "You cannot change your own role" : undefined}
                         onClick={() => updateStaffRole.mutate(
-                          { id: user.id, data: { role: nextRole } },
+                          { id: user.id, data: { roles: nextRoles } },
                           {
                             onSuccess: () => {
-                              toast({ title: `${user.firstName} is now ${nextRole === "super_admin" ? "a super admin" : "a coach"}` });
+                              toast({ title: `${user.firstName} ${isAdmin ? "no longer has super-admin access" : "is now a super admin"}` });
                               queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
                               queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
                               fetchRoster();
@@ -3937,7 +3950,7 @@ export default function Admin() {
                           },
                         )}
                       >
-                        {nextRole === "super_admin" ? "Make super admin" : "Make coach"}
+                        {isAdmin ? "Remove super admin" : "Make super admin"}
                       </Button>
                     </div>
                   );
