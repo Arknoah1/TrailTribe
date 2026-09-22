@@ -238,9 +238,9 @@ export function CrossEventSignupPanel({
                     : "No openings";
 
               return (
-              <div key={title} className="flex flex-col gap-3 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center">
+              <div key={title} className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">{title}</p>
+                  <p className="break-words text-sm font-semibold">{title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {availableOccurrences.length === 0
                       ? "Unavailable at the selected events"
@@ -268,7 +268,7 @@ export function CrossEventSignupPanel({
                     size="sm"
                     onClick={() => void applyTask(title, availableOccurrences)}
                     disabled={bulkSignup.isPending}
-                    className={`min-h-11 shrink-0 ${volunteerTaskAvailableButtonClassName}`}
+                    className={`min-h-11 w-full shrink-0 sm:w-auto ${volunteerTaskAvailableButtonClassName}`}
                   >
                     {bulkSignup.isPending
                       ? "Saving…"
@@ -283,7 +283,7 @@ export function CrossEventSignupPanel({
                     variant="outline"
                     disabled
                     aria-label={`${statusLabel}: ${title}`}
-                    className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
+                    className={`min-h-11 w-full shrink-0 sm:w-auto ${volunteerTaskUnavailableButtonClassName}`}
                   >
                     {statusLabel}
                   </Button>
@@ -400,8 +400,8 @@ export function VolunteerOpportunityCard({
     <Card className="border-2 border-[#0a0c10] shadow-cel-sm">
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle id={eventHeadingId} className="text-base">{event.title}</CardTitle>
+          <div className="min-w-0">
+            <CardTitle id={eventHeadingId} className="break-words text-base">{event.title}</CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground">{format(new Date(event.startTime), "EEEE, MMM d")}</p>
           </div>
           <Badge variant="outline" className="shrink-0">
@@ -423,13 +423,13 @@ export function VolunteerOpportunityCard({
               return (
                 <div
                   key={task.id}
-                  className={`flex items-start gap-2 rounded-lg px-2 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
+                  className={`flex min-w-0 flex-col gap-2 rounded-lg px-2 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 sm:flex-row sm:items-start ${
                     isAvailable ? "hover:bg-muted/40" : "bg-muted/20"
                   }`}
                 >
                   <label
                     htmlFor={inputId}
-                    className={`flex min-h-11 min-w-0 flex-1 items-start gap-3 ${
+                    className={`flex min-h-11 min-w-0 flex-1 flex-wrap items-start gap-3 ${
                       isAvailable ? "cursor-pointer" : "cursor-default"
                     }`}
                   >
@@ -444,15 +444,15 @@ export function VolunteerOpportunityCard({
                         if (isAvailable) toggle(task.id);
                       }}
                     />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{task.title}</span>
-                      {task.description && <span className="mt-0.5 block text-xs text-muted-foreground">{task.description}</span>}
+                    <span className="min-w-0 flex-1 break-words">
+                      <span className="block break-words text-sm font-medium">{task.title}</span>
+                      {task.description && <span className="mt-0.5 block break-words text-xs text-muted-foreground">{task.description}</span>}
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {filled}/{task.slotsNeeded} filled · {statusLabel}
                       </span>
                     </span>
                     {task.category && (
-                      <Badge variant="secondary" className="max-w-[45%] shrink-0 whitespace-normal text-right leading-tight">
+                      <Badge variant="secondary" className="w-full max-w-full shrink-0 whitespace-normal text-left leading-tight sm:w-auto sm:max-w-[45%] sm:text-right">
                         {task.category}
                       </Badge>
                     )}
@@ -464,7 +464,7 @@ export function VolunteerOpportunityCard({
                       variant="outline"
                       disabled
                       aria-label={`${statusLabel}: ${task.title}`}
-                      className={`min-h-11 shrink-0 ${volunteerTaskUnavailableButtonClassName}`}
+                      className={`min-h-11 w-full shrink-0 sm:w-auto ${volunteerTaskUnavailableButtonClassName}`}
                     >
                       {statusLabel}
                     </Button>
@@ -485,7 +485,7 @@ export function VolunteerOpportunityCard({
           <Button
             onClick={handleApply}
             disabled={selected.size === 0 || availableTasks.length === 0 || bulkSignup.isPending}
-            className={`min-h-11 sm:min-w-36 ${volunteerTaskAvailableButtonClassName}`}
+            className={`min-h-11 w-full sm:min-w-36 sm:w-auto ${volunteerTaskAvailableButtonClassName}`}
           >
             {bulkSignup.isPending ? "Saving…" : `Sign Up${selected.size > 0 ? ` for ${selected.size}` : ""}`}
           </Button>

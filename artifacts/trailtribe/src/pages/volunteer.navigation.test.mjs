@@ -63,6 +63,16 @@ test("Volunteer keeps claimed and full tasks visible with clear disabled states"
   assert.match(source, /volunteerTaskUnavailableButtonClassName/);
 });
 
+test("Volunteer opportunity rows reflow all task states on narrow screens", () => {
+  assert.match(source, /flex min-w-0 flex-col gap-2 rounded-lg[\s\S]*?sm:flex-row sm:items-start/);
+  assert.match(source, /flex min-h-11 min-w-0 flex-1 flex-wrap items-start gap-3/);
+  assert.match(source, /w-full max-w-full shrink-0 whitespace-normal text-left leading-tight sm:w-auto sm:max-w-\[45%\] sm:text-right/);
+  assert.match(source, /className=\{`min-h-11 w-full shrink-0 sm:w-auto \$\{volunteerTaskUnavailableButtonClassName\}`\}/);
+  assert.match(source, /className=\{`min-h-11 w-full sm:min-w-36 sm:w-auto \$\{volunteerTaskAvailableButtonClassName\}`\}/);
+  assert.match(source, /checked=\{state === "claimed" \|\| isSelected\}/);
+  assert.match(source, /disabled=\{!isAvailable\}/);
+});
+
 test("event detail uses the same green, claimed, and full task states", () => {
   assert.match(eventDetailSource, /getVolunteerTaskState/);
   assert.match(eventDetailSource, /You’re on it/);
