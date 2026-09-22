@@ -44,7 +44,25 @@ const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 const EVENT_TYPES = Object.values(UpdateEventBodyEventType) as string[];
 
-function EventDiscussion({ eventId, eventTitle }: { eventId: number; eventTitle: string }) {
+function canDiscussEvent(
+  audience: { isAllTeam: boolean; podIds?: string[] | null },
+  user: { role?: string; podId?: string | null } | null | undefined,
+): boolean {
+  if (!user) return true;
+  if (user.role === "coach" || user.role === "super_admin") return true;
+  if (audience.isAllTeam || !audience.podIds || audience.podIds.length === 0) return true;
+  return user.podId != null && audience.podIds.includes(user.podId);
+}
+
+function EventDiscussion({
+  eventId,
+  eventTitle,
+  canDiscuss,
+}: {
+  eventId: number;
+  eventTitle: string;
+  canDiscuss: boolean;
+}) {
   const { data: threads, isLoading, isError, refetch } = useListBoardThreads({ scope: "event", eventId });
   const thread = threads?.[0];
   const createThread = useCreateBoardThread();
@@ -111,20 +129,31 @@ function EventDiscussion({ eventId, eventTitle }: { eventId: number; eventTitle:
           <div className="h-11 w-11 rounded-full bg-primary/10 border-2 border-primary/30 flex items-center justify-center">
             <MessageSquare className="h-5 w-5 text-primary" />
           </div>
-          <div>
-            <p className="font-bold text-foreground">No discussion yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Start a conversation about meet-up spots, ride shares, or event questions.
-            </p>
-          </div>
-          <Button
-            onClick={handleCreateDiscussion}
-            disabled={createThread.isPending}
-            className="cel-interactive border-2 border-[#0a0c10]"
-          >
-            {createThread.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Start the Discussion
-          </Button>
+          {canDiscuss ? (
+            <>
+              <div>
+                <p className="font-bold text-foreground">No discussion yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Start a conversation about meet-up spots, ride shares, or event questions.
+                </p>
+              </div>
+              <Button
+                onClick={handleCreateDiscussion}
+                disabled={createThread.isPending}
+                className="cel-interactive border-2 border-[#0a0c10]"
+              >
+                {createThread.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Start the Discussion
+              </Button>
+            </>
+          ) : (
+            <div>
+              <p className="font-bold text-foreground">Discussion not available</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                This event discussion is limited to families invited to the event.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -1395,7 +1424,11 @@ export default function EventDetail() {
       )}
 
       {/* ─── EVENT DISCUSSION ──────────────────────────────────────────────────── */}
-      <EventDiscussion eventId={eventId} eventTitle={event.title} />
+      <EventDiscussion
+        eventId={eventId}
+        eventTitle={event.title}
+        canDiscuss={canDiscussEvent(event, me)}
+      />
 
       {/* ─── EDIT EVENT DIALOG ─────────────────────────────────────────────────── */}
       <Dialog open={showEdit} onOpenChange={setShowEdit}>

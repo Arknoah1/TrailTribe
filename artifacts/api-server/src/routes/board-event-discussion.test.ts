@@ -35,6 +35,26 @@ const OTHER_RIDER = {
   avatarUrl: null,
   isActive: true,
 };
+const PARENT = {
+  id: 4,
+  clerkUserId: "clerk_test_parent",
+  role: "parent",
+  podId: "pod-a",
+  firstName: "Parent",
+  lastName: "Trail",
+  avatarUrl: null,
+  isActive: true,
+};
+const OTHER_PARENT = {
+  id: 5,
+  clerkUserId: "clerk_test_other_parent",
+  role: "parent",
+  podId: "pod-b",
+  firstName: "Other Parent",
+  lastName: "Trail",
+  avatarUrl: null,
+  isActive: true,
+};
 const notificationMock = vi.hoisted(() => ({
   createNotification: vi.fn(),
 }));
@@ -165,7 +185,7 @@ const threads: ThreadFixture[] = [];
 const posts: PostFixture[] = [];
 const reactions: ReactionFixture[] = [];
 const attachments: AttachmentFixture[] = [];
-const users = [COACH, RIDER, OTHER_RIDER];
+const users = [COACH, RIDER, OTHER_RIDER, PARENT, OTHER_PARENT];
 let selectCallIndex = 0;
 let nextReactionId = 1;
 let nextThreadId = 10000;
@@ -519,7 +539,7 @@ function addPost(id: number, threadId: number, authorUserId = RIDER.id, isDelete
 
 function addDiscussionObject(
   objectPath: string,
-  owner: typeof COACH | typeof RIDER | typeof OTHER_RIDER,
+  owner: DiscussionUser,
   versions: DiscussionObjectFixture[] = [{
     generation: "generation-1",
     contentType: "image/jpeg",
@@ -553,7 +573,9 @@ function addAttachment(
   });
 }
 
-async function getThreads(path: string, user: typeof COACH = COACH) {
+type DiscussionUser = typeof COACH | typeof RIDER | typeof OTHER_RIDER | typeof PARENT | typeof OTHER_PARENT;
+
+async function getThreads(path: string, user: DiscussionUser = COACH) {
   currentClerkUserId = user.clerkUserId;
   const threadId = path.match(/\/board\/threads\/(\d+)/)?.[1];
   currentTargetId = threadId ? Number(threadId) : null;
@@ -563,7 +585,7 @@ async function getThreads(path: string, user: typeof COACH = COACH) {
   return { status: response.status, body: await response.json() };
 }
 
-async function createReply(user: typeof COACH, threadId: number, body = "A reply") {
+async function createReply(user: DiscussionUser, threadId: number, body = "A reply") {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = threadId;
   const response = await fetch(`${baseUrl}/board/threads/${threadId}/posts`, {
@@ -578,7 +600,7 @@ async function createReply(user: typeof COACH, threadId: number, body = "A reply
 }
 
 async function createThreadWithImages(
-  user: typeof COACH | typeof RIDER | typeof OTHER_RIDER,
+  user: DiscussionUser,
   imageObjectPaths: unknown,
   options: { podId?: string; eventId?: number } = {},
 ) {
@@ -605,7 +627,7 @@ async function createThreadWithImages(
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
-async function getDiscussionAttachment(user: typeof COACH | typeof RIDER | typeof OTHER_RIDER, objectPath: string) {
+async function getDiscussionAttachment(user: DiscussionUser, objectPath: string) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = null;
   currentAttachmentPath = objectPath;
@@ -616,7 +638,7 @@ async function getDiscussionAttachment(user: typeof COACH | typeof RIDER | typeo
   return { status: response.status, body };
 }
 
-async function toggleReaction(user: typeof COACH, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
+async function toggleReaction(user: DiscussionUser, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = targetId;
   currentReaction = reaction;
@@ -766,6 +788,53 @@ describe("discussion image security boundaries", () => {
 });
 
 describe("event discussion board visibility and ordering", () => {
+  it("lets an audience parent start and reply to a pod-scoped event discussion", async () => {
+    const event = addEvent(71, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+
+    const created = await createThreadWithImages(PARENT, undefined, { eventId: event.id });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ eventId: event.id, authorUserId: PARENT.id });
+
+    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, PARENT);
+    expect(listed.status).toBe(200);
+    expect(listed.body.map((thread: ThreadFixture) => thread.id)).toContain(created.body.id);
+
+    const reply = await createReply(PARENT, created.body.id, "I can help coordinate the pickup.");
+    expect(reply.status).toBe(201);
+  });
+
+  it("keeps parents outside a pod event audience from discussing it", async () => {
+    const event = addEvent(72, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    addThread(72, event.id, NOW);
+    const threadId = threads[0].id;
+    const imagePath = "/objects/discussion-images/parent-event-photo";
+    addDiscussionObject(imagePath, PARENT);
+    addAttachment(imagePath, { threadId });
+
+    const listed = await getThreads(`/board/threads?scope=event&eventId=${event.id}`, OTHER_PARENT);
+    expect(listed.status).toBe(200);
+    expect(listed.body).toEqual([]);
+    expect((await getThreads(`/board/threads/${threadId}`, OTHER_PARENT)).status).toBe(403);
+    expect((await createThreadWithImages(OTHER_PARENT, undefined, { eventId: event.id })).status).toBe(403);
+    expect((await createReply(OTHER_PARENT, threadId)).status).toBe(403);
+    expect((await getDiscussionAttachment(OTHER_PARENT, imagePath)).status).toBe(404);
+    expect((await toggleReaction(OTHER_PARENT, "thread", threadId)).status).toBe(403);
+  });
+
+  it("lets an audience parent discuss a team-wide event", async () => {
+    const event = addEvent(73, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = [];
+    event.isAllTeam = true;
+
+    const created = await createThreadWithImages(PARENT, undefined, { eventId: event.id });
+    expect(created.status).toBe(201);
+    expect((await createReply(PARENT, created.body.id)).status).toBe(201);
+  });
+
   it("uses the shared pod, team-wide, and staff audience rules", async () => {
     const event = addEvent(70, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];
