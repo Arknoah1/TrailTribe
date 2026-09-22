@@ -432,15 +432,15 @@ export default function Messages() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pt-4 md:pt-8 px-4 sm:px-6 md:px-8 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl tracking-widest text-foreground leading-none uppercase">Community Board</h1>
+    <div className="w-full min-w-0 max-w-4xl mx-auto space-y-6 pt-4 md:pt-8 px-4 sm:px-6 md:px-8 pb-12">
+      <div className="flex min-w-0 flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-4xl tracking-widest text-foreground leading-none uppercase break-words">Community Board</h1>
           <p className="text-muted-foreground mt-2 text-sm font-medium">Connect, ask questions, and share with the team.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row md:w-auto">
           {isCoachOrAdmin && (
-            <Button variant="outline" asChild className="cel-interactive border-2 border-[#0a0c10]">
+            <Button variant="outline" asChild className="cel-interactive w-full min-w-0 max-w-full border-2 border-[#0a0c10] sm:w-auto">
               <Link href="/messages/new">New Broadcast</Link>
             </Button>
           )}
@@ -451,7 +451,7 @@ export default function Messages() {
               if (!open) setThreadImages([]);
             }}>
               <SheetTrigger asChild>
-                <Button className="cel-interactive border-2 border-[#0a0c10]">
+                <Button className="cel-interactive w-full min-w-0 max-w-full border-2 border-[#0a0c10] sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" /> New Thread
                 </Button>
               </SheetTrigger>

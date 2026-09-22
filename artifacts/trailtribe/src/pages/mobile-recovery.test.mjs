@@ -104,6 +104,20 @@ test("coach and admin mobile routes expose retryable connection-drop states", ()
   assert.match(recoveryUi, /queryClient\.refetchQueries\(\{ type: "active" \}\)/);
 });
 
+test("community board actions stay within the viewport for both action sets", () => {
+  assert.match(messages, /<div className="w-full min-w-0 max-w-4xl/);
+  assert.match(messages, /<div className="flex min-w-0 flex-col md:flex-row/);
+  assert.match(messages, /<div className="min-w-0">\s*<h1[^>]+break-words/);
+  assert.match(messages, /<div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row md:w-auto">/);
+  assert.match(messages, /isCoachOrAdmin && \(/);
+  assert.match(messages, /activeTab !== "events" && activeTab !== "announcements"/);
+  assert.equal(
+    (messages.match(/w-full min-w-0 max-w-full border-2 border-\[#0a0c10\] sm:w-auto/g) ?? []).length,
+    2,
+    "broadcast and thread actions should both use contained responsive widths",
+  );
+});
+
 test("mobile routes report real browser timing marks against Android targets", () => {
   assert.match(routePerformance, /ANDROID_CHROME_TARGETS_MS/);
   assert.match(routePerformance, /"first-useful-content": 1_500/);
