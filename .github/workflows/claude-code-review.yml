@@ -1,36 +1,47 @@
 name: Claude Code Review
 
-# Runs the layered review agent (see .github/claude/code-review-instructions.md)
-# on every PR that changes code, plus on demand.
+# Runs the layered review agent (see .github/claude/code-review-instructions.md):
+#   - on every PR that changes code (posts a PR review comment)
+#   - on every direct push to main (code's already merged, so it opens a
+#     GitHub issue instead, only if it finds something)
+#   - on demand via workflow_dispatch
+#
+# Note: if a PR is merged into main, both triggers fire for that same change
+# (once as the PR diff before merge, once as the push diff after). That's
+# intentional double coverage, not a bug — it costs an extra run, not an
+# extra review comment, since the push path only speaks up when it finds
+# something.
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "PR number to (re-)review"
-        required: true
+        description: "PR number to (re-)review (leave blank to just re-run on current main)"
+        required: false
         type: string
 
 permissions:
   contents: read
   pull-requests: write
-  issues: read
+  issues: write
 
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: claude-review-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
-  review:
-    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+  review-pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - name: Check out PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -49,7 +60,7 @@ jobs:
       # Uses the official Claude Code GitHub Action. Verify the exact input
       # names against https://github.com/anthropics/claude-code-action before
       # first use — this input surface has changed across versions.
-      - name: Run Claude Code review
+      - name: Run Claude Code review (pull request)
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -64,3 +75,62 @@ jobs:
             Post your review as a single PR review comment on this pull request.
           claude_args: |
             --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*)"
+
+  review-push:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pushed commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Claude Code review (direct push to main)
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            This ran because commits landed directly on main — either a direct
+            push, or a manual re-run — not through a reviewed pull request. The
+            code is already merged, so there is no PR to comment on.
+
+            Read and follow .github/claude/code-review-instructions.md exactly,
+            applying all three layers. Determine what changed with:
+              git diff ${{ github.event.before || 'HEAD~1' }} ${{ github.event.after || 'HEAD' }}
+            If `before` is all zeros (a new branch) or the diff command fails,
+            fall back to reviewing the single most recent commit
+            (git show HEAD) instead of erroring out.
+
+            <pr_diff> is that diff. <ticket_context> is the commit message(s)
+            in this push (git log <before>..<after>) — if that's not enough to
+            judge intent, pass Layer C with a WARNING per the instructions,
+            don't block on it.
+
+            There is no PR to post a review comment on. Instead:
+              - If everything passes (no BLOCKER or WARNING in any layer), do
+                nothing at all — do not open an issue just to say "all good."
+              - If you find any BLOCKER or WARNING, open exactly ONE GitHub
+                issue for this push (not one issue per finding), titled
+                "Post-merge review: <short summary> (${{ github.sha }})",
+                labeled `claude-review` (create the label first with
+                `gh label create` if it doesn't exist, ignoring the error if
+                it already does), containing the full three-layer report in
+                the same format as a PR review, plus a one-line note that this
+                already landed on main and may need a follow-up fix commit.
+          claude_args: |
+            --allowed-tools "Read,Grep,Glob,Bash(pnpm run typecheck*),Bash(pnpm --filter *),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(gh issue create*),Bash(gh label create*)"
