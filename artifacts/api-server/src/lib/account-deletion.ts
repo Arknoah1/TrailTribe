@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
 
 type LocalUser = typeof usersTable.$inferSelect;
+type DatabaseConnection = Pick<typeof db, "transaction">;
 
 export type AccountDeletionResult =
   | { ok: true; deletedHousehold: boolean }
@@ -51,9 +52,12 @@ export async function deleteClerkUserId(clerkUserId: string | null): Promise<boo
  * work. If this was the last member of a household, the household-only records
  * are removed too.
  */
-export async function permanentlyDeleteLocalAccount(user: LocalUser): Promise<AccountDeletionResult> {
+export async function permanentlyDeleteLocalAccount(
+  user: LocalUser,
+  database: DatabaseConnection = db,
+): Promise<AccountDeletionResult> {
   try {
-    return await db.transaction(async (tx): Promise<AccountDeletionResult> => {
+    return await database.transaction(async (tx): Promise<AccountDeletionResult> => {
       if (isSuperAdminRole(user)) {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-super-admin-lifecycle'))`);
         const superAdmins = await tx

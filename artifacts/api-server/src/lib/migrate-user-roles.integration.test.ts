@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { eq, sql } from "drizzle-orm";
 import { pool } from "@workspace/db";
+import { usersTable } from "@workspace/db";
 import { runMigrations } from "./migrate";
+import { permanentlyDeleteLocalAccount } from "./account-deletion";
 
 describe("user multi-role migration", () => {
   const emails: string[] = [];
@@ -27,6 +31,20 @@ describe("user multi-role migration", () => {
         ? ["Multi", "Role", email, role, roles]
         : ["Multi", "Role", email, role],
     );
+  }
+
+  async function withTemporaryUsersTable<T>(
+    callback: (testDb: ReturnType<typeof drizzle>) => Promise<T>,
+  ): Promise<T> {
+    const client = await pool.connect();
+    const testDb = drizzle(client);
+    try {
+      await client.query("CREATE TEMP TABLE users (LIKE public.users INCLUDING ALL)");
+      return await callback(testDb);
+    } finally {
+      await client.query("DROP TABLE IF EXISTS users");
+      client.release();
+    }
   }
 
   it("backfills legacy-style inserts with their primary role", async () => {
@@ -68,5 +86,52 @@ describe("user multi-role migration", () => {
     );
 
     expect(result.rows[0]?.definition).toContain("cardinality(roles) = 0");
+  });
+
+  it("blocks deletion of the only super admin when roles is empty", async () => {
+    await withTemporaryUsersTable(async (testDb) => {
+      const [user] = await testDb
+        .insert(usersTable)
+        .values({
+          firstName: "Empty",
+          lastName: "Roles Admin",
+          email: "empty-roles-admin@example.test",
+          role: "super_admin",
+          roles: [],
+        })
+        .returning();
+
+      const result = await permanentlyDeleteLocalAccount(user, testDb);
+
+      expect(result).toEqual({ ok: false, stage: "last_super_admin" });
+
+      const remaining = await testDb
+        .select({ id: usersTable.id, roles: usersTable.roles })
+        .from(usersTable)
+        .where(eq(usersTable.id, user.id));
+      expect(remaining).toEqual([{ id: user.id, roles: [] }]);
+    });
+  });
+
+  it("includes a primary coach with empty roles in the live coach filter query", async () => {
+    await withTemporaryUsersTable(async (testDb) => {
+      const [user] = await testDb
+        .insert(usersTable)
+        .values({
+          firstName: "Empty",
+          lastName: "Roles Coach",
+          email: "empty-roles-coach@example.test",
+          role: "coach",
+          roles: [],
+        })
+        .returning();
+
+      const coaches = await testDb
+        .select({ id: usersTable.id, role: usersTable.role, roles: usersTable.roles })
+        .from(usersTable)
+        .where(sql`${usersTable.role} = ${"coach"} OR ${"coach"} = ANY(${usersTable.roles})`);
+
+      expect(coaches).toContainEqual({ id: user.id, role: "coach", roles: [] });
+    });
   });
 });
