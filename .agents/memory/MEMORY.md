@@ -29,3 +29,4 @@
 - [Combined account responsibilities](combined-account-responsibilities.md) — treat role as legacy primary identity and roles as the complete authorization source
 - [Household pod audience sync](household-pod-audience-sync.md) — household pod corrections must update every member's denormalized pod before event access is evaluated
 - [Publish derived-column backfills](publish-derived-column-backfills.md) — schema diffs do not infer data backfills; new defaults and checks must accept existing production rows
+- [GitHub push sync](github-push-sync.md) — if Git push fails under Replit askpass, use the connected GitHub API and sync the resulting commits back into local refs
