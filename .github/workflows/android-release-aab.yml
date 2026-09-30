@@ -78,6 +78,15 @@ jobs:
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
 
+      - name: Write Firebase config for push notifications
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > artifacts/trailtribe/android/app/google-services.json
+            echo "Wrote google-services.json — push notifications will be enabled in this build."
+          else
+            echo "GOOGLE_SERVICES_JSON_BASE64 not set — building without push notification support."
+          fi
+
       - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}

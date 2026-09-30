@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { notificationsTable, usersTable } from "@workspace/db";
 import { eq, or, and } from "drizzle-orm";
 import { sendEmail } from "./email";
+import { sendPushNotification } from "./push";
 import { getShortNamePrefix } from "../routes/settings";
 import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 
@@ -25,6 +26,12 @@ export async function createNotification(
       link: link ?? null,
       isRead: false,
     });
+
+    // Push is best-effort and must never fail the notification write above —
+    // sendPushNotification already swallows its own errors internally.
+    if (recipient.pushNotifications) {
+      void sendPushNotification({ userId: recipientUserId, title, body, link });
+    }
   } catch (err) {
     console.error("[notifications] Failed to create notification:", err);
   }

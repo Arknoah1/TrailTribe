@@ -9,10 +9,10 @@ import {
   eventTaskSignupsTable,
   eventsTable,
   usersTable,
-  notificationsTable,
 } from "@workspace/db";
 import { eq, and, inArray, count, gte, max } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -721,13 +721,13 @@ router.post("/events/:id/tasks/:taskId/signup", requireApproved, async (req, res
   try {
     const event = await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, eventId) });
     if (event) {
-      await db.insert(notificationsTable).values({
-        recipientUserId: me.id,
-        type: "volunteer_signup",
-        title: "Volunteer sign-up confirmed",
-        body: `You're signed up for "${task.title}" at ${event.title}.`,
-        link: `/events/${eventId}`,
-      });
+      await createNotification(
+        me.id,
+        "volunteer_signup",
+        "Volunteer sign-up confirmed",
+        `You're signed up for "${task.title}" at ${event.title}.`,
+        `/events/${eventId}`,
+      );
     }
   } catch (err) {
     logger.warn({ err }, "Failed to create volunteer signup notification");

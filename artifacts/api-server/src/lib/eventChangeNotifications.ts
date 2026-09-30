@@ -9,6 +9,7 @@ import {
 import { eq } from "drizzle-orm";
 import { addNotificationEmailLinks, createEmailLink } from "./emailLinks";
 import { isDeliverableEmailAddress, sendEmail } from "./email";
+import { sendPushNotification } from "./push";
 import { formatEventDateTime } from "./eventTime";
 import { logger } from "./logger";
 import { getShortNamePrefix } from "../routes/settings";
@@ -131,6 +132,9 @@ async function deliver(
     } catch (err) {
       logger.error({ err, userId: user.id }, "[event-changes] in-app delivery failed");
     }
+    // Fire-and-forget: sendPushNotification already swallows its own errors,
+    // and a slow/failed push provider must never hold up event-change delivery.
+    void sendPushNotification({ userId: user.id, title, body, link });
   }
   if (channels.email) {
     try {

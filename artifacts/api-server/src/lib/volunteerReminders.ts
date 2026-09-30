@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { eventsTable, eventTasksTable, eventTaskSignupsTable, usersTable, notificationsTable } from "@workspace/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
+import { createNotification } from "./notifications";
 import { logger } from "./logger";
 
 async function sendVolunteerReminders(): Promise<void> {
@@ -63,13 +64,13 @@ async function sendVolunteerReminders(): Promise<void> {
         const taskTitles = userTaskDetails.map((t) => t.title).join(", ");
 
         try {
-          await db.insert(notificationsTable).values({
-            recipientUserId: userId,
-            type: "volunteer_reminder",
-            title: `Volunteer reminder: ${event.title}`,
-            body: `You're volunteering in 3 days for "${event.title}": ${taskTitles}.`,
-            link: `/events/${event.id}`,
-          });
+          await createNotification(
+            userId,
+            "volunteer_reminder",
+            `Volunteer reminder: ${event.title}`,
+            `You're volunteering in 3 days for "${event.title}": ${taskTitles}.`,
+            `/events/${event.id}`,
+          );
         } catch (err) {
           logger.warn({ err, userId, eventId: event.id }, "[volunteer-reminders] failed to insert notification");
         }
