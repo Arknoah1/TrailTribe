@@ -60,3 +60,6 @@ APP_BASE_URL = "https://trailteam.app"
 
 [userenv.production]
 ALLOWED_ORIGINS = "https://trailteam.app,https://trailtribemtb.com,https://localhost"
+
+[objectStorage]
+defaultBucketID = "replit-objstore-3e18cc7f-4d06-4f12-a355-e146f6a400f7"
