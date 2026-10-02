@@ -5,11 +5,15 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { SendBroadcastBodyBodyFormat } from "./sendBroadcastBodyBodyFormat";
 import type { SendBroadcastBodyChannel } from "./sendBroadcastBodyChannel";
 
 export interface SendBroadcastBody {
   subject?: string;
   body: string;
+  bodyFormat?: SendBroadcastBodyBodyFormat;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
   channel: SendBroadcastBodyChannel;
   targetPodIds?: string[];
   isAllTeam?: boolean;

@@ -44,7 +44,6 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -56,7 +55,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ComposerLinkPreview } from "@/components/link-preview";
-import { DiscussionImagePicker } from "@/components/discussion-images";
+import { DiscussionImagePicker, DiscussionImages, type DiscussionImagePickerHandle } from "@/components/discussion-images";
+import { RichMessageEditor } from "@/components/rich-message-editor";
+import { RichMessageContent } from "@/components/rich-message-content";
+import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
 
 const newThreadSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -194,7 +196,8 @@ function BroadcastCard({
         </div>
       </CardHeader>
       <CardContent className="pt-4 space-y-3">
-        <div className="text-sm whitespace-pre-wrap prose dark:prose-invert max-w-none">{msg.body}</div>
+        <RichMessageContent text={msg.body} bodyFormat={msg.bodyFormat} />
+        <DiscussionImages paths={msg.imageObjectPaths} scope="messages" />
         {msg.channel === "email" && (
           <div className="pt-2 border-t border-border/50">
             {!msg.emailConfigured ? (
@@ -393,6 +396,7 @@ export default function Messages() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [threadImages, setThreadImages] = useState<string[]>([]);
   const [threadImagesUploading, setThreadImagesUploading] = useState(false);
+  const threadPickerRef = useRef<DiscussionImagePickerHandle>(null);
 
   const podNameMap = new Map<string, string>((pods ?? []).map(p => [String(p.id), p.name]));
 
@@ -412,10 +416,12 @@ export default function Messages() {
   }, []);
 
   const handleCreate = (values: z.infer<typeof newThreadSchema>) => {
+    if (threadImagesUploading || createThread.isPending) return;
     createThread.mutate({
       data: {
         title: values.title,
         body: values.body,
+        bodyFormat: "markdown",
         podId: activeTab === "pod" ? me?.podId : null,
         imageObjectPaths: threadImages,
       }
@@ -427,7 +433,7 @@ export default function Messages() {
         setThreadImages([]);
         queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
       },
-      onError: () => toast({ title: "Failed to create thread", variant: "destructive" })
+      onError: (error) => toast({ title: "Failed to create thread", description: (error as { data?: { error?: string } }).data?.error, variant: "destructive" })
     });
   };
 
@@ -455,7 +461,7 @@ export default function Messages() {
                   <Plus className="h-4 w-4 mr-2" /> New Thread
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="h-[85vh] sm:h-[100vh] sm:max-w-md sm:side-right p-6 border-t-2 sm:border-l-2 border-[#0a0c10] sm:border-t-0 bg-background rounded-t-2xl sm:rounded-none">
+              <SheetContent side="bottom" className="h-[85vh] overflow-y-auto sm:h-[100vh] sm:max-w-md sm:side-right p-6 border-t-2 sm:border-l-2 border-[#0a0c10] sm:border-t-0 bg-background rounded-t-2xl sm:rounded-none">
                 <SheetHeader className="mb-6">
                   <SheetTitle className="font-display text-2xl uppercase tracking-wider text-primary">
                     Start a {activeTab === "pod" ? "Pod" : "General"} Thread
@@ -476,13 +482,14 @@ export default function Messages() {
                       <FormItem>
                         <FormLabel className="font-bold">Message</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Share your thoughts..." className="min-h-[200px] border-2 border-[#0a0c10]" {...field} />
+                          <RichMessageEditor placeholder="Share your thoughts..." className="min-h-[200px] border-2 border-[#0a0c10]" {...field}
+                            disabled={createThread.isPending} onPasteImages={files => threadPickerRef.current?.uploadFiles(files)} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />
-                     <ComposerLinkPreview text={draftBody} />
-                    <DiscussionImagePicker paths={threadImages} onChange={setThreadImages} onUploadingChange={setThreadImagesUploading} disabled={createThread.isPending} />
+                    <ComposerLinkPreview text={messageLinkPreviewText(draftBody)} />
+                    <DiscussionImagePicker ref={threadPickerRef} paths={threadImages} onChange={setThreadImages} onUploadingChange={setThreadImagesUploading} disabled={createThread.isPending} />
                     <Button type="submit" className="w-full cel-interactive border-2 border-[#0a0c10]" disabled={createThread.isPending || threadImagesUploading}>
                       {createThread.isPending ? "Posting..." : "Post Thread"}
                     </Button>

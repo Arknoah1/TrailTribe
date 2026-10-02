@@ -11,6 +11,7 @@ export const broadcastsTable = pgTable("broadcasts", {
   senderUserId: integer("sender_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   subject: text("subject"),
   body: text("body").notNull(),
+  bodyFormat: text("body_format", { enum: ["plain", "markdown"] }).notNull().default("plain"),
   channel: text("channel", { enum: messageChannelEnum }).notNull().default("email"),
   targetPodIds: text("target_pod_ids").array(),
   isAllTeam: boolean("is_all_team").notNull().default(false),
@@ -42,3 +43,17 @@ export const insertBroadcastSchema = createInsertSchema(broadcastsTable).omit({
 
 export type InsertBroadcast = z.infer<typeof insertBroadcastSchema>;
 export type Broadcast = typeof broadcastsTable.$inferSelect;
+
+export const broadcastImagesTable = pgTable("broadcast_images", {
+  id: serial("id").primaryKey(),
+  broadcastId: integer("broadcast_id").notNull().references(() => broadcastsTable.id, { onDelete: "cascade" }),
+  objectPath: text("object_path").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  size: integer("size").notNull(),
+  generation: text("generation").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("broadcast_images_broadcast_id_idx").on(t.broadcastId),
+]);
+
+export type BroadcastImage = typeof broadcastImagesTable.$inferSelect;

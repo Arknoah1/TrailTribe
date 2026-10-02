@@ -129,4 +129,34 @@ describe("transactional email headers", () => {
       }
     }
   });
+
+  it("passes verified inline image bytes through as a MIME attachment with its CID", async () => {
+    const configuredFromAddress = process.env.EMAIL_FROM;
+    const attachments = [{
+      filename: "broadcast-image-1.png",
+      content: Buffer.from("verified image bytes"),
+      contentType: "image/png",
+      cid: "broadcast-42-0@trailteam",
+    }];
+    process.env.EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>";
+    smtp.sendMail.mockClear();
+
+    try {
+      const result = await email.sendEmail({
+        to: "family@example.com",
+        subject: "Broadcast with an image",
+        text: "A picture is attached.",
+        html: '<img src="cid:broadcast-42-0@trailteam">',
+        attachments,
+      });
+      expect(result).toEqual({ status: "sent" });
+      expect(smtp.sendMail).toHaveBeenCalledWith(expect.objectContaining({
+        attachments,
+        html: '<img src="cid:broadcast-42-0@trailteam">',
+      }));
+    } finally {
+      if (configuredFromAddress === undefined) delete process.env.EMAIL_FROM;
+      else process.env.EMAIL_FROM = configuredFromAddress;
+    }
+  });
 });

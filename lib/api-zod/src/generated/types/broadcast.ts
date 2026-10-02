@@ -5,6 +5,7 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { BroadcastBodyFormat } from "./broadcastBodyFormat";
 import type { BroadcastChannel } from "./broadcastChannel";
 
 export interface Broadcast {
@@ -12,6 +13,9 @@ export interface Broadcast {
   senderUserId?: number | null;
   subject?: string | null;
   body: string;
+  bodyFormat?: BroadcastBodyFormat;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
   channel: BroadcastChannel;
   targetPodIds?: string[] | null;
   isAllTeam: boolean;

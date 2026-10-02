@@ -815,10 +815,19 @@ export interface BoardEventRef {
   startTime: string;
 }
 
+export type BoardThreadBodyFormat =
+  (typeof BoardThreadBodyFormat)[keyof typeof BoardThreadBodyFormat];
+
+export const BoardThreadBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export interface BoardThread {
   id: number;
   title: string;
   body: string;
+  bodyFormat?: BoardThreadBodyFormat;
   /** @maxItems 4 */
   imageObjectPaths: string[];
   authorUserId?: number | null;
@@ -856,11 +865,20 @@ export type BoardThreadWithDetails = BoardThread & {
   permissions: BoardThreadPermissions;
 };
 
+export type BoardPostBodyFormat =
+  (typeof BoardPostBodyFormat)[keyof typeof BoardPostBodyFormat];
+
+export const BoardPostBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export interface BoardPost {
   id: number;
   threadId: number;
   authorUserId?: number | null;
   body: string;
+  bodyFormat?: BoardPostBodyFormat;
   /** @maxItems 4 */
   imageObjectPaths: string[];
   isDeleted: boolean;
@@ -949,17 +967,35 @@ export interface ToggleBoardReactionBody {
   reaction: ToggleBoardReactionBodyReaction;
 }
 
+export type CreateBoardThreadBodyBodyFormat =
+  (typeof CreateBoardThreadBodyBodyFormat)[keyof typeof CreateBoardThreadBodyBodyFormat];
+
+export const CreateBoardThreadBodyBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export interface CreateBoardThreadBody {
   title: string;
   body: string;
+  bodyFormat?: CreateBoardThreadBodyBodyFormat;
   podId?: string | null;
   eventId?: number | null;
   /** @maxItems 4 */
   imageObjectPaths?: string[];
 }
 
+export type CreateBoardPostBodyBodyFormat =
+  (typeof CreateBoardPostBodyBodyFormat)[keyof typeof CreateBoardPostBodyBodyFormat];
+
+export const CreateBoardPostBodyBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export interface CreateBoardPostBody {
   body: string;
+  bodyFormat?: CreateBoardPostBodyBodyFormat;
   /** @maxItems 4 */
   imageObjectPaths?: string[];
 }
@@ -997,6 +1033,14 @@ export interface LinkPreviewResult {
   provider: string | null;
 }
 
+export type BroadcastBodyFormat =
+  (typeof BroadcastBodyFormat)[keyof typeof BroadcastBodyFormat];
+
+export const BroadcastBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export type BroadcastChannel =
   (typeof BroadcastChannel)[keyof typeof BroadcastChannel];
 
@@ -1011,6 +1055,9 @@ export interface Broadcast {
   senderUserId?: number | null;
   subject?: string | null;
   body: string;
+  bodyFormat?: BroadcastBodyFormat;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
   channel: BroadcastChannel;
   targetPodIds?: string[] | null;
   isAllTeam: boolean;
@@ -1031,6 +1078,14 @@ export type BroadcastWithSender = Broadcast & {
   sender?: User | null;
 };
 
+export type SendBroadcastBodyBodyFormat =
+  (typeof SendBroadcastBodyBodyFormat)[keyof typeof SendBroadcastBodyBodyFormat];
+
+export const SendBroadcastBodyBodyFormat = {
+  plain: "plain",
+  markdown: "markdown",
+} as const;
+
 export type SendBroadcastBodyChannel =
   (typeof SendBroadcastBodyChannel)[keyof typeof SendBroadcastBodyChannel];
 
@@ -1043,6 +1098,9 @@ export const SendBroadcastBodyChannel = {
 export interface SendBroadcastBody {
   subject?: string;
   body: string;
+  bodyFormat?: SendBroadcastBodyBodyFormat;
+  /** @maxItems 4 */
+  imageObjectPaths?: string[];
   channel: SendBroadcastBodyChannel;
   targetPodIds?: string[];
   isAllTeam?: boolean;

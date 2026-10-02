@@ -1,10 +1,12 @@
-import { useListPods, useSendBroadcast } from "@workspace/api-client-react";
-import { useState } from "react";
+import { getListBroadcastsQueryKey, useListPods, useSendBroadcast } from "@workspace/api-client-react";
+import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichMessageEditor } from "@/components/rich-message-editor";
+import { DiscussionImagePicker, type DiscussionImagePickerHandle } from "@/components/discussion-images";
 import { Label } from "@/components/ui/label";
 import { ChevronLeft, Send, Mail, Smartphone, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +22,10 @@ export default function NewBroadcast() {
   const [isAllTeam, setIsAllTeam] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const imagePickerRef = useRef<DiscussionImagePickerHandle>(null);
+  const queryClient = useQueryClient();
 
   const sendMutation = useSendBroadcast({
     mutation: {
@@ -30,9 +36,10 @@ export default function NewBroadcast() {
           pod_count: variables.data.targetPodIds?.length ?? 0,
         });
         toast({ title: "Broadcast sent successfully" });
-        setLocation("/messages");
+        queryClient.invalidateQueries({ queryKey: getListBroadcastsQueryKey() });
+        setLocation("/messages?tab=announcements");
       },
-      onError: () => toast({ title: "Failed to send broadcast", variant: "destructive" })
+      onError: (error) => toast({ title: "Failed to send broadcast", description: (error as { data?: { error?: string } }).data?.error, variant: "destructive" })
     }
   });
 
@@ -47,6 +54,7 @@ export default function NewBroadcast() {
   };
 
   const handleSend = () => {
+    if (uploading || sendMutation.isPending) return;
     if (!body) {
       toast({ title: "Message body is required", variant: "destructive" });
       return;
@@ -65,6 +73,8 @@ export default function NewBroadcast() {
         data: {
           subject,
           body,
+          bodyFormat: "markdown",
+          imageObjectPaths: images,
           channel: channel as any,
           targetPodIds: isAllTeam ? [] : selectedPods,
           isAllTeam
@@ -74,7 +84,7 @@ export default function NewBroadcast() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-3xl mx-auto space-y-6">
+    <div className="min-w-0 p-6 pb-[calc(var(--mobile-bottom-nav-height,78px)+env(safe-area-inset-bottom)+1.5rem)] md:p-8 max-w-3xl mx-auto space-y-6">
       <Link href="/messages" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="h-4 w-4 mr-1" /> Back to Messages
       </Link>
@@ -140,23 +150,27 @@ export default function NewBroadcast() {
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
-              <Label>Subject <span className="text-muted-foreground font-normal">(required for email)</span></Label>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Practice relocated today" />
+              <Label htmlFor="broadcast-subject">Subject <span className="text-muted-foreground font-normal">(required for email)</span></Label>
+              <Input id="broadcast-subject" value={subject} onChange={e => setSubject(e.target.value)} placeholder="e.g. Practice relocated today" />
             </div>
             <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea 
+              <Label htmlFor="broadcast-body">Message</Label>
+              <RichMessageEditor
+                id="broadcast-body"
                 className="min-h-[150px]" 
                 value={body} 
-                onChange={e => setBody(e.target.value)} 
+                onChange={setBody}
+                disabled={sendMutation.isPending}
+                onPasteImages={files => imagePickerRef.current?.uploadFiles(files)}
                 placeholder="Type your message here..." 
               />
+              <DiscussionImagePicker ref={imagePickerRef} scope="messages" paths={images} onChange={setImages} onUploadingChange={setUploading} disabled={sendMutation.isPending} />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button onClick={handleSend} disabled={sendMutation.isPending || !body || selectedChannels.length === 0} className="w-full sm:w-auto">
+          <Button onClick={handleSend} disabled={sendMutation.isPending || uploading || !body.trim() || selectedChannels.length === 0} className="w-full sm:w-auto" data-testid="send-broadcast">
             <Send className="h-4 w-4 mr-2" />
             {sendMutation.isPending ? "Sending..." : "Send Broadcast"}
           </Button>

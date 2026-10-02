@@ -1974,6 +1974,47 @@ paths:
               schema:
                 $ref: "#/components/schemas/Broadcast"
 
+  /messages/attachments/request-url:
+    post:
+      operationId: requestBroadcastImageUploadUrl
+      tags: [messages]
+      summary: Request a private upload URL for a broadcast image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardImageUploadInput"
+      responses:
+        "200":
+          description: Presigned broadcast image upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
+  /messages/attachments/{path}:
+    get:
+      operationId: getBroadcastImage
+      tags: [messages]
+      summary: Serve a broadcast image to its captured audience
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Private broadcast image bytes
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Image not found or outside the viewer's audience
+
   /messages/{id}/archive:
     post:
       operationId: archiveBroadcast
@@ -3987,6 +4028,9 @@ components:
           type: string
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
         imageObjectPaths:
           type: array
           items:
@@ -4060,6 +4104,9 @@ components:
           nullable: true
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
         imageObjectPaths:
           type: array
           items:
@@ -4156,6 +4203,9 @@ components:
           type: string
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
         podId:
           type: string
           nullable: true
@@ -4174,6 +4224,9 @@ components:
       properties:
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
         imageObjectPaths:
           type: array
           items:
@@ -4230,6 +4283,14 @@ components:
           nullable: true
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
         channel:
           type: string
           enum: [email, sms, push]
@@ -4290,6 +4351,14 @@ components:
           type: string
         body:
           type: string
+        bodyFormat:
+          type: string
+          enum: [plain, markdown]
+        imageObjectPaths:
+          type: array
+          items:
+            type: string
+          maxItems: 4
         channel:
           type: string
           enum: [email, sms, push]

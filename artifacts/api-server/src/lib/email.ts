@@ -86,6 +86,12 @@ export interface SendEmailOptions {
   text: string;
   html?: string;
   replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    contentType: string;
+    cid?: string;
+  }>;
 }
 
 export type EmailResult =
@@ -123,6 +129,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
       text: opts.text,
       ...(opts.html ? { html: opts.html } : {}),
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+      ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
     });
     logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
     return { status: "sent" };

@@ -15,6 +15,17 @@ import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
+import { sendEmail, isDeliverableEmailAddress } from "../lib/email";
+import { getShortNamePrefix } from "./settings";
+import { buildAppUrl, createEmailLink, addNotificationEmailLinks } from "../lib/emailLinks";
+import { hasInlineMarkdownImages, renderEmailContent } from "../lib/richContent";
+import {
+  MAX_PRIVATE_IMAGE_BYTES,
+  MAX_PRIVATE_IMAGE_COUNT,
+  PRIVATE_IMAGE_TYPES,
+  loadVerifiedPrivateImage,
+  validatePrivateImageTotal,
+} from "../lib/privateImages";
 import { promises as dnsPromises } from "dns";
 import * as http from "http";
 import * as https from "https";
@@ -40,10 +51,7 @@ import {
 const router = Router();
 const str = (p: string | string[]): string => Array.isArray(p) ? p[0] : p;
 const objectStorageService = new ObjectStorageService();
-const MAX_DISCUSSION_IMAGES = 4;
 const DISCUSSION_IMAGE_PATH = /^\/objects\/discussion-images\/[A-Za-z0-9._-]+$/;
-const DISCUSSION_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const MAX_DISCUSSION_IMAGE_BYTES = 10 * 1024 * 1024;
 
 class DiscussionImageValidationError extends Error {
   constructor(message: string) {
@@ -57,8 +65,8 @@ async function validateOwnedDiscussionImages(
   value: unknown,
 ): Promise<Array<{ objectPath: string; contentType: string; size: number; generation: string }>> {
   if (value == null) return [];
-  if (!Array.isArray(value) || value.length > MAX_DISCUSSION_IMAGES) {
-    throw new DiscussionImageValidationError(`Attach no more than ${MAX_DISCUSSION_IMAGES} images`);
+  if (!Array.isArray(value) || value.length > MAX_PRIVATE_IMAGE_COUNT) {
+    throw new DiscussionImageValidationError(`Attach no more than ${MAX_PRIVATE_IMAGE_COUNT} images`);
   }
   const paths = [...new Set(value)];
   if (paths.length !== value.length || paths.some((path) => typeof path !== "string" || !DISCUSSION_IMAGE_PATH.test(path))) {
@@ -78,7 +86,7 @@ async function validateOwnedDiscussionImages(
       }
       const [metadata] = await file.getMetadata();
       const size = Number(metadata.size ?? 0);
-      if (!DISCUSSION_IMAGE_TYPES.has(metadata.contentType ?? "") || !Number.isFinite(size) || size <= 0 || size > MAX_DISCUSSION_IMAGE_BYTES) {
+      if (!PRIVATE_IMAGE_TYPES.has(metadata.contentType ?? "") || !Number.isFinite(size) || size <= 0 || size > MAX_PRIVATE_IMAGE_BYTES) {
         throw new DiscussionImageValidationError("Attachment must be a supported image under 10 MB");
       }
       if (!metadata.generation) throw new DiscussionImageValidationError("Could not verify image upload");
@@ -92,6 +100,11 @@ async function validateOwnedDiscussionImages(
       if (error instanceof DiscussionImageValidationError) throw error;
       throw new DiscussionImageValidationError("Invalid discussion image");
     }
+  }
+  try {
+    validatePrivateImageTotal(attachments);
+  } catch (error) {
+    throw new DiscussionImageValidationError(error instanceof Error ? error.message : "Images exceed the 15 MB total email attachment limit");
   }
   return attachments;
 }
@@ -238,9 +251,14 @@ async function enrichPost(
   };
 }
 
-async function notifyThreadParticipants(threadId: number, actorUserId: number) {
+async function notifyThreadParticipants(
+  threadId: number,
+  actorUserId: number,
+  notificationPost: typeof boardPostsTable.$inferSelect,
+) {
   // Collect all unique user IDs who posted or authored the thread (excluding actor)
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) return;
   const event = thread?.eventId
     ? await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })
     : null;
@@ -262,6 +280,25 @@ async function notifyThreadParticipants(threadId: number, actorUserId: number) {
 
   const participants = await db.select().from(usersTable).where(inArray(usersTable.id, Array.from(participantIds)));
 
+  const postImages = await db.select().from(boardAttachmentsTable)
+    .where(eq(boardAttachmentsTable.postId, notificationPost.id));
+
+  const verifiedImages = await Promise.all(postImages.map((image) => loadVerifiedPrivateImage(image)));
+  const inlineImageDescriptors = verifiedImages.map((image, index) => ({
+    cid: `board-reply-${notificationPost?.id}-${index}@trailteam`,
+    filename: `discussion-image-${index + 1}.${image.contentType.split("/")[1]}`,
+  }));
+  const richContent = renderEmailContent(
+    notificationPost.body,
+    notificationPost.bodyFormat,
+    inlineImageDescriptors,
+  );
+  const orgPrefix = await getShortNamePrefix();
+  const threadUrl = `/messages/thread/${threadId}`;
+  const threadHref = buildAppUrl(threadUrl);
+  const settingsHref = buildAppUrl("/profile?tab=notifications");
+  const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
+
   for (const user of participants) {
     if (user.notificationPreferences?.boardReplies === false) continue;
     await createNotification(
@@ -271,6 +308,45 @@ async function notifyThreadParticipants(threadId: number, actorUserId: number) {
       `Someone replied to "${notificationThreadTitle}"`,
       `/messages/thread/${threadId}`
     );
+    // Email eligibility and visibility are independently checked; the current
+    // thread audience remains authoritative if a member changed pods after posting.
+    if (
+      !user.notificationsEnabled
+      || !user.emailNotifications
+      || !isDeliverableEmailAddress(user.email)
+      || !(await canAccessThread(user, thread))
+    ) continue;
+    const messageText = addNotificationEmailLinks(
+      [
+        `Someone replied to "${notificationThreadTitle}":`,
+        "",
+        richContent.text,
+        "",
+        "— TrailTeam",
+      ].join("\n"),
+      [threadLink],
+    );
+    const safeHref = threadHref?.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    const safeSettingsHref = settingsHref?.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    const inlineHtml = [
+      `<p>Someone replied to <strong>${notificationThreadTitle.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!)}</strong>:</p>`,
+      richContent.html,
+      safeHref ? `<p><a href="${safeHref}">Open discussion in TrailTeam</a></p>` : "",
+      `<p style="font-size:12px;color:#59636e">To update notification preferences, update your notification settings in TrailTeam${safeSettingsHref ? `: <a href="${safeSettingsHref}">notification settings</a>` : ""}.</p>`,
+    ].join("");
+    await sendEmail({
+      to: user.email,
+      subject: `${orgPrefix}New reply on the board`,
+      text: messageText.text,
+      html: `<!doctype html><html><body style="font-family:Arial,sans-serif;line-height:1.5;color:#0a0c10"><main style="max-width:640px;margin:0 auto;padding:24px">${inlineHtml}</main></body></html>`,
+      attachments: verifiedImages.map((image, index) => ({
+        filename: inlineImageDescriptors[index].filename,
+        content: image.bytes,
+        contentType: image.contentType,
+        cid: inlineImageDescriptors[index].cid,
+      })),
+      replyTo: undefined,
+    });
   }
 }
 
@@ -442,7 +518,16 @@ router.post("/board/threads", requireApproved, async (req, res) => {
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
 
   const { title, body, podId, eventId } = req.body;
-  if (!title || !body) { res.status(400).json({ error: "title and body required" }); return; }
+  const bodyFormat = req.body.bodyFormat ?? "plain";
+  if (typeof title !== "string" || title.length === 0 || typeof body !== "string" || body.length === 0) {
+    res.status(400).json({ error: "title and body required" }); return;
+  }
+  if (bodyFormat !== "plain" && bodyFormat !== "markdown") {
+    res.status(400).json({ error: "bodyFormat must be plain or markdown" }); return;
+  }
+  if (bodyFormat === "markdown" && hasInlineMarkdownImages(body)) {
+    res.status(400).json({ error: "Inline Markdown images are not supported. Upload pictures as attachments instead." }); return;
+  }
   // Disallow ambiguous scope: a thread must be general, pod-scoped, OR event-linked — not a mix
   if (podId && eventId) {
     res.status(400).json({ error: "A thread cannot have both podId and eventId" }); return;
@@ -465,6 +550,7 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     const [created] = await executor.insert(boardThreadsTable).values({
       title,
       body,
+      bodyFormat,
       authorUserId: me.id,
       podId: podId ?? null,
       eventId: eventId ?? null,
@@ -560,7 +646,14 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   }
 
   const { body } = req.body;
-  if (!body) { res.status(400).json({ error: "body required" }); return; }
+  const bodyFormat = req.body.bodyFormat ?? "plain";
+  if (typeof body !== "string" || body.length === 0) { res.status(400).json({ error: "body required" }); return; }
+  if (bodyFormat !== "plain" && bodyFormat !== "markdown") {
+    res.status(400).json({ error: "bodyFormat must be plain or markdown" }); return;
+  }
+  if (bodyFormat === "markdown" && hasInlineMarkdownImages(body)) {
+    res.status(400).json({ error: "Inline Markdown images are not supported. Upload pictures as attachments instead." }); return;
+  }
   const createPost = async (
     executor: Pick<typeof db, "insert" | "update">,
     attachments: Awaited<ReturnType<typeof validateOwnedDiscussionImages>>,
@@ -569,6 +662,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
       threadId,
       authorUserId: me.id,
       body,
+      bodyFormat,
       isDeleted: false,
     }).returning();
     if (attachments.length) {
@@ -602,7 +696,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   }
 
   // Notify participants (non-blocking)
-  notifyThreadParticipants(threadId, me.id)
+    notifyThreadParticipants(threadId, me.id, post)
     .catch((err) => logger.error({ err }, "[board] notify participants error"));
 
   const result = await enrichPost(post, me);

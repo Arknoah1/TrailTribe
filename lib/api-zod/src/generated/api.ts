@@ -2723,12 +2723,19 @@ export const ListBroadcastsQueryParams = zod.object({
   podId: zod.coerce.string().optional(),
 });
 
+export const listBroadcastsResponseOneImageObjectPathsMax = 4;
+
 export const ListBroadcastsResponseItem = zod
   .object({
     id: zod.number(),
     senderUserId: zod.number().nullish(),
     subject: zod.string().nullish(),
     body: zod.string(),
+    bodyFormat: zod.enum(["plain", "markdown"]).optional(),
+    imageObjectPaths: zod
+      .array(zod.string())
+      .max(listBroadcastsResponseOneImageObjectPathsMax)
+      .optional(),
     channel: zod.enum(["email", "sms", "push"]),
     targetPodIds: zod.array(zod.string()).nullish(),
     isAllTeam: zod.boolean(),
@@ -2803,12 +2810,42 @@ export const ListBroadcastsResponse = zod.array(ListBroadcastsResponseItem);
 /**
  * @summary Send a broadcast to pods or whole team (coach/admin only)
  */
+export const sendBroadcastBodyImageObjectPathsMax = 4;
+
 export const SendBroadcastBody = zod.object({
   subject: zod.string().optional(),
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(sendBroadcastBodyImageObjectPathsMax)
+    .optional(),
   channel: zod.enum(["email", "sms", "push"]),
   targetPodIds: zod.array(zod.string()).optional(),
   isAllTeam: zod.boolean().optional(),
+});
+
+/**
+ * @summary Request a private upload URL for a broadcast image
+ */
+export const requestBroadcastImageUploadUrlBodySizeMax = 10485760;
+
+export const RequestBroadcastImageUploadUrlBody = zod.object({
+  name: zod.string(),
+  size: zod.number().min(1).max(requestBroadcastImageUploadUrlBodySizeMax),
+  contentType: zod.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+});
+
+export const RequestBroadcastImageUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
+});
+
+/**
+ * @summary Serve a broadcast image to its captured audience
+ */
+export const GetBroadcastImageParams = zod.object({
+  path: zod.coerce.string(),
 });
 
 /**
@@ -2818,11 +2855,18 @@ export const ArchiveBroadcastParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const archiveBroadcastResponseImageObjectPathsMax = 4;
+
 export const ArchiveBroadcastResponse = zod.object({
   id: zod.number(),
   senderUserId: zod.number().nullish(),
   subject: zod.string().nullish(),
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(archiveBroadcastResponseImageObjectPathsMax)
+    .optional(),
   channel: zod.enum(["email", "sms", "push"]),
   targetPodIds: zod.array(zod.string()).nullish(),
   isAllTeam: zod.boolean(),
@@ -2857,11 +2901,18 @@ export const UnarchiveBroadcastParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const unarchiveBroadcastResponseImageObjectPathsMax = 4;
+
 export const UnarchiveBroadcastResponse = zod.object({
   id: zod.number(),
   senderUserId: zod.number().nullish(),
   subject: zod.string().nullish(),
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
+  imageObjectPaths: zod
+    .array(zod.string())
+    .max(unarchiveBroadcastResponseImageObjectPathsMax)
+    .optional(),
   channel: zod.enum(["email", "sms", "push"]),
   targetPodIds: zod.array(zod.string()).nullish(),
   isAllTeam: zod.boolean(),
@@ -2922,6 +2973,7 @@ export const ListBoardThreadsResponseItem = zod
     id: zod.number(),
     title: zod.string(),
     body: zod.string(),
+    bodyFormat: zod.enum(["plain", "markdown"]).optional(),
     imageObjectPaths: zod
       .array(zod.string())
       .max(listBoardThreadsResponseOneImageObjectPathsMax),
@@ -2981,6 +3033,7 @@ export const createBoardThreadBodyImageObjectPathsMax = 4;
 export const CreateBoardThreadBody = zod.object({
   title: zod.string(),
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
   podId: zod.string().nullish(),
   eventId: zod.number().nullish(),
   imageObjectPaths: zod
@@ -3019,6 +3072,7 @@ export const GetBoardThreadResponse = zod
     id: zod.number(),
     title: zod.string(),
     body: zod.string(),
+    bodyFormat: zod.enum(["plain", "markdown"]).optional(),
     imageObjectPaths: zod
       .array(zod.string())
       .max(getBoardThreadResponseOneImageObjectPathsMax),
@@ -3091,6 +3145,7 @@ export const ListBoardPostsResponseItem = zod
     threadId: zod.number(),
     authorUserId: zod.number().nullish(),
     body: zod.string(),
+    bodyFormat: zod.enum(["plain", "markdown"]).optional(),
     imageObjectPaths: zod
       .array(zod.string())
       .max(listBoardPostsResponseOneImageObjectPathsMax),
@@ -3136,6 +3191,7 @@ export const createBoardPostBodyImageObjectPathsMax = 4;
 
 export const CreateBoardPostBody = zod.object({
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
   imageObjectPaths: zod
     .array(zod.string())
     .max(createBoardPostBodyImageObjectPathsMax)
@@ -3209,6 +3265,7 @@ export const PinBoardThreadResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
   body: zod.string(),
+  bodyFormat: zod.enum(["plain", "markdown"]).optional(),
   imageObjectPaths: zod
     .array(zod.string())
     .max(pinBoardThreadResponseImageObjectPathsMax),

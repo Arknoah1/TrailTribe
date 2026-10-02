@@ -14,6 +14,10 @@ const COACH = {
   lastName: "Trail",
   avatarUrl: null,
   isActive: true,
+  email: "coach@example.test",
+  emailNotifications: true,
+  notificationsEnabled: true,
+  notificationPreferences: { boardReplies: true },
 };
 const RIDER = {
   id: 2,
@@ -58,6 +62,10 @@ const OTHER_PARENT = {
 const notificationMock = vi.hoisted(() => ({
   createNotification: vi.fn(),
 }));
+const emailMock = vi.hoisted(() => ({
+  sendEmail: vi.fn(async () => ({ status: "sent" as const })),
+  getShortNamePrefix: vi.fn(async () => "TrailTeam: "),
+}));
 
 type EventFixture = {
   id: number;
@@ -72,6 +80,7 @@ type ThreadFixture = {
   id: number;
   title: string;
   body: string;
+  bodyFormat?: "plain" | "markdown";
   authorUserId: number;
   eventId: number;
   podId: null;
@@ -86,6 +95,7 @@ type PostFixture = {
   threadId: number;
   authorUserId: number;
   body: string;
+  bodyFormat?: "plain" | "markdown";
   isDeleted: boolean;
   createdAt: Date;
 };
@@ -239,6 +249,7 @@ vi.mock("@workspace/db", () => {
         const query = chain(() => {
           const source = (query as any)._source;
           if (source === boardPostsTable) return posts;
+          if (source === boardAttachmentsTable) return attachments;
           if (source === usersTable) return users;
           const eventId = currentEventId ?? (query as any)._where?.right;
           return eventId != null
@@ -473,6 +484,11 @@ vi.mock("../middlewares/requireAuth", () => ({
 }));
 
 vi.mock("../lib/notifications", () => notificationMock);
+vi.mock("../lib/email", () => ({
+  sendEmail: emailMock.sendEmail,
+  isDeliverableEmailAddress: (email: string | null | undefined) => Boolean(email),
+}));
+vi.mock("./settings", () => ({ getShortNamePrefix: emailMock.getShortNamePrefix }));
 vi.mock("../lib/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -516,6 +532,7 @@ beforeEach(() => {
   currentReaction = "helpful";
   nextPostId = 1000;
   notificationMock.createNotification.mockClear();
+  emailMock.sendEmail.mockClear();
   selectCallIndex = 0;
   PARENT.podId = "pod-a";
 });
@@ -608,7 +625,12 @@ async function getThreads(path: string, user: DiscussionUser = COACH) {
   return { status: response.status, body: await response.json() };
 }
 
-async function createReply(user: DiscussionUser, threadId: number, body = "A reply") {
+async function createReply(
+  user: DiscussionUser,
+  threadId: number,
+  body = "A reply",
+  options: { bodyFormat?: "plain" | "markdown"; imageObjectPaths?: unknown } = {},
+) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = threadId;
   currentAttachmentPath = null;
@@ -618,7 +640,7 @@ async function createReply(user: DiscussionUser, threadId: number, body = "A rep
       "content-type": "application/json",
       "x-test-user": user.clerkUserId,
     },
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body, ...options }),
   });
   return { status: response.status, body: await response.json() };
 }
@@ -626,7 +648,7 @@ async function createReply(user: DiscussionUser, threadId: number, body = "A rep
 async function createThreadWithImages(
   user: DiscussionUser,
   imageObjectPaths: unknown,
-  options: { podId?: string; eventId?: number } = {},
+  options: { podId?: string; eventId?: number; bodyFormat?: "plain" | "markdown"; body?: string } = {},
 ) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = null;
@@ -721,6 +743,43 @@ async function deletePost(user: typeof COACH, postId: number) {
 }
 
 describe("discussion image security boundaries", () => {
+  it("stores Markdown formats, keeps omitted formats plain, rejects inline images, and sends private CID reply pictures", async () => {
+    const markdownThread = await createThreadWithImages(RIDER, [], {
+      bodyFormat: "markdown",
+      body: "**Rich** discussion",
+    });
+    expect(markdownThread.status).toBe(201);
+    expect(markdownThread.body.bodyFormat).toBe("markdown");
+
+    const legacyThread = await createThreadWithImages(RIDER, []);
+    expect(legacyThread.status).toBe(201);
+    expect(legacyThread.body.bodyFormat).toBe("plain");
+
+    const inlineImageThread = await createThreadWithImages(RIDER, [], {
+      bodyFormat: "markdown",
+      body: "![remote](https://example.test/image.png)",
+    });
+    expect(inlineImageThread.status).toBe(400);
+    expect(inlineImageThread.body.error).toContain("Upload pictures as attachments");
+
+    const threadId = 701;
+    addThread(threadId, 0, NOW);
+    const replyImagePath = "/objects/discussion-images/rich-reply";
+    addDiscussionObject(replyImagePath, RIDER);
+    const reply = await createReply(RIDER, threadId, "| Pace |\n| --- |\n| **steady** |", {
+      bodyFormat: "markdown",
+      imageObjectPaths: [replyImagePath],
+    });
+    expect(reply.status).toBe(201);
+    expect(reply.body.bodyFormat).toBe("markdown");
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalled());
+    const email = emailMock.sendEmail.mock.calls[0][0];
+    expect(email.html).toContain("<table");
+    expect(email.html).toContain("cid:board-reply-");
+    expect(email.attachments[0].contentType).toBe("image/jpeg");
+    expect(email.text).toContain("steady");
+  });
+
   it("rejects images owned by another user, malformed paths, and paths already attached elsewhere", async () => {
     const ownedByRider = "/objects/discussion-images/rider-photo";
     addDiscussionObject(ownedByRider, RIDER);

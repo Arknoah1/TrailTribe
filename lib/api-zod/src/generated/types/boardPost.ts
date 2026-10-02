@@ -5,12 +5,14 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { BoardPostBodyFormat } from "./boardPostBodyFormat";
 
 export interface BoardPost {
   id: number;
   threadId: number;
   authorUserId?: number | null;
   body: string;
+  bodyFormat?: BoardPostBodyFormat;
   /** @maxItems 4 */
   imageObjectPaths: string[];
   isDeleted: boolean;

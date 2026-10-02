@@ -153,7 +153,7 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
   try {
     const raw = req.params.path;
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
-    if (wildcardPath.startsWith("discussion-images/")) {
+    if (wildcardPath.startsWith("discussion-images/") || wildcardPath.startsWith("broadcast-images/")) {
       res.status(404).json({ error: "Object not found" });
       return;
     }

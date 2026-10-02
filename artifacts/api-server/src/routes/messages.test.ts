@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   allUsers: [] as Record<string, unknown>[],
   broadcasts: [] as Record<string, unknown>[],
   broadcastRecipients: [] as Record<string, unknown>[],
+  broadcastImages: [] as Record<string, unknown>[],
+  broadcastImageObjects: new Map<string, { generation: string; versions: Map<string, { contentType: string; bytes: Buffer }> }>(),
+  broadcastImagePolicies: new Map<string, { owner: string; visibility: "private"; aclRules: [] }>(),
   currentUser: null as Record<string, unknown> | null,
   archiveWhereCalls: [] as unknown[],
   broadcast: {
@@ -32,6 +35,9 @@ const mocks = vi.hoisted(() => ({
     update: vi.fn(),
     query: {
       usersTable: { findFirst: vi.fn() },
+      broadcastImagesTable: { findFirst: vi.fn() },
+      broadcastsTable: { findFirst: vi.fn() },
+      broadcastRecipientsTable: { findFirst: vi.fn() },
     },
   },
 }));
@@ -39,7 +45,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../middlewares/requireAuth", () => ({
   requireAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
   requireApproved: (req: any, _res: unknown, next: () => void) => {
-    req.clerkUserId = "viewer-clerk-id";
+    req.clerkUserId = req.header("x-test-user") || "viewer-clerk-id";
     next();
   },
   requireCoachOrAdmin: (req: any, _res: unknown, next: () => void) => {
@@ -61,6 +67,11 @@ vi.mock("@workspace/db", () => ({
     targetPodIds: "broadcast_target_pod_ids",
     audienceCapturedAt: "broadcast_audience_captured_at",
   },
+  broadcastImagesTable: {
+    id: "broadcast_image_id",
+    broadcastId: "broadcast_image_broadcast_id",
+    objectPath: "broadcast_image_object_path",
+  },
   broadcastRecipientsTable: {
     id: "broadcast_recipient_id",
     broadcastId: "broadcast_recipient_broadcast_id",
@@ -76,6 +87,7 @@ vi.mock("@workspace/db", () => ({
     avatarUrl: "user_avatar_url",
     role: "user_role",
   },
+  teamDocumentsTable: { objectPath: "team_document_object_path" },
 }));
 
 vi.mock("../lib/email", () => ({
@@ -90,8 +102,52 @@ vi.mock("../lib/email", () => ({
 }));
 
 vi.mock("./settings", () => ({ getShortNamePrefix: mocks.getShortNamePrefix }));
+vi.mock("../lib/objectStorage", () => {
+  class ObjectNotFoundError extends Error {}
+  class MockObjectStorageService {
+    getObjectEntityUploadURL = vi.fn(async () => "https://storage.example.test/upload");
+    normalizeObjectEntityPath = vi.fn(() => "/objects/broadcast-images/uploaded");
+    getObjectEntityFile = vi.fn(async (objectPath: string, generation?: string) => {
+      const object = mocks.broadcastImageObjects.get(objectPath);
+      const version = generation
+        ? object?.versions.get(generation)
+        : object?.versions.get(object.generation);
+      if (!object || !version) throw new ObjectNotFoundError();
+      return {
+        objectPath,
+        generation: generation ?? object.generation,
+        getMetadata: async () => [{
+          generation: generation ?? object.generation,
+          contentType: version.contentType,
+          size: String(version.bytes.byteLength),
+        }],
+      };
+    });
+    downloadObject = vi.fn(async (file: { objectPath: string; generation: string }) => {
+      const object = mocks.broadcastImageObjects.get(file.objectPath);
+      const version = object?.versions.get(file.generation);
+      return new Response(version?.bytes ?? new Uint8Array(), {
+        headers: { "content-type": version?.contentType ?? "application/octet-stream" },
+      });
+    });
+  }
+  return { ObjectNotFoundError, ObjectStorageService: MockObjectStorageService };
+});
+vi.mock("../lib/objectAcl", () => ({
+  DISCUSSION_IMAGE_LIFECYCLE_LOCK: "trailteam-discussion-image-lifecycle",
+  getDbObjectAclPolicy: vi.fn(async (objectPath: string) =>
+    mocks.broadcastImagePolicies.get(objectPath) ?? null),
+  storePendingObjectAcl: vi.fn(async (objectPath: string, policy: { owner: string; visibility: "private"; aclRules: [] }) => {
+    mocks.broadcastImagePolicies.set(objectPath, policy);
+  }),
+  getObjectAclPolicy: vi.fn(async () => null),
+  canAccessObject: vi.fn(async () => false),
+  ObjectPermission: { READ: "read", WRITE: "write" },
+  ObjectAccessGroupType: { AUTHENTICATED_USER: "AUTHENTICATED_USER", HOUSEHOLD_MEMBER: "HOUSEHOLD_MEMBER" },
+}));
 
 const { default: messagesRouter } = await import("./messages");
+const { default: storageRouter } = await import("./storage");
 
 let server: Server;
 let baseUrl: string;
@@ -121,6 +177,21 @@ function setupDatabase() {
     email: "coach@example.test",
   });
   mocks.db.query.usersTable.findFirst.mockImplementation(() => Promise.resolve(mocks.currentUser));
+  const valueFromCondition = (condition: any) =>
+    condition?.right ?? condition?.queryChunks
+      ?.filter((chunk: unknown) => typeof chunk === "string" || typeof chunk === "number")
+      ?.at?.(-1);
+  mocks.db.query.broadcastImagesTable.findFirst.mockImplementation(({ where }: any) =>
+    Promise.resolve(mocks.broadcastImages.find((image) =>
+      image.objectPath === valueFromCondition(where))
+      ?? (valueFromCondition(where) === undefined ? mocks.broadcastImages[0] : null)
+      ?? null));
+  mocks.db.query.broadcastsTable.findFirst.mockImplementation(({ where }: any) =>
+    Promise.resolve(mocks.broadcasts.find((broadcast) =>
+      broadcast.id === valueFromCondition(where)) ?? mocks.broadcasts[0] ?? null));
+  mocks.db.query.broadcastRecipientsTable.findFirst.mockImplementation(() =>
+    Promise.resolve(mocks.broadcastRecipients.find((recipient) =>
+      recipient.userId === mocks.currentUser?.id) ?? null));
   mocks.db.select.mockImplementation((selection?: Record<string, unknown>) => {
     if (selection?.broadcast) {
       const visibleBroadcasts = () => mocks.broadcasts.filter((broadcast) => {
@@ -166,6 +237,15 @@ function setupDatabase() {
         })),
       };
     }
+    if (selection?.objectPath) {
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(() => {
+            return Promise.resolve(mocks.broadcastImages.map(({ objectPath }) => ({ objectPath })));
+          }),
+        })),
+      };
+    }
     return {
       from: vi.fn(() => ({
         where: vi.fn(() => Promise.resolve(mocks.allUsers)),
@@ -177,8 +257,12 @@ function setupDatabase() {
     values: vi.fn((values: any) => {
       if (table.id === "broadcast_id") {
         mocks.insertCalls.push(values);
+        mocks.broadcasts.push({ ...mocks.broadcast, ...values });
+      } else if (table.id === "broadcast_image_id") {
+        mocks.broadcastImages.push(...values);
       } else {
         mocks.recipientInsertCalls.push(values);
+        mocks.broadcastRecipients.push(...values);
       }
       return {
         returning: vi.fn(() => Promise.resolve([{ ...mocks.broadcast, ...values }])),
@@ -192,6 +276,10 @@ function setupDatabase() {
         where: vi.fn(() => Promise.resolve(undefined)),
       };
     }),
+  }));
+  mocks.db.transaction = vi.fn(async (callback: (tx: any) => unknown) => callback({
+    execute: vi.fn(async () => undefined),
+    insert: mocks.db.insert,
   }));
 }
 
@@ -212,6 +300,9 @@ beforeEach(async () => {
   mocks.allUsers = [];
   mocks.broadcasts = [];
   mocks.broadcastRecipients = [];
+  mocks.broadcastImages = [];
+  mocks.broadcastImageObjects.clear();
+  mocks.broadcastImagePolicies.clear();
   mocks.archiveWhereCalls = [];
   mocks.updateCalls = [];
   mocks.insertCalls = [];
@@ -245,6 +336,33 @@ async function fetchMessageArchive(currentUser: Record<string, unknown>) {
   const address = server.address() as AddressInfo;
   baseUrl = `http://localhost:${address.port}`;
   return fetch(`${baseUrl}/messages`);
+}
+
+async function startMessageTestServer() {
+  const app = express();
+  app.use(express.json());
+  app.use(messagesRouter);
+  app.use(storageRouter);
+  server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
+}
+
+function addBroadcastImage(
+  objectPath: string,
+  contentType = "image/png",
+  bytes = Buffer.from("image-bytes"),
+  generation = "generation-1",
+) {
+  mocks.broadcastImageObjects.set(objectPath, {
+    generation,
+    versions: new Map([[generation, { contentType, bytes }]]),
+  });
+  mocks.broadcastImagePolicies.set(objectPath, {
+    owner: "coach-clerk-id",
+    visibility: "private",
+    aclRules: [],
+  });
 }
 
 describe("broadcast archive audience", () => {
@@ -288,7 +406,7 @@ describe("broadcast archive audience", () => {
     expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
       .toEqual([100, 101, 102, 103]);
     expect(mocks.archiveWhereCalls).toEqual([]);
-    expect(mocks.db.select).toHaveBeenCalledTimes(1);
+    expect(mocks.db.select).toHaveBeenCalledTimes(5);
   });
 
   it.each(["coach", "super_admin"])("shows no broadcasts to an inactive %s account", async (role) => {
@@ -305,7 +423,7 @@ describe("broadcast archive audience", () => {
     expect((await response.json()).map((broadcast: { id: number }) => broadcast.id))
       .toEqual([100, 101]);
     expect(mocks.archiveWhereCalls).toHaveLength(1);
-    expect(mocks.db.select).toHaveBeenCalledTimes(2);
+    expect(mocks.db.select).toHaveBeenCalledTimes(4);
   });
 
   it("keeps send-time audience history when families move between pods", async () => {
@@ -372,6 +490,180 @@ describe("broadcast archive audience", () => {
 });
 
 describe("broadcast email notifications", () => {
+  it("reserves broadcast-only private upload paths for authorized coaches", async () => {
+    await startMessageTestServer();
+    const response = await fetch(`${baseUrl}/messages/attachments/request-url`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "results.png", size: 1024, contentType: "image/png" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      uploadURL: "https://storage.example.test/upload",
+      objectPath: "/objects/broadcast-images/uploaded",
+    });
+    expect(mocks.broadcastImagePolicies.get("/objects/broadcast-images/uploaded")).toEqual({
+      owner: "coach-clerk-id",
+      visibility: "private",
+      aclRules: [],
+    });
+  });
+
+  it("stores rich private-image metadata, sends pinned bytes as CID, and serves only captured recipients", async () => {
+    const imagePath = "/objects/broadcast-images/private-image";
+    const originalBytes = Buffer.from("original generation");
+    addBroadcastImage(imagePath, "image/png", originalBytes);
+    const recipient = user({
+      id: 31,
+      role: "parent",
+      podId: "pod-a",
+      clerkUserId: "parent-clerk-id",
+      email: "parent@example.test",
+    });
+    const outOfAudience = user({
+      id: 32,
+      role: "parent",
+      podId: "pod-b",
+      clerkUserId: "other-clerk-id",
+      email: "other@example.test",
+    });
+    mocks.allUsers = [recipient, outOfAudience];
+    await startMessageTestServer();
+
+    const response = await fetch(`${baseUrl}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        subject: "Race results",
+        body: "| Rider | Time |\n| --- | --- |\n| Ari | **1:23** |",
+        bodyFormat: "markdown",
+        channel: "email",
+        isAllTeam: false,
+        targetPodIds: ["pod-a"],
+        imageObjectPaths: [imagePath],
+      }),
+    });
+
+    const responseBody = await response.json();
+    expect(response.status, JSON.stringify(responseBody)).toBe(201);
+    expect(responseBody).toMatchObject({
+      bodyFormat: "markdown",
+      imageObjectPaths: [imagePath],
+    });
+    expect(mocks.broadcastImages).toHaveLength(1);
+    expect(mocks.broadcastImages[0]).toMatchObject({
+      objectPath: imagePath,
+      generation: "generation-1",
+      contentType: "image/png",
+    });
+    expect(mocks.recipientInsertCalls).toEqual([[
+      { broadcastId: 9001, userId: 31 },
+    ]]);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    const email = mocks.sendEmail.mock.calls[0][0];
+    expect(email.html).toContain("<table");
+    expect(email.html).toContain('src="cid:broadcast-9001-0@trailteam"');
+    expect(email.attachments[0]).toMatchObject({
+      cid: "broadcast-9001-0@trailteam",
+      contentType: "image/png",
+      content: originalBytes,
+    });
+
+    const imageFixture = mocks.broadcastImageObjects.get(imagePath)!;
+    imageFixture.versions.set("generation-2", {
+      contentType: "image/png",
+      bytes: Buffer.from("replacement bytes"),
+    });
+    imageFixture.generation = "generation-2";
+
+    mocks.currentUser = recipient;
+    const allowed = await fetch(`${baseUrl}/messages/attachments/broadcast-images/private-image`, {
+      headers: { "x-test-user": "parent-clerk-id" },
+    });
+    expect(allowed.status).toBe(200);
+    expect(await allowed.text()).toBe("original generation");
+
+    mocks.currentUser = outOfAudience;
+    const denied = await fetch(`${baseUrl}/messages/attachments/broadcast-images/private-image`, {
+      headers: { "x-test-user": "other-clerk-id" },
+    });
+    expect(denied.status).toBe(404);
+    expect(await denied.json()).toEqual({ error: "Image not found" });
+
+    const generic = await fetch(`${baseUrl}/storage/objects/broadcast-images/private-image`, {
+      headers: { "x-test-user": "parent-clerk-id" },
+    });
+    expect(generic.status).toBe(404);
+    expect(await generic.json()).toEqual({ error: "Object not found" });
+  });
+
+  it.each([
+    { role: "coach", isActive: false, label: "inactive coach" },
+    { role: "super_admin", isActive: false, label: "inactive admin" },
+    { role: "parent", isActive: false, label: "inactive captured parent" },
+    { role: "student", seasonParticipationStatus: "season_off", label: "season-off captured student" },
+    { role: "student", seasonParticipationStatus: "pending", label: "pending captured student" },
+  ])("does not expose broadcast images to a $label", async ({ label: _label, ...overrides }) => {
+    const objectPath = "/objects/broadcast-images/eligibility-fixture";
+    const bytes = Buffer.from("private fixture bytes");
+    addBroadcastImage(objectPath, "image/png", bytes);
+    mocks.currentUser = user({ id: 31, clerkUserId: "captured-viewer", ...overrides });
+    mocks.broadcasts = [{ ...mocks.broadcast, audienceCapturedAt: new Date() }];
+    mocks.broadcastRecipients = [{ broadcastId: 9001, userId: 31 }];
+    mocks.broadcastImages = [{
+      id: 77, broadcastId: 9001, objectPath, generation: "generation-1",
+      contentType: "image/png", size: bytes.byteLength,
+    }];
+    await startMessageTestServer();
+    const archive = await fetch(`${baseUrl}/messages`, { headers: { "x-test-user": "captured-viewer" } });
+    expect(await archive.json()).toEqual([]);
+    const image = await fetch(`${baseUrl}/messages/attachments/broadcast-images/eligibility-fixture`, {
+      headers: { "x-test-user": "captured-viewer" },
+    });
+    expect(image.status).toBe(404);
+    expect(await image.json()).toEqual({ error: "Image not found" });
+  });
+
+  it("rejects reclaims, unsupported inline images, and email image totals over 15 MB before saving", async () => {
+    const claimedPath = "/objects/broadcast-images/claimed";
+    addBroadcastImage(claimedPath);
+    await startMessageTestServer();
+
+    const create = (body: Record<string, unknown>) => fetch(`${baseUrl}/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ body: "Rich message", channel: "email", isAllTeam: true, ...body }),
+    });
+    const first = await create({ imageObjectPaths: [claimedPath] });
+    expect(first.status, await first.clone().text()).toBe(201);
+    const reclaimed = await create({ imageObjectPaths: [claimedPath] });
+    expect(reclaimed.status).toBe(400);
+    expect(await reclaimed.json()).toEqual({
+      error: "This image is already attached to a broadcast",
+    });
+
+    const inlineImage = await create({
+      bodyFormat: "markdown",
+      body: "![remote](https://example.test/image.png)",
+    });
+    expect(inlineImage.status).toBe(400);
+    expect(await inlineImage.json()).toMatchObject({
+      error: expect.stringContaining("Upload pictures as attachments"),
+    });
+
+    const largeA = "/objects/broadcast-images/large-a";
+    const largeB = "/objects/broadcast-images/large-b";
+    addBroadcastImage(largeA, "image/png", Buffer.alloc(8_000_000));
+    addBroadcastImage(largeB, "image/png", Buffer.alloc(8_000_000));
+    const before = mocks.insertCalls.length;
+    const tooLarge = await create({ imageObjectPaths: [largeA, largeB] });
+    expect(tooLarge.status).toBe(400);
+    expect(await tooLarge.json()).toMatchObject({
+      error: expect.stringContaining("15 MB total email attachment limit"),
+    });
+    expect(mocks.insertCalls).toHaveLength(before);
+  });
+
   it.each(["sms", "push"])("rejects unsupported %s broadcasts without sending email", async (channel) => {
     mocks.allUsers = [user({ id: 31, email: "parent@example.test" })];
 

@@ -5,10 +5,12 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateBoardThreadBodyBodyFormat } from "./createBoardThreadBodyBodyFormat";
 
 export interface CreateBoardThreadBody {
   title: string;
   body: string;
+  bodyFormat?: CreateBoardThreadBodyBodyFormat;
   podId?: string | null;
   eventId?: number | null;
   /** @maxItems 4 */

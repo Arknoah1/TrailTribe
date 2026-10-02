@@ -365,6 +365,45 @@ const migrations: { name: string; sql: string }[] = [
     `,
   },
   {
+    name: "add_rich_discussion_and_broadcast_content",
+    sql: `
+      ALTER TABLE board_threads
+        ADD COLUMN IF NOT EXISTS body_format text NOT NULL DEFAULT 'plain';
+      ALTER TABLE board_posts
+        ADD COLUMN IF NOT EXISTS body_format text NOT NULL DEFAULT 'plain';
+      ALTER TABLE broadcasts
+        ADD COLUMN IF NOT EXISTS body_format text NOT NULL DEFAULT 'plain';
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'board_threads_body_format_check') THEN
+          ALTER TABLE board_threads ADD CONSTRAINT board_threads_body_format_check
+            CHECK (body_format IN ('plain', 'markdown'));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'board_posts_body_format_check') THEN
+          ALTER TABLE board_posts ADD CONSTRAINT board_posts_body_format_check
+            CHECK (body_format IN ('plain', 'markdown'));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'broadcasts_body_format_check') THEN
+          ALTER TABLE broadcasts ADD CONSTRAINT broadcasts_body_format_check
+            CHECK (body_format IN ('plain', 'markdown'));
+        END IF;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS broadcast_images (
+        id serial PRIMARY KEY,
+        broadcast_id integer NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+        object_path text NOT NULL UNIQUE,
+        content_type text NOT NULL,
+        size integer NOT NULL,
+        generation text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS broadcast_images_broadcast_id_idx
+        ON broadcast_images(broadcast_id);
+    `,
+  },
+  {
     name: "create_object_acl_policies_table",
     sql: `
       CREATE TABLE IF NOT EXISTS object_acl_policies (
@@ -446,6 +485,9 @@ const migrations: { name: string; sql: string }[] = [
       CREATE INDEX IF NOT EXISTS object_acl_policies_discussion_cleanup_idx
         ON object_acl_policies(created_at, object_path)
         WHERE object_path LIKE '/objects/discussion-images/%';
+      CREATE INDEX IF NOT EXISTS object_acl_policies_broadcast_cleanup_idx
+        ON object_acl_policies(created_at, object_path)
+        WHERE object_path LIKE '/objects/broadcast-images/%';
     `,
   },
   {

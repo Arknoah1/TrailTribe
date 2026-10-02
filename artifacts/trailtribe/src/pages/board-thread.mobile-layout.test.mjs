@@ -110,7 +110,7 @@ test("keyboard dismissal restores the normal mobile navigation offset", () => {
 });
 
 test("the multiline composer and send control stay usable within the visible viewport", () => {
-  assert.match(threadSource, /<Textarea[\s\S]*?rows=\{1\}/);
+  assert.match(threadSource, /<RichMessageEditor[\s\S]*?rows=\{1\}/);
   assert.match(threadSource, /className="!min-h-10 max-h-32 overflow-y-auto/);
   assert.match(threadSource, /const maxHeight = 128/);
   assert.match(threadSource, /Math\.min\(Math\.max\(textarea\.scrollHeight, 40\), maxHeight\)/);

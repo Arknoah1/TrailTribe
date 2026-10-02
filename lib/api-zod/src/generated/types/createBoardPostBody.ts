@@ -5,9 +5,11 @@
  * TrailTeam team management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateBoardPostBodyBodyFormat } from "./createBoardPostBodyBodyFormat";
 
 export interface CreateBoardPostBody {
   body: string;
+  bodyFormat?: CreateBoardPostBodyBodyFormat;
   /** @maxItems 4 */
   imageObjectPaths?: string[];
 }

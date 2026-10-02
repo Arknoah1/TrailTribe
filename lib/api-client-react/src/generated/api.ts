@@ -7014,6 +7014,183 @@ export const useSendBroadcast = <
 };
 
 /**
+ * @summary Request a private upload URL for a broadcast image
+ */
+export const getRequestBroadcastImageUploadUrlUrl = () => {
+  return `/api/messages/attachments/request-url`;
+};
+
+export const requestBroadcastImageUploadUrl = async (
+  boardImageUploadInput: BoardImageUploadInput,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(
+    getRequestBroadcastImageUploadUrlUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(boardImageUploadInput),
+    },
+  );
+};
+
+export const getRequestBroadcastImageUploadUrlMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>,
+    TError,
+    { data: BodyType<BoardImageUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>,
+  TError,
+  { data: BodyType<BoardImageUploadInput> },
+  TContext
+> => {
+  const mutationKey = ["requestBroadcastImageUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>,
+    { data: BodyType<BoardImageUploadInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestBroadcastImageUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestBroadcastImageUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>
+>;
+export type RequestBroadcastImageUploadUrlMutationBody =
+  BodyType<BoardImageUploadInput>;
+export type RequestBroadcastImageUploadUrlMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request a private upload URL for a broadcast image
+ */
+export const useRequestBroadcastImageUploadUrl = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>,
+    TError,
+    { data: BodyType<BoardImageUploadInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestBroadcastImageUploadUrl>>,
+  TError,
+  { data: BodyType<BoardImageUploadInput> },
+  TContext
+> => {
+  return useMutation(getRequestBroadcastImageUploadUrlMutationOptions(options));
+};
+
+/**
+ * @summary Serve a broadcast image to its captured audience
+ */
+export const getGetBroadcastImageUrl = (path: string) => {
+  return `/api/messages/attachments/${path}`;
+};
+
+export const getBroadcastImage = async (
+  path: string,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getGetBroadcastImageUrl(path), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBroadcastImageQueryKey = (path: string) => {
+  return [`/api/messages/attachments/${path}`] as const;
+};
+
+export const getGetBroadcastImageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBroadcastImage>>,
+  TError = ErrorType<void>,
+>(
+  path: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcastImage>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBroadcastImageQueryKey(path);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBroadcastImage>>
+  > = ({ signal }) => getBroadcastImage(path, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!path,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBroadcastImage>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBroadcastImageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBroadcastImage>>
+>;
+export type GetBroadcastImageQueryError = ErrorType<void>;
+
+/**
+ * @summary Serve a broadcast image to its captured audience
+ */
+
+export function useGetBroadcastImage<
+  TData = Awaited<ReturnType<typeof getBroadcastImage>>,
+  TError = ErrorType<void>,
+>(
+  path: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBroadcastImage>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBroadcastImageQueryOptions(path, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Archive a broadcast (coach/admin only)
  */
 export const getArchiveBroadcastUrl = (id: number) => {

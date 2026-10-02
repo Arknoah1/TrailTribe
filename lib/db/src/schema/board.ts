@@ -9,6 +9,7 @@ export const boardThreadsTable = pgTable("board_threads", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   body: text("body").notNull(),
+  bodyFormat: text("body_format", { enum: ["plain", "markdown"] }).notNull().default("plain"),
   authorUserId: integer("author_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   podId: text("pod_id"),
   eventId: integer("event_id").references(() => eventsTable.id, { onDelete: "cascade" }),
@@ -37,6 +38,7 @@ export const boardPostsTable = pgTable("board_posts", {
   threadId: integer("thread_id").notNull().references(() => boardThreadsTable.id, { onDelete: "cascade" }),
   authorUserId: integer("author_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   body: text("body").notNull(),
+  bodyFormat: text("body_format", { enum: ["plain", "markdown"] }).notNull().default("plain"),
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

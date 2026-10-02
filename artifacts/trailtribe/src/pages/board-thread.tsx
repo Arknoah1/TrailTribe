@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams, Link, useSearch } from "wouter";
 import {
   useGetBoardThread,
@@ -21,7 +21,6 @@ import {
   AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,9 +29,11 @@ import { DiscussionTitle } from "@/components/discussion-title";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { splitLinkifiedText } from "@/lib/linkify-text.mjs";
-import { ComposerLinkPreview, LinkPreview } from "@/components/link-preview";
-import { DiscussionImagePicker, DiscussionImages } from "@/components/discussion-images";
+import { ComposerLinkPreview } from "@/components/link-preview";
+import { DiscussionImagePicker, DiscussionImages, type DiscussionImagePickerHandle } from "@/components/discussion-images";
+import { RichMessageEditor } from "@/components/rich-message-editor";
+import { RichMessageContent } from "@/components/rich-message-content";
+import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
 
 function isEventDiscussionAccessDenied(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -44,29 +45,6 @@ function isEventDiscussionAccessDenied(error: unknown): boolean {
   if (candidate.status !== 403 || !candidate.data || typeof candidate.data !== "object") return false;
 
   return (candidate.data as { code?: unknown }).code === "EVENT_DISCUSSION_ACCESS_REVOKED";
-}
-
-function ParsedContent({ text, isDeleted }: { text: string; isDeleted?: boolean }) {
-  if (isDeleted) {
-    return <div className="text-muted-foreground italic bg-muted/50 px-3 py-2 rounded-md text-sm border border-dashed border-muted-foreground/30">[This message was deleted]</div>;
-  }
-
-  const parts = splitLinkifiedText(text);
-  return (
-    <div className="whitespace-pre-wrap break-words prose prose-sm dark:prose-invert max-w-none">
-      {parts.map((part, i) => {
-        if (part.type === "link") {
-          return (
-            <Fragment key={`${part.value}-${i}`}>
-              <a href={part.value} target="_blank" rel="noopener noreferrer" className="text-primary font-medium underline underline-offset-2 break-all">{part.value}</a>
-              <LinkPreview url={part.value} />
-            </Fragment>
-          );
-        }
-        return <span key={i}>{part.value}</span>;
-      })}
-    </div>
-  );
 }
 
 const REACTIONS = [
@@ -221,8 +199,11 @@ export default function BoardThread() {
   const [replyImages, setReplyImages] = useState<string[]>([]);
   const [replyImagesUploading, setReplyImagesUploading] = useState(false);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(320);
+  const composerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const replyPickerRef = useRef<DiscussionImagePickerHandle>(null);
   const layoutViewportHeightRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -294,6 +275,14 @@ export default function BoardThread() {
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [replyBody]);
 
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    const observer = new ResizeObserver(() => setComposerHeight(composer.getBoundingClientRect().height));
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [thread?.id]);
+
   const isCoachOrAdmin = isOperationalStaff(me);
   // Thread permissions are computed by the API so this UI cannot drift from
   // the authorization rules enforced by the server.
@@ -317,8 +306,8 @@ export default function BoardThread() {
   ) => setReactionDetails({ targetType, targetId, reaction });
 
   const handleSend = () => {
-    if (!replyBody.trim() || replyImagesUploading) return;
-    createPost.mutate({ id, data: { body: replyBody.trim(), imageObjectPaths: replyImages } }, {
+    if (!replyBody.trim() || replyImagesUploading || createPost.isPending) return;
+    createPost.mutate({ id, data: { body: replyBody.trim(), bodyFormat: "markdown", imageObjectPaths: replyImages } }, {
       onSuccess: () => {
         setReplyBody("");
         setReplyImages([]);
@@ -326,7 +315,7 @@ export default function BoardThread() {
         queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
       },
-      onError: () => toast({ title: "Failed to send message", variant: "destructive" })
+      onError: (error) => toast({ title: "Failed to send message", description: (error as { data?: { error?: string } }).data?.error, variant: "destructive" })
     });
   };
 
@@ -395,7 +384,7 @@ export default function BoardThread() {
   if (!thread) return <div className="p-8 text-center font-bold text-xl text-destructive uppercase tracking-widest">Thread not found</div>;
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-background">
+    <div className="flex min-h-[100dvh] min-w-0 flex-col bg-background" style={{ "--reply-composer-height": `${composerHeight}px` } as React.CSSProperties}>
       <header className="sticky top-0 z-30 border-b-2 border-[#0a0c10]/20 bg-background/95 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3 sm:items-center sm:px-6">
           <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0 rounded-full hover:bg-secondary sm:mt-0">
@@ -451,8 +440,8 @@ export default function BoardThread() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 px-4 py-5 pb-72 sm:px-6 sm:py-7 md:pb-7">
-        <div className="flex w-full flex-1 flex-col gap-5">
+      <main className="mx-auto flex w-full min-w-0 max-w-3xl flex-1 px-4 py-5 pb-[calc(var(--reply-composer-height,320px)+100px)] sm:px-6 sm:py-7 md:pb-7">
+        <div className="flex w-full min-w-0 flex-1 flex-col gap-5">
           <section className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
             <div className="mb-3 flex items-center gap-3">
               <Avatar className="h-10 w-10 border-2 border-[#0a0c10] shrink-0">
@@ -474,7 +463,7 @@ export default function BoardThread() {
               </div>
             </div>
             <div className="text-foreground">
-              <ParsedContent text={thread.body} />
+              <RichMessageContent text={thread.body} bodyFormat={thread.bodyFormat} linkPreviews />
               <DiscussionImages paths={thread.imageObjectPaths} />
             </div>
             <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
@@ -535,7 +524,7 @@ export default function BoardThread() {
                     )}
                   </div>
                   <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
-                    <ParsedContent text={post.body} isDeleted={post.isDeleted} />
+                    <RichMessageContent text={post.body} bodyFormat={post.bodyFormat} isDeleted={post.isDeleted} linkPreviews />
                     {!post.isDeleted && <DiscussionImages paths={post.imageObjectPaths} />}
                   </div>
                    {!post.isDeleted && (
@@ -598,6 +587,7 @@ export default function BoardThread() {
       </Dialog>
 
       <div
+        ref={composerRef}
         data-testid="reply-composer"
         className="fixed bottom-[calc(var(--mobile-bottom-nav-height,78px)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
         style={{ "--keyboard-offset": `${keyboardOffset}px` } as React.CSSProperties}
@@ -608,15 +598,17 @@ export default function BoardThread() {
               <Lock className="h-4 w-4" /> THIS THREAD IS LOCKED
             </div>
           ) : (
-            <div className="space-y-2">
-              <ComposerLinkPreview text={replyBody} />
-              <DiscussionImagePicker paths={replyImages} onChange={setReplyImages} onUploadingChange={setReplyImagesUploading} disabled={createPost.isPending} />
+            <div className="max-h-[55dvh] overflow-y-auto space-y-2">
+              <ComposerLinkPreview text={messageLinkPreviewText(replyBody)} />
+              <DiscussionImagePicker ref={replyPickerRef} paths={replyImages} onChange={setReplyImages} onUploadingChange={setReplyImagesUploading} disabled={createPost.isPending} />
               <div className="flex items-end gap-2 bg-card border-2 border-[#0a0c10] rounded-2xl p-2 shadow-cel-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all">
-                <Textarea
+                <RichMessageEditor
+                compact
                 ref={replyTextareaRef}
                 rows={1}
                 value={replyBody}
-                onChange={e => setReplyBody(e.target.value)}
+                onChange={setReplyBody}
+                onPasteImages={files => replyPickerRef.current?.uploadFiles(files)}
                 onKeyDown={handleKeyDown}
                 placeholder="Add to the conversation…"
                 aria-label="Reply to this discussion"

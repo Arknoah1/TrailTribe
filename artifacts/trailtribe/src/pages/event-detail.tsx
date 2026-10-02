@@ -35,6 +35,7 @@ import { useRoutePerformance } from "@/lib/route-performance";
 import { trackEvent } from "@/lib/analytics";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { stripMarkdown } from "@/lib/markdown.mjs";
 import {
   getVolunteerTaskState,
   volunteerTaskAvailableButtonClassName,
@@ -198,7 +199,7 @@ function EventDiscussion({
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground line-clamp-1">
-                    {post.isDeleted ? <span className="italic">[deleted]</span> : post.body}
+                    {post.isDeleted ? <span className="italic">[deleted]</span> : post.bodyFormat === "markdown" ? stripMarkdown(post.body) : post.body}
                   </div>
                 </div>
               </div>

@@ -159,8 +159,8 @@ export async function getDbObjectAclPolicy(
 }
 
 /**
- * Remove stale ACL reservations for discussion images that were never
- * attached to a board thread or post.
+ * Remove stale ACL reservations for discussion or broadcast images that were
+ * never attached to a parent record.
  *
  * The advisory transaction lock is shared with board attachment creation. That
  * makes the object delete and the attachment insert mutually exclusive across
@@ -193,17 +193,22 @@ export async function cleanupAbandonedDiscussionImageAcls(
     const candidates = await client.query<{ object_path: string }>(
       `SELECT acl.object_path
        FROM object_acl_policies AS acl
-       WHERE acl.object_path LIKE $1
+       WHERE (acl.object_path LIKE $1 OR acl.object_path LIKE $4)
          AND acl.created_at < $2
          AND NOT EXISTS (
            SELECT 1
            FROM board_attachments AS attachment
            WHERE attachment.object_path = acl.object_path
          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM broadcast_images AS image
+            WHERE image.object_path = acl.object_path
+          )
        ORDER BY acl.created_at
        LIMIT $3
        FOR UPDATE OF acl SKIP LOCKED`,
-      ["/objects/discussion-images/%", cutoff, batchSize],
+      ["/objects/discussion-images/%", cutoff, batchSize, "/objects/broadcast-images/%"],
     );
 
     for (const candidate of candidates.rows) {
