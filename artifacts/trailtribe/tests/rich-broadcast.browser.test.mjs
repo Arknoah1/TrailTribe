@@ -145,3 +145,35 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
     } finally { await page.close(); }
   });
 }
+
+test("broadcast log orders active and archived cards newest-first and keeps search filtering", async () => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  try {
+    await page.goto(`${baseUrl}/messages?tab=announcements`);
+    const cards = page.locator('[data-testid^="broadcast-card-"]');
+    const cardIds = () => cards.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-testid")));
+
+    await page.getByTestId("broadcast-card-6").getByText("Date unavailable").waitFor();
+    assert.deepEqual(await cardIds(), [
+      "broadcast-card-3",
+      "broadcast-card-6",
+      "broadcast-card-1",
+      "broadcast-card-2",
+    ]);
+
+    const search = page.getByPlaceholder("Search broadcasts...");
+    await search.fill("Older active");
+    assert.deepEqual(await cardIds(), ["broadcast-card-2"]);
+    await search.fill("");
+
+    await page.getByRole("button", { name: "2 archived broadcasts" }).click();
+    assert.deepEqual(await cardIds(), [
+      "broadcast-card-3",
+      "broadcast-card-6",
+      "broadcast-card-1",
+      "broadcast-card-2",
+      "broadcast-card-5",
+      "broadcast-card-4",
+    ]);
+  } finally { await page.close(); }
+});

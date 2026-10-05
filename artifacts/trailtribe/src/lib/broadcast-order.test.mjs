@@ -33,6 +33,14 @@ test("uses creation date when sentAt is invalid and consistently breaks equal or
   assert.deepEqual([...rows].sort(compareBroadcastsNewestFirst).map(({ id }) => id), [8, 5, 1, 7, 3]);
 });
 
+test("accepts Date objects returned by the parsed API client", () => {
+  const rows = [
+    broadcast(1, new Date("2026-01-01T00:00:00Z"), new Date("2026-01-01T00:00:00Z")),
+    broadcast(2, null, new Date("2026-01-02T00:00:00Z")),
+  ];
+  assert.deepEqual([...rows].sort(compareBroadcastsNewestFirst).map(({ id }) => id), [2, 1]);
+});
+
 test("active and archived messages sort independently without mixing sections", () => {
   const rows = [
     broadcast(1, "2026-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),

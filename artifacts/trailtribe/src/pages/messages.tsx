@@ -142,6 +142,7 @@ function BroadcastCard({
   onUnarchive?: (id: number) => void;
 }) {
   const isArchived = !!msg.archivedAt;
+  const sentDate = msg.sentAt ? new Date(msg.sentAt) : null;
   return (
     <Card data-testid={`broadcast-card-${msg.id}`} className={`overflow-hidden ${isArchived ? "opacity-60" : ""}`}>
       <CardHeader className="bg-muted/50 pb-3">
@@ -151,7 +152,13 @@ function BroadcastCard({
             <div className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
               <span className="font-medium text-foreground">{msg.sender?.firstName} {msg.sender?.lastName}</span>
               <span>•</span>
-              <span>{msg.sentAt ? format(new Date(msg.sentAt), "MMM d, yyyy 'at' h:mm a") : "Draft"}</span>
+              <span>
+                {sentDate
+                  ? Number.isFinite(sentDate.getTime())
+                    ? format(sentDate, "MMM d, yyyy 'at' h:mm a")
+                    : "Date unavailable"
+                  : "Draft"}
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {msg.isAllTeam ? (

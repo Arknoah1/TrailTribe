@@ -44,6 +44,10 @@ let broadcasts: unknown[] = [{
   id: 5, subject: "Newest archived broadcast", body: "Newest archived message", bodyFormat: "plain", sender: author,
   isAllTeam: true, channel: "email", createdAt: "2026-10-04T12:00:00Z", sentAt: "2026-10-04T12:00:00Z", archivedAt: "2026-10-05T12:00:00Z",
   emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
+}, {
+  id: 6, subject: "Invalid send date broadcast", body: "Creation date is still usable", bodyFormat: "plain", sender: author,
+  isAllTeam: true, channel: "email", createdAt: "2026-10-02T12:00:00Z", sentAt: "invalid-date", archivedAt: null,
+  emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
 }];
 const images = new Map<string, Blob>();
 let sequence = 0;

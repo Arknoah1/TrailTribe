@@ -1,4 +1,8 @@
 function parseTimestamp(value) {
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
   if (typeof value !== "string" && typeof value !== "number") return null;
   const timestamp = typeof value === "number" ? value : Date.parse(value);
   return Number.isFinite(timestamp) ? timestamp : null;
