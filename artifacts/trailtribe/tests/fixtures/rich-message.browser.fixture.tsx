@@ -28,6 +28,22 @@ let broadcasts: unknown[] = [{
   id: 1, subject: "Legacy plain message", body: "**literal stars**\n<not HTML>", bodyFormat: "plain", sender: author,
   isAllTeam: true, channel: "email", createdAt: thread.createdAt, sentAt: thread.createdAt, emailConfigured: true,
   recipientCount: 1, deliveredCount: 1, failedCount: 0,
+}, {
+  id: 2, subject: "Older active broadcast", body: "Older active message", bodyFormat: "plain", sender: author,
+  isAllTeam: true, channel: "email", createdAt: "2026-09-30T12:00:00Z", sentAt: "2026-09-30T12:00:00Z", archivedAt: null,
+  emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
+}, {
+  id: 3, subject: "Newest active broadcast", body: "Newest active message", bodyFormat: "plain", sender: author,
+  isAllTeam: true, channel: "email", createdAt: "2026-10-03T12:00:00Z", sentAt: "2026-10-03T12:00:00Z", archivedAt: null,
+  emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
+}, {
+  id: 4, subject: "Older archived broadcast", body: "Older archived message", bodyFormat: "plain", sender: author,
+  isAllTeam: true, channel: "email", createdAt: "2026-09-25T12:00:00Z", sentAt: "2026-09-25T12:00:00Z", archivedAt: "2026-10-01T12:00:00Z",
+  emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
+}, {
+  id: 5, subject: "Newest archived broadcast", body: "Newest archived message", bodyFormat: "plain", sender: author,
+  isAllTeam: true, channel: "email", createdAt: "2026-10-04T12:00:00Z", sentAt: "2026-10-04T12:00:00Z", archivedAt: "2026-10-05T12:00:00Z",
+  emailConfigured: true, recipientCount: 1, deliveredCount: 1, failedCount: 0,
 }];
 const images = new Map<string, Blob>();
 let sequence = 0;

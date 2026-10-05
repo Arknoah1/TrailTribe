@@ -59,6 +59,7 @@ import { DiscussionImagePicker, DiscussionImages, type DiscussionImagePickerHand
 import { RichMessageEditor } from "@/components/rich-message-editor";
 import { RichMessageContent } from "@/components/rich-message-content";
 import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
+import { compareBroadcastsNewestFirst } from "@/lib/broadcast-order.mjs";
 
 const newThreadSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -142,7 +143,7 @@ function BroadcastCard({
 }) {
   const isArchived = !!msg.archivedAt;
   return (
-    <Card className={`overflow-hidden ${isArchived ? "opacity-60" : ""}`}>
+    <Card data-testid={`broadcast-card-${msg.id}`} className={`overflow-hidden ${isArchived ? "opacity-60" : ""}`}>
       <CardHeader className="bg-muted/50 pb-3">
         <div className="flex justify-between items-start gap-2">
           <div className="flex-1 min-w-0">
@@ -243,12 +244,12 @@ function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string
     search.trim() === "" ||
     (m.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (m.body ?? "").toLowerCase().includes(search.toLowerCase())
-  ));
+  )).sort(compareBroadcastsNewestFirst);
   const archived = allBroadcasts.filter(m => !!m.archivedAt && (
     search.trim() === "" ||
     (m.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
     (m.body ?? "").toLowerCase().includes(search.toLowerCase())
-  ));
+  )).sort(compareBroadcastsNewestFirst);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListBroadcastsQueryKey() });
 
