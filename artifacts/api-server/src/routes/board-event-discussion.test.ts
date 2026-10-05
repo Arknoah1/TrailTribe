@@ -14,6 +14,7 @@ const COACH = {
   lastName: "Trail",
   avatarUrl: null,
   isActive: true,
+  approved: true,
   email: "coach@example.test",
   emailNotifications: true,
   notificationsEnabled: true,
@@ -28,6 +29,7 @@ const RIDER = {
   lastName: "Trail",
   avatarUrl: null,
   isActive: true,
+  approved: true,
 };
 const OTHER_RIDER = {
   id: 3,
@@ -38,6 +40,7 @@ const OTHER_RIDER = {
   lastName: "Rider",
   avatarUrl: null,
   isActive: true,
+  approved: true,
 };
 const PARENT = {
   id: 4,
@@ -48,6 +51,7 @@ const PARENT = {
   lastName: "Trail",
   avatarUrl: null,
   isActive: true,
+  approved: true,
 };
 const OTHER_PARENT = {
   id: 5,
@@ -58,6 +62,7 @@ const OTHER_PARENT = {
   lastName: "Trail",
   avatarUrl: null,
   isActive: true,
+  approved: true,
 };
 const notificationMock = vi.hoisted(() => ({
   createNotification: vi.fn(),
@@ -278,6 +283,20 @@ vi.mock("@workspace/db", () => {
         query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
         return query;
       }
+      if ("authorUserId" in selection) {
+        const query = chain(() => {
+          return posts
+            .filter((post) => post.threadId === query._targetThreadId && !post.isDeleted)
+            .map(({ authorUserId }) => ({ authorUserId }));
+        });
+        query.from.mockImplementation((source: object) => { query._source = source; return query; });
+        query.where.mockImplementation((condition: unknown) => {
+          query._where = condition;
+          query._targetThreadId = posts.find((post) => post.id === currentTargetId)?.threadId ?? currentTargetId;
+          return query;
+        });
+        return query;
+      }
       if ("count" in selection && "reacted" in selection) {
         const query = chain(() => {
           const targetId = targetIdFrom(query._where);
@@ -368,7 +387,7 @@ vi.mock("@workspace/db", () => {
     })),
     update: vi.fn((source: object) => ({
       set: vi.fn((value: any) => ({
-        where: vi.fn(async (condition: any) => {
+        where: vi.fn((condition: any) => {
           if (source === boardPostsTable) {
             const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
             if (post) Object.assign(post, value);
@@ -377,6 +396,15 @@ vi.mock("@workspace/db", () => {
             const thread = threads.find((candidate) => candidate.id === targetIdFrom(condition));
             if (thread) Object.assign(thread, value);
           }
+          return Object.assign(Promise.resolve(undefined), {
+            returning: vi.fn(async () => {
+              if (source === boardThreadsTable) {
+                const thread = threads.find((candidate) => candidate.id === targetIdFrom(condition));
+                return thread ? [thread] : [];
+              }
+              return [];
+            }),
+          });
         }),
       })),
     })),
@@ -469,6 +497,7 @@ function currentUser() {
 }
 
 vi.mock("../middlewares/requireAuth", () => ({
+  hasStudentAccess: (user: any) => user.role === "student" && user.householdId != null,
   requireApproved: (req: any, _res: any, next: any) => {
     req.clerkUserId = req.header("x-test-user") || COACH.clerkUserId;
     next();
@@ -535,6 +564,17 @@ beforeEach(() => {
   emailMock.sendEmail.mockClear();
   selectCallIndex = 0;
   PARENT.podId = "pod-a";
+  for (const user of users) {
+    Object.assign(user, {
+      approved: true,
+      isActive: true,
+      notificationsEnabled: true,
+      emailNotifications: true,
+      pushNotifications: true,
+      notificationPreferences: { boardReplies: true },
+      email: user.id === COACH.id ? "coach@example.test" : "",
+    });
+  }
 });
 
 function addEvent(id: number, startTime: Date, endTime: Date) {
@@ -633,6 +673,7 @@ async function createReply(
 ) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = threadId;
+  currentEventId = threads.find((thread) => thread.id === threadId)?.eventId ?? null;
   currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}/board/threads/${threadId}/posts`, {
     method: "POST",
@@ -652,6 +693,7 @@ async function createThreadWithImages(
 ) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = null;
+  currentEventId = options.eventId ?? null;
   currentAttachmentPath = Array.isArray(imageObjectPaths) && imageObjectPaths.length === 1
     && typeof imageObjectPaths[0] === "string"
     ? imageObjectPaths[0]
@@ -687,6 +729,9 @@ async function getDiscussionAttachment(user: DiscussionUser, objectPath: string)
 async function toggleReaction(user: DiscussionUser, targetType: "thread" | "post", targetId: number, reaction = "helpful") {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = targetId;
+  currentEventId = targetType === "thread"
+    ? threads.find((thread) => thread.id === targetId)?.eventId ?? null
+    : threads.find((thread) => thread.id === posts.find((post) => post.id === targetId)?.threadId)?.eventId ?? null;
   currentReaction = reaction;
   currentAttachmentPath = null;
   const response = await fetch(`${baseUrl}/board/reactions`, {
@@ -742,6 +787,46 @@ async function deletePost(user: typeof COACH, postId: number) {
   return { status: response.status };
 }
 
+async function pinThread(threadId: number) {
+  currentClerkUserId = COACH.clerkUserId;
+  currentTargetId = threadId;
+  const response = await fetch(`${baseUrl}/board/threads/${threadId}/pin`, {
+    method: "PATCH",
+    headers: { "x-test-user": COACH.clerkUserId },
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function markBoardSeen(user: DiscussionUser) {
+  currentClerkUserId = user.clerkUserId;
+  const response = await fetch(`${baseUrl}/board/seen`, {
+    method: "PATCH",
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+async function requestDiscussionUpload(user: DiscussionUser) {
+  currentClerkUserId = user.clerkUserId;
+  const response = await fetch(`${baseUrl}/board/attachments/request-url`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
+    body: JSON.stringify({ name: "photo.jpg", size: 1024, contentType: "image/jpeg" }),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
+function notifiedUserIds() {
+  return notificationMock.createNotification.mock.calls.map((call) => call[0] as number);
+}
+
+async function waitForNotifiedUsers(userIds: number[]) {
+  await vi.waitFor(() => {
+    expect(new Set(notifiedUserIds())).toEqual(new Set(userIds));
+  });
+}
+
 describe("discussion image security boundaries", () => {
   it("stores Markdown formats, keeps omitted formats plain, rejects inline images, and sends private CID reply pictures", async () => {
     const markdownThread = await createThreadWithImages(RIDER, [], {
@@ -761,6 +846,8 @@ describe("discussion image security boundaries", () => {
     });
     expect(inlineImageThread.status).toBe(400);
     expect(inlineImageThread.body.error).toContain("Upload pictures as attachments");
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(2));
+    emailMock.sendEmail.mockClear();
 
     const threadId = 701;
     addThread(threadId, 0, NOW);
@@ -869,6 +956,106 @@ describe("discussion image security boundaries", () => {
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ error: "Object not found" });
+  });
+});
+
+describe("Community Board activity notifications", () => {
+  it("notifies everyone with current access to general, pod, and event discussions", async () => {
+    // Board authorization does not separately filter isActive; visibility must
+    // follow the actual board access rules rather than add a new audience gate.
+    OTHER_RIDER.isActive = false;
+    const general = await createThreadWithImages(RIDER, undefined);
+    expect(general.status).toBe(201);
+    await waitForNotifiedUsers([COACH.id, OTHER_RIDER.id, PARENT.id, OTHER_PARENT.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+    expect(emailMock.sendEmail.mock.calls[0][0].to).toBe(COACH.email);
+    expect(notificationMock.createNotification.mock.calls.every((call) => call[1] === "boardReplies")).toBe(true);
+
+    notificationMock.createNotification.mockClear();
+    emailMock.sendEmail.mockClear();
+    const pod = await createThreadWithImages(RIDER, undefined, { podId: "pod-a" });
+    expect(pod.status).toBe(201);
+    await waitForNotifiedUsers([COACH.id, PARENT.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+
+    notificationMock.createNotification.mockClear();
+    emailMock.sendEmail.mockClear();
+    const event = addEvent(501, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    const eventThread = await createThreadWithImages(RIDER, undefined, { eventId: event.id });
+    expect(eventThread.status).toBe(201);
+    await waitForNotifiedUsers([COACH.id, PARENT.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+  });
+
+  it("notifies current discussion participants for reactions on thread starters and replies, but not removals", async () => {
+    addThread(100, 0, NOW);
+    addPost(200, 100, RIDER.id);
+
+    const threadReaction = await toggleReaction(RIDER, "thread", 100);
+    expect(threadReaction.status).toBe(200);
+    await waitForNotifiedUsers([COACH.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+
+    notificationMock.createNotification.mockClear();
+    emailMock.sendEmail.mockClear();
+    const replyReaction = await toggleReaction(OTHER_PARENT, "post", 200);
+    expect(replyReaction.status).toBe(200);
+    await waitForNotifiedUsers([COACH.id, RIDER.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+
+    notificationMock.createNotification.mockClear();
+    emailMock.sendEmail.mockClear();
+    const removedReaction = await toggleReaction(OTHER_PARENT, "post", 200);
+    expect(removedReaction.status).toBe(200);
+    expect(notificationMock.createNotification).not.toHaveBeenCalled();
+    expect(emailMock.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not notify a former participant who no longer has access to a pod thread", async () => {
+    addThread(101, 0, NOW);
+    threads[0].authorUserId = RIDER.id;
+    threads[0].podId = "pod-a";
+    addPost(201, 101, OTHER_RIDER.id);
+
+    const reaction = await toggleReaction(PARENT, "thread", 101);
+    expect(reaction.status).toBe(200);
+    await waitForNotifiedUsers([RIDER.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).not.toHaveBeenCalled());
+  });
+
+  it("honors board and email notification preferences", async () => {
+    Object.assign(OTHER_RIDER, {
+      email: "other-rider@example.test",
+      emailNotifications: false,
+      notificationPreferences: { boardReplies: true },
+    });
+    Object.assign(PARENT, {
+      email: "parent@example.test",
+      notificationPreferences: { boardReplies: false },
+    });
+
+    const created = await createThreadWithImages(RIDER, undefined);
+    expect(created.status).toBe(201);
+    await waitForNotifiedUsers([COACH.id, OTHER_RIDER.id, OTHER_PARENT.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+    expect(emailMock.sendEmail.mock.calls[0][0].to).toBe(COACH.email);
+  });
+
+  it("keeps pin, delete, open, mark-seen, and upload actions notification-free", async () => {
+    addThread(102, 0, NOW);
+    addPost(202, 102, RIDER.id);
+
+    expect((await getThreads("/board/threads/102", COACH)).status).toBe(200);
+    expect((await pinThread(102)).status).toBe(200);
+    expect((await deletePost(RIDER, 202)).status).toBe(204);
+    expect((await markBoardSeen(PARENT)).status).toBe(200);
+    expect((await requestDiscussionUpload(RIDER)).status).toBe(200);
+    expect((await deleteThread(COACH, 102)).status).toBe(204);
+
+    expect(notificationMock.createNotification).not.toHaveBeenCalled();
+    expect(emailMock.sendEmail).not.toHaveBeenCalled();
   });
 });
 

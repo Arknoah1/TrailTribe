@@ -12,7 +12,7 @@ import {
   isOperationalStaffRole,
 } from "@workspace/db";
 import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
-import { requireAuth, requireApproved, requireCoachOrAdmin } from "../middlewares/requireAuth";
+import { requireAuth, requireApproved, requireCoachOrAdmin, hasStudentAccess } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { sendEmail, isDeliverableEmailAddress } from "../lib/email";
@@ -350,6 +350,109 @@ async function notifyThreadParticipants(
   }
 }
 
+type BoardActivityKind = "new-thread" | "reaction";
+
+async function notifyBoardActivity(
+  thread: typeof boardThreadsTable.$inferSelect,
+  actorUserId: number,
+  kind: BoardActivityKind,
+) {
+  const event = thread.eventId
+    ? (await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })) ?? null
+    : null;
+  const threadTitle = event ? `Discussion: ${event.title}` : thread.title;
+  const threadUrl = `/messages/thread/${thread.id}`;
+
+  const participantIds = kind === "reaction"
+    ? new Set<number>([
+        ...(thread.authorUserId ? [thread.authorUserId] : []),
+        ...(await db.select({ authorUserId: boardPostsTable.authorUserId })
+          .from(boardPostsTable)
+          .where(and(eq(boardPostsTable.threadId, thread.id), eq(boardPostsTable.isDeleted, false))))
+          .map((post) => post.authorUserId)
+          .filter((userId): userId is number => userId != null),
+      ])
+    : null;
+
+  // A newly created thread goes to its entire current audience. Reactions use
+  // the same thread author/reply author participant set as reply notifications.
+  const candidates = await db.select().from(usersTable);
+  const recipients = await Promise.all(candidates
+    .filter((user) => participantIds === null || participantIds.has(user.id))
+    .filter((user) => user.id !== actorUserId)
+    .map(async (user) => {
+      if (
+        !user.clerkUserId
+        || (!user.approved && !hasStudentAccess(user))
+      ) return null;
+
+      return await canAccessThread(user, thread, { event }) ? user : null;
+    }));
+  const accessibleRecipients = recipients.filter(
+    (user): user is NonNullable<typeof user> => user !== null,
+  );
+  if (accessibleRecipients.length === 0) return;
+
+  const notificationTitle = kind === "new-thread"
+    ? "New discussion on the board"
+    : "New reaction on the board";
+  const notificationBody = kind === "new-thread"
+    ? `A new discussion was started: "${threadTitle}"`
+    : `Someone reacted in "${threadTitle}"`;
+  const settingsUrl = "/profile?tab=notifications";
+  const threadHref = buildAppUrl(threadUrl);
+  const settingsHref = buildAppUrl(settingsUrl);
+  const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
+  const emailMessage = addNotificationEmailLinks(
+    [`Hi,`, ``, notificationBody, ``, `— TrailTeam`].join("\n"),
+    [threadLink],
+  );
+  const safeHref = threadHref?.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const safeSettingsHref = settingsHref?.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[char]!);
+  const inlineHtml = [
+    `<p>${escapeHtml(notificationBody)}</p>`,
+    safeHref ? `<p><a href="${safeHref}">Open discussion in TrailTeam</a></p>` : "",
+    `<p style="font-size:12px;color:#59636e">To update notification preferences, update your notification settings in TrailTeam${safeSettingsHref ? `: <a href="${safeSettingsHref}">notification settings</a>` : ""}.</p>`,
+  ].join("");
+  const emailUsers = accessibleRecipients.filter((user) =>
+    user.notificationPreferences?.boardReplies !== false
+    && user.notificationsEnabled
+    && user.emailNotifications
+    && isDeliverableEmailAddress(user.email)
+  );
+  const orgPrefix = emailUsers.length > 0 ? await getShortNamePrefix() : "";
+
+  await Promise.all(accessibleRecipients.map(async (user) => {
+    if (user.notificationPreferences?.boardReplies === false) return;
+    await createNotification(
+      user.id,
+      "boardReplies",
+      notificationTitle,
+      notificationBody,
+      threadUrl,
+    );
+    if (!emailUsers.includes(user)) return;
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: `${orgPrefix}${notificationTitle}`,
+        text: emailMessage.text,
+        html: `<!doctype html><html><body style="font-family:Arial,sans-serif;line-height:1.5;color:#0a0c10"><main style="max-width:640px;margin:0 auto;padding:24px">${inlineHtml}</main></body></html>`,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId: user.id }, "[board] activity notification email failed");
+    }
+  }));
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // ─── Authorization helpers ─────────────────────────────────────────────────────
@@ -407,12 +510,16 @@ async function canAccessEventThread(
  */
 async function canAccessThread(
   me: typeof usersTable.$inferSelect,
-  thread: typeof boardThreadsTable.$inferSelect
+  thread: typeof boardThreadsTable.$inferSelect,
+  eventContext?: { event: typeof eventsTable.$inferSelect | null },
 ): Promise<boolean> {
   if (thread.podId) {
     return canAccessPodThread(me, thread.podId);
   }
   if (thread.eventId) {
+    if (eventContext) {
+      return eventContext.event ? isEventAudienceMember(eventContext.event, me) : false;
+    }
     return canAccessEventThread(me, thread.eventId);
   }
   return true; // general thread
@@ -583,6 +690,11 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     }
     throw error;
   }
+
+  // A successful thread creation notifies its current audience, but merely
+  // requesting an attachment upload URL does not.
+  void notifyBoardActivity(thread, me.id, "new-thread")
+    .catch((err) => logger.error({ err }, "[board] notify new thread audience error"));
 
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.status(201).json(result);
@@ -786,9 +898,10 @@ router.post("/board/reactions", requireApproved, async (req, res) => {
     res.status(400).json({ error: "targetType, targetId, and a valid reaction are required" }); return;
   }
   const safeTargetId = targetId as number;
+  let thread: typeof boardThreadsTable.$inferSelect | null = null;
 
   if (targetType === "thread") {
-    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, safeTargetId) });
+    thread = (await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, safeTargetId) })) ?? null;
     if (!thread) { res.status(404).json({ error: "Target not found" }); return; }
     if (!(await canAccessThread(me, thread))) {
       res.status(403).json({ error: "Forbidden" }); return;
@@ -796,7 +909,7 @@ router.post("/board/reactions", requireApproved, async (req, res) => {
   } else {
     const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, safeTargetId) });
     if (!post) { res.status(404).json({ error: "Target not found" }); return; }
-    const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) });
+    thread = (await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) })) ?? null;
     if (!thread || !(await canAccessThread(me, thread))) {
       res.status(403).json({ error: "Forbidden" }); return;
     }
@@ -820,6 +933,10 @@ router.post("/board/reactions", requireApproved, async (req, res) => {
       reaction,
       ...(targetType === "thread" ? { threadId: safeTargetId } : { postId: safeTargetId }),
     });
+    if (thread) {
+      void notifyBoardActivity(thread, me.id, "reaction")
+        .catch((err) => logger.error({ err }, "[board] notify reaction participants error"));
+    }
   }
   res.json({ targetType, targetId: safeTargetId, reactions: await getReactionSummary(targetType, safeTargetId, me.id) });
 });
