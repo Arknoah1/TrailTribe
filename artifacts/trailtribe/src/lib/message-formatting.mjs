@@ -34,6 +34,26 @@ export function spreadsheetTextToMarkdown(text) {
   return rowsToMarkdownTable(rows);
 }
 
+/** Validate without rewriting a destination's path, query, or fragment. */
+export function validateMessageLink(address) {
+  const value = address.trim();
+  if (/^https?:\/\/https?:\/\//i.test(value)) {
+    throw new Error("The address contains two http:// or https:// prefixes. Paste the full link with only one prefix.");
+  }
+  const invalid = () => new Error("Enter a complete https://, http://, or mailto: link with a destination.");
+  if (!value || /[\u0000-\u0020\u007f<>]/.test(value)) throw invalid();
+  let url;
+  try { url = new URL(value); } catch { throw invalid(); }
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    if (!/^https?:\/\//i.test(value) || !url.hostname) throw invalid();
+  } else if (url.protocol === "mailto:") {
+    if (!url.pathname) throw invalid();
+  } else {
+    throw invalid();
+  }
+  return value;
+}
+
 export function formatSelection(value, start, end, action, linkUrl = "https://example.com") {
   const blockAction = ["heading", "bullets", "numbers"].includes(action);
   if (blockAction) {

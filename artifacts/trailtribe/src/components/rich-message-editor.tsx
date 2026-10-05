@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { RichMessageContent } from "@/components/rich-message-content";
-import { formatSelection, rowsToMarkdownTable, spreadsheetTextToMarkdown } from "@/lib/message-formatting.mjs";
+import { formatSelection, rowsToMarkdownTable, spreadsheetTextToMarkdown, validateMessageLink } from "@/lib/message-formatting.mjs";
 import { useToast } from "@/hooks/use-toast";
 
 type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> & {
@@ -20,7 +20,7 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [preview, setPreview] = useState(false);
   const [linkSelection, setLinkSelection] = useState<{ start: number; end: number } | null>(null);
-  const [linkUrl, setLinkUrl] = useState("https://");
+  const [linkUrl, setLinkUrl] = useState("");
   const { toast } = useToast();
   const insert = (action: string) => {
     const input = inputRef.current;
@@ -32,7 +32,7 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
         return;
       }
       setLinkSelection({ start, end });
-      setLinkUrl("https://");
+      setLinkUrl("");
       return;
     }
     const selection = formatSelection(value, input?.selectionStart ?? value.length, input?.selectionEnd ?? value.length, action);
@@ -70,12 +70,12 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
             <Input autoFocus value={linkUrl} onChange={event => setLinkUrl(event.target.value)} placeholder="https://example.com" aria-label="Link address" disabled={disabled} />
           </label>
           <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={disabled} onClick={() => {
-              const url = linkUrl.trim();
+            <Button type="button" size="sm" disabled={disabled || !linkUrl.trim()} onClick={() => {
+              let url: string;
               try {
-                if (!["http:", "https:", "mailto:"].includes(new URL(url).protocol) || /[\r\n<>]/.test(url)) throw new Error();
-              } catch {
-                toast({ title: "Enter an https, http, or mailto link", variant: "destructive" });
+                url = validateMessageLink(linkUrl);
+              } catch (error) {
+                toast({ title: "Check the link address", description: error instanceof Error ? error.message : "Enter a complete link with a destination.", variant: "destructive" });
                 return;
               }
               const selection = formatSelection(value, linkSelection.start, linkSelection.end, "link", url);

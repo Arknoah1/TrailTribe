@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rowsToMarkdownTable, spreadsheetTextToMarkdown, formatSelection, messageLinkPreviewText } from "./message-formatting.mjs";
+import { rowsToMarkdownTable, spreadsheetTextToMarkdown, formatSelection, messageLinkPreviewText, validateMessageLink } from "./message-formatting.mjs";
 
 test("Excel paste becomes a rectangular editable table", () => {
   assert.equal(spreadsheetTextToMarkdown("Rider\tLap 1\tLap 2\r\nAlice\t1:22\t1:24\r\nBob\t1:30\r\n"),
@@ -15,6 +15,31 @@ test("links use the supplied safe destination and remote images do not generate 
   assert.equal(formatSelection("Team site", 0, 9, "link", "https://example.test/team").value, "[Team site](<https://example.test/team>)");
   assert.equal(messageLinkPreviewText("![pixel](https://remote.test/pixel.png) https://example.test/team"), " https://example.test/team");
   assert.equal(messageLinkPreviewText("[Team site](<https://example.test/team>)"), "[Team site](https://example.test/team)");
+});
+test("link validation preserves full safe destinations and trims only outer whitespace", () => {
+  for (const url of [
+    "https://example.test/team?next=https://other.test/a#results",
+    "http://example.test:8080/path?q=hello%20world#top",
+    "HTTPS://example.test/CaseSensitive?key=Value",
+    "mailto:coach@example.test?subject=Practice%20update",
+  ]) {
+    assert.equal(validateMessageLink(` \t${url}\n `), url);
+    assert.equal(formatSelection("Go to Team site now", 6, 15, "link", validateMessageLink(url)).value,
+      `Go to [Team site](<${url}>) now`);
+  }
+});
+test("link validation explicitly rejects doubled leading schemes without silently repairing them", () => {
+  for (const url of ["https://https://example.test", "https://http://example.test",
+    "http://https://example.test", "HTTPS://HTTPS://example.test"]) {
+    assert.throws(() => validateMessageLink(url), /two.*prefixes/);
+  }
+});
+test("link validation rejects empty or missing destinations and unsafe syntax", () => {
+  for (const url of ["", "  ", "https://", "http://", "mailto:", "mailto:?subject=Hi",
+    "example.test", "https:example.test", "javascript:alert(1)", "data:text/html,test",
+    "https://exa\nmple.test", "https://example.test/<script>", "https://example.test/has space"]) {
+    assert.throws(() => validateMessageLink(url), /complete.*destination/);
+  }
 });
 test("quoted tabs and newlines, pipes and HTML remain cell text", () => {
   assert.equal(spreadsheetTextToMarkdown('Name\tNotes\n"A\tB"\t"line 1\nline 2 | <script>"'),

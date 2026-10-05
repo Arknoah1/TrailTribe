@@ -28,7 +28,69 @@ after(async () => {
   if (server && server.exitCode == null) { const exited = once(server, "exit"); server.kill("SIGTERM"); await exited; }
 });
 
+async function pasteAddress(page, address, text) {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseUrl });
+  await page.evaluate(text => navigator.clipboard.writeText(text), text);
+  await address.focus();
+  await address.press("Control+V");
+  assert.equal(await address.inputValue(), text, "Paste must insert the clipboard text into the existing field, not replace a hidden prefix");
+}
+
 for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const composer of ["broadcast", "thread", "reply"]) {
+    test(`${composer} link entry pastes safely and keeps invalid edits at ${viewport.width}px`, async () => {
+      const page = await browser.newPage({ viewport });
+      try {
+        await page.goto(`${baseUrl}${composer === "broadcast" ? "/messages/new" : composer === "thread" ? "/messages" : "/messages/thread/42"}`);
+        if (composer === "thread") await page.getByRole("button", { name: "New Thread", exact: true }).click();
+        const message = page.getByPlaceholder(composer === "broadcast" ? "Type your message here..." : composer === "thread" ? "Share your thoughts..." : "Add to the conversation…");
+        const editor = message.locator("..");
+        const open = editor.getByRole("button", { name: "Insert link", exact: true });
+        const address = editor.getByRole("textbox", { name: "Link address" });
+        const add = editor.getByRole("button", { name: "Add link", exact: true });
+        await message.fill("See Team site today.");
+        await message.evaluate(input => input.setSelectionRange(4, 13));
+        await open.click();
+        assert.equal(await address.inputValue(), "");
+        assert.equal(await address.getAttribute("placeholder"), "https://example.com");
+        assert.equal(await address.evaluate(input => input === document.activeElement), true);
+        assert.equal(await add.isDisabled(), true);
+        await pasteAddress(page, address, "https://https://example.test/team");
+        await add.click();
+        await page.getByText("The address contains two http:// or https:// prefixes. Paste the full link with only one prefix.", { exact: true }).waitFor();
+        assert.equal(await message.inputValue(), "See Team site today.");
+        assert.equal(await address.inputValue(), "https://https://example.test/team");
+        assert.deepEqual(await message.evaluate(input => [input.selectionStart, input.selectionEnd]), [4, 13]);
+        // Correction must still use the original message selection.
+        await address.fill("https://example.test/team?next=https://other.test/a#results");
+        await add.click();
+        assert.equal(await message.inputValue(), "See [Team site](<https://example.test/team?next=https://other.test/a#results>) today.");
+        await editor.getByTestId("toggle-message-preview").click();
+        assert.equal(await editor.getByTestId("message-preview").getByRole("link", { name: "Team site", exact: true }).getAttribute("href"),
+          "https://example.test/team?next=https://other.test/a#results");
+        await editor.getByTestId("toggle-message-preview").click();
+
+        // Cancel never changes the message, and reopening must discard the address.
+        await message.fill("Team site");
+        await message.evaluate(input => input.setSelectionRange(0, 9));
+        await open.click();
+        await address.pressSequentially("https://cancelled.test");
+        await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+        assert.equal(await message.inputValue(), "Team site");
+        await open.click();
+        assert.equal(await address.inputValue(), "");
+        assert.equal(await add.isDisabled(), true);
+        const destination = composer === "reply" ? "mailto:coach@example.test?subject=Practice%20update"
+          : composer === "thread" ? "http://example.test/team" : "https://example.test/team";
+        await pasteAddress(page, address, `  ${destination}  `);
+        await add.click();
+        assert.equal(await message.inputValue(), `[Team site](<${destination}>)`);
+        await editor.getByTestId("toggle-message-preview").click();
+        assert.equal(await editor.getByTestId("message-preview").getByRole("link", { name: "Team site", exact: true }).getAttribute("href"), destination);
+        assert.equal(await page.evaluate(() => window.richSubmitted.length), 0, "Link controls must not submit their enclosing composer");
+      } finally { await page.close(); }
+    });
+  }
   test(`broadcast submit remains reachable and preserves formatted pictures at ${viewport.width}px`, async () => {
     const page = await browser.newPage({ viewport });
     try {
@@ -39,7 +101,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 
       await message.fill("Team site");
       await message.evaluate(input => input.setSelectionRange(0, 9));
       await page.getByRole("button", { name: "Insert link", exact: true }).click();
-      await page.getByRole("textbox", { name: "Link address" }).fill("https://example.test/team");
+      await pasteAddress(page, page.getByRole("textbox", { name: "Link address" }), "https://example.test/team");
       await page.getByRole("button", { name: "Add link", exact: true }).click();
       assert.equal(await message.inputValue(), "[Team site](<https://example.test/team>)");
 
