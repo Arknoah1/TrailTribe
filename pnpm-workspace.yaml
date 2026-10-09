@@ -6,6 +6,20 @@ packages:
 
 autoInstallPeers: false
 
+# CI builds run on both Linux (Android/verify jobs) and macOS arm64 (the iOS
+# TestFlight job). Without this, pnpm only resolves native optional deps
+# (rollup, esbuild, lightningcss, @tailwindcss/oxide, ...) for whatever
+# platform `pnpm install` last ran on — which was Linux x64 the last time this
+# lockfile was regenerated — and `pnpm install --frozen-lockfile` on a macOS
+# runner then fails with "Cannot find module @rollup/rollup-darwin-arm64".
+supportedArchitectures:
+  os:
+    - linux
+    - darwin
+  cpu:
+    - x64
+    - arm64
+
 catalog:
   '@replit/vite-plugin-cartographer': ^0.5.1
   '@replit/vite-plugin-dev-banner': ^0.1.1
@@ -57,8 +71,6 @@ overrides:
   '@expo/ngrok-bin>@expo/ngrok-bin-win32-ia32': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-win32-x64': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-android-arm64': '-'
-  '@tailwindcss/oxide>@tailwindcss/oxide-darwin-arm64': '-'
-  '@tailwindcss/oxide>@tailwindcss/oxide-darwin-x64': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-freebsd-x64': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-arm-gnueabihf': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-arm64-gnu': '-'
@@ -86,8 +98,6 @@ overrides:
   esbuild>@esbuild/android-arm: '-'
   esbuild>@esbuild/android-arm64: '-'
   esbuild>@esbuild/android-x64: '-'
-  esbuild>@esbuild/darwin-arm64: '-'
-  esbuild>@esbuild/darwin-x64: '-'
   esbuild>@esbuild/freebsd-arm64: '-'
   esbuild>@esbuild/freebsd-x64: '-'
   esbuild>@esbuild/linux-arm: '-'
@@ -111,8 +121,6 @@ overrides:
   fast-xml-builder: ^1.3.0
   form-data: ^2.5.6
   lightningcss>lightningcss-android-arm64: '-'
-  lightningcss>lightningcss-darwin-arm64: '-'
-  lightningcss>lightningcss-darwin-x64: '-'
   lightningcss>lightningcss-freebsd-x64: '-'
   lightningcss>lightningcss-linux-arm-gnueabihf: '-'
   lightningcss>lightningcss-linux-arm64-gnu: '-'
@@ -124,8 +132,6 @@ overrides:
   picomatch: ^4.0.5
   rollup>@rollup/rollup-android-arm-eabi: '-'
   rollup>@rollup/rollup-android-arm64: '-'
-  rollup>@rollup/rollup-darwin-arm64: '-'
-  rollup>@rollup/rollup-darwin-x64: '-'
   rollup>@rollup/rollup-freebsd-arm64: '-'
   rollup>@rollup/rollup-freebsd-x64: '-'
   rollup>@rollup/rollup-linux-arm-gnueabihf: '-'
