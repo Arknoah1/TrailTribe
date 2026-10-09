@@ -170,61 +170,70 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       </aside>
 
-      {/* Mobile Top Bar — h-16 matches <main>'s pt-16 below; keep these in sync if either changes */}
+      {/* The status-area spacer and body safe-area padding keep this bar aligned with <main>'s pt-16. */}
       {me && (
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-16 flex items-center justify-between px-4 bg-card border-b-2 border-[#0a0c10] shadow-cel-sm">
-          <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTeam</span>
-          <div className="flex items-center gap-1.5">
-            <NotificationBell />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-primary transition-colors"
-                  title="Open navigation and display options"
-                  aria-label="Open navigation and display options"
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-card shadow-cel-sm">
+          <div aria-hidden="true" style={{ height: "var(--app-safe-area-top)" }} />
+          <div
+            className="h-16 flex items-center justify-between bg-card border-b-2 border-[#0a0c10]"
+            style={{
+              paddingLeft: "max(1rem, var(--app-safe-area-left))",
+              paddingRight: "max(1rem, var(--app-safe-area-right))",
+            }}
+          >
+            <span className="font-display text-2xl tracking-wider text-primary leading-none">TrailTeam</span>
+            <div className="flex items-center gap-1.5">
+              <NotificationBell />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-primary transition-colors"
+                    title="Open navigation and display options"
+                    aria-label="Open navigation and display options"
+                  >
+                    <MoreHorizontal className="h-5 w-5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  className="min-w-52 border-2 border-[#0a0c10] bg-card p-1.5 shadow-cel-sm"
                 >
-                  <MoreHorizontal className="h-5 w-5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                sideOffset={8}
-                className="min-w-52 border-2 border-[#0a0c10] bg-card p-1.5 shadow-cel-sm"
-              >
-                <DropdownMenuItem
-                  onSelect={() => navigate("/profile")}
-                  className={cn(
-                    "min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide",
-                    getPathname(location) === "/profile" && new URLSearchParams(search).get("tab") !== "volunteer"
-                      && "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground"
-                  )}
-                >
-                  <UserIcon className="h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                {showAdminTabs && (
                   <DropdownMenuItem
-                    onSelect={() => navigate("/admin")}
+                    onSelect={() => navigate("/profile")}
                     className={cn(
                       "min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide",
-                      location.startsWith("/admin")
+                      getPathname(location) === "/profile" && new URLSearchParams(search).get("tab") !== "volunteer"
                         && "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground"
                     )}
                   >
-                    <ShieldCheck className="h-4 w-4" />
-                    Admin
+                    <UserIcon className="h-4 w-4" />
+                    Profile
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator className="bg-[#0a0c10]/20" />
-                <DropdownMenuItem
-                  onSelect={toggleTheme}
-                  className="min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide"
-                >
-                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  {theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {showAdminTabs && (
+                    <DropdownMenuItem
+                      onSelect={() => navigate("/admin")}
+                      className={cn(
+                        "min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide",
+                        location.startsWith("/admin")
+                          && "bg-primary text-primary-foreground focus:bg-primary focus:text-primary-foreground"
+                      )}
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Admin
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="bg-[#0a0c10]/20" />
+                  <DropdownMenuItem
+                    onSelect={toggleTheme}
+                    className="min-h-11 cursor-pointer gap-3 px-3 font-bold uppercase tracking-wide"
+                  >
+                    {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    {theme === "dark" ? "Day Ride mode" : "Night Ride mode"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       )}

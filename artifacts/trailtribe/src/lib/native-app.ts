@@ -7,6 +7,7 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { useAuth, useUser } from "@clerk/react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
+import { useTheme } from "@/lib/theme-context";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const PENDING_LINK_KEY = "trailtribe.pending-link";
@@ -41,6 +42,12 @@ export function NativeAppBridge() {
   const [, setLocation] = useLocation();
   const { getToken } = useAuth();
   const { isSignedIn, user } = useUser();
+  const { theme } = useTheme();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    void StatusBar.setStyle({ style: theme === "dark" ? Style.Light : Style.Dark });
+  }, [theme]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -74,7 +81,6 @@ export function NativeAppBridge() {
 
     void App.getLaunchUrl().then((launch) => routeOrQueue(launch?.url));
     void StatusBar.setOverlaysWebView({ overlay: true });
-    void StatusBar.setStyle({ style: Style.Dark });
 
     return () => {
       disposed = true;

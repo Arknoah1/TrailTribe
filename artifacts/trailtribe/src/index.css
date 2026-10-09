@@ -61,6 +61,10 @@
 
 /* ── Light mode (Day Ride) ──────────────────────────────── */
 :root {
+  --app-safe-area-top: env(safe-area-inset-top, 0px);
+  --app-safe-area-left: env(safe-area-inset-left, 0px);
+  --app-safe-area-right: env(safe-area-inset-right, 0px);
+
   --background: 213 24% 92%;      /* #e8edf2 */
   --foreground: 228 17% 8%;       /* #0f1117 */
   --border: 225 23% 6%;           /* #0a0c10 — ink always */
@@ -160,7 +164,7 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     min-height: 100dvh;
-    padding-top: env(safe-area-inset-top);
+    padding-top: var(--app-safe-area-top);
     overscroll-behavior-y: none;
   }
   body.keyboard-open {

@@ -4,10 +4,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const source = await readFile(
-  resolve(dirname(fileURLToPath(import.meta.url)), "layout.tsx"),
-  "utf8",
-);
+const sourceDir = dirname(fileURLToPath(import.meta.url));
+const [source, cssSource, nativeAppSource, capacitorConfigSource] = await Promise.all([
+  readFile(resolve(sourceDir, "layout.tsx"), "utf8"),
+  readFile(resolve(sourceDir, "../index.css"), "utf8"),
+  readFile(resolve(sourceDir, "../lib/native-app.ts"), "utf8"),
+  readFile(resolve(sourceDir, "../../capacitor.config.ts"), "utf8"),
+]);
 
 test("the mobile actions menu keeps notifications visible while grouping account controls", () => {
   assert.match(source, /<NotificationBell\s*\/>/);
@@ -31,4 +34,20 @@ test("the Volunteer route stays highlighted and the bottom-nav safe area remains
   assert.match(source, /getPathname\(location\) === "\/volunteer"/);
   assert.match(source, /--mobile-bottom-nav-height/);
   assert.match(source, /env\(safe-area-inset-bottom\)/);
+});
+
+test("the fixed mobile header reserves top and horizontal device safe areas", () => {
+  assert.match(cssSource, /--app-safe-area-top:\s*env\(safe-area-inset-top,\s*0px\)/);
+  assert.match(cssSource, /--app-safe-area-left:\s*env\(safe-area-inset-left,\s*0px\)/);
+  assert.match(cssSource, /--app-safe-area-right:\s*env\(safe-area-inset-right,\s*0px\)/);
+  assert.match(cssSource, /padding-top:\s*var\(--app-safe-area-top\)/);
+  assert.match(source, /height:\s*"var\(--app-safe-area-top\)"/);
+  assert.match(source, /paddingLeft:\s*"max\(1rem,\s*var\(--app-safe-area-left\)\)"/);
+  assert.match(source, /paddingRight:\s*"max\(1rem,\s*var\(--app-safe-area-right\)\)"/);
+  assert.match(source, /pt-16 md:pt-0/);
+});
+
+test("native status-bar icon contrast follows the selected theme", () => {
+  assert.match(nativeAppSource, /theme === "dark" \? Style\.Light : Style\.Dark/);
+  assert.match(capacitorConfigSource, /StatusBar:\s*\{\s*style:\s*"LIGHT"/);
 });
