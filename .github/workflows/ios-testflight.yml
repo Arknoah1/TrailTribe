@@ -118,6 +118,9 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           # Read by capacitor.config.ts (server.url). Empty = normal bundled-assets build.
           CAP_SERVER_URL: ${{ inputs.live_site_mode && 'https://trailteam.app' || '' }}
+          # Required by the packaged-release guard in vite.config.ts to allow the
+          # live-site URL above; has no effect when CAP_SERVER_URL is empty.
+          ALLOW_LIVE_SITE_BUILD: ${{ inputs.live_site_mode && 'true' || 'false' }}
         run: |
           cd artifacts/trailtribe
           pnpm run mobile:sync
