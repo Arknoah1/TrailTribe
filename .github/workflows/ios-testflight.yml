@@ -12,6 +12,13 @@ on:
           hold Clerk's cookies on iOS).
         type: boolean
         default: false
+      native_http:
+        description: >-
+          Route the app's network requests and cookies through the native layer
+          (CapacitorHttp + CapacitorCookies) so Clerk's cookie survives iOS's
+          cross-site cookie blocking. Leave ticked unless testing without it.
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -121,6 +128,8 @@ jobs:
           # Required by the packaged-release guard in vite.config.ts to allow the
           # live-site URL above; has no effect when CAP_SERVER_URL is empty.
           ALLOW_LIVE_SITE_BUILD: ${{ inputs.live_site_mode && 'true' || 'false' }}
+          # Read by capacitor.config.ts (plugins.CapacitorHttp / CapacitorCookies).
+          CAP_NATIVE_HTTP: ${{ inputs.native_http && 'true' || 'false' }}
         run: |
           cd artifacts/trailtribe
           pnpm run mobile:sync
