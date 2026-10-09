@@ -1,0 +1,229 @@
+name: Build and Upload iOS to TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck and test (Linux — macOS runners can't run Postgres service containers)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: trailteam_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trailteam_test
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify web app
+        run: |
+          pnpm run typecheck:libs
+          pnpm --filter @workspace/trailtribe run typecheck
+          pnpm --filter @workspace/trailtribe run test
+
+      - name: Provision test database schema
+        run: pnpm --filter @workspace/db run push-force
+
+      - name: Verify API server
+        run: pnpm --filter @workspace/api-server run test:clean
+
+  build-upload-testflight:
+    name: Build, sign, and upload to TestFlight
+    needs: verify
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write Firebase config for push notifications
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_IOS_PLIST_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_IOS_PLIST_BASE64 }}" | base64 -d > artifacts/trailtribe/ios/App/App/GoogleService-Info.plist
+            echo "Wrote GoogleService-Info.plist — push notifications will be enabled in this build."
+          else
+            echo "GOOGLE_SERVICES_IOS_PLIST_BASE64 not set — build will fail (the Xcode project references this file as a Resources build phase input)."
+            exit 1
+          fi
+
+      - name: Build web app and sync into native project
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          cd artifacts/trailtribe
+          pnpm run mobile:sync
+
+      - name: Verify native web bundle
+        run: |
+          cd artifacts/trailtribe
+          node -e "
+            import('./scripts/verify-mobile-bundle.mjs').then(async ({ verifyMobileBundle }) => {
+              const result = await verifyMobileBundle({ nativeDir: 'ios/App/App/public' });
+              console.log('[mobile bundle] verified ' + result.fileCount + ' files against ios/App/App/public');
+            }).catch((err) => {
+              console.error(err instanceof Error ? err.message : err);
+              process.exit(1);
+            });
+          "
+
+      - name: Import signing certificate into a temporary keychain
+        env:
+          IOS_DIST_CERT_BASE64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+
+          echo "$IOS_DIST_CERT_BASE64" | base64 -d > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      - name: Install provisioning profile
+        env:
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 -d > "$PROFILE_DIR/trailteam-app-store.mobileprovision"
+
+      - name: Write export options
+        run: |
+          cat > "$RUNNER_TEMP/exportOptions.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>MSCL9BB7Y9</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>app.trailteam.trailteam</key>
+              <string>TrailTeam App Store</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          cd artifacts/trailtribe/ios/App
+          xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App
+
+      - name: Archive
+        run: |
+          cd artifacts/trailtribe/ios/App
+          xcodebuild archive \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="TrailTeam App Store" \
+            DEVELOPMENT_TEAM=MSCL9BB7Y9 \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Export IPA
+        run: |
+          cd artifacts/trailtribe/ios/App
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist"
+
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_P8: ${{ secrets.APP_STORE_CONNECT_P8 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/private_keys"
+          echo "$APP_STORE_CONNECT_P8" > "$HOME/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+          IPA_PATH=$(find "$RUNNER_TEMP/export" -name "*.ipa" | head -1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No .ipa found in export output"
+            exit 1
+          fi
+
+          xcrun altool --upload-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Clean up keychain and provisioning profile
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/trailteam-app-store.mobileprovision"
+          rm -rf "$HOME/private_keys"
