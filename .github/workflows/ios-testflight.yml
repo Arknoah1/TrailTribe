@@ -179,16 +179,22 @@ jobs:
       - name: Archive
         run: |
           cd artifacts/trailtribe/ios/App
+          # Manual signing (CODE_SIGN_STYLE, CODE_SIGN_IDENTITY, PROVISIONING_PROFILE_SPECIFIER,
+          # DEVELOPMENT_TEAM) is intentionally NOT passed here as a command-line build-setting
+          # override. xcodebuild applies CLI overrides globally across the whole build graph,
+          # including Firebase's transitive Swift Package Manager library targets (nanopb,
+          # GoogleUtilities, Promises, FirebaseCore/Messaging internals) — none of which support
+          # provisioning profiles at all, so a global override breaks the archive with
+          # "X does not support provisioning profiles" for every one of them. Instead these
+          # settings live in project.pbxproj on the App target's own Release build configuration,
+          # which only applies to that target and leaves the SPM package targets on their
+          # (unsigned) defaults.
           xcodebuild archive \
             -project App.xcodeproj \
             -scheme App \
             -configuration Release \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="TrailTeam App Store" \
-            DEVELOPMENT_TEAM=MSCL9BB7Y9 \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
 
       - name: Export IPA
