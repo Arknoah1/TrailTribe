@@ -384,6 +384,13 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
+      // On iOS the Capacitor WebView's page URL is capacitor://app.trailteam.app/...
+      // (iosScheme can't be https). Clerk resolves every post-step redirect
+      // (e.g. sign-in -> /sign-in/factor-one) against the current page URL and
+      // rejects any protocol outside http/https, logging '"capacitor:" is not a
+      // valid protocol. Redirecting to "/"' and sending the user back to the start
+      // screen — the iOS "sign-in bounces back" bug. Allow-list the scheme.
+      allowedRedirectProtocols={["capacitor:"]}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
       appearance={{
