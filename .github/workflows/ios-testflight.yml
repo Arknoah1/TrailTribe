@@ -2,6 +2,16 @@ name: Build and Upload iOS to TestFlight
 
 on:
   workflow_dispatch:
+    inputs:
+      live_site_mode:
+        description: >-
+          Experimental: make the iOS app load the live site (https://trailteam.app)
+          inside the native shell instead of the bundled web assets. Used to test
+          whether sign-in works when the page origin is a real https origin on the
+          same site as the Clerk proxy (the bundled app's capacitor:// origin can't
+          hold Clerk's cookies on iOS).
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -106,6 +116,8 @@ jobs:
       - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          # Read by capacitor.config.ts (server.url). Empty = normal bundled-assets build.
+          CAP_SERVER_URL: ${{ inputs.live_site_mode && 'https://trailteam.app' || '' }}
         run: |
           cd artifacts/trailtribe
           pnpm run mobile:sync

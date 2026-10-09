@@ -8,7 +8,7 @@ const config: CapacitorConfig = {
   server: {
     // Native release builds use the bundled Vite output. A dev server can be
     // supplied without changing source code via CAP_SERVER_URL.
-    url: process.env.CAP_SERVER_URL,
+    url: process.env.CAP_SERVER_URL || undefined,
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
     hostname: "app.trailteam.app",
     androidScheme: "https",
