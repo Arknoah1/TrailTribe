@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.app.trailteam.trailteam"],
+        "appIDs": ["MSCL9BB7Y9.app.trailteam.trailteam"],
         "components": [
           { "/": "/events/*" },
           { "/": "/messages" },

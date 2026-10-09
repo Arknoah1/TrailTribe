@@ -1,5 +1,11 @@
 import UIKit
 import Capacitor
+#if canImport(FirebaseCore)
+import FirebaseCore
+#endif
+#if canImport(FirebaseMessaging)
+import FirebaseMessaging
+#endif
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -8,7 +14,61 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        //
+        // FirebaseApp.configure() reads GoogleService-Info.plist, which this repo does NOT commit
+        // (same pattern as Android's google-services.json) — CI writes it from a base64 secret
+        // before the build. #if canImport guards keep this file compiling even if the Firebase
+        // SPM package or plist is ever missing from a given build.
+        #if canImport(FirebaseCore)
+        if FirebaseApp.app() == nil, Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        }
+        #endif
         return true
+    }
+
+    // MARK: - Push notifications (APNs <-> FCM <-> Capacitor bridge)
+    //
+    // Capacitor's @capacitor/push-notifications plugin listens for these two
+    // NotificationCenter posts. On iOS, Capacitor hands the app the raw APNs device
+    // token; without this bridge the plugin would surface that raw token instead of
+    // the FCM token the server's sendPushNotification() (artifacts/api-server/src/lib/push.ts)
+    // actually sends to, via firebase-admin's sendEachForMulticast. Mirrors the Capacitor +
+    // Firebase guide: https://capacitorjs.com/docs/guides/push-notifications-firebase
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        #if canImport(FirebaseMessaging)
+        if FirebaseApp.app() != nil {
+            Messaging.messaging().apnsToken = deviceToken
+            Messaging.messaging().token { fcmToken, error in
+                if let error = error {
+                    NotificationCenter.default.post(
+                        name: .capacitorDidFailToRegisterForRemoteNotifications,
+                        object: error
+                    )
+                    return
+                }
+                guard let fcmToken = fcmToken else { return }
+                NotificationCenter.default.post(
+                    name: .capacitorDidRegisterForRemoteNotifications,
+                    object: fcmToken
+                )
+            }
+            return
+        }
+        #endif
+        // No Firebase configured (e.g. local build without the plist) — fall back to the raw APNs token.
+        NotificationCenter.default.post(
+            name: .capacitorDidRegisterForRemoteNotifications,
+            object: deviceToken
+        )
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(
+            name: .capacitorDidFailToRegisterForRemoteNotifications,
+            object: error
+        )
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
