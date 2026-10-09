@@ -12,20 +12,15 @@ const config: CapacitorConfig = {
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
     hostname: "app.trailteam.app",
     androidScheme: "https",
-    // Capacitor's iOS default is the "capacitor" scheme, which makes the iOS
-    // WebView's origin "capacitor://app.trailteam.app" — different from
-    // Android's "https://app.trailteam.app" above. The API server's CORS
-    // allowlist (artifacts/api-server/src/app.ts, PRODUCTION_ORIGINS) only
-    // contains "https://app.trailteam.app", so every fetch from the iOS app
-    // (including Clerk's own sign-in/sign-up calls through the proxy) was
-    // being CORS-blocked — the request goes out, but the browser refuses to
-    // hand the response to JS, so Clerk's client sees it as a failed
-    // sign-in attempt and the UI just falls back to the sign-in screen with
-    // no visible error. A non-https scheme is also not a "secure context",
-    // which can itself break cookie-based session storage. Matching
-    // Android's https scheme here fixes both at once, with no backend
-    // change needed.
-    iosScheme: "https",
+    // NOT also setting iosScheme: "https" here — it's a dead end. Apple's
+    // WKWebView refuses to let a custom URLSchemeHandler register for a
+    // scheme it already natively handles ("http"/"https" included), so
+    // Capacitor's own config validation silently resets iosScheme back to
+    // the default "capacitor" whenever it's set to "https" (confirmed in
+    // @capacitor/ios's CAPInstanceDescriptor.swift, normalize()). iOS's
+    // WebView origin is unavoidably "capacitor://app.trailteam.app" —
+    // that's why it's explicitly allowlisted in the API server's CORS config
+    // (artifacts/api-server/src/app.ts, PRODUCTION_ORIGINS) instead.
     allowNavigation: [
       "trailteam.app",
       "trailtribemtb.com",

@@ -40,7 +40,18 @@ app.use(helmet());
 
 // CORS — keep the production web app allowed even if deployment env vars are
 // missing or misconfigured, while retaining the local development fallback.
-const PRODUCTION_ORIGINS = ["https://app.trailteam.app"];
+//
+// "capacitor://app.trailteam.app" is the iOS app's real WebView origin, not a
+// typo or a dev leftover. Capacitor's `iosScheme` config can only be set to a
+// custom scheme WKWebView doesn't already natively handle — Apple's own
+// WKWebView API refuses to let a custom URLSchemeHandler register for "http"
+// or "https", so iOS always falls back to the "capacitor://" scheme
+// regardless of config (confirmed directly in @capacitor/ios's
+// CAPInstanceDescriptor.swift: normalize() resets to the default scheme
+// whenever WKWebView.handlesURLScheme(scheme) is true, which it is for
+// "https"). Android's WebView has no such restriction, which is why
+// androidScheme: "https" above works and produces "https://app.trailteam.app".
+const PRODUCTION_ORIGINS = ["https://app.trailteam.app", "capacitor://app.trailteam.app"];
 
 const envOrigins: string[] = [];
 if (process.env.ALLOWED_ORIGINS) {
