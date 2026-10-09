@@ -3,6 +3,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
 import { setBaseUrl } from "@workspace/api-client-react";
 import App from "./App";
+import { installDebugOverlay } from "./lib/debug-overlay";
 import "./index.css";
 
 type RootErrorBoundaryState = {
@@ -63,6 +64,12 @@ class RootErrorBoundary extends Component<
 
     return this.props.children;
   }
+}
+
+// Diagnostics build only (ios-testflight.yml -> debug_overlay). Installed before
+// the fetch rewrite below so it sees every request. Off in normal builds.
+if (import.meta.env.VITE_DEBUG_OVERLAY === "true") {
+  installDebugOverlay();
 }
 
 setBaseUrl(Capacitor.isNativePlatform() ? import.meta.env.VITE_API_ORIGIN : undefined);

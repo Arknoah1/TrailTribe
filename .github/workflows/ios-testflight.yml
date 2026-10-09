@@ -20,6 +20,14 @@ on:
         type: boolean
         default: true
 
+      debug_overlay:
+        description: >-
+          Diagnostics only: show an on-screen log panel (network calls, errors,
+          Clerk state, page reloads) at the bottom of the app. Never ship a
+          build made with this ticked.
+        type: boolean
+        default: false
+
 permissions:
   contents: read
 
@@ -130,6 +138,8 @@ jobs:
           ALLOW_LIVE_SITE_BUILD: ${{ inputs.live_site_mode && 'true' || 'false' }}
           # Read by capacitor.config.ts (plugins.CapacitorHttp / CapacitorCookies).
           CAP_NATIVE_HTTP: ${{ inputs.native_http && 'true' || 'false' }}
+          # Read by src/main.tsx (on-screen diagnostics panel).
+          VITE_DEBUG_OVERLAY: ${{ inputs.debug_overlay && 'true' || 'false' }}
         run: |
           cd artifacts/trailtribe
           pnpm run mobile:sync
