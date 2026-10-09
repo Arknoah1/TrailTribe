@@ -21,7 +21,13 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # Amazon ECR Public's mirror of the official Docker Hub image, not
+        # Docker Hub directly — GitHub-hosted runners share IPs across many
+        # users, and anonymous Docker Hub pulls are rate-limited per IP, so
+        # this step intermittently fails with "toomanyrequests" even though
+        # nothing about the workflow or the app changed. ECR Public isn't
+        # subject to that limit for ordinary CI use.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
