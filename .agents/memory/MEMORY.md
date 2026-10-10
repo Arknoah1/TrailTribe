@@ -31,3 +31,4 @@
 - [Publish derived-column backfills](publish-derived-column-backfills.md) — schema diffs do not infer data backfills; new defaults and checks must accept existing production rows
 - [GitHub push sync](github-push-sync.md) — if Git push fails under Replit askpass, use the connected GitHub API and sync the resulting commits back into local refs
 - [Communication formatting scope](communication-formatting-scope.md) — editable Excel tables need not reproduce colors; screenshots preserve exact appearance; commerce remains paused
+- [Clerk SDK version alignment](clerk-sdk-version-alignment.md) — update the pinned Clerk shared package with Clerk SDK upgrades or Vite may fail on missing exports

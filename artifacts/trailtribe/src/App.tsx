@@ -22,6 +22,7 @@ const Onboarding = lazy(() => import("./pages/onboarding"));
 const Reenroll = lazy(() => import("./pages/reenroll"));
 const LegalPage = lazy(() => import("./pages/legal"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
+import { publishableKeyFromHost } from "@clerk/react/internal";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { useGetMe } from "@workspace/api-client-react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +39,10 @@ import { hasRequiredUserName } from "@/lib/user-name";
 import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirect";
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkPubKey = publishableKeyFromHost(
+  window.location.hostname,
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -384,7 +388,7 @@ function ClerkProviderWithRoutes() {
     <ClerkProvider
       publishableKey={clerkPubKey}
       proxyUrl={clerkProxyUrl}
-      // On iOS the Capacitor WebView's page URL is capacitor://app.trailteam.app/...
+      // On iOS the Capacitor WebView's page URL is capacitor://trailteam.app/...
       // (iosScheme can't be https). Clerk resolves every post-step redirect
       // (e.g. sign-in -> /sign-in/factor-one) against the current page URL and
       // rejects any protocol outside http/https, logging '"capacitor:" is not a

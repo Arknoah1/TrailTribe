@@ -58,7 +58,7 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
-  '@clerk/shared': ^4.26.0
+  '@clerk/shared': ^4.40.0
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'

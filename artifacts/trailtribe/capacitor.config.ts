@@ -10,7 +10,9 @@ const config: CapacitorConfig = {
     // supplied without changing source code via CAP_SERVER_URL.
     url: process.env.CAP_SERVER_URL || undefined,
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
-    hostname: "app.trailteam.app",
+    // Keep the native WebView origin on the real published domain so OAuth
+    // redirects can resolve and Android App Links can reopen the app.
+    hostname: "trailteam.app",
     androidScheme: "https",
     // NOT also setting iosScheme: "https" here — it's a dead end. Apple's
     // WKWebView refuses to let a custom URLSchemeHandler register for a
@@ -18,7 +20,7 @@ const config: CapacitorConfig = {
     // Capacitor's own config validation silently resets iosScheme back to
     // the default "capacitor" whenever it's set to "https" (confirmed in
     // @capacitor/ios's CAPInstanceDescriptor.swift, normalize()). iOS's
-    // WebView origin is unavoidably "capacitor://app.trailteam.app" —
+    // WebView origin is unavoidably "capacitor://trailteam.app" —
     // that's why it's explicitly allowlisted in the API server's CORS config
     // (artifacts/api-server/src/app.ts, PRODUCTION_ORIGINS) instead.
     allowNavigation: [
