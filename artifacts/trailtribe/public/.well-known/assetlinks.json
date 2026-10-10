@@ -4,7 +4,7 @@
     "target": {
       "namespace": "android_app",
       "package_name": "app.trailteam.trailteam",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_PLAY_APP_SIGNING_SHA256"]
+      "sha256_cert_fingerprints": ["D4:9F:5C:45:2A:B7:B3:77:F3:D8:F4:A8:7D:23:09:E1:E0:12:E7:20:23:D9:C9:EF:98:26:F8:8F:18:AF:4C:48"]
     }
   }
 ]
