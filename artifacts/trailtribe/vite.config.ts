@@ -42,20 +42,9 @@ if (process.env.TRAILTEAM_MOBILE_BUILD === "true") {
   }
 
   if (process.env.CAP_SERVER_URL) {
-    // The only exception is the explicitly opt-in, experimental "live site"
-    // iOS build (ios-testflight.yml -> live_site_mode), which points the native
-    // shell at the production site itself. It requires BOTH the opt-in flag and
-    // the exact production URL, so a stray CAP_SERVER_URL (e.g. a dev server)
-    // still blocks a packaged release.
-    const isLiveSiteBuild =
-      process.env.ALLOW_LIVE_SITE_BUILD === "true" &&
-      process.env.CAP_SERVER_URL === "https://trailteam.app";
-
-    if (!isLiveSiteBuild) {
-      throw new Error(
-        "Native build blocked: CAP_SERVER_URL must not be set for a packaged release.",
-      );
-    }
+    throw new Error(
+      "Native build blocked: CAP_SERVER_URL must not be set for a packaged release.",
+    );
   }
 }
 

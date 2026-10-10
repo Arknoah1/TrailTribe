@@ -3,23 +3,6 @@ name: Build and Upload iOS to TestFlight
 on:
   workflow_dispatch:
     inputs:
-      live_site_mode:
-        description: >-
-          Experimental: make the iOS app load the live site (https://trailteam.app)
-          inside the native shell instead of the bundled web assets. Used to test
-          whether sign-in works when the page origin is a real https origin on the
-          same site as the Clerk proxy (the bundled app's capacitor:// origin can't
-          hold Clerk's cookies on iOS).
-        type: boolean
-        default: false
-      native_http:
-        description: >-
-          Route the app's network requests and cookies through the native layer
-          (CapacitorHttp + CapacitorCookies) so Clerk's cookie survives iOS's
-          cross-site cookie blocking. Leave ticked unless testing without it.
-        type: boolean
-        default: true
-
       debug_overlay:
         description: >-
           Diagnostics only: show an on-screen log panel (network calls, errors,
@@ -131,13 +114,6 @@ jobs:
       - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          # Read by capacitor.config.ts (server.url). Empty = normal bundled-assets build.
-          CAP_SERVER_URL: ${{ inputs.live_site_mode && 'https://trailteam.app' || '' }}
-          # Required by the packaged-release guard in vite.config.ts to allow the
-          # live-site URL above; has no effect when CAP_SERVER_URL is empty.
-          ALLOW_LIVE_SITE_BUILD: ${{ inputs.live_site_mode && 'true' || 'false' }}
-          # Read by capacitor.config.ts (plugins.CapacitorHttp / CapacitorCookies).
-          CAP_NATIVE_HTTP: ${{ inputs.native_http && 'true' || 'false' }}
           # Read by src/main.tsx (on-screen diagnostics panel).
           VITE_DEBUG_OVERLAY: ${{ inputs.debug_overlay && 'true' || 'false' }}
         run: |

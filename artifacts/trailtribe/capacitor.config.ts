@@ -30,19 +30,6 @@ const config: CapacitorConfig = {
     ],
   },
   plugins: {
-    // iOS only (set by ios-testflight.yml via CAP_NATIVE_HTTP): route fetch/XHR
-    // and document.cookie through Capacitor's native layer. On iOS the WebView's
-    // origin is capacitor://app.trailteam.app, which is cross-site to the
-    // https://trailteam.app Clerk proxy, so WKWebView's tracking prevention
-    // refuses to store/send Clerk's client cookie and sign-in resets. Native
-    // requests (NSURLSession + the shared cookie store) are not subject to
-    // that. Off by default so Android — which works today — is unchanged.
-    ...(process.env.CAP_NATIVE_HTTP === "true"
-      ? {
-          CapacitorHttp: { enabled: true },
-          CapacitorCookies: { enabled: true },
-        }
-      : {}),
     SplashScreen: {
       launchShowDuration: 0,
       backgroundColor: "#0f1117",
