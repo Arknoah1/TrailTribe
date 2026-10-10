@@ -23,6 +23,7 @@ const Reenroll = lazy(() => import("./pages/reenroll"));
 const LegalPage = lazy(() => import("./pages/legal"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from "@clerk/react/internal";
+import { Capacitor } from "@capacitor/core";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 import { useGetMe } from "@workspace/api-client-react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -39,10 +40,19 @@ import { hasRequiredUserName } from "@/lib/user-name";
 import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirect";
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+// publishableKeyFromHost() ignores a production key and derives
+// "clerk.<current hostname>" instead. On the website that is the real domain.
+// Inside the Capacitor apps the hostname is only the WebView's internal origin
+// (app.trailteam.app on Android, trailteam.app on iOS), so deriving from it can
+// point at a Clerk domain that does not exist. Native builds therefore use the
+// key they were built with (VITE_CLERK_PUBLISHABLE_KEY, checked as pk_live_ by
+// vite.config.ts), exactly as before the host-derived key was introduced.
+const clerkPubKey = Capacitor.isNativePlatform()
+  ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+  : publishableKeyFromHost(
+      window.location.hostname,
+      import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+    );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
