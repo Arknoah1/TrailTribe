@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams, Link, useSearch } from "wouter";
+import { Capacitor } from "@capacitor/core";
+import { Keyboard } from "@capacitor/keyboard";
 import {
   useGetBoardThread,
   useListBoardPosts,
@@ -36,6 +38,7 @@ import { DiscussionImagePicker, DiscussionImages, type DiscussionImagePickerHand
 import { RichMessageEditor } from "@/components/rich-message-editor";
 import { RichMessageContent } from "@/components/rich-message-content";
 import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
+import { getKeyboardInset } from "@/lib/mobile-keyboard-layout";
 
 function isEventDiscussionAccessDenied(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -216,13 +219,16 @@ export default function BoardThread() {
     const visualViewport = window.visualViewport;
     layoutViewportHeightRef.current = window.innerHeight;
     let lastWindowHeight = window.innerHeight;
+    const nativeKeyboardInset = { current: 0 };
 
     const updateKeyboardOffset = () => {
       const layoutViewportHeight = layoutViewportHeightRef.current ?? window.innerHeight;
-      const visibleViewportBottom = visualViewport
-        ? visualViewport.height + visualViewport.offsetTop
-        : window.innerHeight;
-      const nextOffset = Math.max(0, layoutViewportHeight - visibleViewportBottom);
+      const nextOffset = getKeyboardInset(
+        layoutViewportHeight,
+        visualViewport?.height ?? window.innerHeight,
+        visualViewport?.offsetTop ?? 0,
+        nativeKeyboardInset.current,
+      );
 
       setKeyboardOffset(nextOffset);
       if (nextOffset === 0) {
@@ -234,7 +240,14 @@ export default function BoardThread() {
       // A rotation resizes the layout viewport as well as the visual viewport.
       // Keep the keyboard baseline in sync so the composer is not left at the
       // old portrait/landscape offset.
-      if (!visualViewport || window.innerHeight !== lastWindowHeight) {
+      const focusedElement = document.activeElement;
+      const composerHasFocus = focusedElement instanceof HTMLElement
+        && Boolean(composerRef.current?.contains(focusedElement));
+      if (
+        (!visualViewport || window.innerHeight !== lastWindowHeight)
+        && !composerHasFocus
+        && nativeKeyboardInset.current === 0
+      ) {
         layoutViewportHeightRef.current = window.innerHeight;
       }
       lastWindowHeight = window.innerHeight;
@@ -259,12 +272,25 @@ export default function BoardThread() {
     window.addEventListener("orientationchange", handleOrientationChange);
     visualViewport?.addEventListener("resize", updateKeyboardOffset);
     visualViewport?.addEventListener("scroll", updateKeyboardOffset);
+    const nativeKeyboardListeners = Capacitor.isNativePlatform()
+      ? [
+          Keyboard.addListener("keyboardWillShow", ({ keyboardHeight }) => {
+            nativeKeyboardInset.current = keyboardHeight;
+            updateKeyboardOffset();
+          }),
+          Keyboard.addListener("keyboardWillHide", () => {
+            nativeKeyboardInset.current = 0;
+            updateKeyboardOffset();
+          }),
+        ]
+      : [];
 
     return () => {
       window.removeEventListener("resize", handleWindowResize);
       window.removeEventListener("orientationchange", handleOrientationChange);
       visualViewport?.removeEventListener("resize", updateKeyboardOffset);
       visualViewport?.removeEventListener("scroll", updateKeyboardOffset);
+      void Promise.all(nativeKeyboardListeners.map(listener => listener.then(handle => handle.remove())));
     };
   }, []);
 
@@ -620,7 +646,7 @@ export default function BoardThread() {
       <div
         ref={composerRef}
         data-testid="reply-composer"
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height,78px)+var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
+        className="fixed bottom-[max(var(--mobile-bottom-nav-height,78px),var(--keyboard-offset))] md:sticky md:bottom-0 left-0 right-0 z-20 border-t-2 border-[#0a0c10]/20 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 md:pb-4"
         style={{ "--keyboard-offset": `${keyboardOffset}px` } as React.CSSProperties}
       >
         <div className="max-w-3xl mx-auto">

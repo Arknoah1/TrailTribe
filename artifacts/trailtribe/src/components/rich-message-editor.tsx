@@ -1,5 +1,5 @@
 import { forwardRef, useRef, useState, type TextareaHTMLAttributes } from "react";
-import { Bold, Italic, Heading2, List, ListOrdered, Link2, Table2, Eye, Pencil } from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Link2, Table2, Eye, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -48,17 +48,17 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
       <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Message formatting">
         {[
           { action: "bold", label: "Bold", Icon: Bold }, { action: "italic", label: "Italic", Icon: Italic },
-          { action: "heading", label: "Heading", Icon: Heading2 }, { action: "bullets", label: "Bullet list", Icon: List },
+          { action: "bullets", label: "Bullet list", Icon: List },
           { action: "numbers", label: "Numbered list", Icon: ListOrdered }, { action: "link", label: "Insert link", Icon: Link2 },
           { action: "table", label: "Insert table", Icon: Table2 },
         ].map(({ action, label, Icon }) => (
-          <Button key={action} type="button" variant="outline" size="icon" className="h-8 w-8" disabled={disabled}
+          <Button key={action} type="button" variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" disabled={disabled}
             aria-label={label} title={label} data-testid={`format-${action}`}
             onMouseDown={event => event.preventDefault()} onClick={() => insert(action)}>
             <Icon className="h-4 w-4" />
           </Button>
         ))}
-        <Button type="button" variant="outline" size="sm" className="h-8 ml-auto" disabled={disabled}
+        <Button type="button" variant="outline" size="sm" className="h-11 ml-auto md:h-8" disabled={disabled}
           aria-pressed={preview} data-testid="toggle-message-preview" onClick={() => setPreview(!preview)}>
           {preview ? <Pencil className="mr-1 h-3.5 w-3.5" /> : <Eye className="mr-1 h-3.5 w-3.5" />}
           {preview ? "Write" : "Preview"}

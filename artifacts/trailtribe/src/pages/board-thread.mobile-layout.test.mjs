@@ -3,16 +3,17 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { getKeyboardInset } from "../lib/mobile-keyboard-layout.ts";
 
 const pagesDir = dirname(fileURLToPath(import.meta.url));
 const threadSource = await readFile(resolve(pagesDir, "board-thread.tsx"), "utf8");
+const editorSource = await readFile(resolve(pagesDir, "../components/rich-message-editor.tsx"), "utf8");
 const layoutSource = await readFile(resolve(pagesDir, "../components/layout.tsx"), "utf8");
 const messagesSource = await readFile(resolve(pagesDir, "messages.tsx"), "utf8");
 const eventDetailSource = await readFile(resolve(pagesDir, "event-detail.tsx"), "utf8");
 
 function keyboardOffset(layoutViewportHeight, visualViewportHeight, visualViewportTop = 0) {
-  const visibleViewportBottom = visualViewportHeight + visualViewportTop;
-  return Math.max(0, layoutViewportHeight - visibleViewportBottom);
+  return getKeyboardInset(layoutViewportHeight, visualViewportHeight, visualViewportTop);
 }
 
 const IOS_SAFE_AREA_INSETS = {
@@ -74,7 +75,7 @@ test("iOS Safari rotation keeps the reply and composer above navigation", () => 
 
   assert.match(threadSource, /value=\{replyBody\}/);
   assert.match(threadSource, /aria-label="Send reply"/);
-  assert.match(threadSource, /bottom-\[calc\(var\(--mobile-bottom-nav-height,78px\)\+var\(--keyboard-offset\)\)\]/);
+  assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
   assert.match(threadSource, /pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]/);
   assert.match(layoutSource, /new ResizeObserver\(updateMobileNavHeight\)/);
   assert.match(layoutSource, /--mobile-bottom-nav-height/);
@@ -85,14 +86,38 @@ test("visual viewport keyboard changes move the reply composer above the keyboar
   assert.equal(keyboardOffset(800, 480), 320);
   assert.equal(keyboardOffset(800, 480, 24), 296);
 
-  assert.match(threadSource, /visualViewport\.height \+ visualViewport\.offsetTop/);
-  assert.match(threadSource, /Math\.max\(0, layoutViewportHeight - visibleViewportBottom\)/);
+  assert.match(threadSource, /visualViewport\?\.height \?\? window\.innerHeight/);
+  assert.match(threadSource, /visualViewport\?\.offsetTop \?\? 0/);
+  assert.match(threadSource, /getKeyboardInset\(/);
   assert.match(threadSource, /visualViewport\?\.addEventListener\("resize", updateKeyboardOffset\)/);
   assert.match(threadSource, /visualViewport\?\.addEventListener\("scroll", updateKeyboardOffset\)/);
   assert.match(threadSource, /window\.addEventListener\("orientationchange", handleOrientationChange\)/);
   assert.match(threadSource, /layoutViewportHeightRef\.current = window\.innerHeight/);
   assert.match(threadSource, /--keyboard-offset.*keyboardOffset/);
-  assert.match(threadSource, /bottom-\[calc\(var\(--mobile-bottom-nav-height,78px\)\+var\(--keyboard-offset\)\)\]/);
+  assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
+});
+
+test("native keyboard events keep the composer above the iOS keyboard without double-counting viewport resize", () => {
+  assert.equal(getKeyboardInset(800, 800, 0, 320), 320);
+  assert.equal(getKeyboardInset(800, 480, 0, 0), 320);
+  assert.equal(getKeyboardInset(800, 480, 24, 240), 296);
+  const keyboardInset = getKeyboardInset(800, 480, 0, 0);
+  const composerBottom = Math.max(78, keyboardInset);
+  assert.equal(800 - composerBottom, 480, "the composer bottom should meet the keyboard top, not overlap it");
+
+  assert.match(threadSource, /Keyboard\.addListener\("keyboardWillShow", \(\{ keyboardHeight \}\)/);
+  assert.match(threadSource, /nativeKeyboardInset\.current = keyboardHeight/);
+  assert.match(threadSource, /Keyboard\.addListener\("keyboardWillHide"/);
+  assert.match(threadSource, /!composerHasFocus/);
+  assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
+});
+
+test("the mobile formatting toolbar removes the confusing heading action and keeps touch targets usable", () => {
+  assert.doesNotMatch(editorSource, /Heading2/);
+  assert.doesNotMatch(editorSource, /action:\s*"heading"/);
+  assert.match(editorSource, /className="h-11 w-11 md:h-8 md:w-8"/);
+  assert.match(editorSource, /className="h-11 ml-auto md:h-8"/);
+  assert.match(editorSource, /className="flex flex-wrap gap-1"/);
 });
 
 test("keyboard dismissal restores the normal mobile navigation offset", () => {
