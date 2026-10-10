@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { getKeyboardInset } from "../lib/mobile-keyboard-layout.ts";
-import { getReactionScrollTarget } from "../lib/board-reaction-link.ts";
+import { getReplyScrollTarget } from "../lib/board-reaction-link.ts";
 
 const pagesDir = dirname(fileURLToPath(import.meta.url));
 const threadSource = await readFile(resolve(pagesDir, "board-thread.tsx"), "utf8");
@@ -98,21 +98,22 @@ test("visual viewport keyboard changes move the reply composer above the keyboar
   assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
 });
 
-test("reaction deep links open a visible reply and fall back to the thread when it is gone", () => {
+test("reply deep links open a visible reply and fall back to the thread when it is gone", () => {
   const posts = [
     { id: 42, isDeleted: false },
     { id: 43, isDeleted: true },
   ];
 
-  assert.equal(getReactionScrollTarget(posts, "42"), "board-thread-post-42");
-  assert.equal(getReactionScrollTarget(posts, "43"), "board-thread-starter");
-  assert.equal(getReactionScrollTarget(posts, "999"), "board-thread-starter");
-  assert.equal(getReactionScrollTarget(posts, "not-a-reply"), "board-thread-starter");
-  assert.equal(getReactionScrollTarget(posts, null, "starter"), "board-thread-starter");
-  assert.equal(getReactionScrollTarget(posts, null), null);
+  assert.equal(getReplyScrollTarget(posts, "42"), "board-thread-post-42");
+  assert.equal(getReplyScrollTarget(posts, "43"), "board-thread-starter");
+  assert.equal(getReplyScrollTarget(posts, "999"), "board-thread-starter");
+  assert.equal(getReplyScrollTarget(posts, "not-a-reply"), "board-thread-starter");
+  assert.equal(getReplyScrollTarget(posts, null, "starter"), "board-thread-starter");
+  assert.equal(getReplyScrollTarget(posts, null), null);
 
   assert.match(threadSource, /new URLSearchParams\(search\)\.get\("reply"\)/);
   assert.match(threadSource, /new URLSearchParams\(search\)\.get\("target"\)/);
+  assert.match(threadSource, /getReplyScrollTarget\(posts, replyIdParam, replyTargetParam\)/);
   assert.match(threadSource, /id="board-thread-starter"/);
   assert.match(threadSource, /id=\{`board-thread-post-\$\{post\.id\}`\}/);
   assert.match(threadSource, /target\.scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);

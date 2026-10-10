@@ -42,7 +42,7 @@ import { RichMessageEditor } from "@/components/rich-message-editor";
 import { RichMessageContent } from "@/components/rich-message-content";
 import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
 import { getKeyboardInset } from "@/lib/mobile-keyboard-layout";
-import { getReactionScrollTarget } from "@/lib/board-reaction-link";
+import { getReplyScrollTarget } from "@/lib/board-reaction-link";
 
 function isEventDiscussionAccessDenied(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -173,8 +173,8 @@ export default function BoardThread() {
   });
 
   const search = useSearch();
-  const reactionReplyParam = new URLSearchParams(search).get("reply");
-  const reactionTargetParam = new URLSearchParams(search).get("target");
+  const replyIdParam = new URLSearchParams(search).get("reply");
+  const replyTargetParam = new URLSearchParams(search).get("target");
   const requestedTab = new URLSearchParams(search).get("tab");
   const returnTab = requestedTab === "pod" || requestedTab === "events" || requestedTab === "announcements"
     ? requestedTab
@@ -226,26 +226,26 @@ export default function BoardThread() {
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyPickerRef = useRef<DiscussionImagePickerHandle>(null);
   const layoutViewportHeightRef = useRef<number | null>(null);
-  const handledReactionTargetRef = useRef<string | null>(null);
+  const handledReplyTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (
-      (!reactionReplyParam && reactionTargetParam !== "starter")
+      (!replyIdParam && replyTargetParam !== "starter")
       || !thread
       || isPostsLoading
       || isPostsError
     ) return;
 
-    const targetKey = `${id}:${reactionTargetParam ?? ""}:${reactionReplyParam ?? ""}`;
-    if (handledReactionTargetRef.current === targetKey) return;
+    const targetKey = `${id}:${replyTargetParam ?? ""}:${replyIdParam ?? ""}`;
+    if (handledReplyTargetRef.current === targetKey) return;
 
-    const targetId = getReactionScrollTarget(posts, reactionReplyParam, reactionTargetParam);
+    const targetId = getReplyScrollTarget(posts, replyIdParam, replyTargetParam);
     const target = targetId ? document.getElementById(targetId) : null;
     if (!target) return;
 
     target.scrollIntoView({ behavior: "smooth", block: "center" });
-    handledReactionTargetRef.current = targetKey;
-  }, [id, isPostsError, isPostsLoading, posts, reactionReplyParam, reactionTargetParam, thread]);
+    handledReplyTargetRef.current = targetKey;
+  }, [id, isPostsError, isPostsLoading, posts, replyIdParam, replyTargetParam, thread]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

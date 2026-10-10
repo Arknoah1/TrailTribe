@@ -3,7 +3,7 @@ type BoardReply = {
   isDeleted: boolean;
 };
 
-export function getReactionScrollTarget(
+export function getReplyScrollTarget(
   posts: BoardReply[] | undefined,
   replyIdParam: string | null,
   targetParam: string | null = null,

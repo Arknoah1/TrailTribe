@@ -1297,6 +1297,28 @@ describe("Community Board activity notifications", () => {
     expect(emailMock.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("links new-reply alerts and emails to the created reply", async () => {
+    addThread(103, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+
+    const reply = await createReply(RIDER, 103, "The updated pickup time is 4 PM.");
+    expect(reply.status).toBe(201);
+
+    const expectedLink = `/messages/thread/103?reply=${reply.body.id}`;
+    await vi.waitFor(() => expect(
+      notificationMock.createNotification.mock.calls.some(
+        (call) => call[0] === PARENT.id && call[4] === expectedLink,
+      ),
+    ).toBe(true));
+    await vi.waitFor(() => expect(emailMock.sendEmail.mock.calls.some(
+      (call) => call[0].to === PARENT.email,
+    )).toBe(true));
+
+    expect(emailMock.sendEmail.mock.calls.find((call) => call[0].to === PARENT.email)?.[0].html)
+      .toContain(`href="https://trailteam.app${expectedLink}">Open reply in TrailTeam</a>`);
+  });
+
   it("does not re-notify or re-email someone about the same reaction within a day", async () => {
     addThread(100, 0, NOW);
     recentNotificationMock.existing = { id: 1 };
@@ -1392,7 +1414,7 @@ describe("per-discussion alert mutes", () => {
         .toHaveLength(1);
     });
     expect(notificationMock.createNotification.mock.calls.find((call) => call[0] === PARENT.id)?.[4])
-      .toBe(`/messages/thread/${unmutedThreadId}`);
+      .toBe(`/messages/thread/${unmutedThreadId}?reply=${unmutedReply.body.id}`);
   });
 
   it("persists a member's mute and allows them to unmute the accessible discussion", async () => {

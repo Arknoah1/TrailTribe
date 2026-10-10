@@ -350,10 +350,10 @@ async function notifyThreadParticipants(
     inlineImageDescriptors,
   );
   const orgPrefix = await getShortNamePrefix();
-  const threadUrl = `/messages/thread/${threadId}`;
+  const threadUrl = `/messages/thread/${threadId}?reply=${notificationPost.id}`;
   const threadHref = buildAppUrl(threadUrl);
   const settingsHref = buildAppUrl("/profile?tab=notifications");
-  const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
+  const threadLink = createEmailLink(threadUrl, "Open reply in TrailTeam");
 
   for (const user of participants) {
     if (hiddenRecipientIds.has(user.id)) continue;
@@ -366,7 +366,7 @@ async function notifyThreadParticipants(
       "boardReplies",
       "New reply on the board",
       `Someone replied to "${notificationThreadTitle}"`,
-      `/messages/thread/${threadId}`
+      threadUrl
     );
     // Email eligibility and visibility are independently checked; the current
     // thread audience remains authoritative if a member changed pods after posting.
@@ -391,7 +391,7 @@ async function notifyThreadParticipants(
     const inlineHtml = [
       `<p>Someone replied to <strong>${notificationThreadTitle.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!)}</strong>:</p>`,
       richContent.html,
-      safeHref ? `<p><a href="${safeHref}">Open discussion in TrailTeam</a></p>` : "",
+      safeHref ? `<p><a href="${safeHref}">Open reply in TrailTeam</a></p>` : "",
       `<p style="font-size:12px;color:#59636e">To update notification preferences, update your notification settings in TrailTeam${safeSettingsHref ? `: <a href="${safeSettingsHref}">notification settings</a>` : ""}.</p>`,
     ].join("");
     await sendEmail({
