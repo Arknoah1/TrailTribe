@@ -1048,6 +1048,37 @@ const migrations: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    // The migration above was loosened after databases that had already applied
+    // the strict version (e.g. dev) existed; its IF NOT EXISTS guard never
+    // revisits those. Migrations re-run on every boot, so this only swaps the
+    // constraint when the installed definition still lacks the empty-roles case.
+    name: "relax_users_roles_check_for_legacy_empty_roles",
+    sql: `
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conrelid = 'users'::regclass
+            AND conname = 'users_roles_valid_check'
+            AND pg_get_constraintdef(oid) NOT LIKE '%cardinality(roles) = 0%'
+        ) THEN
+          ALTER TABLE users DROP CONSTRAINT users_roles_valid_check;
+          ALTER TABLE users
+            ADD CONSTRAINT users_roles_valid_check
+            CHECK (
+              cardinality(roles) = 0
+              OR (
+                roles <@ ARRAY['super_admin', 'coach', 'parent', 'student']::text[]
+                AND role = ANY(roles)
+                AND NOT ('student' = ANY(roles) AND cardinality(roles) > 1)
+              )
+            );
+        END IF;
+      END $$;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

@@ -8,6 +8,7 @@ import {
   usersTable,
   eventsTable,
   boardReactionsTable,
+  notificationsTable,
   isEventAudienceMember,
   isOperationalStaffRole,
 } from "@workspace/db";
@@ -291,7 +292,14 @@ async function notifyThreadParticipants(
   const postImages = await db.select().from(boardAttachmentsTable)
     .where(eq(boardAttachmentsTable.postId, notificationPost.id));
 
-  const verifiedImages = await Promise.all(postImages.map((image) => loadVerifiedPrivateImage(image)));
+  // Images only enrich the email. If one can't be loaded, still notify everyone
+  // (in-app, push, and a text-only email) instead of dropping the whole fan-out.
+  let verifiedImages: Awaited<ReturnType<typeof loadVerifiedPrivateImage>>[] = [];
+  try {
+    verifiedImages = await Promise.all(postImages.map((image) => loadVerifiedPrivateImage(image)));
+  } catch (err) {
+    logger.warn({ err, postId: notificationPost.id }, "[board] reply images unavailable; notifying without them");
+  }
   const inlineImageDescriptors = verifiedImages.map((image, index) => ({
     cid: `board-reply-${notificationPost?.id}-${index}@trailteam`,
     filename: `discussion-image-${index + 1}.${image.contentType.split("/")[1]}`,
@@ -448,6 +456,19 @@ async function notifyBoardActivity(
       user.notificationPreferences?.boardReplies === false
       || user.notificationPreferences?.mutedBoardDiscussionIds?.includes(thread.id)
     ) return;
+    // Reactions can be toggled on and off repeatedly; don't re-notify (or re-email)
+    // the same person about the same reaction within a day.
+    if (activity.kind === "reaction") {
+      const alreadyNotified = await db.query.notificationsTable.findFirst({
+        where: and(
+          eq(notificationsTable.recipientUserId, user.id),
+          eq(notificationsTable.body, notificationBody),
+          eq(notificationsTable.link, threadUrl),
+          gt(notificationsTable.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+        ),
+      });
+      if (alreadyNotified) return;
+    }
     await createNotification(
       user.id,
       "boardReplies",
@@ -768,16 +789,20 @@ router.put("/board/threads/:id/mute", requireApproved, async (req, res) => {
     return;
   }
 
-  const mutedIds = me.notificationPreferences?.mutedBoardDiscussionIds ?? [];
-  const isMuted = mutedIds.includes(threadId);
-  if (isMuted !== muted) {
+  // Read-modify-write under a row lock so two quick mute toggles (or a mute racing
+  // PATCH /users/me) can't overwrite each other's change to the preferences JSON.
+  await db.transaction(async (tx) => {
+    const [fresh] = await tx.select().from(usersTable).where(eq(usersTable.id, me.id)).for("update");
+    const current = fresh ?? me;
+    const mutedIds = current.notificationPreferences?.mutedBoardDiscussionIds ?? [];
+    if (mutedIds.includes(threadId) === muted) return;
     const nextMutedIds = muted
       ? [...mutedIds, threadId]
       : mutedIds.filter((id) => id !== threadId);
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({
         notificationPreferences: {
-          ...(me.notificationPreferences ?? {
+          ...(current.notificationPreferences ?? {
             practiceReminders: true,
             coachMessages: true,
             carpoolUpdates: true,
@@ -789,7 +814,7 @@ router.put("/board/threads/:id/mute", requireApproved, async (req, res) => {
         },
       })
       .where(eq(usersTable.id, me.id));
-  }
+  });
 
   res.json(SetBoardThreadMuteResponse.parse({ muted }));
 });

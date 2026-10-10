@@ -730,7 +730,9 @@ router.post("/users/onboard", requireAuth, async (req, res) => {
 router.get("/users", requireApproved, async (req, res) => {
   const { role, podId, search } = req.query as Record<string, string>;
   const conditions = [];
-  if (role) conditions.push(sql`${usersTable.role} = ${role} OR ${role} = ANY(${usersTable.roles})`);
+  // Parenthesised: a bare `a OR b` here would bind looser than the AND that joins
+  // the podId/search conditions, letting legacy-role matches bypass those filters.
+  if (role) conditions.push(sql`(${usersTable.role} = ${role} OR ${role} = ANY(${usersTable.roles}))`);
   if (podId) conditions.push(eq(usersTable.podId, podId));
   if (search) {
     conditions.push(

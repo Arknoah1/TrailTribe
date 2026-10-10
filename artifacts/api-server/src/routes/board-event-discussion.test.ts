@@ -67,6 +67,9 @@ const OTHER_PARENT = {
 const notificationMock = vi.hoisted(() => ({
   createNotification: vi.fn(),
 }));
+// What the reaction-notification dedupe lookup should find in the notifications
+// table. null = this recipient wasn't recently told about this reaction.
+const recentNotificationMock = vi.hoisted(() => ({ existing: null as { id: number } | null }));
 const emailMock = vi.hoisted(() => ({
   sendEmail: vi.fn(async () => ({ status: "sent" as const })),
   getShortNamePrefix: vi.fn(async () => "TrailTeam: "),
@@ -243,6 +246,7 @@ vi.mock("@workspace/db", () => {
   const boardReactionsTable = table("reactions");
   const usersTable = table("users");
   const eventsTable = table("events");
+  const notificationsTable = table("notifications");
   const targetIdFrom = (condition: any) =>
     currentTargetId ?? condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
   const targetPathFrom = (condition: any) =>
@@ -460,6 +464,9 @@ vi.mock("@workspace/db", () => {
             Promise.resolve(attachments.find((attachment) =>
               attachment.objectPath === (currentAttachmentPath ?? targetPathFrom(where))) ?? null)),
         },
+        notificationsTable: {
+          findFirst: vi.fn().mockImplementation(() => Promise.resolve(recentNotificationMock.existing)),
+        },
         boardReactionsTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) => {
             const userId = currentUser().id;
@@ -474,6 +481,11 @@ vi.mock("@workspace/db", () => {
   };
   dbMock.transaction = vi.fn(async (callback: (tx: any) => unknown) => callback({
     execute: vi.fn(async () => undefined),
+    // Only the row-locked `select().from(users).where(...).for("update")` read
+    // used by the mute route; it returns the acting user's current row.
+    select: vi.fn(() => ({
+      from: () => ({ where: () => ({ for: async () => [currentUser()] }) }),
+    })),
     insert: dbMock.insert,
     update: dbMock.update,
   }));
@@ -486,6 +498,7 @@ vi.mock("@workspace/db", () => {
     boardAttachmentsTable,
     usersTable,
     eventsTable,
+    notificationsTable,
     boardReactionsTable,
   };
 });
@@ -565,6 +578,7 @@ beforeEach(() => {
   nextPostId = 1000;
   notificationMock.createNotification.mockClear();
   emailMock.sendEmail.mockClear();
+  recentNotificationMock.existing = null;
   selectCallIndex = 0;
   PARENT.podId = "pod-a";
   for (const user of users) {
@@ -1053,6 +1067,18 @@ describe("Community Board activity notifications", () => {
     expect(emailMock.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("does not re-notify or re-email someone about the same reaction within a day", async () => {
+    addThread(100, 0, NOW);
+    recentNotificationMock.existing = { id: 1 };
+
+    const reaction = await toggleReaction(RIDER, "thread", 100);
+    expect(reaction.status).toBe(200);
+    // The notify fan-out is fire-and-forget; give it a turn to run before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(notificationMock.createNotification).not.toHaveBeenCalled();
+    expect(emailMock.sendEmail).not.toHaveBeenCalled();
+  });
+
   it("does not notify a former participant who no longer has access to a pod thread", async () => {
     addThread(101, 0, NOW);
     threads[0].authorUserId = RIDER.id;
@@ -1157,6 +1183,27 @@ describe("per-discussion alert mutes", () => {
     )).toBe(true));
     expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id)).toHaveLength(1);
     expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email)).toHaveLength(1);
+  });
+});
+
+describe("reply notifications when a reply's picture can't be loaded", () => {
+  it("still sends the in-app notification and a text-only email", async () => {
+    addThread(609, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+    // Attachment row exists but the stored object is gone (e.g. deleted or storage hiccup).
+    addAttachment("/objects/discussion-images/missing-object", { postId: 1000 });
+
+    const reply = await createReply(RIDER, 609, "Thanks, see you there");
+    expect(reply.status).toBe(201);
+
+    // (The mock DB returns every user as a participant, so assert on PARENT specifically.)
+    await vi.waitFor(() => expect(
+      notificationMock.createNotification.mock.calls.some((call) => call[0] === PARENT.id),
+    ).toBe(true));
+    await vi.waitFor(() => expect(emailMock.sendEmail.mock.calls.some((call) =>
+      call[0].to === PARENT.email && (call[0].attachments ?? []).length === 0,
+    )).toBe(true));
   });
 });
 
