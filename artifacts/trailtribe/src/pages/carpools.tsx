@@ -485,14 +485,14 @@ export default function CarpoolBoard() {
               : "Need a ride? Post a request, or offer one if you're driving."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => {
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
+          <Button className="w-full sm:w-auto" onClick={() => {
             setRequestRiderIds(new Set((isStudent ? requestableRiders : riders).map(r => r.id)));
             setIsRequestOpen(true);
           }}><Plus className="h-4 w-4 mr-2" /> Request a Ride</Button>
           {!isStudent && <Dialog open={isOfferOpen} onOpenChange={setIsOfferOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Offer a Ride</Button>
+            <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Offer a Ride</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Offer a Ride</DialogTitle></DialogHeader>

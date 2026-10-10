@@ -89,6 +89,12 @@ test("carpool and household sections expose a recoverable failure state", () => 
   assert.match(profile, /feature="season documents"/);
 });
 
+test("carpool ride actions stack on phones and return to an inline row on wider screens", () => {
+  assert.match(carpools, /<div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">\s*<Button className="w-full sm:w-auto" onClick=\{\(\) => \{/);
+  assert.match(carpools, /<Plus className="h-4 w-4 mr-2" \/> Request a Ride<\/Button>/);
+  assert.match(carpools, /<Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" \/> Offer a Ride<\/Button>/);
+});
+
 test("coach and admin mobile routes expose retryable connection-drop states", () => {
   for (const [route, source, feature] of [
     ["/admin", admin, "the admin dashboard"],
