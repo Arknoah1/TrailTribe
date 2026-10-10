@@ -52,21 +52,23 @@ describe("createNotification channel preferences", () => {
     mocks.sendPushNotification.mockReset().mockResolvedValue({ status: "sent", successCount: 1, failureCount: 0 });
   });
 
-  it("creates an in-app notification and sends push when both are enabled", async () => {
-    await createNotification(7, "boardReplies", "New discussion", "A discussion started", "/messages/thread/10");
+  it("preserves reaction details in in-app and push notifications", async () => {
+    const title = "New reaction on the board";
+    const body = 'Rider Trail reacted with Helpful in "Thread 10"';
+    await createNotification(7, "boardReplies", title, body, "/messages/thread/10");
 
     expect(mocks.insertValues).toHaveBeenCalledWith({
       recipientUserId: 7,
       type: "boardReplies",
-      title: "New discussion",
-      body: "A discussion started",
+      title,
+      body,
       link: "/messages/thread/10",
       isRead: false,
     });
     expect(mocks.sendPushNotification).toHaveBeenCalledWith({
       userId: 7,
-      title: "New discussion",
-      body: "A discussion started",
+      title,
+      body,
       link: "/messages/thread/10",
     });
   });

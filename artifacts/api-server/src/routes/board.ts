@@ -166,6 +166,11 @@ async function enrichThread(
 
 const ALLOWED_REACTIONS = ["helpful", "like", "celebrate"] as const;
 type ReactionType = typeof ALLOWED_REACTIONS[number];
+const REACTION_LABELS: Record<ReactionType, string> = {
+  helpful: "Helpful",
+  like: "Like",
+  celebrate: "Celebrate",
+};
 type ReactionTarget = "thread" | "post";
 
 async function getReactionSummary(
@@ -356,12 +361,14 @@ async function notifyThreadParticipants(
   }
 }
 
-type BoardActivityKind = "new-thread" | "reaction";
+type BoardActivity =
+  | { kind: "new-thread" }
+  | { kind: "reaction"; memberName: string; reaction: ReactionType };
 
 async function notifyBoardActivity(
   thread: typeof boardThreadsTable.$inferSelect,
   actorUserId: number,
-  kind: BoardActivityKind,
+  activity: BoardActivity,
 ) {
   const event = thread.eventId
     ? (await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, thread.eventId) })) ?? null
@@ -369,7 +376,7 @@ async function notifyBoardActivity(
   const threadTitle = event ? `Discussion: ${event.title}` : thread.title;
   const threadUrl = `/messages/thread/${thread.id}`;
 
-  const participantIds = kind === "reaction"
+  const participantIds = activity.kind === "reaction"
     ? new Set<number>([
         ...(thread.authorUserId ? [thread.authorUserId] : []),
         ...(await db.select({ authorUserId: boardPostsTable.authorUserId })
@@ -399,12 +406,12 @@ async function notifyBoardActivity(
   );
   if (accessibleRecipients.length === 0) return;
 
-  const notificationTitle = kind === "new-thread"
+  const notificationTitle = activity.kind === "new-thread"
     ? "New discussion on the board"
     : "New reaction on the board";
-  const notificationBody = kind === "new-thread"
+  const notificationBody = activity.kind === "new-thread"
     ? `A new discussion was started: "${threadTitle}"`
-    : `Someone reacted in "${threadTitle}"`;
+    : `${activity.memberName} reacted with ${REACTION_LABELS[activity.reaction]} in "${threadTitle}"`;
   const settingsUrl = "/profile?tab=notifications";
   const threadHref = buildAppUrl(threadUrl);
   const settingsHref = buildAppUrl(settingsUrl);
@@ -703,7 +710,7 @@ router.post("/board/threads", requireApproved, async (req, res) => {
 
   // A successful thread creation notifies its current audience, but merely
   // requesting an attachment upload URL does not.
-  void notifyBoardActivity(thread, me.id, "new-thread")
+  void notifyBoardActivity(thread, me.id, { kind: "new-thread" })
     .catch((err) => logger.error({ err }, "[board] notify new thread audience error"));
 
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
@@ -1000,7 +1007,8 @@ router.post("/board/reactions", requireApproved, async (req, res) => {
       ...(targetType === "thread" ? { threadId: safeTargetId } : { postId: safeTargetId }),
     });
     if (thread) {
-      void notifyBoardActivity(thread, me.id, "reaction")
+      const memberName = [me.firstName, me.lastName].filter(Boolean).join(" ").trim() || "A member";
+      void notifyBoardActivity(thread, me.id, { kind: "reaction", memberName, reaction })
         .catch((err) => logger.error({ err }, "[board] notify reaction participants error"));
     }
   }

@@ -1014,17 +1014,40 @@ describe("Community Board activity notifications", () => {
     expect(threadReaction.status).toBe(200);
     await waitForNotifiedUsers([COACH.id]);
     await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+    const helpfulBody = 'Rider Trail reacted with Helpful in "Thread 100"';
+    expect(notificationMock.createNotification.mock.calls.map((call) => call[3]))
+      .toEqual([helpfulBody]);
+    expect(emailMock.sendEmail.mock.calls[0][0].text).toContain(helpfulBody);
+    expect(emailMock.sendEmail.mock.calls[0][0].html)
+      .toContain('Rider Trail reacted with Helpful in &quot;Thread 100&quot;');
 
     notificationMock.createNotification.mockClear();
     emailMock.sendEmail.mockClear();
-    const replyReaction = await toggleReaction(OTHER_PARENT, "post", 200);
+    const replyReaction = await toggleReaction(OTHER_PARENT, "post", 200, "celebrate");
     expect(replyReaction.status).toBe(200);
     await waitForNotifiedUsers([COACH.id, RIDER.id]);
     await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+    const celebrateBody = 'Other Parent Trail reacted with Celebrate in "Thread 100"';
+    expect(notificationMock.createNotification.mock.calls.map((call) => call[3]))
+      .toEqual([celebrateBody, celebrateBody]);
+    expect(emailMock.sendEmail.mock.calls[0][0].text).toContain(celebrateBody);
+    expect(emailMock.sendEmail.mock.calls[0][0].html)
+      .toContain('Other Parent Trail reacted with Celebrate in &quot;Thread 100&quot;');
 
     notificationMock.createNotification.mockClear();
     emailMock.sendEmail.mockClear();
-    const removedReaction = await toggleReaction(OTHER_PARENT, "post", 200);
+    const likeReaction = await toggleReaction(OTHER_PARENT, "thread", 100, "like");
+    expect(likeReaction.status).toBe(200);
+    await waitForNotifiedUsers([COACH.id, RIDER.id]);
+    await vi.waitFor(() => expect(emailMock.sendEmail).toHaveBeenCalledTimes(1));
+    const likeBody = 'Other Parent Trail reacted with Like in "Thread 100"';
+    expect(notificationMock.createNotification.mock.calls.map((call) => call[3]))
+      .toEqual([likeBody, likeBody]);
+    expect(emailMock.sendEmail.mock.calls[0][0].text).toContain(likeBody);
+
+    notificationMock.createNotification.mockClear();
+    emailMock.sendEmail.mockClear();
+    const removedReaction = await toggleReaction(OTHER_PARENT, "post", 200, "celebrate");
     expect(removedReaction.status).toBe(200);
     expect(notificationMock.createNotification).not.toHaveBeenCalled();
     expect(emailMock.sendEmail).not.toHaveBeenCalled();
