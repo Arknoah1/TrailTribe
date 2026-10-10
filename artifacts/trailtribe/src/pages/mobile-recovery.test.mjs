@@ -95,6 +95,26 @@ test("carpool ride actions stack on phones and return to an inline row on wider 
   assert.match(carpools, /<Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" \/> Offer a Ride<\/Button>/);
 });
 
+test("long carpool driver, pickup, and rider details wrap within phone-width cards", () => {
+  for (const card of [
+    'className={cn("min-w-0 max-w-full overflow-hidden", isMatched',
+    'className={cn("min-w-0 max-w-full overflow-hidden", offer.isOverCapacity',
+  ]) {
+    assert.ok(carpools.includes(card), `carpool card should shrink within its grid: ${card}`);
+  }
+
+  for (const field of [
+    /<CardTitle className="min-w-0 break-words text-lg \[overflow-wrap:anywhere\]">\s*\{request\.rider\?\.firstName\}/,
+    /<CardTitle className="min-w-0 break-words text-lg \[overflow-wrap:anywhere\]">\s*\{offer\.driver\?\.firstName\}/,
+    /<span className="min-w-0 break-words \[overflow-wrap:anywhere\]">\{offer\.departureLocation\}<\/span>/,
+    /<span className="min-w-0 flex-1 break-words font-medium \[overflow-wrap:anywhere\]">\{claim\.rider\?\.firstName\}/,
+  ]) {
+    assert.match(carpools, field, `long carpool text should wrap safely: ${field}`);
+  }
+
+  assert.match(carpools, /flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1 text-sm/);
+});
+
 test("coach and admin mobile routes expose retryable connection-drop states", () => {
   for (const [route, source, feature] of [
     ["/admin", admin, "the admin dashboard"],

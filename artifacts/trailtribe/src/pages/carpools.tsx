@@ -907,23 +907,23 @@ export default function CarpoolBoard() {
               const canMatch = isOpen && !mine && !isStudent;
 
               return (
-                <Card key={request.id} className={cn("overflow-hidden", isMatched ? "border-primary/60 bg-primary/5" : "")}>
+                <Card key={request.id} className={cn("min-w-0 max-w-full overflow-hidden", isMatched ? "border-primary/60 bg-primary/5" : "")}>
                   <CardHeader className="pb-3 border-b-2 border-[#0a0c10]">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="shrink-0 bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
                           <Users className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <CardTitle className="text-lg">
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="min-w-0 break-words text-lg [overflow-wrap:anywhere]">
                             {request.rider?.firstName} {request.rider?.lastName}
                           </CardTitle>
-                          <CardDescription className="text-xs uppercase tracking-wide font-bold">
+                          <CardDescription className="break-words text-xs uppercase tracking-wide font-bold [overflow-wrap:anywhere]">
                             Requested by {request.requestedBy?.firstName} {request.requestedBy?.lastName}
                           </CardDescription>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
                         {isOpen && <Badge variant="secondary">Open</Badge>}
                         {isMatched && <Badge className="bg-green-600 text-white hover:bg-green-700">Matched</Badge>}
                         {request.needsBikeTray ? (
@@ -938,13 +938,13 @@ export default function CarpoolBoard() {
                   </CardHeader>
                   <CardContent className="pt-4 space-y-3">
                     {request.notes && (
-                      <p className="text-sm text-muted-foreground italic">"{request.notes}"</p>
+                      <p className="break-words text-sm text-muted-foreground italic [overflow-wrap:anywhere]">"{request.notes}"</p>
                     )}
 
                     {isMatched && request.matchedOffer?.driver && (
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-100/60 dark:bg-green-900/20 rounded-md px-3 py-2">
+                      <div className="flex min-w-0 items-start gap-2 text-sm text-green-700 dark:text-green-400 bg-green-100/60 dark:bg-green-900/20 rounded-md px-3 py-2">
                         <Car className="h-4 w-4 shrink-0" />
-                        <span>Driver: <span className="font-medium">{request.matchedOffer.driver.firstName} {request.matchedOffer.driver.lastName}</span></span>
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">Driver: <span className="font-medium">{request.matchedOffer.driver.firstName} {request.matchedOffer.driver.lastName}</span></span>
                       </div>
                     )}
 
@@ -1003,19 +1003,19 @@ export default function CarpoolBoard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {offers && offers.length > 0 ? (
             offers.map(offer => (
-              <Card key={offer.id} className={cn("overflow-hidden", offer.isOverCapacity && "border-amber-500")}>
+              <Card key={offer.id} className={cn("min-w-0 max-w-full overflow-hidden", offer.isOverCapacity && "border-amber-500")}>
                 <CardHeader className="pb-3 border-b-2 border-[#0a0c10]">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="shrink-0 bg-primary/15 p-2 rounded-lg border-2 border-[#0a0c10]">
                         <Car className="h-5 w-5 text-primary" />
                       </div>
-                      <div>
-                        <CardTitle className="text-lg">{offer.driver?.firstName} {offer.driver?.lastName}</CardTitle>
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="min-w-0 break-words text-lg [overflow-wrap:anywhere]">{offer.driver?.firstName} {offer.driver?.lastName}</CardTitle>
                         <CardDescription className="text-xs uppercase tracking-wide font-bold">Driving</CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <div className="flex gap-2 text-center">
                         <div className="bg-secondary border-2 border-[#0a0c10] px-3 py-1 rounded-lg">
                           <div className="text-lg font-bold text-primary">{offer.seatsRemaining}</div>
@@ -1051,13 +1051,15 @@ export default function CarpoolBoard() {
                   {(offer.departureLocation || offer.departureTime) && (
                     <div className="space-y-2 text-sm">
                       {offer.departureLocation && (
-                        <div className="flex items-center text-muted-foreground">
-                          <MapPin className="h-4 w-4 mr-2" /> {offer.departureLocation}
+                        <div className="flex min-w-0 items-start text-muted-foreground">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 mr-2" />
+                          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{offer.departureLocation}</span>
                         </div>
                       )}
                       {offer.departureTime && (
-                        <div className="flex items-center text-muted-foreground">
-                          <Clock className="h-4 w-4 mr-2" /> {offer.departureTime}
+                        <div className="flex min-w-0 items-start text-muted-foreground">
+                          <Clock className="mt-0.5 h-4 w-4 shrink-0 mr-2" />
+                          <span className="min-w-0 break-words [overflow-wrap:anywhere]">{offer.departureTime}</span>
                         </div>
                       )}
                     </div>
@@ -1066,7 +1068,7 @@ export default function CarpoolBoard() {
                   {offer.isOverCapacity && (
                     <div className="flex gap-2 rounded-lg border border-amber-500/60 bg-amber-500/10 p-3 text-sm">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold">Offer is over capacity</p>
                         <p className="text-muted-foreground">
                           {offer.seatsOverCapacity > 0 && `${offer.seatsOverCapacity} extra seat claim${offer.seatsOverCapacity === 1 ? "" : "s"}`}
@@ -1079,14 +1081,14 @@ export default function CarpoolBoard() {
                   )}
 
                   {offer.claims && offer.claims.length > 0 && (
-                    <div className="bg-muted/50 p-3 rounded-lg space-y-2">
+                    <div className="min-w-0 bg-muted/50 p-3 rounded-lg space-y-2">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Riders</h4>
                       {offer.claims.map((claim: any) => {
                         const mine = isMyHouseholdClaim(claim);
                         return (
-                          <div key={claim.id} className="flex justify-between items-center text-sm">
-                            <span className="font-medium">{claim.rider?.firstName} {claim.rider?.lastName}</span>
-                            <div className="flex items-center gap-1">
+                          <div key={claim.id} className="flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1 text-sm">
+                            <span className="min-w-0 flex-1 break-words font-medium [overflow-wrap:anywhere]">{claim.rider?.firstName} {claim.rider?.lastName}</span>
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
                               {claim.needsSeat && <Badge variant="outline" className="text-[10px]">Seat</Badge>}
                               {claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">+ Bike</Badge>}
                               {!claim.needsBikeTray && <Badge variant="outline" className="text-[10px]">Rider only</Badge>}
