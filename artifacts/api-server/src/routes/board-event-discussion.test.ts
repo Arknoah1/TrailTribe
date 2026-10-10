@@ -547,7 +547,10 @@ vi.mock("@workspace/db", () => {
               && report.reporterUserId === reporterForCurrentRequest,
             ) ?? null);
           }),
-          findMany: vi.fn().mockImplementation(() => Promise.resolve(reports.filter((report) => report.status === "open"))),
+          findMany: vi.fn().mockImplementation(({ where }: any) => {
+            const requestedStatus = conditionValues(where).includes("resolved") ? "resolved" : "open";
+            return Promise.resolve(reports.filter((report) => report.status === requestedStatus));
+          }),
         },
         boardHiddenMembersTable: {
           findFirst: vi.fn().mockImplementation(() => Promise.resolve(hiddenMembers.find((row) =>
@@ -635,7 +638,7 @@ vi.mock("../middlewares/requireAuth", () => ({
     next();
   },
   requireCoachOrAdmin: (req: any, _res: any, next: any) => {
-    req.clerkUserId = "clerk_test_coach";
+    req.clerkUserId = req.header("x-test-user") || "clerk_test_coach";
     next();
   },
   requireSuperAdmin: (req: any, _res: any, next: any) => {
@@ -917,6 +920,18 @@ async function listBoardReports() {
   currentTargetId = null;
   const response = await fetch(`${baseUrl}/board/reports`, {
     headers: { "x-test-user": COACH.clerkUserId },
+  });
+  const text = await response.text();
+  let body: any = text;
+  try { body = JSON.parse(text); } catch {}
+  return { status: response.status, body };
+}
+
+async function listResolvedBoardReports(user: DiscussionUser = COACH) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = null;
+  const response = await fetch(`${baseUrl}/board/reports/resolved`, {
+    headers: { "x-test-user": user.clerkUserId },
   });
   const text = await response.text();
   let body: any = text;
@@ -1600,7 +1615,7 @@ describe("discussion reports", () => {
     expect(reports).toHaveLength(1);
   });
 
-  it("keeps an open private queue and records staff resolution notes", async () => {
+  it("keeps open reports separate from private, read-only resolved history", async () => {
     addThread(829, 0, NOW);
     await submitThreadReport(PARENT, 829, { reason: "other", details: "Please take a look." });
 
@@ -1623,6 +1638,24 @@ describe("discussion reports", () => {
       resolutionNote: "Reviewed and discussed with the member.",
     });
     expect((await listBoardReports()).body).toHaveLength(0);
+
+    const history = await listResolvedBoardReports();
+    expect(history.status, JSON.stringify(history.body)).toBe(200);
+    expect(history.body).toHaveLength(1);
+    expect(history.body[0]).toMatchObject({
+      id: queue.body[0].id,
+      reporterName: "Parent Trail",
+      reason: "other",
+      resolutionNote: "Reviewed and discussed with the member.",
+      resolvedAt: expect.any(String),
+      link: "/messages/thread/829?target=starter",
+      status: "resolved",
+    });
+    expect((await listResolvedBoardReports(RIDER)).status).toBe(403);
+    const originalRole = OTHER_RIDER.role;
+    OTHER_RIDER.role = "super_admin";
+    expect((await listResolvedBoardReports(OTHER_RIDER)).status).toBe(200);
+    OTHER_RIDER.role = originalRole;
   });
 
   it("lets staff restrict only Board posting and restore it later", async () => {

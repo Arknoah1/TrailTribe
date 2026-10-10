@@ -8169,7 +8169,7 @@ export const useCreateBoardPostReport = <
 };
 
 /**
- * @summary List private Board content reports for coaches and administrators
+ * @summary List private open Board content reports for coaches and administrators
  */
 export const getListBoardReportsUrl = () => {
   return `/api/board/reports`;
@@ -8220,7 +8220,7 @@ export type ListBoardReportsQueryResult = NonNullable<
 export type ListBoardReportsQueryError = ErrorType<unknown>;
 
 /**
- * @summary List private Board content reports for coaches and administrators
+ * @summary List private open Board content reports for coaches and administrators
  */
 
 export function useListBoardReports<
@@ -8235,6 +8235,85 @@ export function useListBoardReports<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListBoardReportsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List private resolved Board content reports for coaches and administrators
+ */
+export const getListResolvedBoardReportsUrl = () => {
+  return `/api/board/reports/resolved`;
+};
+
+export const listResolvedBoardReports = async (
+  options?: RequestInit,
+): Promise<BoardReportWithDetails[]> => {
+  return customFetch<BoardReportWithDetails[]>(
+    getListResolvedBoardReportsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListResolvedBoardReportsQueryKey = () => {
+  return [`/api/board/reports/resolved`] as const;
+};
+
+export const getListResolvedBoardReportsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listResolvedBoardReports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listResolvedBoardReports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListResolvedBoardReportsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listResolvedBoardReports>>
+  > = ({ signal }) => listResolvedBoardReports({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listResolvedBoardReports>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListResolvedBoardReportsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listResolvedBoardReports>>
+>;
+export type ListResolvedBoardReportsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List private resolved Board content reports for coaches and administrators
+ */
+
+export function useListResolvedBoardReports<
+  TData = Awaited<ReturnType<typeof listResolvedBoardReports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listResolvedBoardReports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListResolvedBoardReportsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

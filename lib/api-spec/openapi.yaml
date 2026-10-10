@@ -2316,10 +2316,25 @@ paths:
     get:
       operationId: listBoardReports
       tags: [board]
-      summary: List private Board content reports for coaches and administrators
+      summary: List private open Board content reports for coaches and administrators
       responses:
         "200":
-          description: Board content reports
+          description: Open Board content reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardReportWithDetails"
+
+  /board/reports/resolved:
+    get:
+      operationId: listResolvedBoardReports
+      tags: [board]
+      summary: List private resolved Board content reports for coaches and administrators
+      responses:
+        "200":
+          description: Resolved Board content reports
           content:
             application/json:
               schema:

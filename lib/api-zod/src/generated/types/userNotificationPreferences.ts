@@ -13,5 +13,6 @@ export interface UserNotificationPreferences {
   eventReminders: boolean;
   rosterUpdates: boolean;
   boardReplies: boolean;
+  /** Discussion IDs muted for this member across signed-in sessions. */
   mutedBoardDiscussionIds?: number[];
 }

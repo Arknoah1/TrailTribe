@@ -1079,6 +1079,19 @@ router.get("/board/reports", requireCoachOrAdmin, async (req, res) => {
   res.json(ListBoardReportsResponse.parse(await Promise.all(reports.map(serializeBoardReport))));
 });
 
+router.get("/board/reports/resolved", requireCoachOrAdmin, async (req, res) => {
+  const me = await getMe((req as any).clerkUserId);
+  if (!me || !me.isActive || !me.approved || !isOperationalStaffRole(me)) {
+    res.status(403).json({ error: "Active, approved coach or super admin access required" });
+    return;
+  }
+  const reports = await db.query.boardThreadReportsTable.findMany({
+    where: eq(boardThreadReportsTable.status, "resolved"),
+    orderBy: [desc(boardThreadReportsTable.resolvedAt)],
+  });
+  res.json(ListBoardReportsResponse.parse(await Promise.all(reports.map(serializeBoardReport))));
+});
+
 router.patch("/board/reports/:id/resolve", requireCoachOrAdmin, async (req, res) => {
   const params = ResolveBoardReportParams.safeParse(req.params);
   const body = ResolveBoardReportBody.safeParse(req.body ?? {});

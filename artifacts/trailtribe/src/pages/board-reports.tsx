@@ -4,10 +4,12 @@ import { formatDistanceToNow } from "date-fns";
 import {
   getListBoardPostingRestrictionsQueryKey,
   getListBoardReportsQueryKey,
+  getListResolvedBoardReportsQueryKey,
   useDeleteBoardPost,
   useDeleteBoardThread,
   useListBoardPostingRestrictions,
   useListBoardReports,
+  useListResolvedBoardReports,
   useResolveBoardReport,
   useSetBoardPostingRestriction,
 } from "@workspace/api-client-react";
@@ -18,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Flag, ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Flag, ShieldBan, ShieldCheck, Trash2 } from "lucide-react";
 
 const REASONS: Record<string, string> = {
   inappropriate_content: "Inappropriate content",
@@ -37,9 +39,14 @@ export default function BoardReportsPage() {
   const deleteThread = useDeleteBoardThread();
   const deletePost = useDeleteBoardPost();
   const [resolutionNotes, setResolutionNotes] = useState<Record<number, string>>({});
+  const [showResolvedHistory, setShowResolvedHistory] = useState(false);
+  const resolvedReportsQuery = useListResolvedBoardReports({
+    query: { enabled: showResolvedHistory, queryKey: getListResolvedBoardReportsQueryKey() },
+  });
 
   const refreshSafetyData = () => {
     void queryClient.invalidateQueries({ queryKey: getListBoardReportsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getListResolvedBoardReportsQueryKey() });
     void queryClient.invalidateQueries({ queryKey: getListBoardPostingRestrictionsQueryKey() });
   };
 
@@ -213,6 +220,72 @@ export default function BoardReportsPage() {
             </CardContent>
           </Card>
         ))}
+      </section>
+
+      <section aria-labelledby="resolved-reports-heading" className="space-y-3 border-t pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 id="resolved-reports-heading" className="text-lg font-bold">Resolved report history</h2>
+            <p className="text-sm text-muted-foreground">Private, read-only records of reports staff have resolved.</p>
+          </div>
+          <Button
+            variant="outline"
+            aria-expanded={showResolvedHistory}
+            aria-controls="resolved-report-history"
+            onClick={() => setShowResolvedHistory((showing) => !showing)}
+          >
+            {showResolvedHistory ? "Hide history" : "View history"}
+            {showResolvedHistory ? <ChevronUp className="ml-2 h-4 w-4" /> : <ChevronDown className="ml-2 h-4 w-4" />}
+          </Button>
+        </div>
+        {showResolvedHistory && (
+          <div id="resolved-report-history" className="space-y-3">
+            {resolvedReportsQuery.isLoading ? (
+              <div className="space-y-3"><Skeleton className="h-36 w-full rounded-xl" /><Skeleton className="h-36 w-full rounded-xl" /></div>
+            ) : resolvedReportsQuery.isError ? (
+              <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">Could not load resolved reports. Try again shortly.</p>
+            ) : !resolvedReportsQuery.data?.length ? (
+              <Card><CardContent className="p-8 text-center text-sm text-muted-foreground">No resolved Community Board reports.</CardContent></Card>
+            ) : resolvedReportsQuery.data.map((report) => (
+              <Card key={report.id} data-testid={`resolved-board-report-${report.id}`}>
+                <CardHeader className="space-y-2 pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Flag className="h-4 w-4 text-muted-foreground" />
+                      {report.targetType === "reply" ? "Reply report" : "Discussion report"}
+                      {report.isAutomatic && <Badge variant="outline">Automatic flag</Badge>}
+                    </CardTitle>
+                    <span className="flex items-center gap-2">
+                      <Badge variant="secondary">Resolved</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {report.resolvedAt ? new Date(report.resolvedAt).toLocaleString() : "Resolution date unavailable"}
+                      </span>
+                    </span>
+                  </div>
+                  <CardDescription>
+                    <span className="font-semibold text-foreground">{report.reporterName}</span>
+                    {" · "}{REASONS[report.reason] ?? report.reason}
+                    {" · "}{report.threadTitle}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {report.contentExcerpt && (
+                    <blockquote className="rounded-lg border-l-4 border-muted-foreground/40 bg-muted/40 px-3 py-2 text-sm">
+                      <span className="sr-only">Reported content: </span>{report.contentExcerpt}
+                    </blockquote>
+                  )}
+                  {report.details && <p className="whitespace-pre-wrap text-sm"><span className="font-semibold">Details: </span>{report.details}</p>}
+                  {report.resolutionNote && <p className="whitespace-pre-wrap text-sm"><span className="font-semibold">Resolution note: </span>{report.resolutionNote}</p>}
+                  {report.threadId && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={report.link}>Open reported content <ExternalLink className="ml-2 h-3.5 w-3.5" /></Link>
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
