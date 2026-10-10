@@ -2,6 +2,36 @@ name: Build Signed Android Release AAB
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_to_play:
+        description: >-
+          After building, upload the signed bundle to Google Play. Needs the
+          PLAY_SERVICE_ACCOUNT_JSON secret. Leave unticked to only build the AAB
+          (download it from the run's Artifacts).
+        type: boolean
+        default: false
+      track:
+        description: >-
+          Play track to release to when uploading. Production is deliberately
+          not allowed here — promote to production by hand in Play Console.
+          Use "internal" for Internal testing, "alpha" for the default Closed
+          testing track, "beta" for Open testing.
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+        default: internal
+      release_status:
+        description: >-
+          "completed" rolls the release out to the track's testers. "draft"
+          only creates it for you to review and roll out in Play Console (also
+          the fallback if Play says only draft releases are allowed for this app).
+        type: choice
+        options:
+          - completed
+          - draft
+        default: completed
 
 permissions:
   contents: read
@@ -36,6 +66,21 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trailteam_test
 
     steps:
+      - name: Check Google Play upload prerequisites
+        if: ${{ inputs.upload_to_play }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "upload_to_play is ticked but the PLAY_SERVICE_ACCOUNT_JSON secret is not set."
+            exit 1
+          fi
+          if ! printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("type")=="service_account" and d.get("client_email") and d.get("private_key")'; then
+            echo "PLAY_SERVICE_ACCOUNT_JSON is not a valid service-account key file (expected the full JSON downloaded from Google Cloud)."
+            exit 1
+          fi
+          echo "Play service account key looks valid."
+
       - name: Check out source
         uses: actions/checkout@v4
 
@@ -137,6 +182,18 @@ jobs:
           name: trailteam-release-aab
           path: release-assets/
           if-no-files-found: error
+
+      - name: Upload to Google Play
+        if: ${{ inputs.upload_to_play }}
+        # Pinned to a commit (v1.1.5): this step receives the Play service
+        # account key, so don't track a movable tag.
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.trailteam.trailteam
+          releaseFiles: release-assets/trailteam-release.aab
+          track: ${{ inputs.track }}
+          status: ${{ inputs.release_status }}
 
       - name: Clean up keystore
         if: always()
