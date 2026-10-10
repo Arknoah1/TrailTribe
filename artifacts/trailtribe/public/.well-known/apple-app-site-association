@@ -15,7 +15,9 @@
           { "/": "/reenroll" },
           { "/": "/family-invite/*" },
           { "/": "/rider-invite/*" },
-          { "/": "/join/*" }
+          { "/": "/join/*" },
+          { "/": "/sign-in" },
+          { "/": "/sign-in/*" }
         ]
       }
     ]
