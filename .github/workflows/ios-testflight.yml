@@ -114,6 +114,9 @@ jobs:
       - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          # iOS WebView origin is capacitor://trailteam.app (see capacitor.config.ts).
+          # Android keeps the default app.trailteam.app.
+          CAP_HOSTNAME: trailteam.app
           # Read by src/main.tsx (on-screen diagnostics panel).
           VITE_DEBUG_OVERLAY: ${{ inputs.debug_overlay && 'true' || 'false' }}
         run: |

@@ -10,9 +10,18 @@ const config: CapacitorConfig = {
     // supplied without changing source code via CAP_SERVER_URL.
     url: process.env.CAP_SERVER_URL || undefined,
     cleartext: process.env.CAP_CLEAR_TEXT === "true",
-    // Keep the native WebView origin on the real published domain so OAuth
-    // redirects can resolve and Android App Links can reopen the app.
-    hostname: "trailteam.app",
+    // The native WebView's hostname differs per platform on purpose:
+    //  - Android (default): "app.trailteam.app". It MUST NOT equal the real
+    //    site host. Capacitor's Android WebViewLocalServer serves every request
+    //    whose host matches this value from the bundled assets, so using
+    //    "trailteam.app" would intercept the app's own /api and /api/__clerk
+    //    calls and break the backend and sign-in. (Android App Links are
+    //    unaffected: they are declared in AndroidManifest.xml.)
+    //  - iOS: the iOS workflow sets CAP_HOSTNAME=trailteam.app. iOS has no such
+    //    interception (its origin is capacitor://<hostname>), and the real
+    //    domain keeps OAuth redirects resolving.
+    // Both origins are allowed by the API server (PRODUCTION_ORIGINS).
+    hostname: process.env.CAP_HOSTNAME || "app.trailteam.app",
     androidScheme: "https",
     // NOT also setting iosScheme: "https" here — it's a dead end. Apple's
     // WKWebView refuses to let a custom URLSchemeHandler register for a
