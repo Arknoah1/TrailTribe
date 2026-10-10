@@ -17,8 +17,24 @@ let httpServer;
 let baseUrl;
 
 before(async () => {
+  const fixtureAuthPlugin = {
+    name: "trailteam-browser-fixture-auth",
+    load(id) {
+      if (id === resolve(artifactRoot, "src/lib/use-authed-fetch.ts")) {
+        return `
+          import { useCallback } from "react";
+          export function useAuthedFetch() {
+            return useCallback((url, options = {}) => fetch(url, options), []);
+          }
+        `;
+      }
+      return null;
+    },
+  };
+
   viteServer = await createViteServer({
     configFile: resolve(artifactRoot, "vite.config.ts"),
+    plugins: [fixtureAuthPlugin],
     server: { middlewareMode: true, hmr: false },
     logLevel: "error",
   });
@@ -84,6 +100,21 @@ test("mobile discussion keeps the reply controls visible through keyboard dismis
 
     await reply.waitFor({ state: "visible", timeout: 5_000 });
     await page.getByText("Meet at the north trailhead").waitFor({ state: "visible" });
+    await page.setViewportSize({ width: 320, height: 844 });
+
+    const toolbar = page.getByRole("toolbar", { name: "Message formatting" });
+    const narrowToolbar = await toolbar.locator("button").evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const rect = button.getBoundingClientRect();
+        return { top: rect.top, right: rect.right };
+      }),
+    );
+    assert.equal(narrowToolbar.length, 6, "the compact toolbar should keep five formatting actions and Preview");
+    assert.equal(new Set(narrowToolbar.map((button) => button.top)).size, 1, "all compact actions should fit on one row");
+    assert.ok(narrowToolbar.every((button) => button.right <= 320), "compact actions should remain inside a 320px screen");
+    assert.equal(await page.getByTestId("format-table").count(), 0, "table formatting is omitted from discussion replies");
+
+    await page.setViewportSize({ width: 390, height: 844 });
     await reply.fill("I can bring the trail map and first-aid kit.");
     await reply.focus();
 
@@ -162,6 +193,14 @@ test("mobile discussion keeps the reply controls visible through keyboard dismis
     assert.ok(resizedViewportMeasurements.sendBottom <= resizedViewportMeasurements.navigationTop);
     assert.ok(resizedViewportMeasurements.canScrollThread, "the discussion should remain scrollable above the docked composer");
     assert.equal(resizedViewportMeasurements.activeElementIsReply, true);
+
+    await page.locator("#root").evaluate((scrollRegion) => {
+      scrollRegion.scrollTop = scrollRegion.scrollHeight;
+    });
+    await page.waitForTimeout(50);
+    const lastReply = await page.getByText("A private reply that should be redacted after deletion").boundingBox();
+    const dockedComposer = await rectFor(composer);
+    assert.ok(lastReply && lastReply.y + lastReply.height <= dockedComposer.top, "scrolling to the newest reply should not leave it underneath the composer");
   } finally {
     await browser.close();
   }
