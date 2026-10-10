@@ -45,23 +45,23 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
   };
   return (
     <div className="min-w-0 w-full space-y-2" data-testid="rich-message-editor">
-      <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Message formatting">
+      <div className={compact ? "flex flex-nowrap items-center gap-0.5" : "flex flex-wrap gap-1"} role="toolbar" aria-label="Message formatting">
         {[
           { action: "bold", label: "Bold", Icon: Bold }, { action: "italic", label: "Italic", Icon: Italic },
           { action: "bullets", label: "Bullet list", Icon: List },
           { action: "numbers", label: "Numbered list", Icon: ListOrdered }, { action: "link", label: "Insert link", Icon: Link2 },
           { action: "table", label: "Insert table", Icon: Table2 },
-        ].map(({ action, label, Icon }) => (
-          <Button key={action} type="button" variant="outline" size="icon" className="h-11 w-11 md:h-8 md:w-8" disabled={disabled}
+        ].filter(({ action }) => !compact || action !== "table").map(({ action, label, Icon }) => (
+          <Button key={action} type="button" variant="outline" size="icon" className={compact ? "h-9 w-9 shrink-0" : "h-11 w-11 md:h-8 md:w-8"} disabled={disabled}
             aria-label={label} title={label} data-testid={`format-${action}`}
             onMouseDown={event => event.preventDefault()} onClick={() => insert(action)}>
             <Icon className="h-4 w-4" />
           </Button>
         ))}
-        <Button type="button" variant="outline" size="sm" className="h-11 ml-auto md:h-8" disabled={disabled}
-          aria-pressed={preview} data-testid="toggle-message-preview" onClick={() => setPreview(!preview)}>
-          {preview ? <Pencil className="mr-1 h-3.5 w-3.5" /> : <Eye className="mr-1 h-3.5 w-3.5" />}
-          {preview ? "Write" : "Preview"}
+        <Button type="button" variant="outline" size={compact ? "icon" : "sm"} className={compact ? "h-9 w-9 shrink-0 px-0" : "h-11 ml-auto md:h-8"} disabled={disabled}
+          aria-label={preview ? "Write message" : "Preview message"} aria-pressed={preview} data-testid="toggle-message-preview" onClick={() => setPreview(!preview)}>
+          {preview ? <Pencil className={compact ? "h-4 w-4" : "mr-1 h-3.5 w-3.5"} /> : <Eye className={compact ? "h-4 w-4" : "mr-1 h-3.5 w-3.5"} />}
+          {compact ? <span className="sr-only">{preview ? "Write" : "Preview"}</span> : (preview ? "Write" : "Preview")}
         </Button>
       </div>
       {linkSelection && (

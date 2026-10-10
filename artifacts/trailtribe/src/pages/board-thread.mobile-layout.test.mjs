@@ -122,6 +122,7 @@ test("native keyboard events keep the composer above the iOS keyboard without do
   assert.equal(getKeyboardInset(800, 800, 0, 320), 320);
   assert.equal(getKeyboardInset(800, 480, 0, 0), 320);
   assert.equal(getKeyboardInset(800, 480, 24, 240), 296);
+  assert.equal(getKeyboardInset(800, 480, 0, 320, 480), 0, "a resized Android layout already ends above the keyboard");
   const keyboardInset = getKeyboardInset(800, 480, 0, 0);
   const composerBottom = Math.max(78, keyboardInset);
   assert.equal(800 - composerBottom, 480, "the composer bottom should meet the keyboard top, not overlap it");
@@ -133,12 +134,14 @@ test("native keyboard events keep the composer above the iOS keyboard without do
   assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
 });
 
-test("the mobile formatting toolbar removes the confusing heading action and keeps touch targets usable", () => {
+test("the compact discussion toolbar stays in one row and omits the table action", () => {
   assert.doesNotMatch(editorSource, /Heading2/);
   assert.doesNotMatch(editorSource, /action:\s*"heading"/);
-  assert.match(editorSource, /className="h-11 w-11 md:h-8 md:w-8"/);
-  assert.match(editorSource, /className="h-11 ml-auto md:h-8"/);
-  assert.match(editorSource, /className="flex flex-wrap gap-1"/);
+  assert.match(editorSource, /compact \? "flex flex-nowrap items-center gap-0\.5" : "flex flex-wrap gap-1"/);
+  assert.match(editorSource, /\.filter\(\(\{ action \}\) => !compact \|\| action !== "table"\)/);
+  assert.match(editorSource, /compact \? "h-9 w-9 shrink-0" : "h-11 w-11 md:h-8 md:w-8"/);
+  assert.match(editorSource, /aria-label=\{preview \? "Write message" : "Preview message"\}/);
+  assert.match(editorSource, /action: "table", label: "Insert table"/);
 });
 
 test("keyboard dismissal restores the normal mobile navigation offset", () => {

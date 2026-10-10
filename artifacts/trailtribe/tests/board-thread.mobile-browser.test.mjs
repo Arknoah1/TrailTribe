@@ -92,7 +92,9 @@ test("mobile discussion keeps the reply controls visible through keyboard dismis
     });
     await page.waitForFunction(() => {
       const element = document.querySelector('[data-testid="reply-composer"]');
-      return element && getComputedStyle(element).bottom === "502px";
+      const visibleViewport = window.visualViewport;
+      const expectedBottom = window.innerHeight - (visibleViewport?.height ?? window.innerHeight) - (visibleViewport?.offsetTop ?? 0);
+      return element && getComputedStyle(element).bottom === `${expectedBottom}px`;
     });
 
     const reducedViewportMeasurements = await page.evaluate(() => {
@@ -127,6 +129,39 @@ test("mobile discussion keeps the reply controls visible through keyboard dismis
       Math.abs(restoredComposer.bottom - restoredNavigation.top) <= 1,
       "dismissing the keyboard should restore the composer-to-navigation spacing",
     );
+
+    await reply.focus();
+    await page.setViewportSize({ width: 390, height: 420 });
+    await page.evaluate(() => window.setSimulatedVisualViewport?.(window.innerHeight));
+    await page.waitForFunction(() => {
+      const element = document.querySelector('[data-testid="reply-composer"]');
+      return element && getComputedStyle(element).bottom === "78px";
+    });
+
+    const resizedViewportMeasurements = await page.evaluate(() => {
+      const composerRect = document.querySelector('[data-testid="reply-composer"]')?.getBoundingClientRect();
+      const navRect = document.querySelector('[data-testid="mobile-bottom-nav"]')?.getBoundingClientRect();
+      const textareaRect = document.querySelector('[aria-label="Reply to this discussion"]')?.getBoundingClientRect();
+      const sendRect = document.querySelector('[aria-label="Send reply"]')?.getBoundingClientRect();
+      const scrollRegion = document.querySelector("#root");
+      return {
+        composerBottom: composerRect?.bottom ?? -1,
+        navigationTop: navRect?.top ?? -1,
+        textareaBottom: textareaRect?.bottom ?? -1,
+        sendBottom: sendRect?.bottom ?? -1,
+        canScrollThread: Boolean(scrollRegion && scrollRegion.scrollHeight > scrollRegion.clientHeight),
+        activeElementIsReply: document.activeElement?.getAttribute("aria-label") === "Reply to this discussion",
+      };
+    });
+
+    assert.ok(
+      Math.abs(resizedViewportMeasurements.composerBottom - resizedViewportMeasurements.navigationTop) <= 1,
+      "when Android resizes the layout viewport, the composer should sit above navigation without adding the keyboard height twice",
+    );
+    assert.ok(resizedViewportMeasurements.textareaBottom <= resizedViewportMeasurements.navigationTop);
+    assert.ok(resizedViewportMeasurements.sendBottom <= resizedViewportMeasurements.navigationTop);
+    assert.ok(resizedViewportMeasurements.canScrollThread, "the discussion should remain scrollable above the docked composer");
+    assert.equal(resizedViewportMeasurements.activeElementIsReply, true);
   } finally {
     await browser.close();
   }

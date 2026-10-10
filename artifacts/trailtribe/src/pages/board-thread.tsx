@@ -256,6 +256,7 @@ export default function BoardThread() {
         visualViewport?.height ?? window.innerHeight,
         visualViewport?.offsetTop ?? 0,
         nativeKeyboardInset.current,
+        window.innerHeight,
       );
 
       setKeyboardOffset(nextOffset);
