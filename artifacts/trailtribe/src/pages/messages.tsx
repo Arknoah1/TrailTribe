@@ -5,12 +5,14 @@ import {
   useListBroadcasts,
   useListPods,
   useGetMe,
+  useGetBoardUnreadCount,
   useMarkBoardSeen,
   useCreateBoardThread,
   usePinBoardThread,
   useDeleteBoardThread,
   useArchiveBroadcast,
   useUnarchiveBroadcast,
+  getGetBoardUnreadCountQueryKey,
   getListBoardThreadsQueryKey,
   getListBroadcastsQueryKey,
 } from "@workspace/api-client-react";
@@ -36,6 +38,7 @@ import {
   ArchiveRestore,
   ChevronDown,
   ChevronUp,
+  ListFilter,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -73,7 +76,7 @@ function getMessageTabFromLocation(search: string): MessageTab {
   return tab === "pod" || tab === "events" || tab === "announcements" ? tab : "general";
 }
 
-function ThreadCard({ thread, podNameMap }: { thread: BoardThreadWithDetails; podNameMap: Map<string, string> }) {
+function ThreadCard({ thread, podNameMap, isUnread }: { thread: BoardThreadWithDetails; podNameMap: Map<string, string>; isUnread: boolean }) {
   return (
     <Card className="hover:border-[#0a0c10] hover:shadow-cel-sm transition-all cursor-pointer">
       <CardContent className="p-4 sm:p-5">
@@ -91,6 +94,11 @@ function ThreadCard({ thread, podNameMap }: { thread: BoardThreadWithDetails; po
                   {thread.isPinned && <Pin className="inline-block h-4 w-4 mr-1.5 text-primary fill-primary" />}
                   {thread.title}
                 </h3>
+                {isUnread && (
+                  <Badge variant="default" className="mt-1 text-[10px] h-5 px-1.5">
+                    Unread
+                  </Badge>
+                )}
                 <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-foreground">
                     {thread.author ? `${thread.author.firstName} ${thread.author.lastName}` : "Unknown User"}
@@ -342,11 +350,17 @@ function BroadcastsList({ podNameMap, isCoachOrAdmin }: { podNameMap: Map<string
 function ThreadsList({ 
   scope, 
   podId, 
-  podNameMap 
+  podNameMap,
+  showUnreadOnly,
+  onShowUnreadOnlyChange,
+  unreadThreadIds,
 }: { 
   scope: "general" | "pod" | "event"; 
   podId?: string;
   podNameMap: Map<string, string>;
+  showUnreadOnly: boolean;
+  onShowUnreadOnlyChange: (showUnreadOnly: boolean) => void;
+  unreadThreadIds: number[] | null;
 }) {
   const { data: threads, isLoading, isError, error, refetch } = useListBoardThreads({ scope, podId });
 
@@ -371,22 +385,46 @@ function ThreadsList({
     return <LoadErrorCard feature="threads" error={error} onRetry={() => void refetch()} />;
   }
 
-  if (!sortedThreads.length) {
-    return <EmptyTrailState message="No threads here yet. Be the first to start a conversation!" />;
-  }
+  const unreadCount = sortedThreads.filter(thread => unreadThreadIds?.includes(thread.id)).length;
+  const visibleThreads = showUnreadOnly
+    ? sortedThreads.filter(thread => unreadThreadIds?.includes(thread.id))
+    : sortedThreads;
 
   return (
     <div className="space-y-3">
-      {sortedThreads.map(thread => (
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant={showUnreadOnly ? "default" : "outline"}
+          aria-pressed={showUnreadOnly}
+          data-testid="board-unread-filter"
+          disabled={unreadThreadIds === null}
+          onClick={() => onShowUnreadOnlyChange(!showUnreadOnly)}
+          className="gap-2"
+        >
+          <ListFilter className="h-4 w-4" />
+          {showUnreadOnly ? "Showing unread" : "Unread only"}
+          {unreadCount > 0 && (
+            <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded border border-current px-1 text-xs font-bold">
+              {unreadCount}
+            </span>
+          )}
+        </Button>
+      </div>
+      {visibleThreads.length > 0 ? visibleThreads.map(thread => (
         <Link
           key={thread.id}
           href={`/messages/thread/${thread.id}?tab=${scope === "event" ? "events" : scope}`}
           className="block"
           data-testid={`event-discussion-${thread.id}`}
         >
-          <ThreadCard thread={thread} podNameMap={podNameMap} />
+          <ThreadCard thread={thread} podNameMap={podNameMap} isUnread={unreadThreadIds?.includes(thread.id) ?? false} />
         </Link>
-      ))}
+      )) : (
+        <EmptyTrailState message={showUnreadOnly
+          ? "No unread threads."
+          : "No threads here yet. Be the first to start a conversation!"} />
+      )}
     </div>
   );
 }
@@ -395,16 +433,30 @@ export default function Messages() {
   const search = useSearch();
   const { data: me } = useGetMe();
   const { data: pods } = useListPods();
+  const {
+    data: unreadData,
+    isFetchedAfterMount,
+    isFetching: isUnreadLoading,
+    isError: isUnreadError,
+  } = useGetBoardUnreadCount({
+    query: {
+      refetchOnMount: "always",
+      queryKey: getGetBoardUnreadCountQueryKey(),
+    },
+  });
   const markSeen = useMarkBoardSeen();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
   const isCoachOrAdmin = isOperationalStaff(me);
   const [activeTab, setActiveTab] = useState<MessageTab>(() => getMessageTabFromLocation(search));
+  const [unreadThreadIds, setUnreadThreadIds] = useState<number[] | null>(null);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [threadImages, setThreadImages] = useState<string[]>([]);
   const [threadImagesUploading, setThreadImagesUploading] = useState(false);
   const threadPickerRef = useRef<DiscussionImagePickerHandle>(null);
+  const unreadSnapshotTakenRef = useRef(false);
 
   const podNameMap = new Map<string, string>((pods ?? []).map(p => [String(p.id), p.name]));
 
@@ -416,12 +468,15 @@ export default function Messages() {
   });
   const draftBody = form.watch("body");
 
-  // Mark board seen on mount
+  // Keep the unread snapshot for this visit before advancing the board's seen marker.
   const markSeenMutateRef = useRef(markSeen.mutate);
   markSeenMutateRef.current = markSeen.mutate;
   useEffect(() => {
+    if (!isFetchedAfterMount || isUnreadLoading || isUnreadError || !unreadData || unreadSnapshotTakenRef.current) return;
+    unreadSnapshotTakenRef.current = true;
+    setUnreadThreadIds(unreadData.threadIds);
     markSeenMutateRef.current(undefined);
-  }, []);
+  }, [isFetchedAfterMount, isUnreadLoading, isUnreadError, unreadData]);
 
   const handleCreate = (values: z.infer<typeof newThreadSchema>) => {
     if (threadImagesUploading || createThread.isPending) return;
@@ -533,13 +588,13 @@ export default function Messages() {
         
         <div className="mt-6">
           <TabsContent value="general" className="mt-0">
-            <ThreadsList scope="general" podNameMap={podNameMap} />
+            <ThreadsList scope="general" podNameMap={podNameMap} showUnreadOnly={showUnreadOnly} onShowUnreadOnlyChange={setShowUnreadOnly} unreadThreadIds={unreadThreadIds} />
           </TabsContent>
           <TabsContent value="pod" className="mt-0">
-            {me?.podId && <ThreadsList scope="pod" podId={me.podId} podNameMap={podNameMap} />}
+            {me?.podId && <ThreadsList scope="pod" podId={me.podId} podNameMap={podNameMap} showUnreadOnly={showUnreadOnly} onShowUnreadOnlyChange={setShowUnreadOnly} unreadThreadIds={unreadThreadIds} />}
           </TabsContent>
           <TabsContent value="events" className="mt-0">
-            <ThreadsList scope="event" podNameMap={podNameMap} />
+            <ThreadsList scope="event" podNameMap={podNameMap} showUnreadOnly={showUnreadOnly} onShowUnreadOnlyChange={setShowUnreadOnly} unreadThreadIds={unreadThreadIds} />
           </TabsContent>
           <TabsContent value="announcements" className="mt-0">
             <BroadcastsList podNameMap={podNameMap} isCoachOrAdmin={isCoachOrAdmin} />

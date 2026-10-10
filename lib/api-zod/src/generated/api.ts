@@ -3285,6 +3285,7 @@ export const PinBoardThreadResponse = zod.object({
  */
 export const GetBoardUnreadCountResponse = zod.object({
   count: zod.number(),
+  threadIds: zod.array(zod.number()),
 });
 
 /**

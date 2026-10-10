@@ -1320,6 +1320,7 @@ export const GetBoardReactionDetailsReaction = {
 
 export type GetBoardUnreadCount200 = {
   count: number;
+  threadIds: number[];
 };
 
 export type GetLinkPreviewParams = {

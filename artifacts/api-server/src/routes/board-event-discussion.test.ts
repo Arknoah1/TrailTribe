@@ -1060,6 +1060,42 @@ describe("Community Board activity notifications", () => {
 });
 
 describe("event discussion board visibility and ordering", () => {
+  it("returns accessible unread thread IDs for families and staff before the board is marked seen", async () => {
+    const seenAt = new Date(NOW.getTime() - 10_000);
+    Object.assign(PARENT, { boardLastSeenAt: seenAt });
+    Object.assign(COACH, { boardLastSeenAt: seenAt });
+    const admin = { ...COACH, id: 6, clerkUserId: "clerk_test_admin", role: "super_admin" };
+
+    addThread(70, 0, new Date(seenAt.getTime() - 20_000));
+    addThread(71, 0, new Date(seenAt.getTime() - 60_000));
+    threads[1].lastReplyAt = new Date(seenAt.getTime() + 1_000);
+    addThread(72, 0, new Date(seenAt.getTime() + 2_000));
+
+    users.push(admin);
+    try {
+      for (const viewer of [PARENT, COACH, admin]) {
+        const result = await getThreads("/board/unread-count", viewer);
+        expect(result.status).toBe(200);
+        expect(result.body).toEqual({ count: 2, threadIds: [71, 72] });
+      }
+    } finally {
+      users.splice(users.indexOf(admin), 1);
+    }
+  });
+
+  it("does not return unread IDs for an event discussion outside a family's audience", async () => {
+    const event = addEvent(73, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    addThread(73, event.id, NOW);
+
+    const outsideAudience = await getThreads("/board/unread-count", OTHER_PARENT);
+    expect(outsideAudience.body).toEqual({ count: 0, threadIds: [] });
+
+    const withinAudience = await getThreads("/board/unread-count", PARENT);
+    expect(withinAudience.body).toEqual({ count: 1, threadIds: [73] });
+  });
+
   it("lets an audience parent start and reply to a pod-scoped event discussion", async () => {
     const event = addEvent(71, new Date("2026-08-21T12:00:00Z"), new Date("2026-08-21T13:00:00Z"));
     event.podIds = ["pod-a"];

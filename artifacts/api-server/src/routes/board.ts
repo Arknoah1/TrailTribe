@@ -1002,7 +1002,7 @@ router.patch("/board/threads/:id/pin", requireCoachOrAdmin, async (req, res) => 
 router.get("/board/unread-count", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
-  if (!me) { res.status(401).json({ count: 0 }); return; }
+  if (!me) { res.status(401).json({ count: 0, threadIds: [] }); return; }
 
   const isCoachOrAdmin = isOperationalStaffRole(me);
 
@@ -1024,34 +1024,21 @@ router.get("/board/unread-count", requireApproved, async (req, res) => {
       t.eventId ? canAccessEventThread(me, t.eventId) : Promise.resolve(true)
     )
   );
-  const accessibleIds = candidates
-    .filter((_, i) => accessResults[i])
-    .map((t) => t.id);
+  const accessibleThreads = candidates
+    .filter((_, i) => accessResults[i]);
 
-  if (accessibleIds.length === 0) {
-    res.json({ count: 0 }); return;
+  if (accessibleThreads.length === 0) {
+    res.json({ count: 0, threadIds: [] }); return;
   }
 
-  if (!me.boardLastSeenAt) {
-    // First visit — count all accessible threads (new threads without replies count too)
-    res.json({ count: accessibleIds.length });
-    return;
-  }
-
-  // Returning visit: count threads with new activity since last visit.
-  // New activity = thread created after boardLastSeenAt OR a reply posted after boardLastSeenAt.
+  // First visit — every accessible thread is unread. Otherwise compare activity
+  // in memory so the same privacy-filtered candidates power both the count and IDs.
   const seenAt = me.boardLastSeenAt;
-  const threads = await db.select().from(boardThreadsTable)
-    .where(
-      and(
-        inArray(boardThreadsTable.id, accessibleIds),
-        or(
-          gt(boardThreadsTable.createdAt, seenAt),
-          gt(boardThreadsTable.lastReplyAt, seenAt)
-        )
-      )
-    );
-  res.json({ count: threads.length });
+  const unreadThreads = seenAt
+    ? accessibleThreads.filter((thread) =>
+        thread.createdAt > seenAt || Boolean(thread.lastReplyAt && thread.lastReplyAt > seenAt))
+    : accessibleThreads;
+  res.json({ count: unreadThreads.length, threadIds: unreadThreads.map((thread) => thread.id) });
 });
 
 // Self-only preference update; pending users need this to keep their own state coherent.

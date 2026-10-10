@@ -8,4 +8,5 @@
 
 export type GetBoardUnreadCount200 = {
   count: number;
+  threadIds: number[];
 };

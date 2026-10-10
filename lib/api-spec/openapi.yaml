@@ -2338,7 +2338,11 @@ paths:
                 properties:
                   count:
                     type: integer
-                required: [count]
+                  threadIds:
+                    type: array
+                    items:
+                      type: integer
+                required: [count, threadIds]
 
   /board/seen:
     patch:
