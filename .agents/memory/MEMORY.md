@@ -32,3 +32,4 @@
 - [GitHub push sync](github-push-sync.md) — if Git push fails under Replit askpass, use the connected GitHub API and sync the resulting commits back into local refs
 - [Communication formatting scope](communication-formatting-scope.md) — editable Excel tables need not reproduce colors; screenshots preserve exact appearance; commerce remains paused
 - [Clerk SDK version alignment](clerk-sdk-version-alignment.md) — update the pinned Clerk shared package with Clerk SDK upgrades or Vite may fail on missing exports
+- [Apple app-link verification](apple-app-link-verification.md) — verify both the published AASA file and Apple's CDN contain the latest callback paths before relying on iOS Universal Links
