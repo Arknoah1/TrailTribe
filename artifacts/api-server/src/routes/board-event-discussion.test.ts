@@ -672,12 +672,19 @@ let server: Server;
 let baseUrl: string;
 
 beforeAll(async () => {
+  // Email links are built from APP_BASE_URL (or REPLIT_DEV_DOMAIN). CI sets
+  // neither, which silently drops every "Open ... in TrailTeam" link, so pin it
+  // here instead of relying on the developer's environment.
+  vi.stubEnv("APP_BASE_URL", "https://trailteam.app");
   server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, resolve));
   baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  vi.unstubAllEnvs();
+  server.close();
+});
 
 beforeEach(() => {
   vi.setSystemTime(NOW);
