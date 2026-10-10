@@ -48,6 +48,11 @@ test("legal pages have public routes and policy links on signed-out entry points
   assert.match(nativeSource, /\|support\|privacy\|terms/);
 });
 
+test("public support route does not wait for Clerk startup", () => {
+  assert.match(appSource, /const isSupportRoute = routePath === "\/support" \|\| routePath\.endsWith\("\/support"\)/);
+  assert.match(appSource, /if \(!isLoaded && !isSupportRoute\)/);
+});
+
 test("legal content includes terms needed for team participation without old branding", () => {
   for (const phrase of [
     "Accounts and roles",

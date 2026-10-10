@@ -254,8 +254,11 @@ function SessionExpiryHandler() {
 
 function ClerkStartupGate({ children }: { children: React.ReactNode }) {
   const { isLoaded } = useAuth();
+  const [location] = useLocation();
+  const routePath = location.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
+  const isSupportRoute = routePath === "/support" || routePath.endsWith("/support");
 
-  if (!isLoaded) {
+  if (!isLoaded && !isSupportRoute) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
