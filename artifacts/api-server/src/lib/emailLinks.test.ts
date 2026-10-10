@@ -18,6 +18,12 @@ describe("email links", () => {
     expect(buildAppUrl("/messages/thread/7?tab=events")).toBe(
       "https://trailteam.app/messages/thread/7?tab=events",
     );
+    expect(buildAppUrl("/messages/thread/7?reply=42")).toBe(
+      "https://trailteam.app/messages/thread/7?reply=42",
+    );
+    expect(buildAppUrl("/messages/thread/7?target=starter")).toBe(
+      "https://trailteam.app/messages/thread/7?target=starter",
+    );
     expect(buildAppUrl("/profile?tab=notifications")).toBe(
       "https://trailteam.app/profile?tab=notifications",
     );
@@ -25,6 +31,8 @@ describe("email links", () => {
 
   it("rejects unsupported and external destinations", () => {
     expect(buildAppUrl("/settings")).toBeNull();
+    expect(buildAppUrl("/messages/thread/7?reply=not-a-number")).toBeNull();
+    expect(buildAppUrl("/messages/thread/7?target=other")).toBeNull();
     expect(buildAppUrl("https://example.com")).toBeNull();
     expect(buildAppUrl("//example.com")).toBeNull();
     expect(createEmailLink("/events/42", "View event")).toEqual({

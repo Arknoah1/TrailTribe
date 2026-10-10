@@ -40,6 +40,7 @@ import { RichMessageEditor } from "@/components/rich-message-editor";
 import { RichMessageContent } from "@/components/rich-message-content";
 import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
 import { getKeyboardInset } from "@/lib/mobile-keyboard-layout";
+import { getReactionScrollTarget } from "@/lib/board-reaction-link";
 
 function isEventDiscussionAccessDenied(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -170,6 +171,8 @@ export default function BoardThread() {
   });
 
   const search = useSearch();
+  const reactionReplyParam = new URLSearchParams(search).get("reply");
+  const reactionTargetParam = new URLSearchParams(search).get("target");
   const requestedTab = new URLSearchParams(search).get("tab");
   const returnTab = requestedTab === "pod" || requestedTab === "events" || requestedTab === "announcements"
     ? requestedTab
@@ -217,6 +220,26 @@ export default function BoardThread() {
   const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
   const replyPickerRef = useRef<DiscussionImagePickerHandle>(null);
   const layoutViewportHeightRef = useRef<number | null>(null);
+  const handledReactionTargetRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      (!reactionReplyParam && reactionTargetParam !== "starter")
+      || !thread
+      || isPostsLoading
+      || isPostsError
+    ) return;
+
+    const targetKey = `${id}:${reactionTargetParam ?? ""}:${reactionReplyParam ?? ""}`;
+    if (handledReactionTargetRef.current === targetKey) return;
+
+    const targetId = getReactionScrollTarget(posts, reactionReplyParam, reactionTargetParam);
+    const target = targetId ? document.getElementById(targetId) : null;
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    handledReactionTargetRef.current = targetKey;
+  }, [id, isPostsError, isPostsLoading, posts, reactionReplyParam, reactionTargetParam, thread]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -521,7 +544,7 @@ export default function BoardThread() {
 
       <main className="mx-auto flex w-full min-w-0 max-w-3xl flex-1 px-4 py-5 pb-[calc(var(--reply-composer-height,320px)+100px)] sm:px-6 sm:py-7 md:pb-7">
         <div className="flex w-full min-w-0 flex-1 flex-col gap-5">
-          <section className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
+          <section id="board-thread-starter" className="rounded-2xl border-2 border-[#0a0c10] border-l-4 border-l-primary bg-card p-4 shadow-cel-sm sm:p-5">
             <div className="mb-3 flex items-center gap-3">
               <Avatar className="h-10 w-10 border-2 border-[#0a0c10] shrink-0">
                 <AvatarImage src={thread.author?.avatarUrl ?? undefined} />
@@ -571,7 +594,7 @@ export default function BoardThread() {
               {posts.map(post => {
             const canDelete = post.permissions?.canDelete === true;
             return (
-              <article key={post.id} className="flex gap-3 sm:gap-4">
+              <article id={`board-thread-post-${post.id}`} key={post.id} className="flex gap-3 sm:gap-4">
                 <Avatar className="h-9 w-9 border-2 border-[#0a0c10] shrink-0">
                   <AvatarImage src={post.author?.avatarUrl ?? undefined} />
                   <AvatarFallback className="font-bold text-sm">

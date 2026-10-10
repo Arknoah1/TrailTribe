@@ -374,7 +374,13 @@ async function notifyThreadParticipants(
 
 type BoardActivity =
   | { kind: "new-thread" }
-  | { kind: "reaction"; memberName: string; reaction: ReactionType };
+  | {
+      kind: "reaction";
+      memberName: string;
+      reaction: ReactionType;
+      targetType: ReactionTarget;
+      targetId: number;
+    };
 
 async function notifyBoardActivity(
   thread: typeof boardThreadsTable.$inferSelect,
@@ -386,6 +392,14 @@ async function notifyBoardActivity(
     : null;
   const threadTitle = event ? `Discussion: ${event.title}` : thread.title;
   const threadUrl = `/messages/thread/${thread.id}`;
+  const activityUrl = activity.kind !== "reaction"
+    ? threadUrl
+    : activity.targetType === "post"
+      ? `${threadUrl}?reply=${activity.targetId}`
+      : `${threadUrl}?target=starter`;
+  const activityLinkLabel = activity.kind === "reaction" && activity.targetType === "post"
+    ? "Open reply in TrailTeam"
+    : "Open discussion in TrailTeam";
 
   const participantIds = activity.kind === "reaction"
     ? new Set<number>([
@@ -422,11 +436,11 @@ async function notifyBoardActivity(
     : "New reaction on the board";
   const notificationBody = activity.kind === "new-thread"
     ? `A new discussion was started: "${threadTitle}"`
-    : `${activity.memberName} reacted with ${REACTION_LABELS[activity.reaction]} in "${threadTitle}"`;
+    : `${activity.memberName} reacted with ${REACTION_LABELS[activity.reaction]} to ${activity.targetType === "post" ? "a reply" : "the discussion"} in "${threadTitle}"`;
   const settingsUrl = "/profile?tab=notifications";
-  const threadHref = buildAppUrl(threadUrl);
+  const threadHref = buildAppUrl(activityUrl);
   const settingsHref = buildAppUrl(settingsUrl);
-  const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
+  const threadLink = createEmailLink(activityUrl, activityLinkLabel);
   const emailMessage = addNotificationEmailLinks(
     [`Hi,`, ``, notificationBody, ``, `— TrailTeam`].join("\n"),
     [threadLink],
@@ -442,7 +456,7 @@ async function notifyBoardActivity(
   })[char]!);
   const inlineHtml = [
     `<p>${escapeHtml(notificationBody)}</p>`,
-    safeHref ? `<p><a href="${safeHref}">Open discussion in TrailTeam</a></p>` : "",
+    safeHref ? `<p><a href="${safeHref}">${escapeHtml(activityLinkLabel)}</a></p>` : "",
     `<p style="font-size:12px;color:#59636e">To update notification preferences, update your notification settings in TrailTeam${safeSettingsHref ? `: <a href="${safeSettingsHref}">notification settings</a>` : ""}.</p>`,
   ].join("");
   const emailUsers = accessibleRecipients.filter((user) =>
@@ -466,7 +480,7 @@ async function notifyBoardActivity(
         where: and(
           eq(notificationsTable.recipientUserId, user.id),
           eq(notificationsTable.body, notificationBody),
-          eq(notificationsTable.link, threadUrl),
+          eq(notificationsTable.link, activityUrl),
           gt(notificationsTable.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
         ),
       });
@@ -477,7 +491,7 @@ async function notifyBoardActivity(
       "boardReplies",
       notificationTitle,
       notificationBody,
-      threadUrl,
+      activityUrl,
     );
     if (!emailUsers.includes(user)) return;
 
@@ -1107,7 +1121,13 @@ router.post("/board/reactions", requireApproved, async (req, res) => {
     });
     if (thread) {
       const memberName = [me.firstName, me.lastName].filter(Boolean).join(" ").trim() || "A member";
-      void notifyBoardActivity(thread, me.id, { kind: "reaction", memberName, reaction })
+      void notifyBoardActivity(thread, me.id, {
+        kind: "reaction",
+        memberName,
+        reaction,
+        targetType,
+        targetId: safeTargetId,
+      })
         .catch((err) => logger.error({ err }, "[board] notify reaction participants error"));
     }
   }

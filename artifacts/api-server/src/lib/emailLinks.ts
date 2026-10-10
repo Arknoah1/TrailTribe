@@ -7,7 +7,8 @@ export interface EmailLink {
 
 const ALLOWED_PATHS = [
   /^\/events\/\d+(?:\?focus=volunteer)?$/,
-  /^\/messages(?:\/thread\/\d+)?(?:\?tab=(?:events|pod|announcements))?$/,
+  /^\/messages(?:\?tab=(?:events|pod|announcements))?$/,
+  /^\/messages\/thread\/\d+(?:\?(?:tab=(?:events|pod|announcements)|reply=\d+|target=starter))?$/,
   /^\/carpools(?:\/\d+)?$/,
   /^\/profile(?:\?tab=(?:family|notifications))?$/,
   /^\/admin$/,

@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { getKeyboardInset } from "../lib/mobile-keyboard-layout.ts";
+import { getReactionScrollTarget } from "../lib/board-reaction-link.ts";
 
 const pagesDir = dirname(fileURLToPath(import.meta.url));
 const threadSource = await readFile(resolve(pagesDir, "board-thread.tsx"), "utf8");
@@ -97,6 +98,26 @@ test("visual viewport keyboard changes move the reply composer above the keyboar
   assert.match(threadSource, /bottom-\[max\(var\(--mobile-bottom-nav-height,78px\),var\(--keyboard-offset\)\)\]/);
 });
 
+test("reaction deep links open a visible reply and fall back to the thread when it is gone", () => {
+  const posts = [
+    { id: 42, isDeleted: false },
+    { id: 43, isDeleted: true },
+  ];
+
+  assert.equal(getReactionScrollTarget(posts, "42"), "board-thread-post-42");
+  assert.equal(getReactionScrollTarget(posts, "43"), "board-thread-starter");
+  assert.equal(getReactionScrollTarget(posts, "999"), "board-thread-starter");
+  assert.equal(getReactionScrollTarget(posts, "not-a-reply"), "board-thread-starter");
+  assert.equal(getReactionScrollTarget(posts, null, "starter"), "board-thread-starter");
+  assert.equal(getReactionScrollTarget(posts, null), null);
+
+  assert.match(threadSource, /new URLSearchParams\(search\)\.get\("reply"\)/);
+  assert.match(threadSource, /new URLSearchParams\(search\)\.get\("target"\)/);
+  assert.match(threadSource, /id="board-thread-starter"/);
+  assert.match(threadSource, /id=\{`board-thread-post-\$\{post\.id\}`\}/);
+  assert.match(threadSource, /target\.scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
+});
+
 test("native keyboard events keep the composer above the iOS keyboard without double-counting viewport resize", () => {
   assert.equal(getKeyboardInset(800, 800, 0, 320), 320);
   assert.equal(getKeyboardInset(800, 480, 0, 0), 320);
@@ -163,13 +184,10 @@ test("discussion navigation preserves the originating Messages category", () => 
 test("thread and reply actions use server-provided permissions", () => {
   assert.match(threadSource, /const canDeleteThread = thread\?\.permissions\?\.canDelete === true;/);
   assert.match(threadSource, /const canPinThread = thread\?\.permissions\?\.canPin === true;/);
-  assert.match(
-    threadSource,
-    /\{canDeleteThread && \(\s*<DropdownMenu>\s*<DropdownMenuTrigger asChild>/,
-  );
+  assert.match(threadSource, /<DropdownMenu>\s*<DropdownMenuTrigger asChild>/);
   assert.match(threadSource, /aria-label="Thread actions"/);
   assert.match(threadSource, /\{canPinThread && \(\s*<DropdownMenuItem onClick=\{handlePin\}/);
-  assert.match(threadSource, /<DropdownMenuItem onClick=\{handleDeleteThread\}/);
+  assert.match(threadSource, /\{canDeleteThread && \(\s*<DropdownMenuItem onClick=\{handleDeleteThread\}/);
   assert.match(threadSource, /const canDelete = post\.permissions\?\.canDelete === true;/);
   assert.doesNotMatch(threadSource, /const canDelete = isCoachOrAdmin \|\| post\.authorUserId === me\?\.id;/);
 });
