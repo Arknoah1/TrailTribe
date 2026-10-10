@@ -14,4 +14,5 @@ export type BoardPostWithAuthor = BoardPost & {
   author?: BoardAuthor | null;
   reactions?: BoardPostWithAuthorReactions;
   permissions: BoardPostPermissions;
+  hiddenByMe: boolean;
 };

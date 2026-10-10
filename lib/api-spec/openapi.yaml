@@ -2263,6 +2263,193 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /board/posts/{id}/reports:
+    post:
+      operationId: createBoardPostReport
+      tags: [board]
+      summary: Report an individual reply to coaches and administrators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardPostReportInput"
+      responses:
+        "201":
+          description: Reply report submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThreadReportResponse"
+        "200":
+          description: Existing open report returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThreadReportResponse"
+        "400":
+          description: Invalid report reason or details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The member cannot access this reply
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Reply not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /board/reports:
+    get:
+      operationId: listBoardReports
+      tags: [board]
+      summary: List private Board content reports for coaches and administrators
+      responses:
+        "200":
+          description: Board content reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardReportWithDetails"
+
+  /board/reports/{id}/resolve:
+    patch:
+      operationId: resolveBoardReport
+      tags: [board]
+      summary: Resolve a Board content report with an optional review note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardReportResolutionInput"
+      responses:
+        "200":
+          description: Resolved report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardReportWithDetails"
+        "404":
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /board/hidden-members:
+    get:
+      operationId: listHiddenBoardMembers
+      tags: [board]
+      summary: List members hidden by the current user
+      responses:
+        "200":
+          description: Hidden Board members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HiddenBoardMember"
+
+  /board/hidden-members/{userId}:
+    put:
+      operationId: setHiddenBoardMember
+      tags: [board]
+      summary: Hide or unhide a member on the Community Board
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HiddenBoardMemberInput"
+      responses:
+        "200":
+          description: Updated hidden-member preference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HiddenBoardMemberResponse"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /board/posting-restrictions:
+    get:
+      operationId: listBoardPostingRestrictions
+      tags: [board]
+      summary: List members currently restricted from posting on the Community Board
+      responses:
+        "200":
+          description: Restricted members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BoardPostingRestriction"
+
+  /board/users/{id}/posting-restriction:
+    put:
+      operationId: setBoardPostingRestriction
+      tags: [board]
+      summary: Restrict or restore a member's ability to post on the Community Board
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardPostingRestrictionInput"
+      responses:
+        "200":
+          description: Updated posting restriction
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardPostingRestriction"
+        "404":
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /board/threads/{id}/posts:
     get:
       operationId: listBoardPosts
@@ -4121,6 +4308,8 @@ components:
         authorUserId:
           type: integer
           nullable: true
+        hiddenByMe:
+          type: boolean
         podId:
           type: string
           nullable: true
@@ -4143,7 +4332,7 @@ components:
         updatedAt:
           type: string
           format: date-time
-      required: [id, title, body, imageObjectPaths, isPinned, isLocked, replyCount, createdAt, updatedAt]
+      required: [id, title, body, imageObjectPaths, isPinned, isLocked, hiddenByMe, replyCount, createdAt, updatedAt]
 
     BoardThreadReportInput:
       type: object
@@ -4177,6 +4366,116 @@ components:
         reportId:
           type: integer
 
+    BoardPostReportInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [inappropriate_content, harassment, spam, other]
+        details:
+          type: string
+          maxLength: 1000
+
+    BoardReportResolutionInput:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 1000
+
+    BoardReportWithDetails:
+      type: object
+      required: [id, threadId, postId, targetType, threadTitle, reporterName, reason, details, contentExcerpt, isAutomatic, createdAt, status, resolutionNote, resolvedAt, link]
+      properties:
+        id:
+          type: integer
+        threadId:
+          type: ["integer", "null"]
+        postId:
+          type: ["integer", "null"]
+        targetType:
+          type: string
+          enum: [thread, reply]
+        threadTitle:
+          type: string
+        reporterUserId:
+          type: ["integer", "null"]
+        reporterName:
+          type: string
+        reportedUserId:
+          type: ["integer", "null"]
+        reason:
+          type: string
+          enum: [inappropriate_content, harassment, spam, other]
+        details:
+          type: ["string", "null"]
+        contentExcerpt:
+          type: ["string", "null"]
+        isAutomatic:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, resolved]
+        resolutionNote:
+          type: ["string", "null"]
+        resolvedAt:
+          type: ["string", "null"]
+          format: date-time
+        link:
+          type: string
+
+    HiddenBoardMember:
+      type: object
+      required: [userId, firstName, lastName]
+      properties:
+        userId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    HiddenBoardMemberInput:
+      type: object
+      required: [hidden]
+      properties:
+        hidden:
+          type: boolean
+
+    HiddenBoardMemberResponse:
+      type: object
+      required: [hidden]
+      properties:
+        hidden:
+          type: boolean
+
+    BoardPostingRestrictionInput:
+      type: object
+      required: [blocked]
+      properties:
+        blocked:
+          type: boolean
+
+    BoardPostingRestriction:
+      type: object
+      required: [userId, firstName, lastName, blockedAt]
+      properties:
+        userId:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        blockedAt:
+          type: ["string", "null"]
+          format: date-time
+        blockedByName:
+          type: ["string", "null"]
+
     BoardThreadWithDetails:
       allOf:
         - $ref: "#/components/schemas/BoardThread"
@@ -4194,7 +4493,9 @@ components:
                 $ref: "#/components/schemas/BoardReactionCount"
             permissions:
               $ref: "#/components/schemas/BoardThreadPermissions"
-          required: [permissions]
+            hiddenByMe:
+              type: boolean
+          required: [permissions, hiddenByMe]
 
     BoardThreadPermissions:
       type: object
@@ -4216,6 +4517,8 @@ components:
         authorUserId:
           type: integer
           nullable: true
+        hiddenByMe:
+          type: boolean
         body:
           type: string
         bodyFormat:
@@ -4231,7 +4534,7 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, threadId, body, imageObjectPaths, isDeleted, createdAt]
+      required: [id, threadId, body, imageObjectPaths, isDeleted, hiddenByMe, createdAt]
 
     BoardPostPermissions:
       type: object
@@ -4255,7 +4558,9 @@ components:
                 $ref: "#/components/schemas/BoardReactionCount"
             permissions:
               $ref: "#/components/schemas/BoardPostPermissions"
-          required: [permissions]
+            hiddenByMe:
+              type: boolean
+          required: [permissions, hiddenByMe]
 
     BoardReactionSummary:
       type: object

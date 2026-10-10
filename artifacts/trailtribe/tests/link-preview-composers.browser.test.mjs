@@ -17,8 +17,24 @@ let httpServer;
 let baseUrl;
 
 before(async () => {
+  const fixtureAuthPlugin = {
+    name: "trailteam-link-preview-fixture-auth",
+    load(id) {
+      if (id === resolve(artifactRoot, "src/lib/use-authed-fetch.ts")) {
+        return `
+          import { useCallback } from "react";
+          export function useAuthedFetch() {
+            return useCallback((url, options = {}) => fetch(url, options), []);
+          }
+        `;
+      }
+      return null;
+    },
+  };
+
   viteServer = await createViteServer({
     configFile: resolve(artifactRoot, "vite.config.ts"),
+    plugins: [fixtureAuthPlugin],
     server: { middlewareMode: true, hmr: false },
     logLevel: "error",
   });
@@ -112,7 +128,13 @@ test("new-thread preview tracks edits and metadata failure cannot block posting 
     await page.waitForFunction(() => window.submittedThread !== null);
     assert.deepEqual(
       await page.evaluate(() => window.submittedThread),
-      { title: "Preview regression check", body: failedDraft, podId: null },
+      {
+        title: "Preview regression check",
+        body: failedDraft,
+        bodyFormat: "markdown",
+        imageObjectPaths: [],
+        podId: null,
+      },
     );
     await context.close();
   } finally {
@@ -147,7 +169,11 @@ test("reply preview tracks edits and metadata failure cannot block sending on mo
 
     await send.click();
     await page.waitForFunction(() => window.submittedReply !== null);
-    assert.deepEqual(await page.evaluate(() => window.submittedReply), { body: failedDraft });
+    assert.deepEqual(await page.evaluate(() => window.submittedReply), {
+      body: failedDraft,
+      bodyFormat: "markdown",
+      imageObjectPaths: [],
+    });
     await context.close();
   } finally {
     await browser.close();

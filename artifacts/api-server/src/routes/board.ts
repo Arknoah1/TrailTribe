@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import {
   boardThreadsTable,
   boardThreadReportsTable,
+  boardHiddenMembersTable,
   boardPostsTable,
   boardAttachmentsTable,
   usersTable,
@@ -16,6 +17,7 @@ import {
 import { eq, and, desc, isNull, or, inArray, gt, gte, sql, arrayContains } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin, hasStudentAccess } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
+import { findObjectionableTerms } from "../lib/board-safety";
 import { logger } from "../lib/logger";
 import { sendEmail, isDeliverableEmailAddress } from "../lib/email";
 import { getShortNamePrefix } from "./settings";
@@ -53,6 +55,19 @@ import {
   SetBoardThreadMuteResponse,
   CreateBoardThreadReportBody,
   CreateBoardThreadReportParams,
+  CreateBoardPostReportParams,
+  CreateBoardPostReportBody,
+  ListBoardReportsResponse,
+  ResolveBoardReportParams,
+  ResolveBoardReportBody,
+  SetHiddenBoardMemberParams,
+  SetHiddenBoardMemberBody,
+  SetHiddenBoardMemberResponse,
+  ListHiddenBoardMembersResponse,
+  ListBoardPostingRestrictionsResponse,
+  SetBoardPostingRestrictionParams,
+  SetBoardPostingRestrictionBody,
+  SetBoardPostingRestrictionResponse,
 } from "@workspace/api-zod";
 
 const router = Router();
@@ -156,6 +171,14 @@ async function enrichThread(
   const attachments = await db.select({ objectPath: boardAttachmentsTable.objectPath })
     .from(boardAttachmentsTable)
     .where(eq(boardAttachmentsTable.threadId, thread.id));
+  const hiddenByMe = thread.authorUserId
+    ? Boolean(await db.query.boardHiddenMembersTable.findFirst({
+        where: and(
+          eq(boardHiddenMembersTable.hiderUserId, me.id),
+          eq(boardHiddenMembersTable.hiddenUserId, thread.authorUserId),
+        ),
+      }))
+    : false;
   return {
     ...thread,
     imageObjectPaths: attachments.map(({ objectPath }) => objectPath),
@@ -164,6 +187,7 @@ async function enrichThread(
     title: event ? `Discussion: ${event.title}` : thread.title,
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
     event: event ? { id: event.id, title: event.title, startTime: event.startTime } : null,
+    hiddenByMe,
     permissions: getThreadPermissions(me, thread),
   };
 }
@@ -252,12 +276,21 @@ async function enrichPost(
   const attachments = post.isDeleted ? [] : await db.select({ objectPath: boardAttachmentsTable.objectPath })
     .from(boardAttachmentsTable)
     .where(eq(boardAttachmentsTable.postId, post.id));
+  const hiddenByMe = post.authorUserId
+    ? Boolean(await db.query.boardHiddenMembersTable.findFirst({
+        where: and(
+          eq(boardHiddenMembersTable.hiderUserId, me.id),
+          eq(boardHiddenMembersTable.hiddenUserId, post.authorUserId),
+        ),
+      }))
+    : false;
   return {
     ...post,
     // Redact body for soft-deleted posts so raw API consumers cannot read deleted content
     body: post.isDeleted ? "" : post.body,
     imageObjectPaths: attachments.map(({ objectPath }) => objectPath),
     author: author ? { id: author.id, firstName: author.firstName, lastName: author.lastName, avatarUrl: author.avatarUrl ?? null } : null,
+    hiddenByMe,
     reactions: await getReactionSummary("post", post.id, me.id),
     permissions: getPostPermissions(me, post),
   };
@@ -291,6 +324,10 @@ async function notifyThreadParticipants(
   if (participantIds.size === 0) return;
 
   const participants = await db.select().from(usersTable).where(inArray(usersTable.id, Array.from(participantIds)));
+  const hiddenRows = await db.select({ hiderUserId: boardHiddenMembersTable.hiderUserId })
+    .from(boardHiddenMembersTable)
+    .where(eq(boardHiddenMembersTable.hiddenUserId, actorUserId));
+  const hiddenRecipientIds = new Set(hiddenRows.map(({ hiderUserId }) => hiderUserId));
 
   const postImages = await db.select().from(boardAttachmentsTable)
     .where(eq(boardAttachmentsTable.postId, notificationPost.id));
@@ -319,6 +356,7 @@ async function notifyThreadParticipants(
   const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
 
   for (const user of participants) {
+    if (hiddenRecipientIds.has(user.id)) continue;
     if (
       user.notificationPreferences?.boardReplies === false
       || user.notificationPreferences?.mutedBoardDiscussionIds?.includes(threadId)
@@ -415,9 +453,14 @@ async function notifyBoardActivity(
   // A newly created thread goes to its entire current audience. Reactions use
   // the same thread author/reply author participant set as reply notifications.
   const candidates = await db.select().from(usersTable);
+  const hiddenRows = await db.select({ hiderUserId: boardHiddenMembersTable.hiderUserId })
+    .from(boardHiddenMembersTable)
+    .where(eq(boardHiddenMembersTable.hiddenUserId, actorUserId));
+  const hiddenRecipientIds = new Set(hiddenRows.map(({ hiderUserId }) => hiderUserId));
   const recipients = await Promise.all(candidates
     .filter((user) => participantIds === null || participantIds.has(user.id))
     .filter((user) => user.id !== actorUserId)
+    .filter((user) => !hiddenRecipientIds.has(user.id))
     .map(async (user) => {
       if (
         !user.clerkUserId
@@ -514,6 +557,134 @@ async function notifyBoardActivity(
 
 async function getMe(clerkUserId: string) {
   return db.query.usersTable.findFirst({ where: eq(usersTable.clerkUserId, clerkUserId) });
+}
+
+function isCommunityBoardPostingBlocked(user: typeof usersTable.$inferSelect): boolean {
+  return user.boardPostingBlocked;
+}
+
+const REPORTS_PER_USER_PER_HOUR = 5;
+const REPORT_REASON_LABELS = {
+  inappropriate_content: "Inappropriate content",
+  harassment: "Bullying or harassment",
+  spam: "Spam",
+  other: "Other",
+} as const;
+
+async function createBoardContentReport(input: {
+  thread: typeof boardThreadsTable.$inferSelect;
+  post?: typeof boardPostsTable.$inferSelect | null;
+  reporterUserId: number | null;
+  reporterName: string;
+  reason: "inappropriate_content" | "harassment" | "spam" | "other";
+  details?: string | null;
+  isAutomatic?: boolean;
+}): Promise<{ reportId: number; existing: boolean; rateLimited: boolean }> {
+  const targetType = input.post ? "reply" : "thread";
+  const now = new Date();
+  const excerpt = (input.post?.body ?? input.thread.body).slice(0, 200);
+  const details = input.details?.trim() || null;
+
+  const outcome = await db.transaction(async (tx) => {
+    // Serializes duplicate and rate-limit checks across all API server instances.
+    const lockKey = input.reporterUserId ?? -(input.post?.id ?? input.thread.id);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('trailteam-board-report'), ${lockKey})`);
+
+    const duplicateWhere = and(
+      eq(boardThreadReportsTable.targetType, targetType),
+      eq(boardThreadReportsTable.status, "open"),
+      input.post
+        ? eq(boardThreadReportsTable.postId, input.post.id)
+        : eq(boardThreadReportsTable.threadId, input.thread.id),
+      input.reporterUserId === null
+        ? and(isNull(boardThreadReportsTable.reporterUserId), eq(boardThreadReportsTable.isAutomatic, true))
+        : eq(boardThreadReportsTable.reporterUserId, input.reporterUserId),
+    );
+    const existing = await tx.query.boardThreadReportsTable.findFirst({ where: duplicateWhere });
+    if (existing) return { report: existing, existing: true, rateLimited: false };
+
+    if (input.reporterUserId !== null && !input.isAutomatic) {
+      const recentReports = await tx.select({ count: sql<number>`count(*)::int` })
+        .from(boardThreadReportsTable)
+        .where(and(
+          eq(boardThreadReportsTable.reporterUserId, input.reporterUserId),
+          gte(boardThreadReportsTable.createdAt, new Date(now.getTime() - 60 * 60 * 1000)),
+        ));
+      if (Number(recentReports[0]?.count ?? 0) >= REPORTS_PER_USER_PER_HOUR) {
+        return { report: null, existing: false, rateLimited: true };
+      }
+    }
+
+    const [report] = await tx.insert(boardThreadReportsTable).values({
+      threadId: input.thread.id,
+      postId: input.post?.id ?? null,
+      targetType,
+      threadTitle: input.thread.title,
+      reporterUserId: input.reporterUserId,
+      reporterName: input.reporterName,
+      reason: input.reason,
+      details,
+      contentExcerpt: excerpt,
+      isAutomatic: input.isAutomatic ?? false,
+      status: "open",
+      createdAt: now,
+    }).returning();
+    return { report, existing: false, rateLimited: false };
+  });
+
+  if (outcome.rateLimited) return { reportId: 0, existing: false, rateLimited: true };
+  const report = outcome.report;
+  if (!report) throw new Error("Could not create Board report");
+
+  if (!outcome.existing) {
+    const event = input.thread.eventId
+      ? await db.query.eventsTable.findFirst({ where: eq(eventsTable.id, input.thread.eventId) })
+      : null;
+    const threadTitle = event ? `Discussion: ${event.title}` : input.thread.title;
+    const link = input.post
+      ? `/messages/thread/${input.thread.id}?reply=${input.post.id}`
+      : `/messages/thread/${input.thread.id}?target=starter`;
+    const notificationBody = [
+      `${input.reporterName} reported “${threadTitle}”.`,
+      input.post ? `Reply: “${excerpt}”` : null,
+      `Reason: ${REPORT_REASON_LABELS[input.reason]}.`,
+      details ? `Details: ${details}` : null,
+    ].filter(Boolean).join(" ");
+    const staff = await db.query.usersTable.findMany();
+    await Promise.all(staff
+      .filter((user) =>
+        user.id !== input.reporterUserId
+        && user.isActive
+        && user.approved
+        && isOperationalStaffRole(user))
+      .map((user) => createNotification(
+        user.id,
+        "board_thread_reported",
+        "Community Board report",
+        notificationBody,
+        link,
+      )));
+  }
+
+  return { reportId: report.id, existing: outcome.existing, rateLimited: false };
+}
+
+async function createAutomaticBoardReport(
+  thread: typeof boardThreadsTable.$inferSelect,
+  content: string,
+  post?: typeof boardPostsTable.$inferSelect,
+): Promise<void> {
+  const matchedTerms = findObjectionableTerms(content);
+  if (!matchedTerms.length) return;
+  await createBoardContentReport({
+    thread,
+    post,
+    reporterUserId: null,
+    reporterName: "Automatic flag",
+    reason: "inappropriate_content",
+    details: `Automatic word filter matched: ${matchedTerms.join(", ")}`,
+    isAutomatic: true,
+  });
 }
 
 function getThreadPermissions(
@@ -678,6 +849,10 @@ router.post("/board/threads", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  if (isCommunityBoardPostingBlocked(me)) {
+    res.status(403).json({ error: "Your Community Board posting is restricted. You can still read the Board and use other parts of the app. Contact a coach if you think this is a mistake." });
+    return;
+  }
 
   const { title, body, podId, eventId } = req.body;
   const bodyFormat = req.body.bodyFormat ?? "plain";
@@ -746,6 +921,7 @@ router.post("/board/threads", requireApproved, async (req, res) => {
     throw error;
   }
 
+  await createAutomaticBoardReport(thread, `${title}\n${body}`);
   // A successful thread creation notifies its current audience, but merely
   // requesting an attachment upload URL does not.
   void notifyBoardActivity(thread, me.id, { kind: "new-thread" })
@@ -800,52 +976,230 @@ router.post("/board/threads/:id/reports", requireApproved, async (req, res) => {
     return;
   }
 
-  const reasonLabels = {
-    inappropriate_content: "Inappropriate content",
-    harassment: "Bullying or harassment",
-    spam: "Spam",
-    other: "Other",
-  } as const;
   const reporterName = [me.firstName, me.lastName].filter(Boolean).join(" ").trim() || "A member";
-  const details = body.data.details?.trim() || null;
-  const [report] = await db.insert(boardThreadReportsTable).values({
-    threadId: thread.id,
-    threadTitle: thread.title,
+  const result = await createBoardContentReport({
+    thread,
     reporterUserId: me.id,
     reporterName,
     reason: body.data.reason,
-    details,
-  }).returning({ id: boardThreadReportsTable.id });
+    details: body.data.details,
+  });
+  if (result.rateLimited) {
+    res.status(429).json({ error: "You have sent several reports recently. Please try again later." });
+    return;
+  }
+  res.status(result.existing ? 200 : 201).json({ reportId: result.reportId });
+});
 
-  const staff = await db.query.usersTable.findMany({
+router.post("/board/posts/:id/reports", requireApproved, async (req, res) => {
+  const params = CreateBoardPostReportParams.safeParse(req.params);
+  const body = CreateBoardPostReportBody.safeParse(req.body);
+  if (!params.success || !Number.isInteger(params.data?.id) || params.data.id <= 0) {
+    res.status(400).json({ error: "Invalid reply ID" });
+    return;
+  }
+  if (!body.success) {
+    res.status(400).json({ error: "Choose a valid reason and keep details under 1000 characters." });
+    return;
+  }
+  const me = await getMe((req as any).clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  const post = await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, params.data.id) });
+  if (!post || post.isDeleted) { res.status(404).json({ error: "Reply not found" }); return; }
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, post.threadId) });
+  if (!thread) { res.status(404).json({ error: "Discussion not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  if (post.authorUserId === me.id) {
+    res.status(400).json({ error: "You cannot report your own reply." });
+    return;
+  }
+  const reporterName = [me.firstName, me.lastName].filter(Boolean).join(" ").trim() || "A member";
+  const result = await createBoardContentReport({
+    thread,
+    post,
+    reporterUserId: me.id,
+    reporterName,
+    reason: body.data.reason,
+    details: body.data.details,
+  });
+  if (result.rateLimited) {
+    res.status(429).json({ error: "You have sent several reports recently. Please try again later." });
+    return;
+  }
+  res.status(result.existing ? 200 : 201).json({ reportId: result.reportId });
+});
+
+async function serializeBoardReport(report: typeof boardThreadReportsTable.$inferSelect) {
+  const post = report.postId
+    ? await db.query.boardPostsTable.findFirst({ where: eq(boardPostsTable.id, report.postId) })
+    : null;
+  const thread = report.threadId
+    ? await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, report.threadId) })
+    : null;
+  const reportedUserId = post?.authorUserId ?? thread?.authorUserId ?? null;
+  const link = report.threadId
+    ? report.targetType === "reply" && report.postId
+      ? `/messages/thread/${report.threadId}?reply=${report.postId}`
+      : `/messages/thread/${report.threadId}?target=starter`
+    : "/messages";
+  return {
+    id: report.id,
+    threadId: report.threadId,
+    postId: report.postId,
+    targetType: report.targetType,
+    threadTitle: report.threadTitle,
+    reporterUserId: report.reporterUserId,
+    reporterName: report.reporterName,
+    reportedUserId,
+    reason: report.reason,
+    details: report.details,
+    contentExcerpt: report.contentExcerpt,
+    isAutomatic: report.isAutomatic,
+    createdAt: report.createdAt.toISOString(),
+    status: report.status,
+    resolutionNote: report.resolutionNote ?? null,
+    resolvedAt: report.resolvedAt?.toISOString() ?? null,
+    link,
+  };
+}
+
+router.get("/board/reports", requireCoachOrAdmin, async (req, res) => {
+  const me = await getMe((req as any).clerkUserId);
+  if (!me || !me.isActive || !me.approved || !isOperationalStaffRole(me)) {
+    res.status(403).json({ error: "Active, approved coach or super admin access required" });
+    return;
+  }
+  const reports = await db.query.boardThreadReportsTable.findMany({
+    where: eq(boardThreadReportsTable.status, "open"),
+    orderBy: [desc(boardThreadReportsTable.createdAt)],
+  });
+  res.json(ListBoardReportsResponse.parse(await Promise.all(reports.map(serializeBoardReport))));
+});
+
+router.patch("/board/reports/:id/resolve", requireCoachOrAdmin, async (req, res) => {
+  const params = ResolveBoardReportParams.safeParse(req.params);
+  const body = ResolveBoardReportBody.safeParse(req.body ?? {});
+  if (!params.success || params.data.id <= 0 || !body.success) {
+    res.status(400).json({ error: "Invalid report or resolution note" });
+    return;
+  }
+  const me = await getMe((req as any).clerkUserId);
+  if (!me || !me.isActive || !me.approved || !isOperationalStaffRole(me)) {
+    res.status(403).json({ error: "Active, approved coach or super admin access required" });
+    return;
+  }
+  const report = await db.query.boardThreadReportsTable.findFirst({
+    where: eq(boardThreadReportsTable.id, params.data.id),
+  });
+  if (!report) { res.status(404).json({ error: "Report not found" }); return; }
+  const [updated] = await db.update(boardThreadReportsTable).set({
+    status: "resolved",
+    resolutionNote: body.data.note?.trim() || null,
+    resolvedByUserId: me.id,
+    resolvedAt: new Date(),
+  }).where(eq(boardThreadReportsTable.id, report.id)).returning();
+  res.json(ListBoardReportsResponse.parse([await serializeBoardReport(updated)])[0]);
+});
+
+router.get("/board/hidden-members", requireApproved, async (req, res) => {
+  const me = await getMe((req as any).clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  const hidden = await db.query.boardHiddenMembersTable.findMany({
+    where: eq(boardHiddenMembersTable.hiderUserId, me.id),
+  });
+  const members = await Promise.all(hidden.map(async ({ hiddenUserId }) => {
+    const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, hiddenUserId) });
+    return user ? { userId: user.id, firstName: user.firstName, lastName: user.lastName } : null;
+  }));
+  res.json(ListHiddenBoardMembersResponse.parse(members.filter((member) => member !== null)));
+});
+
+router.put("/board/hidden-members/:userId", requireApproved, async (req, res) => {
+  const params = SetHiddenBoardMemberParams.safeParse(req.params);
+  const body = SetHiddenBoardMemberBody.safeParse(req.body);
+  if (!params.success || params.data.userId <= 0 || !body.success) {
+    res.status(400).json({ error: "Invalid hidden-member preference" });
+    return;
+  }
+  const me = await getMe((req as any).clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  if (params.data.userId === me.id) {
+    res.status(400).json({ error: "You cannot hide yourself." });
+    return;
+  }
+  const member = await db.query.usersTable.findFirst({ where: eq(usersTable.id, params.data.userId) });
+  if (!member || !member.isActive) { res.status(404).json({ error: "Member not found" }); return; }
+  const existing = await db.query.boardHiddenMembersTable.findFirst({
     where: and(
-      eq(usersTable.isActive, true),
-      eq(usersTable.approved, true),
-      or(
-        eq(usersTable.role, "coach"),
-        eq(usersTable.role, "super_admin"),
-        arrayContains(usersTable.roles, ["coach"]),
-        arrayContains(usersTable.roles, ["super_admin"]),
-      ),
+      eq(boardHiddenMembersTable.hiderUserId, me.id),
+      eq(boardHiddenMembersTable.hiddenUserId, member.id),
     ),
   });
-  const notificationBody = [
-    `${reporterName} reported “${thread.title}”.`,
-    `Reason: ${reasonLabels[body.data.reason]}.`,
-    details ? `Details: ${details}` : null,
-  ].filter(Boolean).join(" ");
-  await Promise.all(staff
-    .filter((user) => user.id !== me.id && isOperationalStaffRole(user))
-    .map((user) => db.insert(notificationsTable).values({
-      recipientUserId: user.id,
-      type: "board_thread_reported",
-      title: "Discussion reported",
-      body: notificationBody,
-      link: `/messages/thread/${thread.id}`,
-      isRead: false,
-    })));
+  if (body.data.hidden && !existing) {
+    await db.insert(boardHiddenMembersTable).values({ hiderUserId: me.id, hiddenUserId: member.id });
+  } else if (!body.data.hidden && existing) {
+    await db.delete(boardHiddenMembersTable).where(and(
+      eq(boardHiddenMembersTable.hiderUserId, me.id),
+      eq(boardHiddenMembersTable.hiddenUserId, member.id),
+    ));
+  }
+  res.json(SetHiddenBoardMemberResponse.parse({ hidden: body.data.hidden }));
+});
 
-  res.status(201).json({ reportId: report.id });
+router.get("/board/posting-restrictions", requireCoachOrAdmin, async (req, res) => {
+  const me = await getMe((req as any).clerkUserId);
+  if (!me || !me.isActive || !me.approved || !isOperationalStaffRole(me)) {
+    res.status(403).json({ error: "Active, approved coach or super admin access required" });
+    return;
+  }
+  const blockedUsers = await db.query.usersTable.findMany({
+    where: eq(usersTable.boardPostingBlocked, true),
+  });
+  const restrictions = await Promise.all(blockedUsers.filter((user) => user.boardPostingBlocked).map(async (user) => {
+    const blocker = user.boardPostingBlockedByUserId
+      ? await db.query.usersTable.findFirst({ where: eq(usersTable.id, user.boardPostingBlockedByUserId) })
+      : null;
+    return {
+      userId: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      blockedAt: user.boardPostingBlockedAt?.toISOString() ?? null,
+      blockedByName: blocker ? `${blocker.firstName} ${blocker.lastName}`.trim() : null,
+    };
+  }));
+  res.json(ListBoardPostingRestrictionsResponse.parse(restrictions));
+});
+
+router.put("/board/users/:id/posting-restriction", requireCoachOrAdmin, async (req, res) => {
+  const params = SetBoardPostingRestrictionParams.safeParse(req.params);
+  const body = SetBoardPostingRestrictionBody.safeParse(req.body);
+  if (!params.success || params.data.id <= 0 || !body.success) {
+    res.status(400).json({ error: "Invalid posting restriction" });
+    return;
+  }
+  const me = await getMe((req as any).clerkUserId);
+  if (!me || !me.isActive || !me.approved || !isOperationalStaffRole(me)) {
+    res.status(403).json({ error: "Active, approved coach or super admin access required" });
+    return;
+  }
+  const member = await db.query.usersTable.findFirst({ where: eq(usersTable.id, params.data.id) });
+  if (!member) { res.status(404).json({ error: "Member not found" }); return; }
+  const [updated] = await db.update(usersTable).set({
+    boardPostingBlocked: body.data.blocked,
+    boardPostingBlockedAt: body.data.blocked ? new Date() : null,
+    boardPostingBlockedByUserId: body.data.blocked ? me.id : null,
+  }).where(eq(usersTable.id, member.id)).returning();
+  const result = {
+    userId: updated.id,
+    firstName: updated.firstName,
+    lastName: updated.lastName,
+    blockedAt: updated.boardPostingBlockedAt?.toISOString() ?? null,
+    blockedByName: body.data.blocked ? `${me.firstName} ${me.lastName}`.trim() : null,
+  };
+  res.json(SetBoardPostingRestrictionResponse.parse(result));
 });
 
 router.put("/board/threads/:id/mute", requireApproved, async (req, res) => {
@@ -933,6 +1287,10 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
   const threadId = parseInt(str(req.params.id));
   const me = await getMe(clerkUserId);
   if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  if (isCommunityBoardPostingBlocked(me)) {
+    res.status(403).json({ error: "Your Community Board posting is restricted. You can still read the Board and use other parts of the app. Contact a coach if you think this is a mistake." });
+    return;
+  }
 
   const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
   if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
@@ -993,6 +1351,7 @@ router.post("/board/threads/:id/posts", requireApproved, async (req, res) => {
     throw error;
   }
 
+  await createAutomaticBoardReport(thread, body, post);
   // Notify participants (non-blocking)
     notifyThreadParticipants(threadId, me.id, post)
     .catch((err) => logger.error({ err }, "[board] notify participants error"));

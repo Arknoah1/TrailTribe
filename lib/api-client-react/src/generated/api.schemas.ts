@@ -832,6 +832,7 @@ export interface BoardThread {
   /** @maxItems 4 */
   imageObjectPaths: string[];
   authorUserId?: number | null;
+  hiddenByMe: boolean;
   podId?: string | null;
   eventId?: number | null;
   isPinned: boolean;
@@ -870,6 +871,109 @@ export interface BoardThreadReportResponse {
   reportId: number;
 }
 
+export type BoardPostReportInputReason =
+  (typeof BoardPostReportInputReason)[keyof typeof BoardPostReportInputReason];
+
+export const BoardPostReportInputReason = {
+  inappropriate_content: "inappropriate_content",
+  harassment: "harassment",
+  spam: "spam",
+  other: "other",
+} as const;
+
+export interface BoardPostReportInput {
+  reason: BoardPostReportInputReason;
+  /** @maxLength 1000 */
+  details?: string;
+}
+
+export interface BoardReportResolutionInput {
+  /** @maxLength 1000 */
+  note?: string;
+}
+
+export type BoardReportWithDetailsTargetType =
+  (typeof BoardReportWithDetailsTargetType)[keyof typeof BoardReportWithDetailsTargetType];
+
+export const BoardReportWithDetailsTargetType = {
+  thread: "thread",
+  reply: "reply",
+} as const;
+
+export type BoardReportWithDetailsReason =
+  (typeof BoardReportWithDetailsReason)[keyof typeof BoardReportWithDetailsReason];
+
+export const BoardReportWithDetailsReason = {
+  inappropriate_content: "inappropriate_content",
+  harassment: "harassment",
+  spam: "spam",
+  other: "other",
+} as const;
+
+export type BoardReportWithDetailsStatus =
+  (typeof BoardReportWithDetailsStatus)[keyof typeof BoardReportWithDetailsStatus];
+
+export const BoardReportWithDetailsStatus = {
+  open: "open",
+  resolved: "resolved",
+} as const;
+
+export interface BoardReportWithDetails {
+  id: number;
+  /** @nullable */
+  threadId: number | null;
+  /** @nullable */
+  postId: number | null;
+  targetType: BoardReportWithDetailsTargetType;
+  threadTitle: string;
+  /** @nullable */
+  reporterUserId?: number | null;
+  reporterName: string;
+  /** @nullable */
+  reportedUserId?: number | null;
+  reason: BoardReportWithDetailsReason;
+  /** @nullable */
+  details: string | null;
+  /** @nullable */
+  contentExcerpt: string | null;
+  isAutomatic: boolean;
+  createdAt: string;
+  status: BoardReportWithDetailsStatus;
+  /** @nullable */
+  resolutionNote: string | null;
+  /** @nullable */
+  resolvedAt: string | null;
+  link: string;
+}
+
+export interface HiddenBoardMember {
+  userId: number;
+  firstName: string;
+  lastName: string;
+}
+
+export interface HiddenBoardMemberInput {
+  hidden: boolean;
+}
+
+export interface HiddenBoardMemberResponse {
+  hidden: boolean;
+}
+
+export interface BoardPostingRestrictionInput {
+  blocked: boolean;
+}
+
+export interface BoardPostingRestriction {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  blockedAt: string | null;
+  /** @nullable */
+  blockedByName?: string | null;
+}
+
 export interface BoardReactionCount {
   count: number;
   reacted: boolean;
@@ -892,6 +996,7 @@ export type BoardThreadWithDetails = BoardThread & {
   event?: BoardEventRef | null;
   reactions?: BoardThreadWithDetailsReactions;
   permissions: BoardThreadPermissions;
+  hiddenByMe: boolean;
 };
 
 export type BoardPostBodyFormat =
@@ -906,6 +1011,7 @@ export interface BoardPost {
   id: number;
   threadId: number;
   authorUserId?: number | null;
+  hiddenByMe: boolean;
   body: string;
   bodyFormat?: BoardPostBodyFormat;
   /** @maxItems 4 */
@@ -929,6 +1035,7 @@ export type BoardPostWithAuthor = BoardPost & {
   author?: BoardAuthor | null;
   reactions?: BoardPostWithAuthorReactions;
   permissions: BoardPostPermissions;
+  hiddenByMe: boolean;
 };
 
 export type BoardReactionSummaryTargetType =

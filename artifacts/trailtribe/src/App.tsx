@@ -14,6 +14,7 @@ const HouseholdDetail = lazy(() => import("./pages/household-detail"));
 const Profile = lazy(() => import("./pages/profile"));
 const Volunteer = lazy(() => import("./pages/volunteer"));
 const Admin = lazy(() => import("./pages/admin"));
+const BoardReports = lazy(() => import("./pages/board-reports"));
 const SeasonBuilder = lazy(() => import("./pages/season-builder"));
 const Join = lazy(() => import("./pages/join"));
 const FamilyInvite = lazy(() => import("./pages/family-invite"));
@@ -21,6 +22,7 @@ const RiderInvite = lazy(() => import("./pages/rider-invite"));
 const Onboarding = lazy(() => import("./pages/onboarding"));
 const Reenroll = lazy(() => import("./pages/reenroll"));
 const LegalPage = lazy(() => import("./pages/legal"));
+const SupportPage = lazy(() => import("./pages/support"));
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from "@clerk/react/internal";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -168,7 +170,14 @@ function PolicyLinks() {
       >
         Terms of Service
       </a>
-      .
+      {"."}{" "}
+      <a
+        href={`${basePath}/support`}
+        data-testid="link-support-auth"
+        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        Support
+      </a>
     </p>
   );
 }
@@ -451,6 +460,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/sign-up/*?" component={SignUpPage} />
               <Route path="/privacy" component={() => <LegalPage page="privacy" />} />
               <Route path="/terms" component={() => <LegalPage page="terms" />} />
+              <Route path="/support" component={SupportPage} />
               <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
               <Route path="/calendar" component={() => <ProtectedRoute component={Calendar} />} />
               <Route path="/events/:id" component={() => <ProtectedRoute component={EventDetail} />} />
@@ -465,6 +475,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/volunteer" component={() => <ProtectedRoute component={Volunteer} />} />
               <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
               <Route path="/admin" component={() => <ProtectedRoute component={Admin} />} />
+              <Route path="/admin/board-reports" component={() => <ProtectedRoute component={BoardReports} />} />
               <Route path="/season-builder" component={() => <ProtectedRoute component={SeasonBuilder} />} />
               <Route path="/onboarding" component={OnboardingRoute} />
               <Route path="/reenroll" component={() => (

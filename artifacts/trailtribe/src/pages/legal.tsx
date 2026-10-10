@@ -160,6 +160,11 @@ function PrivacyPolicy() {
             responses, carpool coordination, volunteer commitments, team messages, document
             acknowledgements, and files or notes submitted through the service.
           </li>
+          <li>
+            <strong className="text-foreground">Board safety and preference information:</strong>{" "}
+            reports that approved members submit about Board discussions or replies, and
+            preferences members set to hide or unhide Board members.
+          </li>
         </ul>
       </LegalSection>
 
@@ -168,6 +173,14 @@ function PrivacyPolicy() {
           We use information to create and manage accounts, maintain the team roster, organize
           events and attendance, coordinate transportation and volunteer tasks, send team
           communications, manage required documents, and respond to family questions.
+        </p>
+        <p>
+          Coaches and administrators can use submitted Board reports to review reported
+          discussions and replies. Hidden-member preferences are used to tailor a member’s own
+          Board experience. The app database stores each report’s reported Board item and title,
+          reporter name, selected reason, optional details, a short content excerpt, review status,
+          and any resolution note. It also stores preferences about which Board members a user has
+          chosen to hide.
         </p>
         <p>
           Health information is used only to support participation and safety planning. It is
@@ -199,24 +212,27 @@ function PrivacyPolicy() {
         </p>
       </LegalSection>
 
-      <LegalSection title="Retention, access, and deletion">
+      <LegalSection title="Access and account deletion">
         <p>
-          We keep information while it is needed to operate the team, maintain required
-          participation records, resolve issues, or meet applicable obligations. You can ask to
-          review or correct your household information through TrailTeam or by contacting us.
+          You can review or correct available household information through TrailTeam or by
+          contacting us. Reports and hidden-member preferences are stored in the app database;
+          this policy does not specify a separate retention period for them.
         </p>
         <p>
-          To request deletion of an account or household information, contact us using the address
-          below. Some information may need to be retained for safety, compliance, insurance, or
-          recordkeeping purposes.
+          To delete your account, use the self-service account deletion option under Profile
+          settings. The confirmation flow permanently removes your TrailTeam profile, sign-in
+          account, and personal activity. Shared events and discussions remain available to the
+          team without your account attached. If you are the final member of your household,
+          household-only information is also removed. Account deletion cannot be undone.
         </p>
       </LegalSection>
 
       <LegalSection title="Children and family accounts">
         <p>
-          TrailTeam is intended for a youth cycling program. Parents or guardians are responsible
-          for providing and keeping family and rider information accurate, and should contact us
-          with questions about a young person’s information.
+          TrailTeam supports a high-school mountain-bike team. Onboarding provides parent or
+          guardian and student account roles; parents or guardians manage household information
+          and are responsible for supervising minor riders’ use. The app does not state a separate
+          numeric minimum age. Contact us with questions about a young person’s information.
         </p>
       </LegalSection>
 
@@ -257,6 +273,11 @@ function TermsOfService() {
           supervising minor riders’ use of TrailTeam. Coaches and administrators have additional
           responsibilities to handle team information appropriately.
         </p>
+        <p>
+          TrailTeam supports a high-school program and may include minor riders. The app does not
+          enforce a separate numeric minimum age; parents or guardians are responsible for
+          supervising minor riders’ use.
+        </p>
       </LegalSection>
 
       <LegalSection title="Team communication and participation">
@@ -293,6 +314,25 @@ function TermsOfService() {
           harmful or unlawful content, interfere with the service, or use team contact information
           for unrelated commercial, political, or personal purposes.
         </p>
+        <p>
+          Board discussions and replies must be relevant to team participation and respectful of
+          other families, riders, coaches, and administrators. Do not post harassment, threats,
+          discriminatory or sexually explicit material, spam, unlawful content, or another
+          person’s private information. Coaches and administrators may limit access when needed to
+          protect the team or enforce these rules.
+        </p>
+        <p>
+          Any approved member can report a Board discussion or reply to coaches and administrators.
+          Review is intended, but no response or resolution time is guaranteed. Members can hide
+          or unhide Board members for their own view; hiding is a personal display preference, not
+          a report and not a restriction on another member’s access. The app stores submitted
+          reports with the reported item, selected reason, and any optional details, plus
+          preferences about which members a user has hidden.
+        </p>
+        <p>
+          If posting is restricted for an account, that restriction applies only to creating Board
+          threads and replies. It does not by itself prevent other TrailTeam app activity.
+        </p>
       </LegalSection>
 
       <LegalSection title="Content and privacy">
@@ -310,6 +350,13 @@ function TermsOfService() {
           interrupted, or unavailable at times. We may limit, suspend, or remove access when
           needed to protect the team, participants, the service, or other users, or when these
           terms are not followed.
+        </p>
+        <p>
+          You can permanently delete your account through the self-service option under Profile
+          settings. The flow confirms the request before permanently removing your TrailTeam
+          profile, sign-in account, and personal activity. Shared events and discussions remain
+          available to the team without your account attached. If you are the final member of a
+          household, household-only information is also removed.
         </p>
       </LegalSection>
 
@@ -353,6 +400,7 @@ export default function LegalPage({ page }: LegalPageProps) {
           <nav aria-label="Legal pages" className="flex items-center gap-4 text-sm font-bold">
             <InlineLink href="/privacy">Privacy</InlineLink>
             <InlineLink href="/terms">Terms</InlineLink>
+            <InlineLink href="/support">Support</InlineLink>
             <InlineLink href="/sign-in">Sign in</InlineLink>
           </nav>
         </div>
@@ -385,6 +433,7 @@ export default function LegalPage({ page }: LegalPageProps) {
           <nav aria-label="Footer legal pages" className="flex gap-4">
             <InlineLink href="/privacy">Privacy Policy</InlineLink>
             <InlineLink href="/terms">Terms of Service</InlineLink>
+            <InlineLink href="/support">Support</InlineLink>
           </nav>
         </div>
       </footer>

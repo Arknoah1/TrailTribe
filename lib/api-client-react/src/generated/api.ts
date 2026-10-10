@@ -25,9 +25,14 @@ import type {
   BatchCreateEventsBody,
   BatchCreateEventsResult,
   BoardImageUploadInput,
+  BoardPostReportInput,
   BoardPostWithAuthor,
+  BoardPostingRestriction,
+  BoardPostingRestrictionInput,
   BoardReactionDetails,
   BoardReactionSummary,
+  BoardReportResolutionInput,
+  BoardReportWithDetails,
   BoardThread,
   BoardThreadMuteInput,
   BoardThreadMuteResponse,
@@ -80,6 +85,9 @@ import type {
   GetBoardUnreadCount200,
   GetLinkPreviewParams,
   HealthStatus,
+  HiddenBoardMember,
+  HiddenBoardMemberInput,
+  HiddenBoardMemberResponse,
   Household,
   HouseholdFamilyLink,
   HouseholdFamilyLinkRotationInput,
@@ -8068,6 +8076,596 @@ export const useCreateBoardThreadReport = <
   TContext
 > => {
   return useMutation(getCreateBoardThreadReportMutationOptions(options));
+};
+
+/**
+ * @summary Report an individual reply to coaches and administrators
+ */
+export const getCreateBoardPostReportUrl = (id: number) => {
+  return `/api/board/posts/${id}/reports`;
+};
+
+export const createBoardPostReport = async (
+  id: number,
+  boardPostReportInput: BoardPostReportInput,
+  options?: RequestInit,
+): Promise<BoardThreadReportResponse> => {
+  return customFetch<BoardThreadReportResponse>(
+    getCreateBoardPostReportUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(boardPostReportInput),
+    },
+  );
+};
+
+export const getCreateBoardPostReportMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardPostReport>>,
+    TError,
+    { id: number; data: BodyType<BoardPostReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBoardPostReport>>,
+  TError,
+  { id: number; data: BodyType<BoardPostReportInput> },
+  TContext
+> => {
+  const mutationKey = ["createBoardPostReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBoardPostReport>>,
+    { id: number; data: BodyType<BoardPostReportInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createBoardPostReport(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBoardPostReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBoardPostReport>>
+>;
+export type CreateBoardPostReportMutationBody = BodyType<BoardPostReportInput>;
+export type CreateBoardPostReportMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Report an individual reply to coaches and administrators
+ */
+export const useCreateBoardPostReport = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardPostReport>>,
+    TError,
+    { id: number; data: BodyType<BoardPostReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBoardPostReport>>,
+  TError,
+  { id: number; data: BodyType<BoardPostReportInput> },
+  TContext
+> => {
+  return useMutation(getCreateBoardPostReportMutationOptions(options));
+};
+
+/**
+ * @summary List private Board content reports for coaches and administrators
+ */
+export const getListBoardReportsUrl = () => {
+  return `/api/board/reports`;
+};
+
+export const listBoardReports = async (
+  options?: RequestInit,
+): Promise<BoardReportWithDetails[]> => {
+  return customFetch<BoardReportWithDetails[]>(getListBoardReportsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBoardReportsQueryKey = () => {
+  return [`/api/board/reports`] as const;
+};
+
+export const getListBoardReportsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBoardReports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardReports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBoardReportsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBoardReports>>
+  > = ({ signal }) => listBoardReports({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardReports>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBoardReportsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBoardReports>>
+>;
+export type ListBoardReportsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List private Board content reports for coaches and administrators
+ */
+
+export function useListBoardReports<
+  TData = Awaited<ReturnType<typeof listBoardReports>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardReports>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBoardReportsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Resolve a Board content report with an optional review note
+ */
+export const getResolveBoardReportUrl = (id: number) => {
+  return `/api/board/reports/${id}/resolve`;
+};
+
+export const resolveBoardReport = async (
+  id: number,
+  boardReportResolutionInput: BoardReportResolutionInput,
+  options?: RequestInit,
+): Promise<BoardReportWithDetails> => {
+  return customFetch<BoardReportWithDetails>(getResolveBoardReportUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(boardReportResolutionInput),
+  });
+};
+
+export const getResolveBoardReportMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveBoardReport>>,
+    TError,
+    { id: number; data: BodyType<BoardReportResolutionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resolveBoardReport>>,
+  TError,
+  { id: number; data: BodyType<BoardReportResolutionInput> },
+  TContext
+> => {
+  const mutationKey = ["resolveBoardReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resolveBoardReport>>,
+    { id: number; data: BodyType<BoardReportResolutionInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return resolveBoardReport(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResolveBoardReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resolveBoardReport>>
+>;
+export type ResolveBoardReportMutationBody =
+  BodyType<BoardReportResolutionInput>;
+export type ResolveBoardReportMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Resolve a Board content report with an optional review note
+ */
+export const useResolveBoardReport = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveBoardReport>>,
+    TError,
+    { id: number; data: BodyType<BoardReportResolutionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resolveBoardReport>>,
+  TError,
+  { id: number; data: BodyType<BoardReportResolutionInput> },
+  TContext
+> => {
+  return useMutation(getResolveBoardReportMutationOptions(options));
+};
+
+/**
+ * @summary List members hidden by the current user
+ */
+export const getListHiddenBoardMembersUrl = () => {
+  return `/api/board/hidden-members`;
+};
+
+export const listHiddenBoardMembers = async (
+  options?: RequestInit,
+): Promise<HiddenBoardMember[]> => {
+  return customFetch<HiddenBoardMember[]>(getListHiddenBoardMembersUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListHiddenBoardMembersQueryKey = () => {
+  return [`/api/board/hidden-members`] as const;
+};
+
+export const getListHiddenBoardMembersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listHiddenBoardMembers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listHiddenBoardMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListHiddenBoardMembersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listHiddenBoardMembers>>
+  > = ({ signal }) => listHiddenBoardMembers({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listHiddenBoardMembers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListHiddenBoardMembersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listHiddenBoardMembers>>
+>;
+export type ListHiddenBoardMembersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List members hidden by the current user
+ */
+
+export function useListHiddenBoardMembers<
+  TData = Awaited<ReturnType<typeof listHiddenBoardMembers>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listHiddenBoardMembers>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListHiddenBoardMembersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Hide or unhide a member on the Community Board
+ */
+export const getSetHiddenBoardMemberUrl = (userId: number) => {
+  return `/api/board/hidden-members/${userId}`;
+};
+
+export const setHiddenBoardMember = async (
+  userId: number,
+  hiddenBoardMemberInput: HiddenBoardMemberInput,
+  options?: RequestInit,
+): Promise<HiddenBoardMemberResponse> => {
+  return customFetch<HiddenBoardMemberResponse>(
+    getSetHiddenBoardMemberUrl(userId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(hiddenBoardMemberInput),
+    },
+  );
+};
+
+export const getSetHiddenBoardMemberMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setHiddenBoardMember>>,
+    TError,
+    { userId: number; data: BodyType<HiddenBoardMemberInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setHiddenBoardMember>>,
+  TError,
+  { userId: number; data: BodyType<HiddenBoardMemberInput> },
+  TContext
+> => {
+  const mutationKey = ["setHiddenBoardMember"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setHiddenBoardMember>>,
+    { userId: number; data: BodyType<HiddenBoardMemberInput> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return setHiddenBoardMember(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetHiddenBoardMemberMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setHiddenBoardMember>>
+>;
+export type SetHiddenBoardMemberMutationBody = BodyType<HiddenBoardMemberInput>;
+export type SetHiddenBoardMemberMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Hide or unhide a member on the Community Board
+ */
+export const useSetHiddenBoardMember = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setHiddenBoardMember>>,
+    TError,
+    { userId: number; data: BodyType<HiddenBoardMemberInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setHiddenBoardMember>>,
+  TError,
+  { userId: number; data: BodyType<HiddenBoardMemberInput> },
+  TContext
+> => {
+  return useMutation(getSetHiddenBoardMemberMutationOptions(options));
+};
+
+/**
+ * @summary List members currently restricted from posting on the Community Board
+ */
+export const getListBoardPostingRestrictionsUrl = () => {
+  return `/api/board/posting-restrictions`;
+};
+
+export const listBoardPostingRestrictions = async (
+  options?: RequestInit,
+): Promise<BoardPostingRestriction[]> => {
+  return customFetch<BoardPostingRestriction[]>(
+    getListBoardPostingRestrictionsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListBoardPostingRestrictionsQueryKey = () => {
+  return [`/api/board/posting-restrictions`] as const;
+};
+
+export const getListBoardPostingRestrictionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBoardPostingRestrictions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardPostingRestrictions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListBoardPostingRestrictionsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listBoardPostingRestrictions>>
+  > = ({ signal }) =>
+    listBoardPostingRestrictions({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardPostingRestrictions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBoardPostingRestrictionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBoardPostingRestrictions>>
+>;
+export type ListBoardPostingRestrictionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List members currently restricted from posting on the Community Board
+ */
+
+export function useListBoardPostingRestrictions<
+  TData = Awaited<ReturnType<typeof listBoardPostingRestrictions>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBoardPostingRestrictions>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBoardPostingRestrictionsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Restrict or restore a member's ability to post on the Community Board
+ */
+export const getSetBoardPostingRestrictionUrl = (id: number) => {
+  return `/api/board/users/${id}/posting-restriction`;
+};
+
+export const setBoardPostingRestriction = async (
+  id: number,
+  boardPostingRestrictionInput: BoardPostingRestrictionInput,
+  options?: RequestInit,
+): Promise<BoardPostingRestriction> => {
+  return customFetch<BoardPostingRestriction>(
+    getSetBoardPostingRestrictionUrl(id),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(boardPostingRestrictionInput),
+    },
+  );
+};
+
+export const getSetBoardPostingRestrictionMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBoardPostingRestriction>>,
+    TError,
+    { id: number; data: BodyType<BoardPostingRestrictionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setBoardPostingRestriction>>,
+  TError,
+  { id: number; data: BodyType<BoardPostingRestrictionInput> },
+  TContext
+> => {
+  const mutationKey = ["setBoardPostingRestriction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setBoardPostingRestriction>>,
+    { id: number; data: BodyType<BoardPostingRestrictionInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setBoardPostingRestriction(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetBoardPostingRestrictionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setBoardPostingRestriction>>
+>;
+export type SetBoardPostingRestrictionMutationBody =
+  BodyType<BoardPostingRestrictionInput>;
+export type SetBoardPostingRestrictionMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Restrict or restore a member's ability to post on the Community Board
+ */
+export const useSetBoardPostingRestriction = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBoardPostingRestriction>>,
+    TError,
+    { id: number; data: BodyType<BoardPostingRestrictionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setBoardPostingRestriction>>,
+  TError,
+  { id: number; data: BodyType<BoardPostingRestrictionInput> },
+  TContext
+> => {
+  return useMutation(getSetBoardPostingRestrictionMutationOptions(options));
 };
 
 /**

@@ -3005,6 +3005,7 @@ export const ListBoardThreadsResponseItem = zod
       .array(zod.string())
       .max(listBoardThreadsResponseOneImageObjectPathsMax),
     authorUserId: zod.number().nullish(),
+    hiddenByMe: zod.boolean(),
     podId: zod.string().nullish(),
     eventId: zod.number().nullish(),
     isPinned: zod.boolean(),
@@ -3048,6 +3049,7 @@ export const ListBoardThreadsResponseItem = zod
         .describe(
           "Actions the authenticated viewer may perform on this thread",
         ),
+      hiddenByMe: zod.boolean(),
     }),
   );
 export const ListBoardThreadsResponse = zod.array(ListBoardThreadsResponseItem);
@@ -3104,6 +3106,7 @@ export const GetBoardThreadResponse = zod
       .array(zod.string())
       .max(getBoardThreadResponseOneImageObjectPathsMax),
     authorUserId: zod.number().nullish(),
+    hiddenByMe: zod.boolean(),
     podId: zod.string().nullish(),
     eventId: zod.number().nullish(),
     isPinned: zod.boolean(),
@@ -3147,6 +3150,7 @@ export const GetBoardThreadResponse = zod
         .describe(
           "Actions the authenticated viewer may perform on this thread",
         ),
+      hiddenByMe: zod.boolean(),
     }),
   );
 
@@ -3187,6 +3191,141 @@ export const CreateBoardThreadReportBody = zod.object({
 });
 
 /**
+ * @summary Report an individual reply to coaches and administrators
+ */
+export const CreateBoardPostReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createBoardPostReportBodyDetailsMax = 1000;
+
+export const CreateBoardPostReportBody = zod.object({
+  reason: zod.enum(["inappropriate_content", "harassment", "spam", "other"]),
+  details: zod.string().max(createBoardPostReportBodyDetailsMax).optional(),
+});
+
+export const CreateBoardPostReportResponse = zod.object({
+  reportId: zod.number(),
+});
+
+/**
+ * @summary List private Board content reports for coaches and administrators
+ */
+export const ListBoardReportsResponseItem = zod.object({
+  id: zod.number(),
+  threadId: zod.number().nullable(),
+  postId: zod.number().nullable(),
+  targetType: zod.enum(["thread", "reply"]),
+  threadTitle: zod.string(),
+  reporterUserId: zod.number().nullish(),
+  reporterName: zod.string(),
+  reportedUserId: zod.number().nullish(),
+  reason: zod.enum(["inappropriate_content", "harassment", "spam", "other"]),
+  details: zod.string().nullable(),
+  contentExcerpt: zod.string().nullable(),
+  isAutomatic: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  status: zod.enum(["open", "resolved"]),
+  resolutionNote: zod.string().nullable(),
+  resolvedAt: zod.coerce.date().nullable(),
+  link: zod.string(),
+});
+export const ListBoardReportsResponse = zod.array(ListBoardReportsResponseItem);
+
+/**
+ * @summary Resolve a Board content report with an optional review note
+ */
+export const ResolveBoardReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const resolveBoardReportBodyNoteMax = 1000;
+
+export const ResolveBoardReportBody = zod.object({
+  note: zod.string().max(resolveBoardReportBodyNoteMax).optional(),
+});
+
+export const ResolveBoardReportResponse = zod.object({
+  id: zod.number(),
+  threadId: zod.number().nullable(),
+  postId: zod.number().nullable(),
+  targetType: zod.enum(["thread", "reply"]),
+  threadTitle: zod.string(),
+  reporterUserId: zod.number().nullish(),
+  reporterName: zod.string(),
+  reportedUserId: zod.number().nullish(),
+  reason: zod.enum(["inappropriate_content", "harassment", "spam", "other"]),
+  details: zod.string().nullable(),
+  contentExcerpt: zod.string().nullable(),
+  isAutomatic: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  status: zod.enum(["open", "resolved"]),
+  resolutionNote: zod.string().nullable(),
+  resolvedAt: zod.coerce.date().nullable(),
+  link: zod.string(),
+});
+
+/**
+ * @summary List members hidden by the current user
+ */
+export const ListHiddenBoardMembersResponseItem = zod.object({
+  userId: zod.number(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+});
+export const ListHiddenBoardMembersResponse = zod.array(
+  ListHiddenBoardMembersResponseItem,
+);
+
+/**
+ * @summary Hide or unhide a member on the Community Board
+ */
+export const SetHiddenBoardMemberParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const SetHiddenBoardMemberBody = zod.object({
+  hidden: zod.boolean(),
+});
+
+export const SetHiddenBoardMemberResponse = zod.object({
+  hidden: zod.boolean(),
+});
+
+/**
+ * @summary List members currently restricted from posting on the Community Board
+ */
+export const ListBoardPostingRestrictionsResponseItem = zod.object({
+  userId: zod.number(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  blockedAt: zod.coerce.date().nullable(),
+  blockedByName: zod.string().nullish(),
+});
+export const ListBoardPostingRestrictionsResponse = zod.array(
+  ListBoardPostingRestrictionsResponseItem,
+);
+
+/**
+ * @summary Restrict or restore a member's ability to post on the Community Board
+ */
+export const SetBoardPostingRestrictionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetBoardPostingRestrictionBody = zod.object({
+  blocked: zod.boolean(),
+});
+
+export const SetBoardPostingRestrictionResponse = zod.object({
+  userId: zod.number(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  blockedAt: zod.coerce.date().nullable(),
+  blockedByName: zod.string().nullish(),
+});
+
+/**
  * @summary List posts in a thread
  */
 export const ListBoardPostsParams = zod.object({
@@ -3200,6 +3339,7 @@ export const ListBoardPostsResponseItem = zod
     id: zod.number(),
     threadId: zod.number(),
     authorUserId: zod.number().nullish(),
+    hiddenByMe: zod.boolean(),
     body: zod.string(),
     bodyFormat: zod.enum(["plain", "markdown"]).optional(),
     imageObjectPaths: zod
@@ -3232,6 +3372,7 @@ export const ListBoardPostsResponseItem = zod
           canDelete: zod.boolean(),
         })
         .describe("Actions the authenticated viewer may perform on this reply"),
+      hiddenByMe: zod.boolean(),
     }),
   );
 export const ListBoardPostsResponse = zod.array(ListBoardPostsResponseItem);
@@ -3326,6 +3467,7 @@ export const PinBoardThreadResponse = zod.object({
     .array(zod.string())
     .max(pinBoardThreadResponseImageObjectPathsMax),
   authorUserId: zod.number().nullish(),
+  hiddenByMe: zod.boolean(),
   podId: zod.string().nullish(),
   eventId: zod.number().nullish(),
   isPinned: zod.boolean(),

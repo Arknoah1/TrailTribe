@@ -36,18 +36,40 @@ export type BoardThread = typeof boardThreadsTable.$inferSelect;
 export const boardThreadReportsTable = pgTable("board_thread_reports", {
   id: serial("id").primaryKey(),
   threadId: integer("thread_id").references(() => boardThreadsTable.id, { onDelete: "set null" }),
+  postId: integer("post_id").references(() => boardPostsTable.id, { onDelete: "set null" }),
+  targetType: text("target_type", { enum: ["thread", "reply"] }).notNull().default("thread"),
   threadTitle: text("thread_title").notNull(),
   reporterUserId: integer("reporter_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   reporterName: text("reporter_name").notNull(),
   reason: text("reason", { enum: ["inappropriate_content", "harassment", "spam", "other"] }).notNull(),
   details: text("details"),
+  contentExcerpt: text("content_excerpt"),
+  isAutomatic: boolean("is_automatic").notNull().default(false),
+  status: text("status", { enum: ["open", "resolved"] }).notNull().default("open"),
+  resolutionNote: text("resolution_note"),
+  resolvedByUserId: integer("resolved_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("board_thread_reports_thread_id_idx").on(t.threadId),
+  index("board_thread_reports_post_id_idx").on(t.postId),
   index("board_thread_reports_created_at_idx").on(t.createdAt),
+  index("board_thread_reports_status_created_at_idx").on(t.status, t.createdAt),
 ]);
 
 export type BoardThreadReport = typeof boardThreadReportsTable.$inferSelect;
+
+export const boardHiddenMembersTable = pgTable("board_hidden_members", {
+  id: serial("id").primaryKey(),
+  hiderUserId: integer("hider_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  hiddenUserId: integer("hidden_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("board_hidden_members_hider_hidden_unique").on(t.hiderUserId, t.hiddenUserId),
+  index("board_hidden_members_hidden_user_id_idx").on(t.hiddenUserId),
+]);
+
+export type BoardHiddenMember = typeof boardHiddenMembersTable.$inferSelect;
 
 export const boardPostsTable = pgTable("board_posts", {
   id: serial("id").primaryKey(),

@@ -16,4 +16,5 @@ export type BoardThreadWithDetails = BoardThread & {
   event?: BoardEventRef | null;
   reactions?: BoardThreadWithDetailsReactions;
   permissions: BoardThreadPermissions;
+  hiddenByMe: boolean;
 };

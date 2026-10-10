@@ -7,6 +7,7 @@ import test from "node:test";
 const pagesDir = dirname(fileURLToPath(import.meta.url));
 const legalSource = await readFile(resolve(pagesDir, "legal.tsx"), "utf8");
 const appSource = await readFile(resolve(pagesDir, "../App.tsx"), "utf8");
+const nativeSource = await readFile(resolve(pagesDir, "../lib/native-app.ts"), "utf8");
 
 test("privacy policy accurately discloses the sensitive data TrailTeam collects", () => {
   for (const phrase of [
@@ -41,6 +42,10 @@ test("legal pages have public routes and policy links on signed-out entry points
   assert.match(appSource, /function PolicyLinks\(\)/);
   assert.match(appSource, /href=\{`\$\{basePath\}\/privacy`\}/);
   assert.match(appSource, /href=\{`\$\{basePath\}\/terms`\}/);
+  assert.match(appSource, /<Route path="\/support" component=\{SupportPage\} \/>/);
+  assert.match(appSource, /href=\{`\$\{basePath\}\/support`\}/);
+  assert.match(legalSource, /<InlineLink href="\/support">Support<\/InlineLink>/);
+  assert.match(nativeSource, /\|support\|privacy\|terms/);
 });
 
 test("legal content includes terms needed for team participation without old branding", () => {
@@ -57,4 +62,22 @@ test("legal content includes terms needed for team participation without old bra
 
   assert.doesNotMatch(legalSource, /TrailTribe|trailtribemtb\.com/);
   assert.match(legalSource, /https:\/\/trailteam\.app/);
+});
+
+test("privacy describes stored reports and hide preferences and actual account deletion", () => {
+  assert.match(legalSource, /app database stores each report’s reported Board item and title,\s+reporter name, selected reason, optional details, a short content excerpt, review status,\s+and any resolution note/);
+  assert.match(legalSource, /preferences about which\s+Board members a user has\s+chosen to hide/);
+  assert.match(legalSource, /self-service account deletion option under Profile\s+settings/);
+  assert.match(legalSource, /Shared events and discussions remain available to the\s+team without your account attached/);
+  assert.match(legalSource, /If you are the final member of your household,\s+household-only information is also removed/);
+  assert.match(legalSource, /does not state a separate\s+numeric minimum age/);
+});
+
+test("terms describe community rules, reporting, hiding, and the posting-only restriction", () => {
+  assert.match(legalSource, /Any approved member can report a Board discussion or reply/);
+  assert.match(legalSource, /no response or resolution time is guaranteed/);
+  assert.match(legalSource, /Members can hide\s+or unhide Board members/);
+  assert.match(legalSource, /applies only to creating Board\s+threads and replies/);
+  assert.match(legalSource, /Do not post harassment, threats/);
+  assert.match(legalSource, /does not\s+enforce a separate numeric minimum age/);
 });

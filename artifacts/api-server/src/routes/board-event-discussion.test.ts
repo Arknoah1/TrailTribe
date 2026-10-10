@@ -205,6 +205,7 @@ const reactions: ReactionFixture[] = [];
 const attachments: AttachmentFixture[] = [];
 const reports: Array<Record<string, unknown>> = [];
 const reportNotifications: Array<Record<string, unknown>> = [];
+const hiddenMembers: Array<{ id: number; hiderUserId: number; hiddenUserId: number }> = [];
 const users = [COACH, RIDER, OTHER_RIDER, PARENT, OTHER_PARENT];
 let selectCallIndex = 0;
 let nextReactionId = 1;
@@ -244,14 +245,35 @@ vi.mock("@workspace/db", () => {
   };
   const boardThreadsTable = table("threads");
   const boardThreadReportsTable = table("reports");
+  const boardHiddenMembersTable = table("hiddenMembers");
   const boardPostsTable = table("posts");
   const boardAttachmentsTable = table("attachments");
   const boardReactionsTable = table("reactions");
   const usersTable = table("users");
   const eventsTable = table("events");
   const notificationsTable = table("notifications");
+  const conditionValues = (condition: any, collected: unknown[] = [], seen = new Set<object>()) => {
+    if (condition == null) return collected;
+    if (typeof condition === "string" || typeof condition === "number") {
+      collected.push(condition);
+      return collected;
+    }
+    if (typeof condition !== "object" || seen.has(condition)) return collected;
+    seen.add(condition);
+    if (Array.isArray(condition)) {
+      condition.forEach((part) => conditionValues(part, collected, seen));
+      return collected;
+    }
+    if (condition.value != null && (typeof condition.value === "string" || typeof condition.value === "number")) {
+      collected.push(condition.value);
+    }
+    for (const key of ["queryChunks", "left", "right"]) {
+      if (condition[key] != null) conditionValues(condition[key], collected, seen);
+    }
+    return collected;
+  };
   const targetIdFrom = (condition: any) =>
-    currentTargetId ?? condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
+    currentTargetId ?? conditionValues(condition).filter((value) => typeof value === "number").at(-1);
   const targetPathFrom = (condition: any) =>
     condition?.right ?? condition?.queryChunks?.at?.(-1)?.value;
   const dbMock: any = {
@@ -262,6 +284,11 @@ vi.mock("@workspace/db", () => {
           const source = (query as any)._source;
           if (source === boardPostsTable) return posts;
           if (source === boardAttachmentsTable) return attachments;
+          if (source === boardHiddenMembersTable) {
+            return hiddenMembers
+              .filter((row) => row.hiddenUserId === currentUser().id)
+              .map(({ hiderUserId }) => ({ hiderUserId }));
+          }
           if (source === usersTable) return users;
           const eventId = currentEventId ?? (query as any)._where?.right;
           return eventId != null
@@ -321,6 +348,14 @@ vi.mock("@workspace/db", () => {
         query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
         return query;
       }
+      if ("hiderUserId" in selection) {
+        const query = chain(() => hiddenMembers
+          .filter((row) => row.hiddenUserId === currentUser().id)
+          .map(({ hiderUserId }) => ({ hiderUserId })));
+        query.from.mockImplementation((source: object) => { query._source = source; return query; });
+        query.where.mockImplementation((condition: unknown) => { query._where = condition; return query; });
+        return query;
+      }
       if ("firstName" in selection && "lastName" in selection) {
         const query = chain(() => {
           const targetId = targetIdFrom(query._where);
@@ -352,6 +387,13 @@ vi.mock("@workspace/db", () => {
         if (source === boardThreadReportsTable) {
           reports.push({ id: reports.length + 1, ...values[0] });
         }
+        if (source === boardHiddenMembersTable) {
+          for (const row of values) {
+            if (!hiddenMembers.some((existing) => existing.hiderUserId === row.hiderUserId && existing.hiddenUserId === row.hiddenUserId)) {
+              hiddenMembers.push({ id: hiddenMembers.length + 1, ...row });
+            }
+          }
+        }
         if (source === notificationsTable) {
           reportNotifications.push(...values);
           return Promise.resolve();
@@ -365,6 +407,7 @@ vi.mock("@workspace/db", () => {
             if (source === boardPostsTable) return [posts.at(-1)];
             if (source === boardThreadsTable) return [threads.at(-1)];
             if (source === boardThreadReportsTable) return [reports.at(-1)];
+            if (source === boardHiddenMembersTable) return [hiddenMembers.at(-1)];
             return [];
           }),
         };
@@ -378,6 +421,11 @@ vi.mock("@workspace/db", () => {
             reaction.reaction === currentReaction &&
             (reaction.threadId === currentTargetId || reaction.postId === currentTargetId));
           if (index >= 0) reactions.splice(index, 1);
+        }
+        if (source === boardHiddenMembersTable) {
+          const index = hiddenMembers.findIndex((row) =>
+            row.hiderUserId === currentUser().id && row.hiddenUserId === currentTargetId);
+          if (index >= 0) hiddenMembers.splice(index, 1);
         }
         if (source === boardThreadsTable) {
           const threadId = targetIdFrom(condition);
@@ -404,7 +452,8 @@ vi.mock("@workspace/db", () => {
       set: vi.fn((value: any) => ({
         where: vi.fn((condition: any) => {
           if (source === usersTable) {
-            Object.assign(currentUser(), value);
+            const target = users.find((user) => user.id === targetIdFrom(condition)) ?? currentUser();
+            Object.assign(target, value);
           }
           if (source === boardPostsTable) {
             const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
@@ -414,11 +463,23 @@ vi.mock("@workspace/db", () => {
             const thread = threads.find((candidate) => candidate.id === targetIdFrom(condition));
             if (thread) Object.assign(thread, value);
           }
+          if (source === boardThreadReportsTable) {
+            const report = reports.find((candidate) => candidate.id === targetIdFrom(condition));
+            if (report) Object.assign(report, value);
+          }
           return Object.assign(Promise.resolve(undefined), {
             returning: vi.fn(async () => {
               if (source === boardThreadsTable) {
                 const thread = threads.find((candidate) => candidate.id === targetIdFrom(condition));
                 return thread ? [thread] : [];
+              }
+              if (source === boardThreadReportsTable) {
+                const report = reports.find((candidate) => candidate.id === targetIdFrom(condition));
+                return report ? [report] : [];
+              }
+              if (source === usersTable) {
+                const user = users.find((candidate) => candidate.id === targetIdFrom(condition)) ?? currentUser();
+                return [user];
               }
               return [];
             }),
@@ -428,8 +489,10 @@ vi.mock("@workspace/db", () => {
     })),
     query: {
         usersTable: {
-          findFirst: vi.fn().mockImplementation(({ where }: any) =>
-            Promise.resolve(users.find((user) => user.clerkUserId === currentClerkUserId) ?? null)),
+          findFirst: vi.fn().mockImplementation(({ where }: any) => {
+            const values = conditionValues(where);
+            return Promise.resolve(users.find((user) => values.includes(user.id) || values.includes(user.clerkUserId)) ?? currentUser());
+          }),
           findMany: vi.fn().mockImplementation(() => Promise.resolve(users)),
         },
         eventsTable: {
@@ -471,6 +534,26 @@ vi.mock("@workspace/db", () => {
             return Promise.resolve(posts.find((post) => post.id === targetIdFrom(where)) ?? null);
           }),
         },
+        boardThreadReportsTable: {
+          findFirst: vi.fn().mockImplementation(({ where }: any) => {
+            if (reporterForCurrentRequest == null) {
+              return Promise.resolve(reports.find((report) => report.id === targetIdFrom(where)) ?? null);
+            }
+            const isReply = currentReportTargetType === "reply";
+            return Promise.resolve(reports.find((report) =>
+              report.status === "open"
+              && report.targetType === currentReportTargetType
+              && (isReply ? report.postId === currentTargetId : report.threadId === currentTargetId)
+              && report.reporterUserId === reporterForCurrentRequest,
+            ) ?? null);
+          }),
+          findMany: vi.fn().mockImplementation(() => Promise.resolve(reports.filter((report) => report.status === "open"))),
+        },
+        boardHiddenMembersTable: {
+          findFirst: vi.fn().mockImplementation(() => Promise.resolve(hiddenMembers.find((row) =>
+            row.hiderUserId === currentUser().id && row.hiddenUserId === currentTargetId) ?? null)),
+          findMany: vi.fn().mockImplementation(() => Promise.resolve(hiddenMembers.filter((row) => row.hiderUserId === currentUser().id))),
+        },
         boardAttachmentsTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) =>
             Promise.resolve(attachments.find((attachment) =>
@@ -493,10 +576,21 @@ vi.mock("@workspace/db", () => {
   };
   dbMock.transaction = vi.fn(async (callback: (tx: any) => unknown) => callback({
     execute: vi.fn(async () => undefined),
-    // Only the row-locked `select().from(users).where(...).for("update")` read
-    // used by the mute route; it returns the acting user's current row.
-    select: vi.fn(() => ({
-      from: () => ({ where: () => ({ for: async () => [currentUser()] }) }),
+    query: dbMock.query,
+    select: vi.fn((selection?: any) => ({
+      from: (source: object) => ({
+        where: (condition: any) => {
+          if (source === boardThreadReportsTable && selection?.count) {
+            return Promise.resolve([{
+              count: reports.filter((report) =>
+                report.reporterUserId === currentUser().id
+                && new Date(report.createdAt ?? NOW).getTime() > NOW.getTime() - 60 * 60 * 1000,
+              ).length,
+            }]);
+          }
+          return { for: async () => [currentUser()] };
+        },
+      }),
     })),
     insert: dbMock.insert,
     update: dbMock.update,
@@ -507,6 +601,7 @@ vi.mock("@workspace/db", () => {
     db: dbMock,
     boardThreadsTable,
     boardThreadReportsTable,
+    boardHiddenMembersTable,
     boardPostsTable,
     boardAttachmentsTable,
     usersTable,
@@ -521,6 +616,8 @@ let currentTargetId: number | null = null;
 let currentEventId: number | null = null;
 let currentAttachmentPath: string | null = null;
 let currentReaction = "helpful";
+let currentReportTargetType: "thread" | "reply" = "thread";
+let reporterForCurrentRequest: number | null = null;
 function currentUser() {
   return users.find((user) => user.clerkUserId === currentClerkUserId) ?? COACH;
 }
@@ -580,6 +677,7 @@ beforeEach(() => {
   attachments.length = 0;
   reports.length = 0;
   reportNotifications.length = 0;
+  hiddenMembers.length = 0;
   discussionStorageMock.objects.clear();
   discussionAclMock.policies.clear();
   nextReactionId = 1;
@@ -590,6 +688,8 @@ beforeEach(() => {
   currentEventId = null;
   currentAttachmentPath = null;
   currentReaction = "helpful";
+  currentReportTargetType = "thread";
+  reporterForCurrentRequest = null;
   nextPostId = 1000;
   notificationMock.createNotification.mockClear();
   emailMock.sendEmail.mockClear();
@@ -599,6 +699,9 @@ beforeEach(() => {
   for (const user of users) {
     Object.assign(user, {
       approved: true,
+      boardPostingBlocked: false,
+      boardPostingBlockedAt: null,
+      boardPostingBlockedByUserId: null,
       isActive: true,
       notificationsEnabled: true,
       emailNotifications: true,
@@ -739,6 +842,8 @@ async function submitThreadReport(
 ) {
   currentClerkUserId = user.clerkUserId;
   currentTargetId = threadId;
+  currentReportTargetType = "thread";
+  reporterForCurrentRequest = user.id;
   currentEventId = threads.find((thread) => thread.id === threadId)?.eventId ?? null;
   const response = await fetch(`${baseUrl}/board/threads/${threadId}/reports`, {
     method: "POST",
@@ -747,6 +852,75 @@ async function submitThreadReport(
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function submitPostReport(
+  user: DiscussionUser,
+  postId: number,
+  data: { reason: string; details?: string },
+) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = postId;
+  currentReportTargetType = "reply";
+  reporterForCurrentRequest = user.id;
+  const response = await fetch(`${baseUrl}/board/posts/${postId}/reports`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
+    body: JSON.stringify(data),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function setPostingRestriction(userId: number, blocked: boolean) {
+  currentClerkUserId = COACH.clerkUserId;
+  currentTargetId = userId;
+  const response = await fetch(`${baseUrl}/board/users/${userId}/posting-restriction`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-test-user": COACH.clerkUserId },
+    body: JSON.stringify({ blocked }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function setMemberHidden(user: DiscussionUser, userId: number, hidden: boolean) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = userId;
+  const response = await fetch(`${baseUrl}/board/hidden-members/${userId}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
+    body: JSON.stringify({ hidden }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function listBoardReports() {
+  currentClerkUserId = COACH.clerkUserId;
+  currentTargetId = null;
+  const response = await fetch(`${baseUrl}/board/reports`, {
+    headers: { "x-test-user": COACH.clerkUserId },
+  });
+  const text = await response.text();
+  let body: any = text;
+  try { body = JSON.parse(text); } catch {}
+  return { status: response.status, body };
+}
+
+async function resolveBoardReport(reportId: number, note?: string) {
+  currentClerkUserId = COACH.clerkUserId;
+  currentTargetId = reportId;
+  reporterForCurrentRequest = null;
+  const response = await fetch(`${baseUrl}/board/reports/${reportId}/resolve`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", "x-test-user": COACH.clerkUserId },
+    body: JSON.stringify({ note }),
+  });
+  const text = await response.text();
+  let body: any = text;
+  try { body = JSON.parse(text); } catch {}
+  return { status: response.status, body };
 }
 
 async function createThreadWithImages(
@@ -1249,21 +1423,165 @@ describe("discussion reports", () => {
       reason: "harassment",
       details: "This reply targets another rider.",
     });
-    expect(reportNotifications).toHaveLength(1);
-    expect(reportNotifications[0]).toMatchObject({
-      recipientUserId: COACH.id,
-      type: "board_thread_reported",
-      title: "Discussion reported",
-      body: expect.stringContaining("Parent Trail reported"),
-      link: "/messages/thread/808",
-      isRead: false,
-    });
+    expect(notificationMock.createNotification).toHaveBeenCalledWith(
+      COACH.id,
+      "board_thread_reported",
+      "Community Board report",
+      expect.stringContaining("Parent Trail reported"),
+      "/messages/thread/808?target=starter",
+    );
+    expect(emailMock.sendEmail).not.toHaveBeenCalled();
 
     const denied = await submitThreadReport(OTHER_PARENT, 808, { reason: "spam" });
     expect(denied.status).toBe(403);
     const invalid = await submitThreadReport(PARENT, 808, { reason: "not-a-reason" });
     expect(invalid.status).toBe(400);
     expect(reports).toHaveLength(1);
+  });
+
+  it("reports a single reply, returns duplicate open reports, and includes the reply excerpt in staff alerts", async () => {
+    addThread(809, 0, NOW);
+    addPost(2001, 809, RIDER.id);
+    posts[0].body = "A reply with specific details for the coach to review.";
+    const first = await submitPostReport(PARENT, posts[0].id, {
+      reason: "inappropriate_content",
+      details: "Please review the comment.",
+    });
+    expect(first.status).toBe(201);
+    expect(reports[0]).toMatchObject({
+      threadId: 809,
+      postId: 2001,
+      targetType: "reply",
+      contentExcerpt: "A reply with specific details for the coach to review.",
+      reporterName: "Parent Trail",
+    });
+    expect(notificationMock.createNotification).toHaveBeenCalledWith(
+      COACH.id,
+      "board_thread_reported",
+      "Community Board report",
+      expect.stringContaining("A reply with specific details for the coach to review."),
+      "/messages/thread/809?reply=2001",
+    );
+    const alertText = notificationMock.createNotification.mock.calls[0][3] as string;
+    expect(alertText).toContain("Reason: Inappropriate content");
+    expect(alertText).toContain("Please review the comment.");
+    expect(notificationMock.createNotification.mock.calls.some((call) => call[0] === OTHER_PARENT.id)).toBe(false);
+    expect(emailMock.sendEmail).not.toHaveBeenCalled();
+
+    notificationMock.createNotification.mockClear();
+    const duplicate = await submitPostReport(PARENT, posts[0].id, { reason: "spam" });
+    expect(duplicate.status).toBe(200);
+    expect(duplicate.body.reportId).toBe(first.body.reportId);
+    expect(reports).toHaveLength(1);
+    expect(notificationMock.createNotification).not.toHaveBeenCalled();
+  });
+
+  it("rate-limits new reports from one member while allowing duplicate submissions to return the open report", async () => {
+    for (let index = 0; index < 6; index += 1) {
+      addThread(820 + index, 0, NOW);
+    }
+    for (let index = 0; index < 5; index += 1) {
+      expect((await submitThreadReport(PARENT, 820 + index, { reason: "spam" })).status).toBe(201);
+    }
+    const duplicate = await submitThreadReport(PARENT, 820, { reason: "other" });
+    expect(duplicate.status).toBe(200);
+    const limited = await submitThreadReport(PARENT, 825, { reason: "spam" });
+    expect(limited.status).toBe(429);
+    expect(reports).toHaveLength(5);
+  });
+
+  it("stores automatic flags without rejecting a thread and allows coaches to review the report", async () => {
+    const response = await createThreadWithImages(RIDER, [], { body: "That was damn hard, but fun." });
+    expect(response.status).toBe(201);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      reporterName: "Automatic flag",
+      reporterUserId: null,
+      reason: "inappropriate_content",
+      isAutomatic: true,
+      targetType: "thread",
+    });
+    expect(notificationMock.createNotification.mock.calls.some((call) =>
+      call[0] === COACH.id && String(call[3]).includes("Automatic flag"),
+    )).toBe(true);
+  });
+
+  it("automatically reports objectionable replies without rejecting them and ignores near-matches", async () => {
+    addThread(828, 0, NOW);
+    const flaggedReply = await createReply(RIDER, 828, "That reply was shit.");
+    expect(flaggedReply.status).toBe(201);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      targetType: "reply",
+      postId: 1000,
+      reporterName: "Automatic flag",
+      isAutomatic: true,
+    });
+
+    const falsePositive = await createReply(OTHER_RIDER, 828, "The assistant in class liked Scunthorpe and shitake.");
+    expect(falsePositive.status).toBe(201);
+    expect(reports).toHaveLength(1);
+  });
+
+  it("keeps an open private queue and records staff resolution notes", async () => {
+    addThread(829, 0, NOW);
+    await submitThreadReport(PARENT, 829, { reason: "other", details: "Please take a look." });
+
+    const queue = await listBoardReports();
+    expect(queue.status, JSON.stringify(queue.body)).toBe(200);
+    expect(queue.body).toHaveLength(1);
+    expect(queue.body[0]).toMatchObject({
+      targetType: "thread",
+      reason: "other",
+      details: "Please take a look.",
+      reporterName: "Parent Trail",
+      status: "open",
+      link: "/messages/thread/829?target=starter",
+    });
+    const resolved = await resolveBoardReport(queue.body[0].id, "Reviewed and discussed with the member.");
+    expect(resolved.status).toBe(200);
+    expect(resolved.body).toMatchObject({
+      id: queue.body[0].id,
+      status: "resolved",
+      resolutionNote: "Reviewed and discussed with the member.",
+    });
+    expect((await listBoardReports()).body).toHaveLength(0);
+  });
+
+  it("lets staff restrict only Board posting and restore it later", async () => {
+    addThread(830, 0, NOW);
+    const blocked = await setPostingRestriction(RIDER.id, true);
+    expect(blocked.status).toBe(200);
+    const attemptedReply = await createReply(RIDER, 830);
+    expect(attemptedReply.status).toBe(403);
+    expect(attemptedReply.body.error).toContain("You can still read the Board");
+    const readable = await getThreads("/board/threads?scope=general", RIDER);
+    expect(readable.status).toBe(200);
+
+    const restored = await setPostingRestriction(RIDER.id, false);
+    expect(restored.status).toBe(200);
+    expect((await createReply(RIDER, 830)).status).toBe(201);
+  });
+
+  it("persists hidden-member choices and suppresses Board alerts from hidden authors", async () => {
+    addThread(840, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    const hidden = await setMemberHidden(OTHER_PARENT, RIDER.id, true);
+    expect(hidden).toEqual({ status: 200, body: { hidden: true } });
+    expect(hiddenMembers).toContainEqual(expect.objectContaining({
+      hiderUserId: OTHER_PARENT.id,
+      hiddenUserId: RIDER.id,
+    }));
+
+    notificationMock.createNotification.mockClear();
+    const reply = await createReply(RIDER, 840, "A reply from the hidden member");
+    expect(reply.status).toBe(201);
+    await vi.waitFor(() => expect(notificationMock.createNotification).toHaveBeenCalled());
+    expect(notificationMock.createNotification.mock.calls.some((call) => call[0] === OTHER_PARENT.id)).toBe(false);
+
+    const unhidden = await setMemberHidden(OTHER_PARENT, RIDER.id, false);
+    expect(unhidden).toEqual({ status: 200, body: { hidden: false } });
+    expect(hiddenMembers).toHaveLength(0);
   });
 });
 

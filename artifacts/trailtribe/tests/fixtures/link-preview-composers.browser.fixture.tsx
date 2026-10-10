@@ -6,8 +6,14 @@ import Messages from "../../src/pages/messages";
 import BoardThread from "../../src/pages/board-thread";
 import "../../src/index.css";
 
-type SubmittedThread = { title: string; body: string } | null;
-type SubmittedReply = { body: string } | null;
+type SubmittedThread = {
+  title: string;
+  body: string;
+  bodyFormat: string;
+  imageObjectPaths: string[];
+  podId: string | null;
+} | null;
+type SubmittedReply = { body: string; bodyFormat: string; imageObjectPaths: string[] } | null;
 
 declare global {
   interface Window {

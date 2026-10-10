@@ -11,6 +11,7 @@ export interface BoardPost {
   id: number;
   threadId: number;
   authorUserId?: number | null;
+  hiddenByMe: boolean;
   body: string;
   bodyFormat?: BoardPostBodyFormat;
   /** @maxItems 4 */

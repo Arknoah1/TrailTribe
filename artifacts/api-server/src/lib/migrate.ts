@@ -1098,6 +1098,59 @@ const migrations: { name: string; sql: string }[] = [
         ON board_thread_reports(created_at);
     `,
   },
+  {
+    name: "extend_board_content_safety",
+    sql: `
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS board_posting_blocked boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS board_posting_blocked_at timestamptz,
+        ADD COLUMN IF NOT EXISTS board_posting_blocked_by_user_id integer;
+
+      ALTER TABLE board_thread_reports
+        ADD COLUMN IF NOT EXISTS post_id integer REFERENCES board_posts(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS target_type text NOT NULL DEFAULT 'thread',
+        ADD COLUMN IF NOT EXISTS content_excerpt text,
+        ADD COLUMN IF NOT EXISTS is_automatic boolean NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open',
+        ADD COLUMN IF NOT EXISTS resolution_note text,
+        ADD COLUMN IF NOT EXISTS resolved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'board_thread_reports_target_type_check') THEN
+          ALTER TABLE board_thread_reports ADD CONSTRAINT board_thread_reports_target_type_check
+            CHECK (target_type IN ('thread', 'reply'));
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'board_thread_reports_status_check') THEN
+          ALTER TABLE board_thread_reports ADD CONSTRAINT board_thread_reports_status_check
+            CHECK (status IN ('open', 'resolved'));
+        END IF;
+      END $$;
+
+      CREATE INDEX IF NOT EXISTS board_thread_reports_post_id_idx
+        ON board_thread_reports(post_id);
+      CREATE INDEX IF NOT EXISTS board_thread_reports_status_created_at_idx
+        ON board_thread_reports(status, created_at);
+      CREATE INDEX IF NOT EXISTS board_thread_reports_open_thread_reporter_idx
+        ON board_thread_reports(reporter_user_id, thread_id)
+        WHERE status = 'open' AND target_type = 'thread';
+      CREATE INDEX IF NOT EXISTS board_thread_reports_open_reply_reporter_idx
+        ON board_thread_reports(reporter_user_id, post_id)
+        WHERE status = 'open' AND target_type = 'reply';
+
+      CREATE TABLE IF NOT EXISTS board_hidden_members (
+        id serial PRIMARY KEY,
+        hider_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        hidden_user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CONSTRAINT board_hidden_members_hider_hidden_unique UNIQUE (hider_user_id, hidden_user_id),
+        CONSTRAINT board_hidden_members_not_self_check CHECK (hider_user_id <> hidden_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS board_hidden_members_hidden_user_id_idx
+        ON board_hidden_members(hidden_user_id);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

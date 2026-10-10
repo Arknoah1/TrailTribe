@@ -14,6 +14,8 @@ import {
   useGetMe,
   useSetBoardThreadMute,
   useCreateBoardThreadReport,
+  useCreateBoardPostReport,
+  useSetHiddenBoardMember,
   getGetMeQueryKey,
   getGetBoardReactionDetailsQueryKey,
   getListBoardPostsQueryKey,
@@ -23,7 +25,7 @@ import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { isOperationalStaff } from "@/lib/user-capabilities";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus, Bell, BellOff, Flag
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus, Bell, BellOff, Flag, Eye, EyeOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -187,9 +189,13 @@ export default function BoardThread() {
   const toggleReaction = useToggleBoardReaction();
   const setThreadMute = useSetBoardThreadMute();
   const createThreadReport = useCreateBoardThreadReport();
+  const createPostReport = useCreateBoardPostReport();
+  const setHiddenMember = useSetHiddenBoardMember();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportTargetPostId, setReportTargetPostId] = useState<number | null>(null);
   const [reportReason, setReportReason] = useState<"inappropriate_content" | "harassment" | "spam" | "other">("inappropriate_content");
   const [reportDetails, setReportDetails] = useState("");
+  const [revealedHiddenAuthors, setRevealedHiddenAuthors] = useState<Record<number, boolean>>({});
   const isThreadMuted = me?.notificationPreferences?.mutedBoardDiscussionIds?.includes(id) ?? false;
   const [reactionDetails, setReactionDetails] = useState<{
     targetType: "thread" | "post";
@@ -421,17 +427,40 @@ export default function BoardThread() {
 
   const handleSubmitThreadReport = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    createThreadReport.mutate({
-      id,
-      data: { reason: reportReason, details: reportDetails.trim() || undefined },
-    }, {
+    const data = { reason: reportReason, details: reportDetails.trim() || undefined };
+    const finish = {
       onSuccess: () => {
         setReportDialogOpen(false);
+        setReportTargetPostId(null);
         setReportReason("inappropriate_content");
         setReportDetails("");
         toast({ title: "Report sent to your coaches", description: "Thanks for helping keep discussions safe." });
       },
-      onError: () => toast({ title: "Couldn’t send report", description: "Please try again.", variant: "destructive" }),
+      onError: (error: unknown) => toast({
+        title: "Couldn’t send report",
+        description: (error as { data?: { error?: string } }).data?.error ?? "Please try again.",
+        variant: "destructive",
+      }),
+    };
+    if (reportTargetPostId !== null) {
+      createPostReport.mutate({ id: reportTargetPostId, data }, finish);
+    } else {
+      createThreadReport.mutate({ id, data }, finish);
+    }
+  };
+
+  const isReporting = createThreadReport.isPending || createPostReport.isPending;
+  const handleSetMemberHidden = (userId: number | null | undefined, hidden: boolean) => {
+    if (!userId || userId === me?.id) return;
+    setHiddenMember.mutate({ userId, data: { hidden } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["getBoardThread", id] });
+        queryClient.invalidateQueries({ queryKey: getListBoardPostsQueryKey(id) });
+        toast({ title: hidden ? "Member hidden on the Community Board" : "Member unhidden on the Community Board" });
+      },
+      onError: () => toast({ title: "Couldn’t update hidden-member preference", variant: "destructive" }),
     });
   };
 
@@ -525,9 +554,18 @@ export default function BoardThread() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="border-2 border-[#0a0c10] shadow-cel-sm font-medium">
-                <DropdownMenuItem onSelect={() => setReportDialogOpen(true)} className="cursor-pointer gap-2">
+                <DropdownMenuItem onSelect={() => { setReportTargetPostId(null); setReportDialogOpen(true); }} className="cursor-pointer gap-2">
                   <Flag className="h-4 w-4" /> Report to coach
                 </DropdownMenuItem>
+                {thread.authorUserId && thread.authorUserId !== me?.id && (
+                  <DropdownMenuItem
+                    onSelect={() => handleSetMemberHidden(thread.authorUserId, !thread.hiddenByMe)}
+                    className="cursor-pointer gap-2"
+                  >
+                    {thread.hiddenByMe ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    {thread.hiddenByMe ? "Unhide member" : "Hide member"}
+                  </DropdownMenuItem>
+                )}
                 {canPinThread && (
                   <DropdownMenuItem onClick={handlePin} className="cursor-pointer gap-2">
                     <Pin className="h-4 w-4" /> {thread.isPinned ? "Unpin Thread" : "Pin Thread"}
@@ -565,11 +603,22 @@ export default function BoardThread() {
                 </span>
               </div>
             </div>
-            <div className="text-foreground">
-              <RichMessageContent text={thread.body} bodyFormat={thread.bodyFormat} linkPreviews />
-              <DiscussionImages paths={thread.imageObjectPaths} />
-            </div>
-            <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
+            {thread.hiddenByMe && !revealedHiddenAuthors[thread.authorUserId ?? -1] ? (
+              <div className="rounded-xl border border-dashed p-3 text-sm">
+                <p className="text-muted-foreground">This discussion is from a member you hid.</p>
+                <Button variant="link" className="h-auto px-0 py-1" onClick={() => setRevealedHiddenAuthors((current) => ({ ...current, [thread.authorUserId ?? -1]: true }))}>
+                  Show discussion
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="text-foreground">
+                  <RichMessageContent text={thread.body} bodyFormat={thread.bodyFormat} linkPreviews />
+                  <DiscussionImages paths={thread.imageObjectPaths} />
+                </div>
+                <ReactionBar targetType="thread" targetId={thread.id} reactions={thread.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
+              </>
+            )}
           </section>
 
           <div className="flex items-center gap-3 px-1">
@@ -594,45 +643,77 @@ export default function BoardThread() {
             <div className="space-y-4 sm:pl-8">
               {posts.map(post => {
             const canDelete = post.permissions?.canDelete === true;
+            const isHidden = post.hiddenByMe && !revealedHiddenAuthors[post.authorUserId ?? -1];
             return (
               <article id={`board-thread-post-${post.id}`} key={post.id} className="flex gap-3 sm:gap-4">
-                <Avatar className="h-9 w-9 border-2 border-[#0a0c10] shrink-0">
-                  <AvatarImage src={post.author?.avatarUrl ?? undefined} />
-                  <AvatarFallback className="font-bold text-sm">
-                    {post.author ? (post.author.firstName[0] + post.author.lastName[0]) : "?"}
-                  </AvatarFallback>
-                </Avatar>
                 <div className="flex-1 min-w-0 group">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-bold text-sm text-foreground">
-                      {post.author ? `${post.author.firstName} ${post.author.lastName}` : "Unknown User"}
-                    </span>
-                    <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase">
-                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                    </span>
-                    {!post.isDeleted && canDelete && (
-                      <button 
-                        onClick={() => {
-                          if (confirm("Delete this message?")) {
-                            deletePost.mutate({ id: post.id }, {
-                              onSuccess: () => queryClient.invalidateQueries({ queryKey: getListBoardPostsQueryKey(id) })
-                            });
-                          }
-                        }}
-                         aria-label="Delete reply"
-                        className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-9 w-9 border-2 border-[#0a0c10] shrink-0">
+                      <AvatarImage src={post.author?.avatarUrl ?? undefined} />
+                      <AvatarFallback className="font-bold text-sm">
+                        {post.author ? (post.author.firstName[0] + post.author.lastName[0]) : "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="font-bold text-sm text-foreground">
+                          {post.author ? `${post.author.firstName} ${post.author.lastName}` : "Unknown User"}
+                        </span>
+                        <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase">
+                          {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                        </span>
+                        {!post.isDeleted && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="ml-auto h-8 w-8" aria-label={`Reply actions for ${post.author?.firstName ?? "member"}`}>
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => { setReportTargetPostId(post.id); setReportDialogOpen(true); }} className="cursor-pointer gap-2">
+                                <Flag className="h-4 w-4" /> Report reply
+                              </DropdownMenuItem>
+                              {post.authorUserId && post.authorUserId !== me?.id && (
+                                <DropdownMenuItem onSelect={() => handleSetMemberHidden(post.authorUserId, !post.hiddenByMe)} className="cursor-pointer gap-2">
+                                  {post.hiddenByMe ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                                  {post.hiddenByMe ? "Unhide member" : "Hide member"}
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <DropdownMenuItem onSelect={() => {
+                                  if (confirm("Delete this message?")) {
+                                    deletePost.mutate({ id: post.id }, {
+                                      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListBoardPostsQueryKey(id) }),
+                                    });
+                                  }
+                                }} className="cursor-pointer gap-2 text-destructive">
+                                  <Trash2 className="h-4 w-4" /> Delete reply
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                      {isHidden ? (
+                        <div className="rounded-xl border border-dashed p-3 text-sm">
+                          <p className="text-muted-foreground">This reply is from a member you hid.</p>
+                          <Button variant="link" className="h-auto px-0 py-1" onClick={() => setRevealedHiddenAuthors((current) => ({ ...current, [post.authorUserId ?? -1]: true }))}>
+                            Show reply
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
+                            <RichMessageContent text={post.body} bodyFormat={post.bodyFormat} isDeleted={post.isDeleted} linkPreviews />
+                            {!post.isDeleted && <DiscussionImages paths={post.imageObjectPaths} />}
+                          </div>
+                          {!post.isDeleted && (
+                            <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="inline-block min-w-[50%] max-w-full rounded-2xl border border-[#0a0c10]/20 bg-card p-3 text-foreground shadow-sm transition-colors">
-                    <RichMessageContent text={post.body} bodyFormat={post.bodyFormat} isDeleted={post.isDeleted} linkPreviews />
-                    {!post.isDeleted && <DiscussionImages paths={post.imageObjectPaths} />}
-                  </div>
-                   {!post.isDeleted && (
-                     <ReactionBar targetType="post" targetId={post.id} reactions={post.reactions} onToggle={handleToggleReaction} onView={handleViewReaction} disabled={toggleReaction.isPending} />
-                   )}
                 </div>
               </article>
             );
@@ -654,11 +735,11 @@ export default function BoardThread() {
       </main>
 
       <Dialog open={reportDialogOpen} onOpenChange={(open) => {
-        if (!createThreadReport.isPending) setReportDialogOpen(open);
+        if (!isReporting) setReportDialogOpen(open);
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Report this discussion</DialogTitle>
+            <DialogTitle>{reportTargetPostId === null ? "Report this discussion" : "Report this reply"}</DialogTitle>
             <DialogDescription>Your report is private and will be sent to the coaching team.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmitThreadReport} className="space-y-4">
@@ -690,9 +771,9 @@ export default function BoardThread() {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)} disabled={createThreadReport.isPending}>Cancel</Button>
-              <Button type="submit" disabled={createThreadReport.isPending}>
-                {createThreadReport.isPending ? "Sending…" : "Send report"}
+              <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)} disabled={isReporting}>Cancel</Button>
+              <Button type="submit" disabled={isReporting}>
+                {isReporting ? "Sending…" : "Send report"}
               </Button>
             </div>
           </form>

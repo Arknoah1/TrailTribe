@@ -15,6 +15,7 @@ export interface BoardThread {
   /** @maxItems 4 */
   imageObjectPaths: string[];
   authorUserId?: number | null;
+  hiddenByMe: boolean;
   podId?: string | null;
   eventId?: number | null;
   isPinned: boolean;

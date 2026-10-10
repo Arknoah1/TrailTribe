@@ -8,6 +8,8 @@ import {
   useGetBoardUnreadCount,
   useMarkBoardSeen,
   useCreateBoardThread,
+  useListHiddenBoardMembers,
+  useSetHiddenBoardMember,
   usePinBoardThread,
   useDeleteBoardThread,
   useArchiveBroadcast,
@@ -15,6 +17,7 @@ import {
   getGetBoardUnreadCountQueryKey,
   getListBoardThreadsQueryKey,
   getListBroadcastsQueryKey,
+  getListHiddenBoardMembersQueryKey,
 } from "@workspace/api-client-react";
 import type { BoardThreadWithDetails, BroadcastWithSender } from "@workspace/api-client-react";
 import { isOperationalStaff } from "@/lib/user-capabilities";
@@ -39,6 +42,7 @@ import {
   ChevronDown,
   ChevronUp,
   ListFilter,
+  Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -63,6 +67,7 @@ import { RichMessageEditor } from "@/components/rich-message-editor";
 import { RichMessageContent } from "@/components/rich-message-content";
 import { messageLinkPreviewText } from "@/lib/message-formatting.mjs";
 import { compareBroadcastsNewestFirst } from "@/lib/broadcast-order.mjs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const newThreadSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -76,11 +81,19 @@ function getMessageTabFromLocation(search: string): MessageTab {
   return tab === "pod" || tab === "events" || tab === "announcements" ? tab : "general";
 }
 
-function ThreadCard({ thread, podNameMap, isUnread }: { thread: BoardThreadWithDetails; podNameMap: Map<string, string>; isUnread: boolean }) {
+function ThreadCard({ thread, podNameMap, isUnread, collapsed = false, onShow }: { thread: BoardThreadWithDetails; podNameMap: Map<string, string>; isUnread: boolean; collapsed?: boolean; onShow?: () => void }) {
   return (
-    <Card className="hover:border-[#0a0c10] hover:shadow-cel-sm transition-all cursor-pointer">
+    <Card className="hover:border-[#0a0c10] hover:shadow-cel-sm transition-all">
       <CardContent className="p-4 sm:p-5">
-        <div className="flex gap-4">
+        {collapsed ? (
+          <div className="flex flex-wrap items-center justify-between gap-3" data-testid={`hidden-thread-${thread.id}`}>
+            <div>
+              <p className="font-semibold">Discussion from a member you hid</p>
+              <p className="text-xs text-muted-foreground">{thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={onShow}>Show discussion</Button>
+          </div>
+        ) : <div className="flex gap-4">
           <Avatar className="h-10 w-10 border border-[#0a0c10] shrink-0">
             <AvatarImage src={thread.author?.avatarUrl ?? undefined} />
             <AvatarFallback className="font-bold">
@@ -130,9 +143,54 @@ function ThreadCard({ thread, podNameMap, isUnread }: { thread: BoardThreadWithD
               </div>
             </div>
           </div>
-        </div>
+        </div>}
       </CardContent>
     </Card>
+  );
+}
+
+function HiddenBoardMembersManager() {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const hiddenQuery = useListHiddenBoardMembers({ query: { queryKey: getListHiddenBoardMembersQueryKey(), enabled: open } });
+  const setHidden = useSetHiddenBoardMember();
+  const unhide = (userId: number) => setHidden.mutate({ userId, data: { hidden: false } }, {
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: getListHiddenBoardMembersQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListBoardThreadsQueryKey() });
+      toast({ title: "Member unhidden on the Community Board" });
+    },
+    onError: () => toast({ title: "Couldn’t update hidden-member preference", variant: "destructive" }),
+  });
+
+  return (
+    <>
+      <Button variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(true)} data-testid="manage-hidden-members">
+        <Eye className="mr-2 h-4 w-4" /> Hidden members
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hidden Board members</DialogTitle>
+            <DialogDescription>Hidden members’ discussions and replies stay collapsed for you. They are not notified.</DialogDescription>
+          </DialogHeader>
+          {hiddenQuery.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+          {hiddenQuery.isError ? <p role="alert" className="text-sm text-destructive">Could not load hidden members.</p> : null}
+          {!hiddenQuery.isLoading && !hiddenQuery.isError && !hiddenQuery.data?.length ? (
+            <p className="text-sm text-muted-foreground">You have not hidden any members.</p>
+          ) : null}
+          <div className="max-h-64 space-y-2 overflow-y-auto">
+            {hiddenQuery.data?.map((member) => (
+              <div key={member.userId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                <span className="text-sm font-semibold">{member.firstName} {member.lastName}</span>
+                <Button size="sm" variant="outline" disabled={setHidden.isPending} onClick={() => unhide(member.userId)}>Unhide</Button>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -363,6 +421,7 @@ function ThreadsList({
   unreadThreadIds: number[] | null;
 }) {
   const { data: threads, isLoading, isError, error, refetch } = useListBoardThreads({ scope, podId });
+  const [shownHiddenThreads, setShownHiddenThreads] = useState<number[]>([]);
 
   // Event threads are ordered chronologically, then by most recent activity.
   const sortedThreads = [...(threads ?? [])].sort((a, b) => {
@@ -411,16 +470,30 @@ function ThreadsList({
           )}
         </Button>
       </div>
-      {visibleThreads.length > 0 ? visibleThreads.map(thread => (
-        <Link
-          key={thread.id}
-          href={`/messages/thread/${thread.id}?tab=${scope === "event" ? "events" : scope}`}
-          className="block"
-          data-testid={`event-discussion-${thread.id}`}
-        >
-          <ThreadCard thread={thread} podNameMap={podNameMap} isUnread={unreadThreadIds?.includes(thread.id) ?? false} />
-        </Link>
-      )) : (
+      {visibleThreads.length > 0 ? visibleThreads.map(thread => {
+        const collapsed = thread.hiddenByMe && !shownHiddenThreads.includes(thread.id);
+        const card = (
+          <ThreadCard
+            thread={thread}
+            podNameMap={podNameMap}
+            isUnread={unreadThreadIds?.includes(thread.id) ?? false}
+            collapsed={collapsed}
+            onShow={() => setShownHiddenThreads((current) => current.includes(thread.id) ? current : [...current, thread.id])}
+          />
+        );
+        return collapsed ? (
+          <div key={thread.id} data-testid={`event-discussion-${thread.id}`}>{card}</div>
+        ) : (
+          <Link
+            key={thread.id}
+            href={`/messages/thread/${thread.id}?tab=${scope === "event" ? "events" : scope}`}
+            className="block"
+            data-testid={`event-discussion-${thread.id}`}
+          >
+            {card}
+          </Link>
+        );
+      }) : (
         <EmptyTrailState message={showUnreadOnly
           ? "No unread threads."
           : "No threads here yet. Be the first to start a conversation!"} />
@@ -508,6 +581,7 @@ export default function Messages() {
           <p className="text-muted-foreground mt-2 text-sm font-medium">Connect, ask questions, and share with the team.</p>
         </div>
         <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row md:w-auto">
+          <HiddenBoardMembersManager />
           {isCoachOrAdmin && (
             <Button variant="outline" asChild className="cel-interactive w-full min-w-0 max-w-full border-2 border-[#0a0c10] sm:w-auto">
               <Link href="/messages/new">New Broadcast</Link>

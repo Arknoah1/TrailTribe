@@ -220,21 +220,23 @@ test("authenticated author sees a redacted reply with no delete control after re
 
     const originalBody = "A private reply that should be redacted after deletion";
     await page.getByText(originalBody, { exact: true }).waitFor({ state: "visible" });
-    const deleteReply = page.getByRole("button", { name: "Delete reply" });
+    const replyActions = page.getByRole("button", { name: "Reply actions for Alex" });
+    await replyActions.click();
+    const deleteReply = page.getByRole("menuitem", { name: "Delete reply" });
     await deleteReply.waitFor({ state: "visible" });
 
     page.once("dialog", (dialog) => dialog.accept());
-    await deleteReply.click();
+    await deleteReply.evaluate((element) => element.click());
 
     const deletedMessage = page.getByText("[This message was deleted]", { exact: true });
     await deletedMessage.waitFor({ state: "visible" });
     assert.equal(await page.getByText(originalBody, { exact: true }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Delete reply" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Reply actions for Alex" }).count(), 0);
 
     await page.reload({ waitUntil: "networkidle" });
     await deletedMessage.waitFor({ state: "visible" });
     assert.equal(await page.getByText(originalBody, { exact: true }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Delete reply" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Reply actions for Alex" }).count(), 0);
   } finally {
     await browser.close();
   }
