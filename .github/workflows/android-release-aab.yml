@@ -146,8 +146,26 @@ jobs:
       - name: Verify native web bundle
         run: pnpm --filter @workspace/trailtribe run mobile:verify
 
+      - name: Compute version code
+        id: version
+        run: |
+          set -euo pipefail
+          # Strictly increasing build number for Google Play: a fixed offset plus
+          # this workflow's run number. The offset sits well above the hand-bumped
+          # codes used before CI took over (last was 22) so the first CI build is
+          # accepted. If you ever re-create this workflow (resetting the run
+          # number), raise the offset so new codes stay above what Play has seen.
+          VERSION_CODE_OFFSET=100
+          code=$((VERSION_CODE_OFFSET + GITHUB_RUN_NUMBER))
+          name=$(grep -E '^\s*versionName ' artifacts/trailtribe/android/app/build.gradle | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "### Android build $name ($code)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Version name: $name  |  version code: $code" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build signed release bundle
         env:
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.code }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}

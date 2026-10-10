@@ -4,6 +4,10 @@ def androidKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
 def androidKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 def androidKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 def androidKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+// Set by .github/workflows/android-release-aab.yml so every CI build gets a
+// strictly increasing versionCode (Google Play rejects any code it has already
+// seen). Unset for local/Android Studio/debug builds, which use the fallback below.
+def ciVersionCode = System.getenv("ANDROID_VERSION_CODE")
 def hasReleaseSigning = androidKeystorePath && androidKeystorePassword && androidKeyAlias && androidKeyPassword
 
 android {
@@ -13,7 +17,10 @@ android {
         applicationId "app.trailteam.trailteam"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 22
+        // Fallback only — CI release builds override this via ANDROID_VERSION_CODE.
+        // versionName below is the human-facing version: bump it by hand when you
+        // want testers/users to see a new number (e.g. 1.2.0 -> 1.3.0).
+        versionCode(ciVersionCode ? ciVersionCode.toInteger() : 22)
         versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
