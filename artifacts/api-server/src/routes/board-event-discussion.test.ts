@@ -203,6 +203,8 @@ const threads: ThreadFixture[] = [];
 const posts: PostFixture[] = [];
 const reactions: ReactionFixture[] = [];
 const attachments: AttachmentFixture[] = [];
+const reports: Array<Record<string, unknown>> = [];
+const reportNotifications: Array<Record<string, unknown>> = [];
 const users = [COACH, RIDER, OTHER_RIDER, PARENT, OTHER_PARENT];
 let selectCallIndex = 0;
 let nextReactionId = 1;
@@ -241,6 +243,7 @@ vi.mock("@workspace/db", () => {
     return value;
   };
   const boardThreadsTable = table("threads");
+  const boardThreadReportsTable = table("reports");
   const boardPostsTable = table("posts");
   const boardAttachmentsTable = table("attachments");
   const boardReactionsTable = table("reactions");
@@ -346,6 +349,13 @@ vi.mock("@workspace/db", () => {
         if (source === boardThreadsTable) {
           threads.push({ id: nextThreadId++, ...values[0], createdAt: NOW, lastReplyAt: null });
         }
+        if (source === boardThreadReportsTable) {
+          reports.push({ id: reports.length + 1, ...values[0] });
+        }
+        if (source === notificationsTable) {
+          reportNotifications.push(...values);
+          return Promise.resolve();
+        }
         if (source === boardAttachmentsTable) {
           attachments.push(...values.map((attachment) => ({ id: nextAttachmentId++, ...attachment })));
         }
@@ -354,6 +364,7 @@ vi.mock("@workspace/db", () => {
             if (source === boardReactionsTable) return [reactions.at(-1)];
             if (source === boardPostsTable) return [posts.at(-1)];
             if (source === boardThreadsTable) return [threads.at(-1)];
+            if (source === boardThreadReportsTable) return [reports.at(-1)];
             return [];
           }),
         };
@@ -419,6 +430,7 @@ vi.mock("@workspace/db", () => {
         usersTable: {
           findFirst: vi.fn().mockImplementation(({ where }: any) =>
             Promise.resolve(users.find((user) => user.clerkUserId === currentClerkUserId) ?? null)),
+          findMany: vi.fn().mockImplementation(() => Promise.resolve(users)),
         },
         eventsTable: {
           findMany: vi.fn().mockImplementation(() => Promise.resolve(events)),
@@ -494,6 +506,7 @@ vi.mock("@workspace/db", () => {
     isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
     db: dbMock,
     boardThreadsTable,
+    boardThreadReportsTable,
     boardPostsTable,
     boardAttachmentsTable,
     usersTable,
@@ -565,6 +578,8 @@ beforeEach(() => {
   posts.length = 0;
   reactions.length = 0;
   attachments.length = 0;
+  reports.length = 0;
+  reportNotifications.length = 0;
   discussionStorageMock.objects.clear();
   discussionAclMock.policies.clear();
   nextReactionId = 1;
@@ -712,6 +727,23 @@ async function setThreadMute(user: DiscussionUser, threadId: number, muted: bool
     method: "PUT",
     headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
     body: JSON.stringify({ muted }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function submitThreadReport(
+  user: DiscussionUser,
+  threadId: number,
+  data: { reason: string; details?: string },
+) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = threadId;
+  currentEventId = threads.find((thread) => thread.id === threadId)?.eventId ?? null;
+  const response = await fetch(`${baseUrl}/board/threads/${threadId}/reports`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
+    body: JSON.stringify(data),
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
@@ -1183,6 +1215,47 @@ describe("per-discussion alert mutes", () => {
     )).toBe(true));
     expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id)).toHaveLength(1);
     expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email)).toHaveLength(1);
+  });
+});
+
+describe("discussion reports", () => {
+  it("stores an authorized report and sends its details only to staff", async () => {
+    const event = addEvent(808, new Date("2026-09-01T12:00:00Z"), new Date("2026-09-01T13:00:00Z"));
+    event.podIds = ["pod-a"];
+    event.isAllTeam = false;
+    addThread(808, event.id, NOW);
+
+    const submitted = await submitThreadReport(PARENT, 808, {
+      reason: "harassment",
+      details: "This reply targets another rider.",
+    });
+
+    expect(submitted.status).toBe(201);
+    expect(submitted.body.reportId).toBe(1);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      threadId: 808,
+      threadTitle: "Thread 808",
+      reporterUserId: PARENT.id,
+      reporterName: "Parent Trail",
+      reason: "harassment",
+      details: "This reply targets another rider.",
+    });
+    expect(reportNotifications).toHaveLength(1);
+    expect(reportNotifications[0]).toMatchObject({
+      recipientUserId: COACH.id,
+      type: "board_thread_reported",
+      title: "Discussion reported",
+      body: expect.stringContaining("Parent Trail reported"),
+      link: "/messages/thread/808",
+      isRead: false,
+    });
+
+    const denied = await submitThreadReport(OTHER_PARENT, 808, { reason: "spam" });
+    expect(denied.status).toBe(403);
+    const invalid = await submitThreadReport(PARENT, 808, { reason: "not-a-reason" });
+    expect(invalid.status).toBe(400);
+    expect(reports).toHaveLength(1);
   });
 });
 

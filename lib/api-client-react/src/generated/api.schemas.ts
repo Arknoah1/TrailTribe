@@ -842,6 +842,34 @@ export interface BoardThread {
   updatedAt: string;
 }
 
+export type BoardThreadReportInputReason =
+  (typeof BoardThreadReportInputReason)[keyof typeof BoardThreadReportInputReason];
+
+export const BoardThreadReportInputReason = {
+  inappropriate_content: "inappropriate_content",
+  harassment: "harassment",
+  spam: "spam",
+  other: "other",
+} as const;
+
+export interface BoardThreadReportInput {
+  reason: BoardThreadReportInputReason;
+  /** @maxLength 1000 */
+  details?: string;
+}
+
+export interface BoardThreadMuteInput {
+  muted: boolean;
+}
+
+export interface BoardThreadMuteResponse {
+  muted: boolean;
+}
+
+export interface BoardThreadReportResponse {
+  reportId: number;
+}
+
 export interface BoardReactionCount {
   count: number;
   reacted: boolean;
@@ -1305,14 +1333,6 @@ export const ListBoardThreadsScope = {
   pod: "pod",
   event: "event",
 } as const;
-
-export type SetBoardThreadMuteBody = {
-  muted: boolean;
-};
-
-export type SetBoardThreadMute200 = {
-  muted: boolean;
-};
 
 export type GetBoardReactionDetailsParams = {
   reaction: GetBoardReactionDetailsReaction;

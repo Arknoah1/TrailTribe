@@ -1079,6 +1079,25 @@ const migrations: { name: string; sql: string }[] = [
       END $$;
     `,
   },
+  {
+    name: "create_board_thread_reports_table",
+    sql: `
+      CREATE TABLE IF NOT EXISTS board_thread_reports (
+        id serial PRIMARY KEY,
+        thread_id integer REFERENCES board_threads(id) ON DELETE SET NULL,
+        thread_title text NOT NULL,
+        reporter_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+        reporter_name text NOT NULL,
+        reason text NOT NULL CHECK (reason IN ('inappropriate_content', 'harassment', 'spam', 'other')),
+        details text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS board_thread_reports_thread_id_idx
+        ON board_thread_reports(thread_id);
+      CREATE INDEX IF NOT EXISTS board_thread_reports_created_at_idx
+        ON board_thread_reports(created_at);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

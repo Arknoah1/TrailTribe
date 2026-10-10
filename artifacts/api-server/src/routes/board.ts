@@ -3,6 +3,7 @@ import { Readable } from "stream";
 import { db } from "@workspace/db";
 import {
   boardThreadsTable,
+  boardThreadReportsTable,
   boardPostsTable,
   boardAttachmentsTable,
   usersTable,
@@ -12,7 +13,7 @@ import {
   isEventAudienceMember,
   isOperationalStaffRole,
 } from "@workspace/db";
-import { eq, and, desc, isNull, or, inArray, gt, gte, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, or, inArray, gt, gte, sql, arrayContains } from "drizzle-orm";
 import { requireAuth, requireApproved, requireCoachOrAdmin, hasStudentAccess } from "../middlewares/requireAuth";
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
@@ -50,6 +51,8 @@ import {
   SetBoardThreadMuteBody,
   SetBoardThreadMuteParams,
   SetBoardThreadMuteResponse,
+  CreateBoardThreadReportBody,
+  CreateBoardThreadReportParams,
 } from "@workspace/api-zod";
 
 const router = Router();
@@ -760,6 +763,77 @@ router.get("/board/threads/:id", requireApproved, async (req, res) => {
 });
 
 // PUT /board/threads/:id/mute — mute or unmute this discussion for the current member.
+router.post("/board/threads/:id/reports", requireApproved, async (req, res) => {
+  const params = CreateBoardThreadReportParams.safeParse(req.params);
+  const body = CreateBoardThreadReportBody.safeParse(req.body);
+  if (!params.success || !Number.isInteger(params.data?.id) || params.data.id <= 0) {
+    res.status(400).json({ error: "Invalid thread ID" });
+    return;
+  }
+  if (!body.success) {
+    res.status(400).json({ error: "Choose a valid reason and keep details under 1000 characters." });
+    return;
+  }
+
+  const me = await getMe((req as any).clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  const thread = await db.query.boardThreadsTable.findFirst({
+    where: eq(boardThreadsTable.id, params.data.id),
+  });
+  if (!thread) { res.status(404).json({ error: "Discussion not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const reasonLabels = {
+    inappropriate_content: "Inappropriate content",
+    harassment: "Bullying or harassment",
+    spam: "Spam",
+    other: "Other",
+  } as const;
+  const reporterName = [me.firstName, me.lastName].filter(Boolean).join(" ").trim() || "A member";
+  const details = body.data.details?.trim() || null;
+  const [report] = await db.insert(boardThreadReportsTable).values({
+    threadId: thread.id,
+    threadTitle: thread.title,
+    reporterUserId: me.id,
+    reporterName,
+    reason: body.data.reason,
+    details,
+  }).returning({ id: boardThreadReportsTable.id });
+
+  const staff = await db.query.usersTable.findMany({
+    where: and(
+      eq(usersTable.isActive, true),
+      eq(usersTable.approved, true),
+      or(
+        eq(usersTable.role, "coach"),
+        eq(usersTable.role, "super_admin"),
+        arrayContains(usersTable.roles, ["coach"]),
+        arrayContains(usersTable.roles, ["super_admin"]),
+      ),
+    ),
+  });
+  const notificationBody = [
+    `${reporterName} reported “${thread.title}”.`,
+    `Reason: ${reasonLabels[body.data.reason]}.`,
+    details ? `Details: ${details}` : null,
+  ].filter(Boolean).join(" ");
+  await Promise.all(staff
+    .filter((user) => user.id !== me.id && isOperationalStaffRole(user))
+    .map((user) => db.insert(notificationsTable).values({
+      recipientUserId: user.id,
+      type: "board_thread_reported",
+      title: "Discussion reported",
+      body: notificationBody,
+      link: `/messages/thread/${thread.id}`,
+      isRead: false,
+    })));
+
+  res.status(201).json({ reportId: report.id });
+});
+
 router.put("/board/threads/:id/mute", requireApproved, async (req, res) => {
   const clerkUserId = (req as any).clerkUserId;
   const params = SetBoardThreadMuteParams.safeParse(req.params);

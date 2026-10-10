@@ -33,6 +33,22 @@ export const insertBoardThreadSchema = createInsertSchema(boardThreadsTable).omi
 export type InsertBoardThread = z.infer<typeof insertBoardThreadSchema>;
 export type BoardThread = typeof boardThreadsTable.$inferSelect;
 
+export const boardThreadReportsTable = pgTable("board_thread_reports", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").references(() => boardThreadsTable.id, { onDelete: "set null" }),
+  threadTitle: text("thread_title").notNull(),
+  reporterUserId: integer("reporter_user_id").references(() => usersTable.id, { onDelete: "set null" }),
+  reporterName: text("reporter_name").notNull(),
+  reason: text("reason", { enum: ["inappropriate_content", "harassment", "spam", "other"] }).notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("board_thread_reports_thread_id_idx").on(t.threadId),
+  index("board_thread_reports_created_at_idx").on(t.createdAt),
+]);
+
+export type BoardThreadReport = typeof boardThreadReportsTable.$inferSelect;
+
 export const boardPostsTable = pgTable("board_posts", {
   id: serial("id").primaryKey(),
   threadId: integer("thread_id").notNull().references(() => boardThreadsTable.id, { onDelete: "cascade" }),

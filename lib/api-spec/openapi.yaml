@@ -2205,24 +2205,59 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [muted]
-              properties:
-                muted:
-                  type: boolean
+              $ref: "#/components/schemas/BoardThreadMuteInput"
       responses:
         "200":
           description: Updated discussion alert setting
           content:
             application/json:
               schema:
-                type: object
-                required: [muted]
-                properties:
-                  muted:
-                    type: boolean
+                $ref: "#/components/schemas/BoardThreadMuteResponse"
         "403":
           description: The member cannot access this discussion or manage notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /board/threads/{id}/reports:
+    post:
+      operationId: createBoardThreadReport
+      tags: [board]
+      summary: Report a discussion to coaches and administrators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardThreadReportInput"
+      responses:
+        "201":
+          description: Discussion report submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardThreadReportResponse"
+        "400":
+          description: Invalid report reason or details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: The member cannot access this discussion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Discussion not found
           content:
             application/json:
               schema:
@@ -4109,6 +4144,38 @@ components:
           type: string
           format: date-time
       required: [id, title, body, imageObjectPaths, isPinned, isLocked, replyCount, createdAt, updatedAt]
+
+    BoardThreadReportInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [inappropriate_content, harassment, spam, other]
+        details:
+          type: string
+          maxLength: 1000
+
+    BoardThreadMuteInput:
+      type: object
+      required: [muted]
+      properties:
+        muted:
+          type: boolean
+
+    BoardThreadMuteResponse:
+      type: object
+      required: [muted]
+      properties:
+        muted:
+          type: boolean
+
+    BoardThreadReportResponse:
+      type: object
+      required: [reportId]
+      properties:
+        reportId:
+          type: integer
 
     BoardThreadWithDetails:
       allOf:

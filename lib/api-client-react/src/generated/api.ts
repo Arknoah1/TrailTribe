@@ -29,6 +29,10 @@ import type {
   BoardReactionDetails,
   BoardReactionSummary,
   BoardThread,
+  BoardThreadMuteInput,
+  BoardThreadMuteResponse,
+  BoardThreadReportInput,
+  BoardThreadReportResponse,
   BoardThreadWithDetails,
   Broadcast,
   BroadcastWithSender,
@@ -103,8 +107,6 @@ import type {
   RescheduleSeriesBody,
   RsvpBody,
   SendBroadcastBody,
-  SetBoardThreadMute200,
-  SetBoardThreadMuteBody,
   SetEventVolunteerTasksEnabledBody,
   SignUpForEventTaskBody,
   StaffRoleUpdate,
@@ -7899,14 +7901,14 @@ export const getSetBoardThreadMuteUrl = (id: number) => {
 
 export const setBoardThreadMute = async (
   id: number,
-  setBoardThreadMuteBody: SetBoardThreadMuteBody,
+  boardThreadMuteInput: BoardThreadMuteInput,
   options?: RequestInit,
-): Promise<SetBoardThreadMute200> => {
-  return customFetch<SetBoardThreadMute200>(getSetBoardThreadMuteUrl(id), {
+): Promise<BoardThreadMuteResponse> => {
+  return customFetch<BoardThreadMuteResponse>(getSetBoardThreadMuteUrl(id), {
     ...options,
     method: "PUT",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(setBoardThreadMuteBody),
+    body: JSON.stringify(boardThreadMuteInput),
   });
 };
 
@@ -7917,14 +7919,14 @@ export const getSetBoardThreadMuteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setBoardThreadMute>>,
     TError,
-    { id: number; data: BodyType<SetBoardThreadMuteBody> },
+    { id: number; data: BodyType<BoardThreadMuteInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof setBoardThreadMute>>,
   TError,
-  { id: number; data: BodyType<SetBoardThreadMuteBody> },
+  { id: number; data: BodyType<BoardThreadMuteInput> },
   TContext
 > => {
   const mutationKey = ["setBoardThreadMute"];
@@ -7938,7 +7940,7 @@ export const getSetBoardThreadMuteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof setBoardThreadMute>>,
-    { id: number; data: BodyType<SetBoardThreadMuteBody> }
+    { id: number; data: BodyType<BoardThreadMuteInput> }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -7951,7 +7953,7 @@ export const getSetBoardThreadMuteMutationOptions = <
 export type SetBoardThreadMuteMutationResult = NonNullable<
   Awaited<ReturnType<typeof setBoardThreadMute>>
 >;
-export type SetBoardThreadMuteMutationBody = BodyType<SetBoardThreadMuteBody>;
+export type SetBoardThreadMuteMutationBody = BodyType<BoardThreadMuteInput>;
 export type SetBoardThreadMuteMutationError = ErrorType<ErrorResponse>;
 
 /**
@@ -7964,17 +7966,108 @@ export const useSetBoardThreadMute = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof setBoardThreadMute>>,
     TError,
-    { id: number; data: BodyType<SetBoardThreadMuteBody> },
+    { id: number; data: BodyType<BoardThreadMuteInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof setBoardThreadMute>>,
   TError,
-  { id: number; data: BodyType<SetBoardThreadMuteBody> },
+  { id: number; data: BodyType<BoardThreadMuteInput> },
   TContext
 > => {
   return useMutation(getSetBoardThreadMuteMutationOptions(options));
+};
+
+/**
+ * @summary Report a discussion to coaches and administrators
+ */
+export const getCreateBoardThreadReportUrl = (id: number) => {
+  return `/api/board/threads/${id}/reports`;
+};
+
+export const createBoardThreadReport = async (
+  id: number,
+  boardThreadReportInput: BoardThreadReportInput,
+  options?: RequestInit,
+): Promise<BoardThreadReportResponse> => {
+  return customFetch<BoardThreadReportResponse>(
+    getCreateBoardThreadReportUrl(id),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(boardThreadReportInput),
+    },
+  );
+};
+
+export const getCreateBoardThreadReportMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardThreadReport>>,
+    TError,
+    { id: number; data: BodyType<BoardThreadReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createBoardThreadReport>>,
+  TError,
+  { id: number; data: BodyType<BoardThreadReportInput> },
+  TContext
+> => {
+  const mutationKey = ["createBoardThreadReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createBoardThreadReport>>,
+    { id: number; data: BodyType<BoardThreadReportInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createBoardThreadReport(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateBoardThreadReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createBoardThreadReport>>
+>;
+export type CreateBoardThreadReportMutationBody =
+  BodyType<BoardThreadReportInput>;
+export type CreateBoardThreadReportMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Report a discussion to coaches and administrators
+ */
+export const useCreateBoardThreadReport = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createBoardThreadReport>>,
+    TError,
+    { id: number; data: BodyType<BoardThreadReportInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createBoardThreadReport>>,
+  TError,
+  { id: number; data: BodyType<BoardThreadReportInput> },
+  TContext
+> => {
+  return useMutation(getCreateBoardThreadReportMutationOptions(options));
 };
 
 /**

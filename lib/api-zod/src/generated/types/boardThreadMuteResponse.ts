@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SetBoardThreadMute200 = {
+export interface BoardThreadMuteResponse {
   muted: boolean;
-};
+}

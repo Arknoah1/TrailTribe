@@ -13,6 +13,7 @@ import {
   useGetBoardReactionDetails,
   useGetMe,
   useSetBoardThreadMute,
+  useCreateBoardThreadReport,
   getGetMeQueryKey,
   getGetBoardReactionDetailsQueryKey,
   getListBoardPostsQueryKey,
@@ -22,7 +23,7 @@ import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { isOperationalStaff } from "@/lib/user-capabilities";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus, Bell, BellOff
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus, Bell, BellOff, Flag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -182,6 +183,10 @@ export default function BoardThread() {
   const pinThread = usePinBoardThread();
   const toggleReaction = useToggleBoardReaction();
   const setThreadMute = useSetBoardThreadMute();
+  const createThreadReport = useCreateBoardThreadReport();
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<"inappropriate_content" | "harassment" | "spam" | "other">("inappropriate_content");
+  const [reportDetails, setReportDetails] = useState("");
   const isThreadMuted = me?.notificationPreferences?.mutedBoardDiscussionIds?.includes(id) ?? false;
   const [reactionDetails, setReactionDetails] = useState<{
     targetType: "thread" | "post";
@@ -390,6 +395,22 @@ export default function BoardThread() {
     });
   };
 
+  const handleSubmitThreadReport = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createThreadReport.mutate({
+      id,
+      data: { reason: reportReason, details: reportDetails.trim() || undefined },
+    }, {
+      onSuccess: () => {
+        setReportDialogOpen(false);
+        setReportReason("inappropriate_content");
+        setReportDetails("");
+        toast({ title: "Report sent to your coaches", description: "Thanks for helping keep discussions safe." });
+      },
+      onError: () => toast({ title: "Couldn’t send report", description: "Please try again.", variant: "destructive" }),
+    });
+  };
+
   if (isThreadLoading) return <div className="p-6 max-w-3xl mx-auto space-y-5"><Skeleton className="h-14 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-2xl" /></div>;
   if (isThreadError) {
     if (isEventDiscussionAccessDenied(threadError)) {
@@ -468,8 +489,7 @@ export default function BoardThread() {
             <span className="hidden sm:inline">{isThreadMuted ? "Unmute" : "Mute"}</span>
           </Button>
           
-          {canDeleteThread && (
-            <DropdownMenu>
+          <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
@@ -481,6 +501,9 @@ export default function BoardThread() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="border-2 border-[#0a0c10] shadow-cel-sm font-medium">
+                <DropdownMenuItem onSelect={() => setReportDialogOpen(true)} className="cursor-pointer gap-2">
+                  <Flag className="h-4 w-4" /> Report to coach
+                </DropdownMenuItem>
                 {canPinThread && (
                   <DropdownMenuItem onClick={handlePin} className="cursor-pointer gap-2">
                     <Pin className="h-4 w-4" /> {thread.isPinned ? "Unpin Thread" : "Pin Thread"}
@@ -493,7 +516,6 @@ export default function BoardThread() {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
         </div>
       </header>
 
@@ -606,6 +628,52 @@ export default function BoardThread() {
           <div ref={messagesEndRef} />
         </div>
       </main>
+
+      <Dialog open={reportDialogOpen} onOpenChange={(open) => {
+        if (!createThreadReport.isPending) setReportDialogOpen(open);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report this discussion</DialogTitle>
+            <DialogDescription>Your report is private and will be sent to the coaching team.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmitThreadReport} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="thread-report-reason" className="text-sm font-semibold">Why are you reporting this?</label>
+              <select
+                id="thread-report-reason"
+                value={reportReason}
+                onChange={(event) => setReportReason(event.target.value as typeof reportReason)}
+                className="w-full min-h-11 rounded-lg border-2 border-[#0a0c10]/30 bg-background px-3 py-2 text-sm"
+                data-testid="thread-report-reason"
+              >
+                <option value="inappropriate_content">Inappropriate content</option>
+                <option value="harassment">Bullying or harassment</option>
+                <option value="spam">Spam</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="thread-report-details" className="text-sm font-semibold">Additional details (optional)</label>
+              <textarea
+                id="thread-report-details"
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value.slice(0, 1000))}
+                maxLength={1000}
+                rows={4}
+                className="w-full resize-y rounded-lg border-2 border-[#0a0c10]/30 bg-background px-3 py-2 text-sm"
+                placeholder="Share any context that may help the coaches review it."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)} disabled={createThreadReport.isPending}>Cancel</Button>
+              <Button type="submit" disabled={createThreadReport.isPending}>
+                {createThreadReport.isPending ? "Sending…" : "Send report"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={reactionDetails !== null} onOpenChange={(open) => { if (!open) setReactionDetails(null); }}>
         <DialogContent className="max-w-sm">

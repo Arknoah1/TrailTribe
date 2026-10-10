@@ -3173,6 +3173,20 @@ export const SetBoardThreadMuteResponse = zod.object({
 });
 
 /**
+ * @summary Report a discussion to coaches and administrators
+ */
+export const CreateBoardThreadReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createBoardThreadReportBodyDetailsMax = 1000;
+
+export const CreateBoardThreadReportBody = zod.object({
+  reason: zod.enum(["inappropriate_content", "harassment", "spam", "other"]),
+  details: zod.string().max(createBoardThreadReportBodyDetailsMax).optional(),
+});
+
+/**
  * @summary List posts in a thread
  */
 export const ListBoardPostsParams = zod.object({
