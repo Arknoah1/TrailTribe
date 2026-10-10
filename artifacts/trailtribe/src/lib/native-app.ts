@@ -46,7 +46,9 @@ export function NativeAppBridge() {
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    void StatusBar.setStyle({ style: theme === "dark" ? Style.Light : Style.Dark });
+    // Capacitor's style names describe the status-bar background appearance:
+    // Style.Light uses dark icons, while Style.Dark uses light icons.
+    void StatusBar.setStyle({ style: theme === "dark" ? Style.Dark : Style.Light });
   }, [theme]);
 
   useEffect(() => {

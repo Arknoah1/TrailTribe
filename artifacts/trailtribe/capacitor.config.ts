@@ -49,7 +49,9 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      style: "LIGHT",
+      // The native launch surface is dark, so use light icons before the web
+      // app can apply the user's saved theme.
+      style: "DARK",
       backgroundColor: "#0f1117",
       overlaysWebView: true,
     },

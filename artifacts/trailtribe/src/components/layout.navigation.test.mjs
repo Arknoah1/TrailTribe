@@ -5,11 +5,26 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
-const [source, cssSource, nativeAppSource, capacitorConfigSource] = await Promise.all([
+const [
+  source,
+  cssSource,
+  nativeAppSource,
+  capacitorConfigSource,
+  androidStylesSource,
+  androidManifestSource,
+  capacitorAndroidStatusBarSource,
+  capacitorAndroidPluginSource,
+  capacitorIosStatusBarSource,
+] = await Promise.all([
   readFile(resolve(sourceDir, "layout.tsx"), "utf8"),
   readFile(resolve(sourceDir, "../index.css"), "utf8"),
   readFile(resolve(sourceDir, "../lib/native-app.ts"), "utf8"),
   readFile(resolve(sourceDir, "../../capacitor.config.ts"), "utf8"),
+  readFile(resolve(sourceDir, "../../android/app/src/main/res/values/styles.xml"), "utf8"),
+  readFile(resolve(sourceDir, "../../android/app/src/main/AndroidManifest.xml"), "utf8"),
+  readFile(resolve(sourceDir, "../../node_modules/@capacitor/status-bar/android/src/main/java/com/capacitorjs/plugins/statusbar/StatusBar.java"), "utf8"),
+  readFile(resolve(sourceDir, "../../node_modules/@capacitor/status-bar/android/src/main/java/com/capacitorjs/plugins/statusbar/StatusBarPlugin.java"), "utf8"),
+  readFile(resolve(sourceDir, "../../node_modules/@capacitor/status-bar/ios/Sources/StatusBarPlugin/StatusBarPlugin.swift"), "utf8"),
 ]);
 
 test("the mobile actions menu keeps notifications visible while grouping account controls", () => {
@@ -48,6 +63,22 @@ test("the fixed mobile header reserves top and horizontal device safe areas", ()
 });
 
 test("native status-bar icon contrast follows the selected theme", () => {
-  assert.match(nativeAppSource, /theme === "dark" \? Style\.Light : Style\.Dark/);
-  assert.match(capacitorConfigSource, /StatusBar:\s*\{\s*style:\s*"LIGHT"/);
+  assert.match(nativeAppSource, /StatusBar\.setStyle\(\{ style: theme === "dark" \? Style\.Dark : Style\.Light \}\);\s*\}, \[theme\]\);/);
+  assert.match(capacitorConfigSource, /StatusBar:\s*\{[^}]*style:\s*"DARK"[^}]*\}/);
+  assert.match(capacitorConfigSource, /backgroundColor:\s*"#0f1117"/);
+});
+
+test("Capacitor status-bar styles keep icon contrast correct on Android and iOS", () => {
+  // Android LIGHT enables dark icons; DARK disables that flag for light icons.
+  assert.match(capacitorAndroidStatusBarSource, /setAppearanceLightStatusBars\(!style\.equals\("DARK"\)\)/);
+  // The iOS bridge maps those same style names to dark and light status content.
+  assert.match(capacitorIosStatusBarSource, /case "dark", "lightcontent":\s*return \.lightContent/);
+  assert.match(capacitorIosStatusBarSource, /case "light", "darkcontent":\s*return \.darkContent/);
+});
+
+test("Android starts with light icons over the dark splash regardless of device theme", () => {
+  assert.match(androidStylesSource, /style name="AppTheme\.NoActionBar" parent="Theme\.AppCompat\.DayNight\.NoActionBar"[\s\S]*?android:windowLightStatusBar">false/);
+  assert.match(androidStylesSource, /style name="AppTheme\.NoActionBarLaunch" parent="Theme\.SplashScreen"[\s\S]*?android:windowLightStatusBar">false/);
+  assert.match(androidManifestSource, /configChanges="[^"]*uiMode/);
+  assert.match(capacitorAndroidPluginSource, /handleOnConfigurationChanged[\s\S]*?implementation\.updateStyle\(\)/);
 });
