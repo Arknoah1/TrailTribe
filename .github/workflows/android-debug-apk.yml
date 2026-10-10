@@ -7,6 +7,12 @@ on:
         description: "GitHub prerelease tag, for example sideload-v1.0.0-1"
         required: true
         type: string
+      debug_overlay:
+        description: >-
+          Show the on-screen diagnostics panel (console, fetch status, Clerk
+          state) in this APK, for debugging sign-in on a device. Off by default.
+        type: boolean
+        default: false
   push:
     tags:
       - "sideload-v*"
@@ -101,6 +107,8 @@ jobs:
       - name: Build web app and sync into native project
         env:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+          # Read by src/main.tsx (on-screen diagnostics panel); false on tag pushes.
+          VITE_DEBUG_OVERLAY: ${{ inputs.debug_overlay && 'true' || 'false' }}
         run: pnpm --filter @workspace/trailtribe run mobile:sync
 
       - name: Verify native web bundle

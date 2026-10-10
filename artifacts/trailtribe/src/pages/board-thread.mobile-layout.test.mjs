@@ -190,8 +190,11 @@ test("discussion navigation preserves the originating Messages category", () => 
 test("thread and reply actions use server-provided permissions", () => {
   assert.match(threadSource, /const canDeleteThread = thread\?\.permissions\?\.canDelete === true;/);
   assert.match(threadSource, /const canPinThread = thread\?\.permissions\?\.canPin === true;/);
+  // The actions menu is shown to every member (it holds "Report to coach");
+  // pin and delete stay gated individually by the server-provided permissions.
   assert.match(threadSource, /<DropdownMenu>\s*<DropdownMenuTrigger asChild>/);
   assert.match(threadSource, /aria-label="Thread actions"/);
+  assert.match(threadSource, /setReportDialogOpen\(true\)[^>]*>\s*<Flag[^>]*\/> Report to coach/);
   assert.match(threadSource, /\{canPinThread && \(\s*<DropdownMenuItem onClick=\{handlePin\}/);
   assert.match(threadSource, /\{canDeleteThread && \(\s*<DropdownMenuItem onClick=\{handleDeleteThread\}/);
   assert.match(threadSource, /const canDelete = post\.permissions\?\.canDelete === true;/);
