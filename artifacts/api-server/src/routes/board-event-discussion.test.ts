@@ -598,6 +598,8 @@ vi.mock("@workspace/db", () => {
   return {
     isEventAudienceMember: sharedIsEventAudienceMember,
     isOperationalStaffRole: (user: any) => ["coach", "super_admin"].some((role) => user?.role === role || user?.roles?.includes(role)),
+    hasUserRole: (user: any, role: string) => user?.role === role || user?.roles?.includes(role),
+    getUserRoles: (user: any) => user?.roles ?? (user?.role ? [user.role] : []),
     db: dbMock,
     boardThreadsTable,
     boardThreadReportsTable,
@@ -636,6 +638,10 @@ vi.mock("../middlewares/requireAuth", () => ({
     req.clerkUserId = "clerk_test_coach";
     next();
   },
+  requireSuperAdmin: (req: any, _res: any, next: any) => {
+    req.clerkUserId = "clerk_test_coach";
+    next();
+  },
 }));
 
 vi.mock("../lib/notifications", () => notificationMock);
@@ -651,11 +657,13 @@ vi.mock("../lib/objectStorage", () => discussionStorageMock);
 vi.mock("../lib/objectAcl", () => discussionAclMock);
 
 const { default: boardRouter } = await import("./board");
+const { default: usersRouter } = await import("./users");
 const { default: storageRouter } = await import("./storage");
 
 const app = express();
 app.use(express.json());
 app.use(boardRouter);
+app.use(usersRouter);
 app.use(storageRouter);
 let server: Server;
 let baseUrl: string;
@@ -833,6 +841,14 @@ async function setThreadMute(user: DiscussionUser, threadId: number, muted: bool
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : null };
+}
+
+async function getMemberProfile(user: DiscussionUser) {
+  currentClerkUserId = user.clerkUserId;
+  const response = await fetch(`${baseUrl}/users/me`, {
+    headers: { "x-test-user": user.clerkUserId },
+  });
+  return { status: response.status, body: await response.json() };
 }
 
 async function submitThreadReport(
@@ -1340,6 +1356,45 @@ describe("Community Board activity notifications", () => {
 });
 
 describe("per-discussion alert mutes", () => {
+  it("returns a mute in a separate profile session and suppresses replies only for that discussion", async () => {
+    const mutedThreadId = 609;
+    const unmutedThreadId = 610;
+    addThread(mutedThreadId, 0, NOW);
+    addThread(unmutedThreadId, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    threads[1].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+
+    const muteResponse = await setThreadMute(PARENT, mutedThreadId, true);
+    expect(muteResponse).toEqual({ status: 200, body: { muted: true } });
+
+    // A new authenticated request represents the member opening TrailTeam on
+    // another device; preferences must be read from the persisted profile.
+    const otherSessionProfile = await getMemberProfile(PARENT);
+    expect(otherSessionProfile.status).toBe(200);
+    expect(otherSessionProfile.body.notificationPreferences.mutedBoardDiscussionIds)
+      .toEqual([mutedThreadId]);
+
+    const mutedReply = await createReply(RIDER, mutedThreadId);
+    expect(mutedReply.status).toBe(201);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+      .toHaveLength(0);
+    expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+      .toHaveLength(0);
+
+    const unmutedReply = await createReply(RIDER, unmutedThreadId);
+    expect(unmutedReply.status).toBe(201);
+    await vi.waitFor(() => {
+      expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+        .toHaveLength(1);
+      expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+        .toHaveLength(1);
+    });
+    expect(notificationMock.createNotification.mock.calls.find((call) => call[0] === PARENT.id)?.[4])
+      .toBe(`/messages/thread/${unmutedThreadId}`);
+  });
+
   it("persists a member's mute and allows them to unmute the accessible discussion", async () => {
     addThread(606, 0, NOW);
 

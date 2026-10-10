@@ -2959,6 +2959,7 @@ components:
           type: boolean
         mutedBoardDiscussionIds:
           type: array
+          description: Discussion IDs muted for this member across signed-in sessions.
           items:
             type: integer
       required:
