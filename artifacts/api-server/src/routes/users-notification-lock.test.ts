@@ -363,6 +363,46 @@ describe("PATCH /users/me — notification lock guard", () => {
     const notifUpdate = updateSetCalls.find((c) => c.notificationsEnabled === false);
     expect(notifUpdate, "db.update().set({ notificationsEnabled }) should have been called").toBeTruthy();
   });
+
+  it("preserves discussion mutes when a member saves notification preferences with PUT", async () => {
+    const mutedDiscussionId = 609;
+    mockUser = {
+      ...LOCKED_STUDENT,
+      role: "parent",
+      notificationPreferencesLocked: false,
+      notificationPreferences: {
+        practiceReminders: true,
+        coachMessages: true,
+        carpoolUpdates: true,
+        eventReminders: true,
+        rosterUpdates: true,
+        boardReplies: true,
+        mutedBoardDiscussionIds: [mutedDiscussionId],
+      },
+    };
+
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        notificationPreferences: {
+          practiceReminders: false,
+          coachMessages: true,
+          carpoolUpdates: true,
+          eventReminders: true,
+          rosterUpdates: true,
+          boardReplies: true,
+        },
+      }),
+    });
+
+    expect(resp.status).toBe(200);
+    const saved = updateSetCalls.find((call) => call.notificationPreferences);
+    expect(saved?.notificationPreferences).toMatchObject({
+      practiceReminders: false,
+      mutedBoardDiscussionIds: [mutedDiscussionId],
+    });
+  });
 });
 
 describe("POST /pending-approvals/:id/approve — role safety", () => {

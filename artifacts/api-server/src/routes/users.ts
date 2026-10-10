@@ -367,9 +367,21 @@ router.put("/users/me", requireAuth, async (req, res) => {
   }
 
   const { notificationPreferences, ...rest } = parsed.data;
+  const preservedNotificationPreferences = notificationPreferences === undefined
+    ? undefined
+    : {
+        ...notificationPreferences,
+        // Only the access-checked Board mute endpoint may change this list.
+        mutedBoardDiscussionIds: user.notificationPreferences?.mutedBoardDiscussionIds ?? [],
+      };
 
   const [updated] = await db.update(usersTable)
-    .set({ ...rest, notificationPreferences })
+    .set({
+      ...rest,
+      ...(preservedNotificationPreferences !== undefined && {
+        notificationPreferences: preservedNotificationPreferences,
+      }),
+    })
     .where(eq(usersTable.id, user.id))
     .returning();
   res.json(updated);

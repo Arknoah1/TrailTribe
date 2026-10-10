@@ -854,6 +854,19 @@ async function getMemberProfile(user: DiscussionUser) {
   return { status: response.status, body: await response.json() };
 }
 
+async function patchMemberProfile(user: DiscussionUser, patch: Record<string, unknown>) {
+  currentClerkUserId = user.clerkUserId;
+  const response = await fetch(`${baseUrl}/users/me`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      "x-test-user": user.clerkUserId,
+    },
+    body: JSON.stringify(patch),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function submitThreadReport(
   user: DiscussionUser,
   threadId: number,
@@ -1405,8 +1418,21 @@ describe("per-discussion alert mutes", () => {
     const muteResponse = await setThreadMute(PARENT, mutedThreadId, true);
     expect(muteResponse).toEqual({ status: 200, body: { muted: true } });
 
+    const preferenceUpdate = await patchMemberProfile(PARENT, {
+      notificationPreferences: {
+        practiceReminders: false,
+        coachMessages: true,
+        carpoolUpdates: true,
+        eventReminders: true,
+        rosterUpdates: true,
+        boardReplies: true,
+      },
+    });
+    expect(preferenceUpdate.status).toBe(200);
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([mutedThreadId]);
+
     // A new authenticated request represents the member opening TrailTeam on
-    // another device; preferences must be read from the persisted profile.
+    // another device after changing a different notification preference.
     const otherSessionProfile = await getMemberProfile(PARENT);
     expect(otherSessionProfile.status).toBe(200);
     expect(otherSessionProfile.body.notificationPreferences.mutedBoardDiscussionIds)
