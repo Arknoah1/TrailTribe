@@ -1474,6 +1474,49 @@ describe("per-discussion alert mutes", () => {
     expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([]);
   });
 
+  it("restores reply alerts in another session after a member unmutes a discussion", async () => {
+    const threadId = 611;
+    addThread(threadId, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+
+    const muteResponse = await setThreadMute(PARENT, threadId, true);
+    expect(muteResponse).toEqual({ status: 200, body: { muted: true } });
+
+    const profileWhileMuted = await getMemberProfile(PARENT);
+    expect(profileWhileMuted.status).toBe(200);
+    expect(profileWhileMuted.body.notificationPreferences.mutedBoardDiscussionIds)
+      .toContain(threadId);
+
+    // This separate authenticated request represents unmuting from another device.
+    const unmuteResponse = await setThreadMute(PARENT, threadId, false);
+    expect(unmuteResponse).toEqual({ status: 200, body: { muted: false } });
+
+    const profileAfterUnmute = await getMemberProfile(PARENT);
+    expect(profileAfterUnmute.status).toBe(200);
+    expect(profileAfterUnmute.body.notificationPreferences.mutedBoardDiscussionIds)
+      .not.toContain(threadId);
+
+    const reply = await createReply(RIDER, threadId);
+    expect(reply.status).toBe(201);
+
+    const expectedLink = `/messages/thread/${threadId}?reply=${reply.body.id}`;
+    await vi.waitFor(() => {
+      expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+        .toHaveLength(1);
+      expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+        .toHaveLength(1);
+    });
+
+    const memberAlert = notificationMock.createNotification.mock.calls
+      .find((call) => call[0] === PARENT.id);
+    expect(memberAlert?.[3]).toBe('Someone replied to "Thread 611"');
+    expect(memberAlert?.[4]).toBe(expectedLink);
+    const memberEmail = emailMock.sendEmail.mock.calls.find((call) => call[0].to === PARENT.email)?.[0];
+    expect(memberEmail?.text).toContain('Someone replied to "Thread 611"');
+    expect(memberEmail?.html).toContain(`href="https://trailteam.app${expectedLink}">Open reply in TrailTeam</a>`);
+  });
+
   it("enforces current discussion access and parent-locked notification preferences", async () => {
     addThread(607, 0, NOW);
     threads[0].podId = "pod-a";
