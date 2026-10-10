@@ -103,6 +103,8 @@ import type {
   RescheduleSeriesBody,
   RsvpBody,
   SendBroadcastBody,
+  SetBoardThreadMute200,
+  SetBoardThreadMuteBody,
   SetEventVolunteerTasksEnabledBody,
   SignUpForEventTaskBody,
   StaffRoleUpdate,
@@ -7886,6 +7888,93 @@ export const useDeleteBoardThread = <
   TContext
 > => {
   return useMutation(getDeleteBoardThreadMutationOptions(options));
+};
+
+/**
+ * @summary Mute or unmute discussion alerts for the current member
+ */
+export const getSetBoardThreadMuteUrl = (id: number) => {
+  return `/api/board/threads/${id}/mute`;
+};
+
+export const setBoardThreadMute = async (
+  id: number,
+  setBoardThreadMuteBody: SetBoardThreadMuteBody,
+  options?: RequestInit,
+): Promise<SetBoardThreadMute200> => {
+  return customFetch<SetBoardThreadMute200>(getSetBoardThreadMuteUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(setBoardThreadMuteBody),
+  });
+};
+
+export const getSetBoardThreadMuteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBoardThreadMute>>,
+    TError,
+    { id: number; data: BodyType<SetBoardThreadMuteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setBoardThreadMute>>,
+  TError,
+  { id: number; data: BodyType<SetBoardThreadMuteBody> },
+  TContext
+> => {
+  const mutationKey = ["setBoardThreadMute"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setBoardThreadMute>>,
+    { id: number; data: BodyType<SetBoardThreadMuteBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return setBoardThreadMute(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetBoardThreadMuteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setBoardThreadMute>>
+>;
+export type SetBoardThreadMuteMutationBody = BodyType<SetBoardThreadMuteBody>;
+export type SetBoardThreadMuteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Mute or unmute discussion alerts for the current member
+ */
+export const useSetBoardThreadMute = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBoardThreadMute>>,
+    TError,
+    { id: number; data: BodyType<SetBoardThreadMuteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setBoardThreadMute>>,
+  TError,
+  { id: number; data: BodyType<SetBoardThreadMuteBody> },
+  TContext
+> => {
+  return useMutation(getSetBoardThreadMuteMutationOptions(options));
 };
 
 /**

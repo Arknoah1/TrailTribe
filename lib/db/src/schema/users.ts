@@ -83,6 +83,7 @@ export const usersTable = pgTable("users", {
     eventReminders: boolean;
     rosterUpdates: boolean;
     boardReplies: boolean;
+    mutedBoardDiscussionIds?: number[];
   }>().default(sql`'{"practiceReminders":true,"coachMessages":true,"carpoolUpdates":true,"eventReminders":true,"rosterUpdates":true,"boardReplies":true}'::jsonb`).$defaultFn(() => ({
     practiceReminders: true,
     coachMessages: true,
@@ -90,6 +91,7 @@ export const usersTable = pgTable("users", {
     eventReminders: true,
     rosterUpdates: true,
     boardReplies: true,
+    mutedBoardDiscussionIds: [],
   })),
   boardLastSeenAt: timestamp("board_last_seen_at", { withTimezone: true }),
   calendarToken: text("calendar_token").unique(),

@@ -149,6 +149,17 @@ test("thread and reply actions use server-provided permissions", () => {
   assert.doesNotMatch(threadSource, /const canDelete = isCoachOrAdmin \|\| post\.authorUserId === me\?\.id;/);
 });
 
+test("members can mute a single discussion without changing the global Board activity preference", async () => {
+  const profileSource = await readFile(resolve(pagesDir, "profile.tsx"), "utf8");
+
+  assert.match(threadSource, /useSetBoardThreadMute/);
+  assert.match(threadSource, /aria-label=\{isThreadMuted \? "Unmute discussion alerts" : "Mute discussion alerts"\}/);
+  assert.match(threadSource, /setThreadMute\.mutate\(\{ id, data: \{ muted: !isThreadMuted \} \}/);
+  assert.match(threadSource, /mutedBoardDiscussionIds\?\.includes\(id\)/);
+  assert.match(profileSource, /key: "boardReplies", label: "Board activity"/);
+  assert.match(profileSource, /new discussions, replies, and reactions across the board/);
+});
+
 test("saved event discussion links explain access changes without exposing event details", () => {
   assert.match(threadSource, /EVENT_DISCUSSION_ACCESS_REVOKED/);
   assert.match(threadSource, /candidate\.status !== 403/);

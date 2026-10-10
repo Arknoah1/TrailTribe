@@ -138,6 +138,8 @@ export * from "./rsvpCounts";
 export * from "./sendBroadcastBody";
 export * from "./sendBroadcastBodyBodyFormat";
 export * from "./sendBroadcastBodyChannel";
+export * from "./setBoardThreadMute200";
+export * from "./setBoardThreadMuteBody";
 export * from "./setEventVolunteerTasksEnabledBody";
 export * from "./signUpForEventTaskBody";
 export * from "./staffRoleUpdate";

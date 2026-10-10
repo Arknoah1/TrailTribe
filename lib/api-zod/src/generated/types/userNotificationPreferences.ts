@@ -13,4 +13,5 @@ export interface UserNotificationPreferences {
   eventReminders: boolean;
   rosterUpdates: boolean;
   boardReplies: boolean;
+  mutedBoardDiscussionIds?: number[];
 }

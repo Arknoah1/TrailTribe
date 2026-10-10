@@ -46,6 +46,9 @@ import {
 import {
   RequestBoardImageUploadUrlBody,
   RequestBoardImageUploadUrlResponse,
+  SetBoardThreadMuteBody,
+  SetBoardThreadMuteParams,
+  SetBoardThreadMuteResponse,
 } from "@workspace/api-zod";
 
 const router = Router();
@@ -300,7 +303,10 @@ async function notifyThreadParticipants(
   const threadLink = createEmailLink(threadUrl, "Open discussion in TrailTeam");
 
   for (const user of participants) {
-    if (user.notificationPreferences?.boardReplies === false) continue;
+    if (
+      user.notificationPreferences?.boardReplies === false
+      || user.notificationPreferences?.mutedBoardDiscussionIds?.includes(threadId)
+    ) continue;
     await createNotification(
       user.id,
       "boardReplies",
@@ -423,6 +429,7 @@ async function notifyBoardActivity(
   ].join("");
   const emailUsers = accessibleRecipients.filter((user) =>
     user.notificationPreferences?.boardReplies !== false
+    && !user.notificationPreferences?.mutedBoardDiscussionIds?.includes(thread.id)
     && user.notificationsEnabled
     && user.emailNotifications
     && isDeliverableEmailAddress(user.email)
@@ -430,7 +437,10 @@ async function notifyBoardActivity(
   const orgPrefix = emailUsers.length > 0 ? await getShortNamePrefix() : "";
 
   await Promise.all(accessibleRecipients.map(async (user) => {
-    if (user.notificationPreferences?.boardReplies === false) return;
+    if (
+      user.notificationPreferences?.boardReplies === false
+      || user.notificationPreferences?.mutedBoardDiscussionIds?.includes(thread.id)
+    ) return;
     await createNotification(
       user.id,
       "boardReplies",
@@ -719,6 +729,62 @@ router.get("/board/threads/:id", requireApproved, async (req, res) => {
   }
   const result = { ...await enrichThread(thread, me), reactions: await getReactionSummary("thread", thread.id, me.id) };
   res.json(result);
+});
+
+// PUT /board/threads/:id/mute — mute or unmute this discussion for the current member.
+router.put("/board/threads/:id/mute", requireApproved, async (req, res) => {
+  const clerkUserId = (req as any).clerkUserId;
+  const params = SetBoardThreadMuteParams.safeParse(req.params);
+  const body = SetBoardThreadMuteBody.safeParse(req.body);
+  if (!params.success || !Number.isInteger(params.data?.id) || params.data.id <= 0) {
+    res.status(400).json({ error: "Invalid thread ID" });
+    return;
+  }
+  if (!body.success) {
+    res.status(400).json({ error: "muted must be a boolean" });
+    return;
+  }
+  const { id: threadId } = params.data;
+  const { muted } = body.data;
+
+  const me = await getMe(clerkUserId);
+  if (!me) { res.status(401).json({ error: "User not found" }); return; }
+  if (me.role === "student" && me.notificationPreferencesLocked) {
+    res.status(403).json({ error: "Your notification preferences are managed by your parent." });
+    return;
+  }
+
+  const thread = await db.query.boardThreadsTable.findFirst({ where: eq(boardThreadsTable.id, threadId) });
+  if (!thread) { res.status(404).json({ error: "Thread not found" }); return; }
+  if (!(await canAccessThread(me, thread))) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+
+  const mutedIds = me.notificationPreferences?.mutedBoardDiscussionIds ?? [];
+  const isMuted = mutedIds.includes(threadId);
+  if (isMuted !== muted) {
+    const nextMutedIds = muted
+      ? [...mutedIds, threadId]
+      : mutedIds.filter((id) => id !== threadId);
+    await db.update(usersTable)
+      .set({
+        notificationPreferences: {
+          ...(me.notificationPreferences ?? {
+            practiceReminders: true,
+            coachMessages: true,
+            carpoolUpdates: true,
+            eventReminders: true,
+            rosterUpdates: true,
+            boardReplies: true,
+          }),
+          mutedBoardDiscussionIds: nextMutedIds,
+        },
+      })
+      .where(eq(usersTable.id, me.id));
+  }
+
+  res.json(SetBoardThreadMuteResponse.parse({ muted }));
 });
 
 // GET /board/threads/:id/posts

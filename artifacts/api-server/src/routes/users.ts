@@ -25,6 +25,7 @@ const notificationPreferencesSchema = z.object({
   eventReminders: z.boolean(),
   rosterUpdates: z.boolean(),
   boardReplies: z.boolean().optional().default(true),
+  mutedBoardDiscussionIds: z.array(z.number().int().positive()).optional().default([]),
 });
 
 const approvalRoleSchema = z.literal("parent");
@@ -112,6 +113,7 @@ const DEFAULT_NOTIFICATION_PREFS = {
   eventReminders: true,
   rosterUpdates: true,
   boardReplies: true,
+  mutedBoardDiscussionIds: [],
 };
 
 /** A household is "returning" if it predates the active season and hasn't re-enrolled yet. */
@@ -492,7 +494,11 @@ router.patch("/users/me", requireAuth, async (req, res) => {
       res.status(400).json({ error: "Invalid notificationPreferences shape", details: parsed.error.issues });
       return;
     }
-    patch.notificationPreferences = parsed.data;
+    patch.notificationPreferences = {
+      ...parsed.data,
+      // Only the access-checked Board mute endpoint may change this list.
+      mutedBoardDiscussionIds: user.notificationPreferences?.mutedBoardDiscussionIds ?? [],
+    };
   }
 
   if (Object.keys(patch).length === 0) { res.json(user); return; }

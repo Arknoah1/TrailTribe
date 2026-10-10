@@ -2189,6 +2189,45 @@ paths:
         "204":
           description: Deleted
 
+  /board/threads/{id}/mute:
+    put:
+      operationId: setBoardThreadMute
+      tags: [board]
+      summary: Mute or unmute discussion alerts for the current member
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [muted]
+              properties:
+                muted:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated discussion alert setting
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [muted]
+                properties:
+                  muted:
+                    type: boolean
+        "403":
+          description: The member cannot access this discussion or manage notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /board/threads/{id}/posts:
     get:
       operationId: listBoardPosts
@@ -2696,6 +2735,10 @@ components:
           type: boolean
         boardReplies:
           type: boolean
+        mutedBoardDiscussionIds:
+          type: array
+          items:
+            type: integer
       required:
         - practiceReminders
         - coachMessages

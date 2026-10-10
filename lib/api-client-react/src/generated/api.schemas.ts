@@ -49,6 +49,7 @@ export interface UserNotificationPreferences {
   eventReminders: boolean;
   rosterUpdates: boolean;
   boardReplies: boolean;
+  mutedBoardDiscussionIds?: number[];
 }
 
 export type UserRole = (typeof UserRole)[keyof typeof UserRole];
@@ -1304,6 +1305,14 @@ export const ListBoardThreadsScope = {
   pod: "pod",
   event: "event",
 } as const;
+
+export type SetBoardThreadMuteBody = {
+  muted: boolean;
+};
+
+export type SetBoardThreadMute200 = {
+  muted: boolean;
+};
 
 export type GetBoardReactionDetailsParams = {
   reaction: GetBoardReactionDetailsReaction;

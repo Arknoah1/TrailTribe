@@ -10,6 +10,8 @@ import {
   useToggleBoardReaction,
   useGetBoardReactionDetails,
   useGetMe,
+  useSetBoardThreadMute,
+  getGetMeQueryKey,
   getGetBoardReactionDetailsQueryKey,
   getListBoardPostsQueryKey,
   getListBoardThreadsQueryKey
@@ -18,7 +20,7 @@ import type { BoardReactionSummary } from "@workspace/api-client-react";
 import { isOperationalStaff } from "@/lib/user-capabilities";
 import { format, formatDistanceToNow } from "date-fns";
 import { 
-  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus
+  AlertTriangle, ArrowLeft, Calendar as CalendarIcon, Check, Pin, Trash2, Send, Lock, MoreVertical, MessageSquare, RefreshCw, SmilePlus, Bell, BellOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -176,6 +178,8 @@ export default function BoardThread() {
   const deleteThread = useDeleteBoardThread();
   const pinThread = usePinBoardThread();
   const toggleReaction = useToggleBoardReaction();
+  const setThreadMute = useSetBoardThreadMute();
+  const isThreadMuted = me?.notificationPreferences?.mutedBoardDiscussionIds?.includes(id) ?? false;
   const [reactionDetails, setReactionDetails] = useState<{
     targetType: "thread" | "post";
     targetId: number;
@@ -346,6 +350,20 @@ export default function BoardThread() {
     });
   };
 
+  const handleToggleThreadMute = () => {
+    setThreadMute.mutate({ id, data: { muted: !isThreadMuted } }, {
+      onSuccess: ({ muted }) => {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+        toast({ title: muted ? "Discussion alerts muted" : "Discussion alerts unmuted" });
+      },
+      onError: (error) => toast({
+        title: "Couldn’t update discussion alerts",
+        description: (error as { data?: { error?: string } }).data?.error,
+        variant: "destructive",
+      }),
+    });
+  };
+
   if (isThreadLoading) return <div className="p-6 max-w-3xl mx-auto space-y-5"><Skeleton className="h-14 w-full rounded-xl" /><Skeleton className="h-40 w-full rounded-2xl" /></div>;
   if (isThreadError) {
     if (isEventDiscussionAccessDenied(threadError)) {
@@ -410,6 +428,19 @@ export default function BoardThread() {
               <span>{thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}</span>
             </div>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={isThreadMuted ? "Unmute discussion alerts" : "Mute discussion alerts"}
+            title={isThreadMuted ? "Unmute discussion alerts" : "Mute discussion alerts"}
+            disabled={setThreadMute.isPending}
+            onClick={handleToggleThreadMute}
+            className="mt-0.5 h-9 shrink-0 gap-1.5 px-2 sm:mt-0 sm:px-3"
+          >
+            {isThreadMuted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+            <span className="hidden sm:inline">{isThreadMuted ? "Unmute" : "Mute"}</span>
+          </Button>
           
           {canDeleteThread && (
             <DropdownMenu>

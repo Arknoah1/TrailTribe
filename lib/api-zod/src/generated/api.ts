@@ -291,6 +291,7 @@ export const GetMeResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -318,6 +319,7 @@ export const UpdateMeBody = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   defaultCarpoolSeats: zod.number().nullish(),
@@ -357,6 +359,7 @@ export const UpdateMeResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -431,6 +434,7 @@ export const ListUsersResponseItem = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -474,6 +478,7 @@ export const GetUserResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -505,6 +510,7 @@ export const UpdateUserBody = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   defaultCarpoolSeats: zod.number().nullish(),
@@ -544,6 +550,7 @@ export const UpdateUserResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -602,6 +609,7 @@ export const UpdateStaffRoleResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -674,6 +682,7 @@ export const ListHouseholdsResponseItem = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -748,6 +757,7 @@ export const GetHouseholdResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -991,6 +1001,7 @@ export const GetPodResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1030,6 +1041,7 @@ export const GetPodResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -1537,6 +1549,7 @@ export const ListEventRsvpsResponseItem = zod
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
             boardReplies: zod.boolean(),
+            mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -1593,6 +1606,7 @@ export const ListEventVolunteersResponseItem = zod
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
             boardReplies: zod.boolean(),
+            mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -1713,6 +1727,7 @@ export const ListEventTasksResponseItem = zod
                     eventReminders: zod.boolean(),
                     rosterUpdates: zod.boolean(),
                     boardReplies: zod.boolean(),
+                    mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
                   })
                   .nullish(),
                 createdAt: zod.coerce.date(),
@@ -1999,6 +2014,7 @@ export const ListEventCarpoolsResponseItem = zod
             eventReminders: zod.boolean(),
             rosterUpdates: zod.boolean(),
             boardReplies: zod.boolean(),
+            mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
           })
           .nullish(),
         createdAt: zod.coerce.date(),
@@ -2051,6 +2067,7 @@ export const ListEventCarpoolsResponseItem = zod
                     eventReminders: zod.boolean(),
                     rosterUpdates: zod.boolean(),
                     boardReplies: zod.boolean(),
+                    mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
                   })
                   .nullish(),
                 createdAt: zod.coerce.date(),
@@ -2224,6 +2241,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2263,6 +2281,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2305,6 +2324,7 @@ export const ListEventCarpoolRequestsResponseItem = zod
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
                   boardReplies: zod.boolean(),
+                  mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -2401,6 +2421,7 @@ export const UpdateCarpoolRequestResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2440,6 +2461,7 @@ export const UpdateCarpoolRequestResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2482,6 +2504,7 @@ export const UpdateCarpoolRequestResponse = zod
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
                   boardReplies: zod.boolean(),
+                  mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -2569,6 +2592,7 @@ export const MatchCarpoolRequestResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2608,6 +2632,7 @@ export const MatchCarpoolRequestResponse = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -2650,6 +2675,7 @@ export const MatchCarpoolRequestResponse = zod
                   eventReminders: zod.boolean(),
                   rosterUpdates: zod.boolean(),
                   boardReplies: zod.boolean(),
+                  mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
                 })
                 .nullish(),
               createdAt: zod.coerce.date(),
@@ -2798,6 +2824,7 @@ export const ListBroadcastsResponseItem = zod
               eventReminders: zod.boolean(),
               rosterUpdates: zod.boolean(),
               boardReplies: zod.boolean(),
+              mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
             })
             .nullish(),
           createdAt: zod.coerce.date(),
@@ -3131,6 +3158,21 @@ export const DeleteBoardThreadParams = zod.object({
 });
 
 /**
+ * @summary Mute or unmute discussion alerts for the current member
+ */
+export const SetBoardThreadMuteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SetBoardThreadMuteBody = zod.object({
+  muted: zod.boolean(),
+});
+
+export const SetBoardThreadMuteResponse = zod.object({
+  muted: zod.boolean(),
+});
+
+/**
  * @summary List posts in a thread
  */
 export const ListBoardPostsParams = zod.object({
@@ -3403,6 +3445,7 @@ export const ListPendingApprovalsResponseItem = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),
@@ -3457,6 +3500,7 @@ export const ApproveUserResponse = zod.object({
       eventReminders: zod.boolean(),
       rosterUpdates: zod.boolean(),
       boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod.array(zod.number()).optional(),
     })
     .nullish(),
   createdAt: zod.coerce.date(),

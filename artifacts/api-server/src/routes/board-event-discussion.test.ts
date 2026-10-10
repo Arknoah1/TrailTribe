@@ -388,6 +388,9 @@ vi.mock("@workspace/db", () => {
     update: vi.fn((source: object) => ({
       set: vi.fn((value: any) => ({
         where: vi.fn((condition: any) => {
+          if (source === usersTable) {
+            Object.assign(currentUser(), value);
+          }
           if (source === boardPostsTable) {
             const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
             if (post) Object.assign(post, value);
@@ -571,10 +574,11 @@ beforeEach(() => {
       notificationsEnabled: true,
       emailNotifications: true,
       pushNotifications: true,
-      notificationPreferences: { boardReplies: true },
+      notificationPreferences: { boardReplies: true, mutedBoardDiscussionIds: [] },
       email: user.id === COACH.id ? "coach@example.test" : "",
     });
   }
+  Object.assign(PARENT, { role: "parent", notificationPreferencesLocked: false });
 });
 
 function addEvent(id: number, startTime: Date, endTime: Date) {
@@ -684,6 +688,19 @@ async function createReply(
     body: JSON.stringify({ body, ...options }),
   });
   return { status: response.status, body: await response.json() };
+}
+
+async function setThreadMute(user: DiscussionUser, threadId: number, muted: boolean) {
+  currentClerkUserId = user.clerkUserId;
+  currentTargetId = threadId;
+  currentEventId = threads.find((thread) => thread.id === threadId)?.eventId ?? null;
+  const response = await fetch(`${baseUrl}/board/threads/${threadId}/mute`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-test-user": user.clerkUserId },
+    body: JSON.stringify({ muted }),
+  });
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
 async function createThreadWithImages(
@@ -1056,6 +1073,67 @@ describe("Community Board activity notifications", () => {
 
     expect(notificationMock.createNotification).not.toHaveBeenCalled();
     expect(emailMock.sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("per-discussion alert mutes", () => {
+  it("persists a member's mute and allows them to unmute the accessible discussion", async () => {
+    addThread(606, 0, NOW);
+
+    const muted = await setThreadMute(PARENT, 606, true);
+    expect(muted).toEqual({ status: 200, body: { muted: true } });
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([606]);
+
+    const repeatedMute = await setThreadMute(PARENT, 606, true);
+    expect(repeatedMute).toEqual({ status: 200, body: { muted: true } });
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([606]);
+
+    const unmuted = await setThreadMute(PARENT, 606, false);
+    expect(unmuted).toEqual({ status: 200, body: { muted: false } });
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([]);
+  });
+
+  it("enforces current discussion access and parent-locked notification preferences", async () => {
+    addThread(607, 0, NOW);
+    threads[0].podId = "pod-a";
+    const denied = await setThreadMute(OTHER_PARENT, 607, true);
+    expect(denied.status).toBe(403);
+    expect(OTHER_PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([]);
+    OTHER_PARENT.notificationPreferences.mutedBoardDiscussionIds = [607];
+    const deniedUnmute = await setThreadMute(OTHER_PARENT, 607, false);
+    expect(deniedUnmute.status).toBe(403);
+    expect(OTHER_PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([607]);
+
+    threads[0].podId = null;
+    Object.assign(PARENT, { role: "student", notificationPreferencesLocked: true });
+    const locked = await setThreadMute(PARENT, 607, true);
+    expect(locked.status).toBe(403);
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([]);
+    PARENT.notificationPreferences.mutedBoardDiscussionIds = [607];
+    const lockedUnmute = await setThreadMute(PARENT, 607, false);
+    expect(lockedUnmute.status).toBe(403);
+    expect(PARENT.notificationPreferences.mutedBoardDiscussionIds).toEqual([607]);
+  });
+
+  it("suppresses every alert channel only for the muted discussion", async () => {
+    const mutedThreadId = 608;
+    addThread(mutedThreadId, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    Object.assign(PARENT, {
+      email: "parent@example.test",
+      notificationPreferences: { boardReplies: true, mutedBoardDiscussionIds: [mutedThreadId] },
+    });
+
+    const reply = await createReply(RIDER, mutedThreadId);
+    expect(reply.status).toBe(201);
+
+    const newDiscussion = await createThreadWithImages(RIDER, []);
+    expect(newDiscussion.status).toBe(201);
+    await vi.waitFor(() => expect(emailMock.sendEmail.mock.calls.some((call) =>
+      call[0].to === PARENT.email && call[0].subject.includes("New discussion on the board"),
+    )).toBe(true));
+    expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id)).toHaveLength(1);
+    expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email)).toHaveLength(1);
   });
 });
 
