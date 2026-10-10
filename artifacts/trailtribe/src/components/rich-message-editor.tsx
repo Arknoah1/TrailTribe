@@ -12,10 +12,11 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> & {
   onChange: (value: string) => void;
   onPasteImages?: (files: File[]) => void;
   compact?: boolean;
+  compactOnMobile?: boolean;
 };
 
 export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function RichMessageEditor({
-  value, onChange, onPasteImages, compact, disabled, className, ...props
+  value, onChange, onPasteImages, compact, compactOnMobile, disabled, className, ...props
 }, forwardedRef) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [preview, setPreview] = useState(false);
@@ -44,24 +45,40 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
     });
   };
   return (
-    <div className="min-w-0 w-full space-y-2" data-testid="rich-message-editor">
-      <div className={compact ? "flex flex-nowrap items-center gap-0.5" : "flex flex-wrap gap-1"} role="toolbar" aria-label="Message formatting">
+      <div className="min-w-0 w-full space-y-2" data-testid="rich-message-editor">
+      <div className={compact
+        ? "flex flex-nowrap items-center gap-0.5"
+        : compactOnMobile
+          ? "flex flex-nowrap items-center gap-0 sm:flex-wrap sm:gap-1"
+          : "flex flex-wrap gap-1"} role="toolbar" aria-label="Message formatting" data-testid="message-formatting-toolbar">
         {[
           { action: "bold", label: "Bold", Icon: Bold }, { action: "italic", label: "Italic", Icon: Italic },
           { action: "bullets", label: "Bullet list", Icon: List },
           { action: "numbers", label: "Numbered list", Icon: ListOrdered }, { action: "link", label: "Insert link", Icon: Link2 },
           { action: "table", label: "Insert table", Icon: Table2 },
         ].filter(({ action }) => !compact || action !== "table").map(({ action, label, Icon }) => (
-          <Button key={action} type="button" variant="outline" size="icon" className={compact ? "h-9 w-9 shrink-0" : "h-11 w-11 md:h-8 md:w-8"} disabled={disabled}
+          <Button key={action} type="button" variant="outline" size="icon" className={compact
+            ? "h-9 w-9 shrink-0"
+            : compactOnMobile
+              ? "h-8 w-8 shrink-0 sm:h-9 sm:w-9 md:h-8 md:w-8"
+              : "h-11 w-11 md:h-8 md:w-8"} disabled={disabled}
             aria-label={label} title={label} data-testid={`format-${action}`}
             onMouseDown={event => event.preventDefault()} onClick={() => insert(action)}>
             <Icon className="h-4 w-4" />
           </Button>
         ))}
-        <Button type="button" variant="outline" size={compact ? "icon" : "sm"} className={compact ? "h-9 w-9 shrink-0 px-0" : "h-11 ml-auto md:h-8"} disabled={disabled}
+        <Button type="button" variant="outline" size={compact || compactOnMobile ? "icon" : "sm"} className={compact
+          ? "h-9 w-9 shrink-0 px-0"
+          : compactOnMobile
+            ? "h-8 w-8 shrink-0 px-0 sm:h-9 sm:w-auto sm:px-3 md:h-8"
+            : "h-11 ml-auto md:h-8"} disabled={disabled}
           aria-label={preview ? "Write message" : "Preview message"} aria-pressed={preview} data-testid="toggle-message-preview" onClick={() => setPreview(!preview)}>
-          {preview ? <Pencil className={compact ? "h-4 w-4" : "mr-1 h-3.5 w-3.5"} /> : <Eye className={compact ? "h-4 w-4" : "mr-1 h-3.5 w-3.5"} />}
-          {compact ? <span className="sr-only">{preview ? "Write" : "Preview"}</span> : (preview ? "Write" : "Preview")}
+          {preview ? <Pencil className={compact || compactOnMobile ? "h-4 w-4 sm:mr-1 sm:h-3.5 sm:w-3.5" : "mr-1 h-3.5 w-3.5"} /> : <Eye className={compact || compactOnMobile ? "h-4 w-4 sm:mr-1 sm:h-3.5 sm:w-3.5" : "mr-1 h-3.5 w-3.5"} />}
+          {compact
+            ? <span className="sr-only">{preview ? "Write" : "Preview"}</span>
+            : compactOnMobile
+              ? <span className="sr-only sm:not-sr-only">{preview ? "Write" : "Preview"}</span>
+              : (preview ? "Write" : "Preview")}
         </Button>
       </div>
       {linkSelection && (
@@ -119,7 +136,7 @@ export const RichMessageEditor = forwardRef<HTMLTextAreaElement, Props>(function
           }
         }}
       />
-      {!compact && <p className="text-xs text-muted-foreground">Use formatting buttons or Markdown. Paste Excel cells for a table; add a screenshot to keep exact colors and layout.</p>}
+      {!compact && <p className={`text-xs text-muted-foreground ${compactOnMobile ? "hidden sm:block" : ""}`}>Use formatting buttons or Markdown. Paste Excel cells for a table; add a screenshot to keep exact colors and layout.</p>}
     </div>
   );
 });

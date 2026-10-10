@@ -156,6 +156,7 @@ export default function NewBroadcast() {
             <div className="space-y-2">
               <Label htmlFor="broadcast-body">Message</Label>
               <RichMessageEditor
+                compactOnMobile
                 id="broadcast-body"
                 className="min-h-[150px]" 
                 value={body} 

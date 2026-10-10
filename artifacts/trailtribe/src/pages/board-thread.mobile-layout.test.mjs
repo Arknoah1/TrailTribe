@@ -137,9 +137,11 @@ test("native keyboard events keep the composer above the iOS keyboard without do
 test("the compact discussion toolbar stays in one row and omits the table action", () => {
   assert.doesNotMatch(editorSource, /Heading2/);
   assert.doesNotMatch(editorSource, /action:\s*"heading"/);
-  assert.match(editorSource, /compact \? "flex flex-nowrap items-center gap-0\.5" : "flex flex-wrap gap-1"/);
+  assert.match(editorSource, /compact\s*\?\s*"flex flex-nowrap items-center gap-0\.5"\s*:\s*compactOnMobile\s*\?/);
+  assert.match(editorSource, /"flex flex-nowrap items-center gap-0 sm:flex-wrap sm:gap-1"/);
   assert.match(editorSource, /\.filter\(\(\{ action \}\) => !compact \|\| action !== "table"\)/);
-  assert.match(editorSource, /compact \? "h-9 w-9 shrink-0" : "h-11 w-11 md:h-8 md:w-8"/);
+  assert.match(editorSource, /compact\s*\?\s*"h-9 w-9 shrink-0"\s*:\s*compactOnMobile\s*\?/);
+  assert.match(editorSource, /"h-8 w-8 shrink-0 sm:h-9 sm:w-9 md:h-8 md:w-8"/);
   assert.match(editorSource, /aria-label=\{preview \? "Write message" : "Preview message"\}/);
   assert.match(editorSource, /action: "table", label: "Insert table"/);
 });

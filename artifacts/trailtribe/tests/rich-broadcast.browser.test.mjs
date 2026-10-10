@@ -28,6 +28,44 @@ after(async () => {
   if (server && server.exitCode == null) { const exited = once(server, "exit"); server.kill("SIGTERM"); await exited; }
 });
 
+for (const viewport of [{ width: 320, height: 720 }, { width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+  for (const composer of ["broadcast", "thread"]) {
+    test(`${composer} formatting toolbar stays usable at ${viewport.width}px`, async () => {
+      const page = await browser.newPage({ viewport });
+      try {
+        await page.goto(`${baseUrl}${composer === "broadcast" ? "/messages/new" : "/messages?tab=general"}`);
+        if (composer === "thread") await page.getByRole("button", { name: "New Thread", exact: true }).click();
+
+        const toolbar = page.getByTestId("message-formatting-toolbar");
+        await toolbar.getByRole("button", { name: "Insert table", exact: true }).waitFor();
+        const layout = await toolbar.evaluate(element => {
+          const buttons = [...element.querySelectorAll("button")].map(button => {
+            const rect = button.getBoundingClientRect();
+            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+          });
+          return {
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            buttons,
+            viewportWidth: document.documentElement.clientWidth,
+          };
+        });
+        assert.equal(layout.scrollWidth, layout.clientWidth, "formatting actions should fit without horizontal toolbar scrolling");
+        assert.equal(layout.buttons.length, 7, "all formatting actions, including tables and preview, should remain available");
+        for (const button of layout.buttons) {
+          assert.ok(button.left >= 0 && button.right <= layout.viewportWidth, "each formatting action should stay inside the phone viewport");
+        }
+        if (viewport.width < 640) {
+          assert.equal(new Set(layout.buttons.map(button => button.top)).size, 1, "the compact mobile toolbar should stay on one row");
+        }
+        assert.equal(await page.getByRole("button", { name: "Insert table", exact: true }).isVisible(), true);
+      } finally {
+        await page.close();
+      }
+    });
+  }
+}
+
 async function pasteAddress(page, address, text) {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseUrl });
   await page.evaluate(text => navigator.clipboard.writeText(text), text);

@@ -545,7 +545,7 @@ export default function Messages() {
                       <FormItem>
                         <FormLabel className="font-bold">Message</FormLabel>
                         <FormControl>
-                          <RichMessageEditor placeholder="Share your thoughts..." className="min-h-[200px] border-2 border-[#0a0c10]" {...field}
+                          <RichMessageEditor compactOnMobile placeholder="Share your thoughts..." className="min-h-[200px] border-2 border-[#0a0c10]" {...field}
                             disabled={createThread.isPending} onPasteImages={files => threadPickerRef.current?.uploadFiles(files)} />
                         </FormControl>
                         <FormMessage />
