@@ -80,8 +80,9 @@ test("privacy describes stored reports and hide preferences and actual account d
 
 test("terms describe community rules, reporting, hiding, and the posting-only restriction", () => {
   assert.match(legalSource, /Any approved member can report a Board discussion or reply/);
-  assert.match(legalSource, /no response or resolution time is guaranteed/);
+  assert.match(legalSource, /Coaches and administrators review reports as soon as they can and handle harassment and\s+safety concerns first, but we cannot guarantee a specific response or resolution time\./);
   assert.match(legalSource, /Members can hide\s+or unhide Board members/);
+  assert.match(legalSource, /Coaches and administrators may remove Board\s+content or restrict a member’s ability to post on the Board/);
   assert.match(legalSource, /applies only to creating Board\s+threads and replies/);
   assert.match(legalSource, /Do not post harassment, threats/);
   assert.match(legalSource, /does not\s+enforce a separate numeric minimum age/);

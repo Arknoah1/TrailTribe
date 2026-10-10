@@ -63,7 +63,7 @@ export default function SupportPage() {
               </div>
               <h2 className="mt-5 font-display text-3xl tracking-wide">A real team, real people</h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                TrailTeam supports families, riders, coaches, and administrators in a high-school mountain-bike program. Support is handled by the team, not a 24-hour service desk.
+                TrailTeam supports families, riders, coaches, and administrators in a high-school mountain-bike program. Support is handled by the team's coaches and admins, who are volunteers, so replies may take a little time. For anything urgent, email the team admins.
               </p>
               <a href={`mailto:${supportEmail}`} data-testid="link-support-email" className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-extrabold text-primary underline decoration-primary/50 underline-offset-4">
                 Contact an admin <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -78,7 +78,7 @@ export default function SupportPage() {
                 <div>
                   <h2 className="font-extrabold">Report a Board post</h2>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    While signed in, open a discussion or reply, choose Report from its actions menu, select a reason, and send it with optional details. Coaches and admins can review reports. We do not promise a response time.
+                    While signed in, open a discussion or reply, choose Report from its actions menu, select a reason, and send it with optional details. Coaches and admins can review reports. Coaches review reports as soon as they can, and reports of harassment or safety concerns are handled first. For anything urgent, email the team admins.
                   </p>
                 </div>
               </div>
@@ -89,7 +89,7 @@ export default function SupportPage() {
                 <div>
                   <h2 className="font-extrabold">Hide a member</h2>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Members can hide or unhide other Board members in their own view. Hiding changes your Board experience; it does not submit a report or block that person from posting.
+                    Members can hide or unhide other Board members in their own view. Hiding changes your Board experience; it does not submit a report or block that person from posting. If a member breaks the community rules, coaches and admins can remove their content or restrict their ability to post on the Board.
                   </p>
                 </div>
               </div>

@@ -1,0 +1,23 @@
+I need two small wording changes on the public support page and matching changes to the terms. These are copy edits only: no routes, database, API, native-app, workflow or .well-known changes.
+
+Files: artifacts/trailtribe/src/pages/support.tsx, artifacts/trailtribe/src/pages/legal.tsx, and their existing tests (support.test.mjs, legal.test.mjs). Update the tests so they match the new wording, and do not delete any existing test.
+
+1. REPORT RESPONSE WORDING (support page)
+In the "Report a Board post" block, replace the sentence "We do not promise a response time." with:
+"Coaches review reports as soon as they can, and reports of harassment or safety concerns are handled first. For anything urgent, email the team admins."
+In the "A real team, real people" block, replace "Support is handled by the team, not a 24-hour service desk." with:
+"Support is handled by the team's coaches and admins, who are volunteers, so replies may take a little time. For anything urgent, email the team admins."
+Do not add a numeric deadline (no "24 hours" or similar) anywhere.
+
+2. COACH RESTRICTIONS NEXT TO REPORTING (support page)
+In the "Hide a member" block, after the existing sentence ending "or block that person from posting.", add:
+"If a member breaks the community rules, coaches and admins can remove their content or restrict their ability to post on the Board."
+Keep the existing text under "Account and access choices" about posting restrictions only applying to Board discussions and replies. Only say what the app really does: check that coaches and admins can in fact remove content and restrict a member from posting on the Board, and if either is not true, tell me instead of writing it.
+
+3. MATCHING TERMS WORDING (legal.tsx, Terms section about Board reports)
+Replace "Review is intended, but no response or resolution time is guaranteed." with:
+"Coaches and administrators review reports as soon as they can and handle harassment and safety concerns first, but we cannot guarantee a specific response or resolution time."
+Leave the rest of that paragraph unchanged. Make sure the Terms also say, in the community rules paragraph, that coaches and administrators may remove content or restrict a member's ability to post on the Board (add one short sentence if it is not already stated plainly).
+
+4. VERIFY AND REPORT BACK
+Run the support and legal tests and the full frontend test command, plus the typecheck, and fix anything these edits break. Then list the exact sentences you changed. Do not publish for me.

@@ -319,14 +319,16 @@ function TermsOfService() {
           other families, riders, coaches, and administrators. Do not post harassment, threats,
           discriminatory or sexually explicit material, spam, unlawful content, or another
           person’s private information. Coaches and administrators may limit access when needed to
-          protect the team or enforce these rules.
+          protect the team or enforce these rules. Coaches and administrators may remove Board
+          content or restrict a member’s ability to post on the Board.
         </p>
         <p>
           Any approved member can report a Board discussion or reply to coaches and administrators.
-          Review is intended, but no response or resolution time is guaranteed. Members can hide
-          or unhide Board members for their own view; hiding is a personal display preference, not
-          a report and not a restriction on another member’s access. The app stores submitted
-          reports with the reported item, selected reason, and any optional details, plus
+          Coaches and administrators review reports as soon as they can and handle harassment and
+          safety concerns first, but we cannot guarantee a specific response or resolution time.
+          Members can hide or unhide Board members for their own view; hiding is a personal display
+          preference, not a report and not a restriction on another member’s access. The app stores
+          submitted reports with the reported item, selected reason, and any optional details, plus
           preferences about which members a user has hidden.
         </p>
         <p>
