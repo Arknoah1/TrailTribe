@@ -6,7 +6,7 @@ import { PushNotifications, type ActionPerformed, type Token } from "@capacitor/
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { useAuth, useUser } from "@clerk/react";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "@/lib/theme-context";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -26,6 +26,30 @@ function appRoute(rawUrl: string | null | undefined): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * "1.2.0 (131)" inside the native apps (version name + build/version code), or
+ * null on the web. Play and the App Store only show the version name, so this
+ * is how testers and support confirm which build is actually installed.
+ */
+export function useNativeBuildLabel(): string | null {
+  const [label, setLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let disposed = false;
+    App.getInfo()
+      .then(({ version, build }) => {
+        if (!disposed) setLabel(`${version} (${build})`);
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+    };
+  }, []);
+
+  return label;
 }
 
 async function savePendingLink(route: string) {

@@ -37,7 +37,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import NotFound from "@/pages/not-found";
 import { Layout } from "@/components/layout";
-import { NativeAppBridge } from "@/lib/native-app";
+import { NativeAppBridge, useNativeBuildLabel } from "@/lib/native-app";
 import { hasRequiredUserName } from "@/lib/user-name";
 import { hasUserRole, isOperationalStaff } from "@/lib/user-capabilities";
 import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirect";
@@ -171,31 +171,42 @@ function SignInRedirect() {
 }
 
 function PolicyLinks() {
+  const buildLabel = useNativeBuildLabel();
   return (
-    <p className="text-center text-xs leading-5 text-muted-foreground">
-      By continuing, you acknowledge our{" "}
-      <a
-        href={`${basePath}/privacy`}
-        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
-        Privacy Policy
-      </a>{" "}
-      and{" "}
-      <a
-        href={`${basePath}/terms`}
-        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
-        Terms of Service
-      </a>
-      {"."}{" "}
-      <a
-        href={`${basePath}/support`}
-        data-testid="link-support-auth"
-        className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      >
-        Support
-      </a>
-    </p>
+    <div className="space-y-1">
+      <p className="text-center text-xs leading-5 text-muted-foreground">
+        By continuing, you acknowledge our{" "}
+        <a
+          href={`${basePath}/privacy`}
+          className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Privacy Policy
+        </a>{" "}
+        and{" "}
+        <a
+          href={`${basePath}/terms`}
+          className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Terms of Service
+        </a>
+        {"."}{" "}
+        <a
+          href={`${basePath}/support`}
+          data-testid="link-support-auth"
+          className="font-bold text-primary underline decoration-primary/50 underline-offset-4 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Support
+        </a>
+      </p>
+      {buildLabel ? (
+        <p
+          data-testid="text-app-build"
+          className="text-center text-[11px] leading-4 text-muted-foreground/70"
+        >
+          App version {buildLabel}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
