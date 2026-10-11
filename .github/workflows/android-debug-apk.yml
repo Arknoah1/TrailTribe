@@ -7,6 +7,14 @@ on:
         description: "GitHub prerelease tag, for example sideload-v1.0.0-1"
         required: true
         type: string
+      cap_hostname:
+        description: >-
+          Experiment: WebView hostname for this APK (blank = the default,
+          app.trailteam.app). Try "trailteam.app" to test Google sign-in
+          returning through the real domain.
+        required: false
+        type: string
+        default: ""
       debug_overlay:
         description: >-
           Show the on-screen diagnostics panel (console, fetch status, Clerk
@@ -109,6 +117,8 @@ jobs:
           VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
           # Read by src/main.tsx (on-screen diagnostics panel); false on tag pushes.
           VITE_DEBUG_OVERLAY: ${{ inputs.debug_overlay && 'true' || 'false' }}
+          # Read by capacitor.config.ts at sync time; blank keeps the default.
+          CAP_HOSTNAME: ${{ inputs.cap_hostname }}
         run: pnpm --filter @workspace/trailtribe run mobile:sync
 
       - name: Verify native web bundle
