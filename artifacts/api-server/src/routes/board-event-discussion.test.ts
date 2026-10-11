@@ -1524,6 +1524,50 @@ describe("per-discussion alert mutes", () => {
     expect(memberEmail?.html).toContain(`href="https://trailteam.app${expectedLink}">Open reply in TrailTeam</a>`);
   });
 
+  it("keeps reply alerts disabled when a member unmutes a discussion", async () => {
+    const threadId = 612;
+    addThread(threadId, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+
+    const preferences = await patchMemberProfile(PARENT, {
+      notificationPreferences: {
+        practiceReminders: true,
+        coachMessages: true,
+        carpoolUpdates: true,
+        eventReminders: true,
+        rosterUpdates: true,
+        boardReplies: false,
+      },
+    });
+    expect(preferences.status).toBe(200);
+
+    const muteResponse = await setThreadMute(PARENT, threadId, true);
+    expect(muteResponse).toEqual({ status: 200, body: { muted: true } });
+    expect(PARENT.notificationPreferences).toMatchObject({
+      boardReplies: false,
+      mutedBoardDiscussionIds: [threadId],
+    });
+
+    // A separate authenticated request represents unmuting from another session.
+    const unmuteResponse = await setThreadMute(PARENT, threadId, false);
+    expect(unmuteResponse).toEqual({ status: 200, body: { muted: false } });
+
+    const profile = await getMemberProfile(PARENT);
+    expect(profile.status).toBe(200);
+    expect(profile.body.notificationPreferences.boardReplies).toBe(false);
+    expect(profile.body.notificationPreferences.mutedBoardDiscussionIds).not.toContain(threadId);
+
+    const reply = await createReply(RIDER, threadId);
+    expect(reply.status).toBe(201);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+      .toHaveLength(0);
+    expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+      .toHaveLength(0);
+  });
+
   it("enforces current discussion access and parent-locked notification preferences", async () => {
     addThread(607, 0, NOW);
     threads[0].podId = "pod-a";
