@@ -129,6 +129,7 @@ import type {
   UpdatePodBody,
   UpdateUserBody,
   User,
+  UserProfilePatch,
   VolunteerSignup,
   VolunteerSignupBody,
   VolunteerSignupWithUser,
@@ -596,6 +597,92 @@ export const useUpdateMe = <
   TContext
 > => {
   return useMutation(getUpdateMeMutationOptions(options));
+};
+
+/**
+ * @summary Partially update the current user profile and notification preferences
+ */
+export const getPatchMeUrl = () => {
+  return `/api/users/me`;
+};
+
+export const patchMe = async (
+  userProfilePatch: UserProfilePatch,
+  options?: RequestInit,
+): Promise<User> => {
+  return customFetch<User>(getPatchMeUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(userProfilePatch),
+  });
+};
+
+export const getPatchMeMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof patchMe>>,
+    TError,
+    { data: BodyType<UserProfilePatch> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof patchMe>>,
+  TError,
+  { data: BodyType<UserProfilePatch> },
+  TContext
+> => {
+  const mutationKey = ["patchMe"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof patchMe>>,
+    { data: BodyType<UserProfilePatch> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return patchMe(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PatchMeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof patchMe>>
+>;
+export type PatchMeMutationBody = BodyType<UserProfilePatch>;
+export type PatchMeMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Partially update the current user profile and notification preferences
+ */
+export const usePatchMe = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof patchMe>>,
+    TError,
+    { data: BodyType<UserProfilePatch> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof patchMe>>,
+  TError,
+  { data: BodyType<UserProfilePatch> },
+  TContext
+> => {
+  return useMutation(getPatchMeMutationOptions(options));
 };
 
 /**

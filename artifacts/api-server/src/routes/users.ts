@@ -28,6 +28,18 @@ const notificationPreferencesSchema = z.object({
   mutedBoardDiscussionIds: z.array(z.number().int().positive()).optional().default([]),
 });
 
+const notificationPreferencesPatchSchema = z.object({
+  practiceReminders: z.boolean().optional(),
+  coachMessages: z.boolean().optional(),
+  carpoolUpdates: z.boolean().optional(),
+  eventReminders: z.boolean().optional(),
+  rosterUpdates: z.boolean().optional(),
+  boardReplies: z.boolean().optional(),
+  // Accepted for compatibility with older clients; the server preserves the
+  // authoritative list and never lets this profile endpoint edit it.
+  mutedBoardDiscussionIds: z.array(z.number().int().positive()).optional(),
+}).strict();
+
 const approvalRoleSchema = z.literal("parent");
 const requiredNameSchema = z.string().trim().min(1, "Name is required").max(100);
 const optionalNamePatchSchema = z.object({
@@ -501,16 +513,20 @@ router.patch("/users/me", requireAuth, async (req, res) => {
     }
   }
   if (notificationPreferences !== undefined) {
-    const parsed = notificationPreferencesSchema.safeParse(notificationPreferences);
+    const parsed = notificationPreferencesPatchSchema.safeParse(notificationPreferences);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid notificationPreferences shape", details: parsed.error.issues });
       return;
     }
-    patch.notificationPreferences = {
-      ...parsed.data,
-      // Only the access-checked Board mute endpoint may change this list.
-      mutedBoardDiscussionIds: user.notificationPreferences?.mutedBoardDiscussionIds ?? [],
-    };
+    const { mutedBoardDiscussionIds: _ignoredMutes, ...preferencePatch } = parsed.data;
+    if (Object.keys(preferencePatch).length > 0) {
+      // Merge against the current database value inside the UPDATE so
+      // overlapping saves for different topics cannot overwrite each other.
+      patch.notificationPreferences = sql`COALESCE(
+        ${usersTable.notificationPreferences},
+        ${JSON.stringify(DEFAULT_NOTIFICATION_PREFS)}::jsonb
+      ) || ${JSON.stringify(preferencePatch)}::jsonb`;
+    }
   }
 
   if (Object.keys(patch).length === 0) { res.json(user); return; }

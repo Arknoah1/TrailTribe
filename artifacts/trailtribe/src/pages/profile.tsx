@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { useAuthedFetch } from "@/lib/use-authed-fetch";
+import { createSequentialTaskQueue } from "@/lib/sequential-task-queue";
 import { DocumentConsentModal } from "@/components/document-consent-modal";
 import { LoadErrorCard, LoadingState } from "@/components/network-status";
 import { ProfileSkeleton } from "@/components/route-skeletons";
@@ -92,12 +93,21 @@ function NotificationsTab({ user }: { user: User }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const authedFetch = useAuthedFetch();
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [savingKeys, setSavingKeys] = useState<Set<string>>(() => new Set());
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
 
   // Optimistic local state so toggles never snap back while the server round-trips
   const [localUser, setLocalUser] = useState<User>(user);
-  useEffect(() => { setLocalUser(user); }, [user]);
+  const localUserRef = useRef(user);
+  const pendingSaves = useRef(0);
+  const pendingSavesByKey = useRef(new Map<string, number>());
+  const enqueueSave = useMemo(() => createSequentialTaskQueue(), []);
+  useEffect(() => {
+    if (pendingSaves.current === 0) {
+      localUserRef.current = user;
+      setLocalUser(user);
+    }
+  }, [user]);
 
   const prefs: UserNotificationPreferences = { ...DEFAULT_PREFS, ...(localUser.notificationPreferences ?? {}) };
   const masterOn: boolean = localUser.notificationsEnabled ?? true;
@@ -106,29 +116,55 @@ function NotificationsTab({ user }: { user: User }) {
   const prefsLocked = isStudentOnly(localUser) && !!(localUser as any).notificationPreferencesLocked;
 
   const save = async (patch: Record<string, any>, key: string) => {
-    // Optimistically apply the patch to local state immediately
-    setLocalUser(prev => ({ ...prev, ...patch }));
-    setSavingKey(key);
+    // Apply the patch immediately while sending requests in click order.
+    const currentUser = localUserRef.current;
+    const nextUser = {
+      ...currentUser,
+      ...patch,
+      ...(patch.notificationPreferences
+        ? {
+            notificationPreferences: {
+              ...(currentUser.notificationPreferences ?? DEFAULT_PREFS),
+              ...patch.notificationPreferences,
+            },
+          }
+        : {}),
+    };
+    localUserRef.current = nextUser;
+    setLocalUser(nextUser);
+    pendingSaves.current += 1;
+    pendingSavesByKey.current.set(key, (pendingSavesByKey.current.get(key) ?? 0) + 1);
+    setSavingKeys((current) => new Set(current).add(key));
     try {
-      const res = await authedFetch(`${BASE_URL}/api/users/me`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
+      const res = await enqueueSave(() => authedFetch(`${BASE_URL}/api/users/me`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        }));
       if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
         setRecentlySaved(key);
         setTimeout(() => setRecentlySaved(null), 2000);
       } else {
-        // Roll back optimistic update on failure
-        setLocalUser(user);
         toast({ title: "Failed to save", variant: "destructive" });
       }
     } catch {
-      setLocalUser(user);
       toast({ title: "Failed to save", variant: "destructive" });
     } finally {
-      setSavingKey(null);
+      pendingSaves.current -= 1;
+      const pendingForKey = (pendingSavesByKey.current.get(key) ?? 1) - 1;
+      if (pendingForKey === 0) {
+        pendingSavesByKey.current.delete(key);
+        setSavingKeys((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      } else {
+        pendingSavesByKey.current.set(key, pendingForKey);
+      }
+      if (pendingSaves.current === 0) {
+        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      }
     }
   };
 
@@ -150,7 +186,7 @@ function NotificationsTab({ user }: { user: User }) {
         <Switch
           checked={value}
           onCheckedChange={disabled ? undefined : onChange}
-          disabled={disabled || savingKey === toggleKey}
+          disabled={disabled || savingKeys.has(toggleKey)}
         />
       </div>
     </div>
@@ -239,7 +275,7 @@ function NotificationsTab({ user }: { user: User }) {
               description={desc}
               value={prefs[key as Exclude<keyof UserNotificationPreferences, "mutedBoardDiscussionIds">] ?? true}
               disabled={!masterOn || prefsLocked}
-              onChange={(v) => save({ notificationPreferences: { ...prefs, [key]: v } }, key)}
+              onChange={(v) => save({ notificationPreferences: { [key]: v } }, key)}
             />
           ))}
         </CardContent>

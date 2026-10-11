@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
 import express from "express";
 import { createServer, type Server } from "node:http";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 /* ─── mutable stub state — closed over by mock factories ─────────────── */
 // vi.mock factories are called lazily (at import time), after these
@@ -362,6 +363,38 @@ describe("PATCH /users/me — notification lock guard", () => {
     expect(resp.status).toBe(200);
     const notifUpdate = updateSetCalls.find((c) => c.notificationsEnabled === false);
     expect(notifUpdate, "db.update().set({ notificationsEnabled }) should have been called").toBeTruthy();
+  });
+
+  it("merges a single changed topic without replacing other saved preferences or discussion mutes", async () => {
+    mockUser = {
+      ...LOCKED_STUDENT,
+      role: "parent",
+      notificationPreferencesLocked: false,
+      notificationPreferences: {
+        practiceReminders: true,
+        coachMessages: true,
+        carpoolUpdates: true,
+        eventReminders: true,
+        rosterUpdates: true,
+        boardReplies: true,
+        mutedBoardDiscussionIds: [609],
+      },
+    };
+
+    const resp = await fetch(`${baseUrl}/users/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationPreferences: { coachMessages: false } }),
+    });
+
+    expect(resp.status).toBe(200);
+    const saved = updateSetCalls.find((call) => call.notificationPreferences);
+    expect(saved).toBeTruthy();
+    const mergeQuery = new PgDialect().sqlToQuery(saved!.notificationPreferences as any);
+    expect(mergeQuery.sql).toContain("COALESCE");
+    expect(mergeQuery.sql).toContain("||");
+    expect(mergeQuery.params).toContain(JSON.stringify({ coachMessages: false }));
+    expect(mergeQuery.sql).not.toContain("mutedBoardDiscussionIds");
   });
 
   it("preserves discussion mutes when a member saves notification preferences with PUT", async () => {

@@ -176,6 +176,8 @@ export * from "./updatePodBody";
 export * from "./updateUserBody";
 export * from "./user";
 export * from "./userNotificationPreferences";
+export * from "./userNotificationPreferencesPatch";
+export * from "./userProfilePatch";
 export * from "./userRole";
 export * from "./userRolesItem";
 export * from "./volunteerSignup";

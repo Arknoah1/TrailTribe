@@ -4,6 +4,7 @@
 - [TrailTribe test runner](trailtribe-test-runner.md) — prefer built-in Node tests when package-local browser tooling is unavailable
 - [Board reaction test mocks](board-reaction-test-mocks.md) — track request targets explicitly when lightweight Drizzle mocks cannot inspect SQL conditions
 - [API Zod exports](api-zod-exports.md) — export generated validators only; generated component types collide with operation validator names
+- [Notification preference patches](notification-preference-patches.md) — merge partial JSONB preference updates in the database to avoid lost toggles
 - [Mobile browser test runtime](mobile-browser-test-runtime.md) — Playwright Chromium checks need the browser binary and shared libraries declared in the workspace environment
 - [GitHub workflow-path limitation](github-connector-workflow-path.md) — the connector may block `.github/*` and Git tree mutations while ordinary file updates still work
 - [Orphaned sign-in cleanup](orphaned-sign-in-cleanup.md) — unfinished invited parent accounts may be safely removed only when they have no household and are unapproved

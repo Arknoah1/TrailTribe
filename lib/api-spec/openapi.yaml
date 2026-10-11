@@ -133,6 +133,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+    patch:
+      operationId: patchMe
+      tags: [users]
+      summary: Partially update the current user profile and notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfilePatch"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid profile or notification preference values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Notification preferences are managed by a parent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteMyAccount
       tags: [users]
@@ -3094,6 +3123,60 @@ components:
         defaultCarpoolTrays:
           type: integer
           nullable: true
+
+    UserProfilePatch:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        grade:
+          type: integer
+          nullable: true
+        notificationsEnabled:
+          type: boolean
+        emailNotifications:
+          type: boolean
+        smsNotifications:
+          type: boolean
+        pushNotifications:
+          type: boolean
+        notificationPreferences:
+          $ref: "#/components/schemas/UserNotificationPreferencesPatch"
+        defaultCarpoolSeats:
+          type: integer
+          nullable: true
+        defaultCarpoolTrays:
+          type: integer
+          nullable: true
+
+    UserNotificationPreferencesPatch:
+      type: object
+      additionalProperties: false
+      description: Only supplied topic values are changed; other saved topics and board mutes are preserved.
+      properties:
+        practiceReminders:
+          type: boolean
+        coachMessages:
+          type: boolean
+        carpoolUpdates:
+          type: boolean
+        eventReminders:
+          type: boolean
+        rosterUpdates:
+          type: boolean
+        boardReplies:
+          type: boolean
 
     OnboardUserBody:
       type: object

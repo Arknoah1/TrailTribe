@@ -381,6 +381,81 @@ export const UpdateMeResponse = zod.object({
 });
 
 /**
+ * @summary Partially update the current user profile and notification preferences
+ */
+export const PatchMeBody = zod.object({
+  firstName: zod.string().optional(),
+  lastName: zod.string().optional(),
+  phone: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
+  gender: zod.string().nullish(),
+  grade: zod.number().nullish(),
+  notificationsEnabled: zod.boolean().optional(),
+  emailNotifications: zod.boolean().optional(),
+  smsNotifications: zod.boolean().optional(),
+  pushNotifications: zod.boolean().optional(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean().optional(),
+      coachMessages: zod.boolean().optional(),
+      carpoolUpdates: zod.boolean().optional(),
+      eventReminders: zod.boolean().optional(),
+      rosterUpdates: zod.boolean().optional(),
+      boardReplies: zod.boolean().optional(),
+    })
+    .optional()
+    .describe(
+      "Only supplied topic values are changed; other saved topics and board mutes are preserved.",
+    ),
+  defaultCarpoolSeats: zod.number().nullish(),
+  defaultCarpoolTrays: zod.number().nullish(),
+});
+
+export const PatchMeResponse = zod.object({
+  id: zod.number(),
+  householdId: zod.number().nullish(),
+  firstName: zod.string(),
+  lastName: zod.string(),
+  email: zod.string(),
+  phone: zod.string().nullish(),
+  role: zod.enum(["super_admin", "coach", "parent", "student"]),
+  roles: zod
+    .array(zod.enum(["super_admin", "coach", "parent", "student"]))
+    .describe(
+      "All responsibilities assigned to this account. The legacy role remains the primary display role.",
+    ),
+  podId: zod.string().nullish(),
+  avatarUrl: zod.string().nullish(),
+  isActive: zod.boolean(),
+  gender: zod.string().nullish(),
+  grade: zod.number().nullish(),
+  coachCertLevel: zod.string().nullish(),
+  notificationsEnabled: zod.boolean(),
+  emailNotifications: zod.boolean(),
+  smsNotifications: zod.boolean(),
+  pushNotifications: zod.boolean(),
+  defaultCarpoolSeats: zod.number().nullish(),
+  defaultCarpoolTrays: zod.number().nullish(),
+  notificationPreferences: zod
+    .object({
+      practiceReminders: zod.boolean(),
+      coachMessages: zod.boolean(),
+      carpoolUpdates: zod.boolean(),
+      eventReminders: zod.boolean(),
+      rosterUpdates: zod.boolean(),
+      boardReplies: zod.boolean(),
+      mutedBoardDiscussionIds: zod
+        .array(zod.number())
+        .optional()
+        .describe(
+          "Discussion IDs muted for this member across signed-in sessions.",
+        ),
+    })
+    .nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary Permanently delete the current user's account and sign-in identity
  */
 export const DeleteMyAccountBody = zod.object({

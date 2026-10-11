@@ -113,6 +113,34 @@ export interface UpdateUserBody {
   defaultCarpoolTrays?: number | null;
 }
 
+/**
+ * Only supplied topic values are changed; other saved topics and board mutes are preserved.
+ */
+export interface UserNotificationPreferencesPatch {
+  practiceReminders?: boolean;
+  coachMessages?: boolean;
+  carpoolUpdates?: boolean;
+  eventReminders?: boolean;
+  rosterUpdates?: boolean;
+  boardReplies?: boolean;
+}
+
+export interface UserProfilePatch {
+  firstName?: string;
+  lastName?: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  gender?: string | null;
+  grade?: number | null;
+  notificationsEnabled?: boolean;
+  emailNotifications?: boolean;
+  smsNotifications?: boolean;
+  pushNotifications?: boolean;
+  notificationPreferences?: UserNotificationPreferencesPatch;
+  defaultCarpoolSeats?: number | null;
+  defaultCarpoolTrays?: number | null;
+}
+
 export type OnboardUserBodyRole =
   (typeof OnboardUserBodyRole)[keyof typeof OnboardUserBodyRole];
 

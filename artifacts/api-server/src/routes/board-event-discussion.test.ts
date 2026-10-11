@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vites
 import express from "express";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { isEventAudienceMember as sharedIsEventAudienceMember } from "@workspace/db/event-audience";
 
 const NOW = new Date("2026-08-20T12:00:00.000Z");
@@ -453,7 +454,16 @@ vi.mock("@workspace/db", () => {
         where: vi.fn((condition: any) => {
           if (source === usersTable) {
             const target = users.find((user) => user.id === targetIdFrom(condition)) ?? currentUser();
-            Object.assign(target, value);
+            const update = { ...value };
+            if (update.notificationPreferences?.queryChunks) {
+              const query = new PgDialect().sqlToQuery(update.notificationPreferences);
+              const preferencePatch = JSON.parse(String(query.params.at(-1)));
+              update.notificationPreferences = {
+                ...(target.notificationPreferences ?? {}),
+                ...preferencePatch,
+              };
+            }
+            Object.assign(target, update);
           }
           if (source === boardPostsTable) {
             const post = posts.find((candidate) => candidate.id === targetIdFrom(condition));
