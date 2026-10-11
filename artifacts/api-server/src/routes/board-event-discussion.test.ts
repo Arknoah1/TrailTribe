@@ -1534,6 +1534,57 @@ describe("per-discussion alert mutes", () => {
     expect(memberEmail?.html).toContain(`href="https://trailteam.app${expectedLink}">Open reply in TrailTeam</a>`);
   });
 
+  it("unmutes only the selected discussion and keeps other discussion alerts suppressed", async () => {
+    const unmutedThreadId = 613;
+    const stillMutedThreadId = 614;
+    addThread(unmutedThreadId, 0, NOW);
+    addThread(stillMutedThreadId, 0, NOW);
+    threads[0].authorUserId = PARENT.id;
+    threads[1].authorUserId = PARENT.id;
+    Object.assign(PARENT, { email: "parent@example.test" });
+
+    expect(await setThreadMute(PARENT, unmutedThreadId, true))
+      .toEqual({ status: 200, body: { muted: true } });
+    expect(await setThreadMute(PARENT, stillMutedThreadId, true))
+      .toEqual({ status: 200, body: { muted: true } });
+
+    const profileWithBothMuted = await getMemberProfile(PARENT);
+    expect(profileWithBothMuted.status).toBe(200);
+    expect(profileWithBothMuted.body.notificationPreferences.mutedBoardDiscussionIds)
+      .toEqual([unmutedThreadId, stillMutedThreadId]);
+
+    expect(await setThreadMute(PARENT, unmutedThreadId, false))
+      .toEqual({ status: 200, body: { muted: false } });
+    const profileAfterUnmute = await getMemberProfile(PARENT);
+    expect(profileAfterUnmute.status).toBe(200);
+    expect(profileAfterUnmute.body.notificationPreferences.mutedBoardDiscussionIds)
+      .toEqual([stillMutedThreadId]);
+
+    const unmutedReply = await createReply(RIDER, unmutedThreadId);
+    expect(unmutedReply.status).toBe(201);
+    const expectedLink = `/messages/thread/${unmutedThreadId}?reply=${unmutedReply.body.id}`;
+    await vi.waitFor(() => {
+      expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+        .toHaveLength(1);
+      expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+        .toHaveLength(1);
+    });
+    const memberAlert = notificationMock.createNotification.mock.calls
+      .find((call) => call[0] === PARENT.id);
+    expect(memberAlert?.[4]).toBe(expectedLink);
+    const memberEmail = emailMock.sendEmail.mock.calls.find((call) => call[0].to === PARENT.email)?.[0];
+    expect(memberEmail?.text).toContain(`Someone replied to "Thread ${unmutedThreadId}"`);
+    expect(memberEmail?.html).toContain(`href="https://trailteam.app${expectedLink}">Open reply in TrailTeam</a>`);
+
+    const stillMutedReply = await createReply(RIDER, stillMutedThreadId);
+    expect(stillMutedReply.status).toBe(201);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(notificationMock.createNotification.mock.calls.filter((call) => call[0] === PARENT.id))
+      .toHaveLength(1);
+    expect(emailMock.sendEmail.mock.calls.filter((call) => call[0].to === PARENT.email))
+      .toHaveLength(1);
+  });
+
   it("keeps reply alerts disabled when a member unmutes a discussion", async () => {
     const threadId = 612;
     addThread(threadId, 0, NOW);
