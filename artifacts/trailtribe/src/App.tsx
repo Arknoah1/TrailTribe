@@ -49,6 +49,13 @@ import { getRedirectUrlFromSearch, getSafeRedirectUrl } from "@/lib/auth-redirec
 // point at a Clerk domain that does not exist. Native builds therefore use the
 // key they were built with (VITE_CLERK_PUBLISHABLE_KEY, checked as pk_live_ by
 // vite.config.ts), exactly as before the host-derived key was introduced.
+// Social sign-in (Google, Apple, ...) is hidden inside the native apps. Those
+// flows leave the app for the system browser and return to the WebView's
+// internal hostname, which is not a real address, so they cannot complete.
+// Members sign in with an email code instead (accounts match by verified
+// email). The website keeps the social buttons.
+const hideSocialSignIn = Capacitor.isNativePlatform();
+
 const clerkPubKey = Capacitor.isNativePlatform()
   ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
   : publishableKeyFromHost(
@@ -431,6 +438,7 @@ function ClerkProviderWithRoutes() {
           fontFamily: "'DM Sans', sans-serif",
         },
         elements: {
+          ...(hideSocialSignIn ? { socialButtonsRoot: "!hidden", dividerRow: "!hidden" } : {}),
           card: "shadow-none !border-2 !border-[#0a0c10] bg-[#0f1115] !rounded-xl",
           formButtonPrimary: "!bg-[#00c2a8] !text-[#0a0c10] !font-bold !uppercase !tracking-wide !text-sm !border-2 !border-[#0a0c10] hover:!bg-[#00a892] !transition-all",
           footerActionLink: "!text-[#00c2a8] !font-semibold hover:!underline",
