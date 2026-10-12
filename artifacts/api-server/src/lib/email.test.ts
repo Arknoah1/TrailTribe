@@ -160,3 +160,67 @@ describe("transactional email headers", () => {
     }
   });
 });
+describe("temporary SMTP failures", () => {
+  const send = () => email.sendEmail({
+    to: "family@example.com",
+    subject: "Retry check",
+    text: "Body",
+  });
+
+  async function withFastRetries(run: () => Promise<void>) {
+    const previous = process.env.EMAIL_RETRY_DELAYS_MS;
+    const previousFrom = process.env.EMAIL_FROM;
+    process.env.EMAIL_RETRY_DELAYS_MS = "0,0";
+    process.env.EMAIL_FROM = "Methow Cycling Team <coaches@methowcyclingteam.com>";
+    smtp.sendMail.mockReset();
+    smtp.sendMail.mockResolvedValue({ messageId: "ok" });
+    try {
+      await run();
+    } finally {
+      if (previous === undefined) delete process.env.EMAIL_RETRY_DELAYS_MS;
+      else process.env.EMAIL_RETRY_DELAYS_MS = previous;
+      if (previousFrom === undefined) delete process.env.EMAIL_FROM;
+      else process.env.EMAIL_FROM = previousFrom;
+    }
+  }
+
+  it("retries Gmail's 421-4.3.0 rate limit and then delivers", async () => {
+    await withFastRetries(async () => {
+      smtp.sendMail.mockRejectedValueOnce(
+        Object.assign(new Error("421-4.3.0 Temporary System Problem"), { responseCode: 421 }),
+      );
+      await expect(send()).resolves.toEqual({ status: "sent" });
+      expect(smtp.sendMail).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("retries dropped connections", async () => {
+    await withFastRetries(async () => {
+      smtp.sendMail.mockRejectedValueOnce(Object.assign(new Error("reset"), { code: "ECONNRESET" }));
+      await expect(send()).resolves.toEqual({ status: "sent" });
+      expect(smtp.sendMail).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("gives up after the configured retries and reports the failure", async () => {
+    await withFastRetries(async () => {
+      const failure = Object.assign(new Error("421 try later"), { responseCode: 421 });
+      smtp.sendMail.mockRejectedValue(failure);
+      await expect(send()).resolves.toEqual({ status: "failed", error: failure });
+      expect(smtp.sendMail).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  it("does not retry permanent rejections or authentication failures", async () => {
+    await withFastRetries(async () => {
+      smtp.sendMail.mockRejectedValue(Object.assign(new Error("550 no such user"), { responseCode: 550 }));
+      await expect(send()).resolves.toMatchObject({ status: "failed" });
+      expect(smtp.sendMail).toHaveBeenCalledTimes(1);
+
+      smtp.sendMail.mockReset();
+      smtp.sendMail.mockRejectedValue(Object.assign(new Error("bad login"), { code: "EAUTH" }));
+      await expect(send()).resolves.toMatchObject({ status: "failed" });
+      expect(smtp.sendMail).toHaveBeenCalledTimes(1);
+    });
+  });
+});

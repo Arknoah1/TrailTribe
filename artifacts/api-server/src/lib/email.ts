@@ -23,6 +23,15 @@ const transporter =
         port: 465,
         secure: true, // SSL
         auth: { user: smtpUser, pass: smtpPass },
+        // Reuse a small set of connections and throttle. Without a pool every
+        // sendMail() opened its own connection, so a post fanned out to many
+        // members hit Gmail with a burst of simultaneous logins and Gmail
+        // answered some with a temporary "421-4.3.0" rejection.
+        pool: true,
+        maxConnections: 3,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 5,
       })
     : null;
 
@@ -99,6 +108,37 @@ export type EmailResult =
   | { status: "skipped"; reason: "no_api_key" | "no_valid_recipients" }
   | { status: "failed"; error: unknown };
 
+/**
+ * Temporary failures worth retrying: SMTP 4xx replies (Gmail's 421-4.3.0 rate
+ * limit, 450/451/452 mailbox/system busy) and dropped or timed-out connections.
+ * Authentication failures and permanent 5xx rejections are never retried.
+ */
+export function isTransientSmtpError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code;
+  const responseCode = (err as { responseCode?: number } | null)?.responseCode;
+  if (code === "EAUTH") return false;
+  if (responseCode !== undefined) return responseCode >= 400 && responseCode < 500;
+  return (
+    code === "ECONNECTION"
+    || code === "ETIMEDOUT"
+    || code === "ESOCKET"
+    || code === "ECONNRESET"
+    || code === "EDNS"
+  );
+}
+
+const DEFAULT_RETRY_DELAYS_MS = [2000, 6000];
+
+/** Delays between attempts; overridable (comma-separated ms) for tests and tuning. */
+function retryDelaysMs(): number[] {
+  const raw = process.env.EMAIL_RETRY_DELAYS_MS;
+  if (raw === undefined) return DEFAULT_RETRY_DELAYS_MS;
+  return raw
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+}
+
 export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
   if (!transporter) {
     logger.warn({ to: opts.to, subject: opts.subject }, "[email] skipping send — no SMTP credentials");
@@ -122,7 +162,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
       logger.info({ subject: opts.subject }, "[email] no valid recipients — skipping");
       return { status: "skipped", reason: "no_valid_recipients" };
     }
-    await transporter.sendMail({
+    const message = {
       from: fromAddress,
       to: filtered,
       subject: opts.subject,
@@ -130,7 +170,34 @@ export async function sendEmail(opts: SendEmailOptions): Promise<EmailResult> {
       ...(opts.html ? { html: opts.html } : {}),
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
       ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
-    });
+    };
+    const delays = retryDelaysMs();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await transporter.sendMail(message);
+        if (attempt > 0) {
+          logger.info(
+            { to: filtered, subject: opts.subject, attempts: attempt + 1 },
+            "[email] sent after retry",
+          );
+        }
+        break;
+      } catch (err) {
+        if (attempt >= delays.length || !isTransientSmtpError(err)) throw err;
+        logger.warn(
+          {
+            err,
+            to: filtered,
+            subject: opts.subject,
+            attempt: attempt + 1,
+            retryInMs: delays[attempt],
+            responseCode: (err as { responseCode?: number }).responseCode,
+          },
+          "[email] temporary SMTP failure — retrying",
+        );
+        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+      }
+    }
     logger.info({ to: filtered, subject: opts.subject }, "[email] sent");
     return { status: "sent" };
   } catch (err) {
