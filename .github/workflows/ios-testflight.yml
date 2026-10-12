@@ -106,6 +106,9 @@ jobs:
           if [ -n "${{ secrets.GOOGLE_SERVICES_IOS_PLIST_BASE64 }}" ]; then
             echo "${{ secrets.GOOGLE_SERVICES_IOS_PLIST_BASE64 }}" | base64 -d > artifacts/trailtribe/ios/App/App/GoogleService-Info.plist
             echo "Wrote GoogleService-Info.plist — push notifications will be enabled in this build."
+            # Read by src/lib/native-app.ts: the app only registers for push when this
+            # build actually contains Firebase config.
+            echo "VITE_PUSH_ENABLED=true" >> "$GITHUB_ENV"
           else
             echo "GOOGLE_SERVICES_IOS_PLIST_BASE64 not set — build will fail (the Xcode project references this file as a Resources build phase input)."
             exit 1

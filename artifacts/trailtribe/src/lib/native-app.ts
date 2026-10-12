@@ -12,6 +12,8 @@ import { useTheme } from "@/lib/theme-context";
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const PENDING_LINK_KEY = "trailtribe.pending-link";
 const PUSH_TOKEN_KEY = "trailtribe.push-token";
+// Set by the native build workflows only when Firebase client config is present.
+const PUSH_ENABLED = import.meta.env.VITE_PUSH_ENABLED === "true";
 const API_BASE = `${(import.meta.env.VITE_API_ORIGIN ?? BASE_URL).replace(/\/$/, "")}/api`;
 
 function appRoute(rawUrl: string | null | undefined): string | null {
@@ -125,12 +127,22 @@ export function NativeAppBridge() {
     let cancelled = false;
 
     const registerPush = async () => {
-      // Push notifications are not yet configured for Android — there is no real
-      // google-services.json in the native project, so calling
-      // PushNotifications.register() crashes the whole app natively (Firebase is
-      // never initialized). Re-enable this once a real Firebase project and
-      // google-services.json have been added to artifacts/trailtribe/android/app/.
-      return;
+      // Only builds that were produced with Firebase config can register: the
+      // Android/iOS workflows set VITE_PUSH_ENABLED=true when they write
+      // google-services.json / GoogleService-Info.plist. Calling register() in a
+      // build without it crashes the app natively, so it stays off there.
+      if (!PUSH_ENABLED) return;
+
+      let permission = await PushNotifications.checkPermissions();
+      if (permission.receive === "prompt" || permission.receive === "prompt-with-rationale") {
+        permission = await PushNotifications.requestPermissions();
+      }
+      if (permission.receive !== "granted") {
+        console.info("[TrailTeam] push permission not granted:", permission.receive);
+        return;
+      }
+      if (cancelled) return;
+      await PushNotifications.register();
     };
 
     const tokenListener = PushNotifications.addListener("registration", (token: Token) => {
